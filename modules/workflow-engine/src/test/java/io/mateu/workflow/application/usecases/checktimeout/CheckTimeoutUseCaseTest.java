@@ -26,6 +26,7 @@ class CheckTimeoutUseCaseTest {
     @Mock StepExecutionRepository stepExecutionRepository;
     @Mock ProcessRepository processRepository;
     @Mock CheckStepTimeoutHandler checkStepTimeoutHandler;
+    @Mock io.mateu.workflow.application.usecases.checktimeout.escalateusertask.EscalateUserTaskHandler escalateUserTaskHandler;
 
     @InjectMocks CheckTimeoutUseCase useCase;
 
@@ -122,5 +123,42 @@ class CheckTimeoutUseCaseTest {
         useCase.handle(new CheckTimeoutCommand("p-1"));
 
         verifyNoInteractions(processRepository);
+    }
+
+    private StepExecution userTask(String timeout, LocalDateTime startedAt) {
+        var step = JsonSerializer.pojoFromJson("""
+                {"id": "approve", "type": "USER_TASK", "name": "Approve", "formId": "f", %s
+                 "escalation": [{"after": "PT1H"}]}""".formatted(timeout), Step.class);
+        return StepExecution.builder()
+                .id("se-ut").processId("p-1")
+                .stepJson(JsonSerializer.toJson(step))
+                .status(StepExecutionStatus.PENDING)
+                .variables(List.of())
+                .startedAt(startedAt)
+                .build();
+    }
+
+    /** A USER_TASK found by its next escalation is escalated, not timed out. */
+    @Test
+    void aUserTaskDueForAnEscalationIsEscalated() {
+        var due = userTask("", LocalDateTime.now().minusHours(2));
+        when(stepExecutionRepository.findDueByProcessId(eq("p-1"), any())).thenReturn(List.of(due));
+
+        useCase.handle(new CheckTimeoutCommand("p-1"));
+
+        verify(escalateUserTaskHandler).handle("se-ut");
+        verify(checkStepTimeoutHandler, never()).handle(any());
+    }
+
+    /** Its time limit passed too: the limit wins, and the task times out instead. */
+    @Test
+    void aUserTaskPastItsTimeLimitTimesOutRatherThanEscalates() {
+        var due = userTask("\"timeout\": \"PT90M\",", LocalDateTime.now().minusHours(2));
+        when(stepExecutionRepository.findDueByProcessId(eq("p-1"), any())).thenReturn(List.of(due));
+
+        useCase.handle(new CheckTimeoutCommand("p-1"));
+
+        verify(checkStepTimeoutHandler).handle(any());
+        verify(escalateUserTaskHandler, never()).handle(any());
     }
 }

@@ -7,54 +7,86 @@ import io.mateu.uidl.annotations.Trigger;
 import io.mateu.uidl.annotations.TriggerType;
 import io.mateu.uidl.data.*;
 import io.mateu.uidl.interfaces.HttpRequest;
-import io.mateu.workflow.domain.FormExecutionStatus;
-import io.mateu.workflow.infra.out.persistence.FormExecutionEntityRepository;
+import io.mateu.workflow.application.services.TaskCallers;
+import io.mateu.workflow.application.services.TaskInbox;
+import io.mateu.workflow.application.services.TaskInboxOrder;
+import io.mateu.workflow.application.usecases.claimtask.ClaimTaskUseCase;
+import io.mateu.workflow.domain.FormExecution;
+import io.mateu.workflow.domain.TaskQuery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
 
-record TaskRow(String id, String name, String form, String assignedTo, Status status, ColumnAction run) {}
+record TaskRow(String id, String name, String form, int priority, String due, Status overdue,
+               String assignedTo, String offeredTo, Status status, ColumnAction run) {}
 
 @Service
 @Slf4j
 @Trigger(type = TriggerType.OnLoad, actionId = "search")
 @Trigger(type = TriggerType.OnSuccess, actionId = "search", calledActionId = "claim")
 @RequiredArgsConstructor
-public class Tasks extends Crud<TaskRow, TaskRow, TaskRow, NoFilters, TaskRow, String> {
+public class Tasks extends Crud<TaskRow, TaskRow, TaskRow, TaskFilters, TaskRow, String> {
 
-    final FormExecutionEntityRepository repository;
-    final io.mateu.workflow.application.services.TaskAuthorization taskAuthorization;
+    final TaskInbox taskInbox;
+    final TaskCallers taskCallers;
+    final ClaimTaskUseCase claimTaskUseCase;
+
+    private static final DateTimeFormatter DUE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
+    @Override
+    public Class<TaskFilters> filtersClass() {
+        return TaskFilters.class;
+    }
+
+    @Override
+    public Class<TaskRow> rowClass() {
+        return TaskRow.class;
+    }
 
     // Mateu 271 removed the io.mateu.core.infra.declarative.Listing base class (and the
     // ListingBackend port). A read-only listing page is now a Crud whose CRUD capabilities
     // are disabled; only search + the row/toolbar actions remain.
+    //
+    // What a person may see is the inbox's to decide (TaskInbox: what the task names, and what its
+    // form requires) — the same rule as Tasks v2, the REST API and the MCP tools, so no two listings
+    // of the same tasks disagree. Most urgent first, then soonest due.
     @Override
     public ListingData<TaskRow> search(SearchRequest searchRequest, HttpRequest httpRequest) {
         var pageable = searchRequest.pageable();
-        var statuses = List.of(FormExecutionStatus.PENDING.name());
-        var user = JwtExtractor.getUsername(httpRequest).orElse(null);
-        var request = org.springframework.data.domain.PageRequest.of(pageable.page(), pageable.size(),
-                org.springframework.data.domain.Sort.by("id"));
-        // The same narrowing TasksV2 does. Two listings of the same rows must not disagree about
-        // which of them a person is allowed to see.
-        var permitted = taskAuthorization.enabled() ? taskAuthorization.permittedFormIds() : null;
-        var page = permitted == null
-                ? repository.findTaskSummariesByStatusAndUser(statuses, user, request)
-                : permitted.isEmpty()
-                        ? org.springframework.data.domain.Page.<FormExecutionEntityRepository.TaskSummary>empty(request)
-                        : repository.findTaskSummariesByStatusAndUserAndForms(statuses, user, permitted, request);
-        var content = page.getContent().stream()
+        var filters = searchRequest.filters() instanceof TaskFilters f ? f : null;
+        var caller = taskCallers.forUser(JwtExtractor.getUsername(httpRequest).orElse(null));
+        var query = new TaskQuery(
+                filters == null || filters.scope() == null ? TaskQuery.Scope.ALL : filters.scope().scope(),
+                null,
+                filters == null ? null : filters.minPriority(),
+                filters != null && filters.overdueOnly() ? Boolean.TRUE : null,
+                null,
+                filters == null ? null : filters.processId(),
+                filters == null ? null : filters.businessKey(),
+                null,
+                TaskQuery.Sort.PRIORITY,
+                pageable == null ? 0 : pageable.page(),
+                pageable == null ? TaskQuery.DEFAULT_SIZE : pageable.size());
+        var page = taskInbox.search(query, caller);
+        var now = TaskInboxOrder.nowUtc();
+        var content = page.items().stream()
                 .map(task -> new TaskRow(
-                        task.getId(),
-                        task.getProcessId(),
-                        task.getFormId(),
-                        task.getUserId(),
-                        mapStatus(task.getStatus()),
+                        task.id(),
+                        task.businessKey() != null ? task.businessKey() : task.processId(),
+                        task.formId(),
+                        task.priorityOrDefault(),
+                        task.dueDate() == null ? "" : DUE.format(task.dueDate()) + " UTC",
+                        task.isOverdue(now) ? new Status(StatusType.DANGER, "Overdue")
+                                : task.escalations() > 0 ? new Status(StatusType.WARNING, "Escalated")
+                                : new Status(StatusType.NONE, ""),
+                        task.userId(),
+                        offeredTo(task),
+                        mapStatus(task.status().name()),
                         ColumnAction.builder()
                                 .methodNameInCrud("run")
                                 .label("Run")
@@ -63,12 +95,24 @@ public class Tasks extends Crud<TaskRow, TaskRow, TaskRow, NoFilters, TaskRow, S
                 .toList();
         return ListingData.<TaskRow>builder()
                 .page(Page.<TaskRow>builder()
-                        .pageSize(page.getSize())
-                        .pageNumber(page.getNumber())
-                        .totalElements(page.getTotalElements())
+                        .pageSize(page.size())
+                        .pageNumber(page.page())
+                        .totalElements(page.total())
                         .content(content)
                         .build())
                 .build();
+    }
+
+    /** Who an unassigned task is offered to, in a few words. */
+    static String offeredTo(FormExecution task) {
+        var parts = new java.util.ArrayList<String>();
+        if (!task.candidateUsers().isEmpty()) {
+            parts.add(String.join(", ", task.candidateUsers()));
+        }
+        if (!task.candidateGroups().isEmpty()) {
+            parts.add("groups " + String.join(", ", task.candidateGroups()));
+        }
+        return parts.isEmpty() ? (task.isRestricted() ? "" : "anyone") : String.join("; ", parts);
     }
 
     @Override
@@ -124,24 +168,31 @@ public class Tasks extends Crud<TaskRow, TaskRow, TaskRow, NoFilters, TaskRow, S
     private Status mapStatus(String status) {
         StatusType statusType = switch (status) {
             case "PENDING" -> StatusType.INFO;
-            case "RUNNING" -> StatusType.WARNING;
+            case "ASSIGNED" -> StatusType.WARNING;
             case "COMPLETED" -> StatusType.SUCCESS;
-            case "ERROR" -> StatusType.DANGER;
+            case "CANCELLED", "ERROR" -> StatusType.DANGER;
             default -> StatusType.NONE;
         };
         return new Status(statusType, toUpperCaseFirst(status));
     }
 
     @Toolbar
-    @Transactional
     public void claim(List<TaskRow> selectedRows, HttpRequest httpRequest) {
         if (selectedRows.isEmpty()) {
             return;
         }
-        var userId = JwtExtractor.getUsername(httpRequest).orElseThrow();
-        var ids = selectedRows.stream().map(TaskRow::id).toList();
-        var claimed = repository.claim(ids, userId);
-        log.info("claimed {} of {} selected tasks for user {}", claimed, ids.size(), userId);
+        var caller = taskCallers.forUser(JwtExtractor.getUsername(httpRequest).orElseThrow());
+        var claimed = 0;
+        for (var row : selectedRows) {
+            try {
+                claimTaskUseCase.handle(row.id(), caller);
+                claimed++;
+            } catch (RuntimeException e) {
+                // Somebody else's already, or not offered to this person: the rest still get claimed.
+                log.info("task {} not claimed by {}: {}", row.id(), caller.subject(), e.getMessage());
+            }
+        }
+        log.info("claimed {} of {} selected tasks for user {}", claimed, selectedRows.size(), caller.subject());
     }
 
     public UICommand run(TaskRow selectedRow, HttpRequest httpRequest) {

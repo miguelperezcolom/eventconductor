@@ -57,6 +57,9 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
     final StreamBridge streamBridge;
     final CompleteTaskUseCase completeTaskUseCase;
     final io.mateu.workflow.application.services.TaskAuthorization taskAuthorization;
+    final io.mateu.workflow.application.services.TaskCallers taskCallers;
+    final io.mateu.workflow.application.usecases.claimtask.ClaimTaskUseCase claimTaskUseCase;
+    final io.mateu.workflow.application.usecases.releasetask.ReleaseTaskUseCase releaseTaskUseCase;
 
     String _taskId;
 
@@ -154,6 +157,17 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
         var execution = formExecutionRepository.findById(_taskId).orElseThrow();
         var form = formRepository.findById(execution.formId()).orElseThrow();
         var username = JwtExtractor.getUsername(httpRequest).orElse(null);
+        // A task that names who it is for is shown to them (and to task admins) only: the same rule
+        // the lists apply, here because a task's link travels.
+        if (!io.mateu.workflow.application.services.TaskVisibility.canSee(execution, taskCallers.forUser(username))) {
+            return Form.builder()
+                    .title("Task " + _taskId)
+                    .style(StyleConstants.CONTAINER)
+                    .subtitle("This task is not offered to you.")
+                    .content(List.of())
+                    .button(Button.builder().label("Back to list").actionId("back").build())
+                    .build();
+        }
         var open = isOpen(execution);
         var unassigned = execution.userId() == null || execution.userId().isBlank();
         // Editable by whoever claimed it while it is open — the rule Complete enforces, so a field is
@@ -215,7 +229,15 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
                 : unassigned ? "Unassigned — claim it to fill it in"
                 : mine ? "Claimed by you"
                 : "Claimed by " + execution.userId();
-        return state + (execution.processId() == null ? "" : " · process " + execution.processId());
+        return state
+                + " · priority " + execution.priorityOrDefault()
+                + (execution.dueDate() == null ? "" : " · due " + execution.dueDate().toString().replace('T', ' ') + " UTC"
+                        + (execution.isOverdue(io.mateu.workflow.application.services.TaskInboxOrder.nowUtc()) ? " (overdue)" : ""))
+                + (execution.escalations() > 0 ? " · escalated" : "")
+                + (unassigned && open && !execution.candidateGroups().isEmpty()
+                        ? " · offered to " + String.join(", ", execution.candidateGroups()) : "")
+                + (execution.businessKey() == null ? "" : " · " + execution.businessKey())
+                + (execution.processId() == null ? "" : " · process " + execution.processId());
     }
 
     @Override
@@ -255,44 +277,29 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
             return toTasks(httpRequest);
         }
         if ("claim".equals(actionId)) {
-            var execution = formExecutionRepository.findById(_taskId).orElseThrow();
-            taskAuthorization.refuseIfCallerMayNot("claim",
-                    formRepository.findById(execution.formId()).orElse(null), _taskId);
             // The caller, not a name: this used to write "miguel" into every task it claimed, and
             // Complete — enabled for the task's assignee — was then nobody's to press.
             var username = JwtExtractor.getUsername(httpRequest).orElseThrow(
                     () -> new IllegalStateException("Claiming a task needs a signed-in user"));
-            if (!isOpen(execution)) {
-                return this;
+            try {
+                // Offered to this person, its form allowing them, and nobody holding it: claiming
+                // does not take work away from a person (ClaimTaskUseCase).
+                claimTaskUseCase.handle(_taskId, taskCallers.forUser(username));
+            } catch (io.mateu.workflow.application.services.TaskActionRefusedException
+                     | io.mateu.workflow.application.services.TaskNotFoundException e) {
+                log.info("task {} could not be claimed by {}: {}", _taskId, username, e.getMessage());
             }
-            if (execution.userId() != null && !execution.userId().isBlank()) {
-                // Already someone's: claiming does not take work away from a person.
-                log.info("task {} could not be claimed by {} (assigned to {})", _taskId, username, execution.userId());
-                return this;
-            }
-            execution = execution.withUserId(username);
-            formExecutionRepository.save(execution);
-            streamBridge.send("upstream", new TaskLogEmitted(
-                    execution.stepExecutionId(),
-                    MessageType.Info,
-                    "form " + execution.formId() + " claimed by " + execution.userId()));
         }
         if ("release".equals(actionId)) {
-            var execution = formExecutionRepository.findById(_taskId).orElseThrow();
             var username = JwtExtractor.getUsername(httpRequest).orElse(null);
-            // Handed back by whoever holds it, and only by them: releasing does not take work away
+            // Handed back by whoever holds it (or a task admin): releasing does not take work away
             // from somebody else, any more than claiming does.
-            if (!isOpen(execution) || username == null || !username.equals(execution.userId())) {
-                log.info("task {} not releasable by {} (status {}, assigned to {})",
-                        _taskId, username, execution.status(), execution.userId());
-                return this;
+            try {
+                releaseTaskUseCase.handle(_taskId, taskCallers.forUser(username));
+            } catch (io.mateu.workflow.application.services.TaskActionRefusedException
+                     | io.mateu.workflow.application.services.TaskNotFoundException e) {
+                log.info("task {} not releasable by {}: {}", _taskId, username, e.getMessage());
             }
-            execution = execution.withUserId(null).withStatus(FormExecutionStatus.PENDING);
-            formExecutionRepository.save(execution);
-            streamBridge.send("upstream", new TaskLogEmitted(
-                    execution.stepExecutionId(),
-                    MessageType.Info,
-                    "form " + execution.formId() + " released by " + username));
         }
         if ("back".equals(actionId)) {
             return toTasks(httpRequest);

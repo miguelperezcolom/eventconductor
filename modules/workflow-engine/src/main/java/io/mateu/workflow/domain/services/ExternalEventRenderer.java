@@ -1,5 +1,7 @@
 package io.mateu.workflow.domain.services;
 
+import java.util.Map;
+
 import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.Step;
@@ -26,6 +28,18 @@ public final class ExternalEventRenderer {
 
     public static ExternalEventRequested render(Step step, Process process, String stepExecutionId,
                                                 EventDestinationsProperties destinations, boolean kafkaMode) {
+        return render(step, process, stepExecutionId, stepExecutionId, destinations, kafkaMode, null, Map.of());
+    }
+
+    /**
+     * The same, for an event that is not the step's own completion — a USER_TASK escalation's
+     * {@code publishEvent}: its own {@code eventId} (stable across redeliveries, distinct per
+     * escalation), an iteration's {@code scope}, and {@code extra} names laid over the template context
+     * (e.g. {@code escalation}).
+     */
+    public static ExternalEventRequested render(Step step, Process process, String stepExecutionId, String eventId,
+                                                EventDestinationsProperties destinations, boolean kafkaMode,
+                                                Map<String, Object> scope, Map<String, Object> extra) {
         var event = step.event();
         if (event == null || blank(event.destination()) || blank(event.type())) {
             throw new IllegalArgumentException("PUBLISH_EVENT step '" + step.id() + "' needs an event with a destination and a type.");
@@ -45,7 +59,10 @@ public final class ExternalEventRenderer {
             throw new IllegalArgumentException("PUBLISH_EVENT step '" + step.id()
                     + "' declares more than one of payload, payloadTemplate and payloadVariables.");
         }
-        var context = TemplateContext.of(process, step, stepExecutionId);
+        var context = TemplateContext.of(process, step, stepExecutionId, scope);
+        if (extra != null) {
+            context.putAll(extra);
+        }
         String data;
         if (event.payload() != null) {
             data = Templates.renderJson(event.payload(), context);
@@ -74,7 +91,7 @@ public final class ExternalEventRenderer {
         if (blank(key)) {
             key = !blank(process.getBusinessKey()) ? process.getBusinessKey() : process.getId();
         }
-        return new ExternalEventRequested(stepExecutionId, event.destination(), event.type(), key, event.format(),
+        return new ExternalEventRequested(eventId, event.destination(), event.type(), key, event.format(),
                 data, process.getId(), process.getWorkflowDefinitionId(), step.id(), process.getBusinessKey(),
                 EngineClock.instant().toString());
     }

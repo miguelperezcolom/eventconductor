@@ -30,12 +30,15 @@ class FormsMcpToolSurfaceTest {
             "listFormExecutions",
             "getFormExecution",
             "importFormsFromGit",
+            "searchTasks",
     };
 
     private final FormRepository formRepository = mock(FormRepository.class);
     private final FormExecutionRepository formExecutionRepository = mock(FormExecutionRepository.class);
     private final FormsMcpTools tools = new FormsMcpTools(
-            formRepository, formExecutionRepository, mock(ImportFormsFromGitUseCase.class));
+            formRepository, formExecutionRepository, mock(ImportFormsFromGitUseCase.class),
+            mock(io.mateu.workflow.application.services.TaskInbox.class),
+            mock(io.mateu.workflow.application.services.TaskCallers.class));
 
     @Test
     void thePublishedToolsAreExactlyTheOnesTheContractNames() {

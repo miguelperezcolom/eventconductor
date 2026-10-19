@@ -912,6 +912,10 @@ public record WorkflowDefinition(
                         "Step '" + step.id() + "' references unknown compensation step '"
                                 + step.compensationStepId() + "'.");
             }
+            var userTaskProblems = userTaskProblems(step, stepIds);
+            if (!userTaskProblems.isEmpty()) {
+                throw new IllegalStateException(String.join(" ", userTaskProblems));
+            }
         }
         // Reject precondition cycles. A step waits for its preconditions to COMPLETE, so a
         // cycle (A waits for B waits for … waits for A) would deadlock: none of those steps
@@ -943,6 +947,54 @@ public record WorkflowDefinition(
         if (!replyAnalysis.isValid()) {
             throw new IllegalStateException(String.join(" ", replyAnalysis.errors()));
         }
+    }
+
+    /**
+     * A USER_TASK's assignment and escalations: their shape — the rules shared with the Maven plugin
+     * ({@code UserTaskRules}) — then every template in them, which must parse.
+     */
+    static List<String> userTaskProblems(Step step, java.util.Set<String> stepIds) {
+        var escalations = step.escalation() == null ? List.<Escalation>of()
+                : step.escalation().stream().filter(java.util.Objects::nonNull).toList();
+        var problems = new java.util.ArrayList<>(io.mateu.workflow.analysis.UserTaskRules.violations(
+                step.id(), step.type() == null ? null : step.type().name(),
+                step.assignment() == null ? null : step.assignment().asMap(),
+                escalations.stream().map(Escalation::asMap).toList(),
+                step.forEach() != null, step.deadline() != null, stepIds));
+        if (!problems.isEmpty()) {
+            return problems;
+        }
+        var where = "USER_TASK step '" + step.id() + "'";
+        if (step.assignment() != null) {
+            problems.addAll(io.mateu.workflow.template.Templates.problems(step.assignment().asMap(), where + " assignment"));
+        }
+        for (var i = 0; i < escalations.size(); i++) {
+            var escalation = escalations.get(i);
+            var at = where + " escalation[" + i + "]";
+            if (escalation.to() != null) {
+                problems.addAll(io.mateu.workflow.template.Templates.problems(escalation.to().asMap(), at + ".to"));
+            }
+            var event = escalation.publishEvent();
+            if (event == null) {
+                continue;
+            }
+            if (event.payloadSources() > 1) {
+                problems.add(at + ".publishEvent declares more than one of payload, payloadTemplate and payloadVariables.");
+            }
+            if (event.format() != null && !java.util.Set.of("binary", "structured", "plain").contains(event.format())) {
+                problems.add(at + ".publishEvent format must be binary, structured or plain.");
+            }
+            if (event.payload() != null) {
+                problems.addAll(io.mateu.workflow.template.Templates.problems(event.payload(), at + ".publishEvent.payload"));
+            }
+            if (event.payloadTemplate() != null) {
+                problems.addAll(io.mateu.workflow.template.Templates.problems(event.payloadTemplate(), at + ".publishEvent.payloadTemplate"));
+            }
+            if (event.key() != null) {
+                problems.addAll(io.mateu.workflow.template.Templates.problems(event.key(), at + ".publishEvent.key"));
+            }
+        }
+        return problems;
     }
 
     /** The steps that wait for something and so can miss a deadline. */

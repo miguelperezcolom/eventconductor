@@ -200,6 +200,35 @@ Pauses the workflow until a human submits a form. Creates a `FormExecution` inst
 
 The `formId` references a form definition stored in the forms engine.
 
+**Optional fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `assignment` | object | Who the task is for and how urgent it is, rendered from the process (an iteration's item too) when the task is created: `{assignee?, candidateUsers?, candidateGroups?, priority?, dueDate?, followUpDate?}`. Every value may be a `${…}` template. `priority` is 0–100 (default 50); `dueDate`/`followUpDate` are an ISO-8601 duration from the task's creation (`P3D`), an ISO date or date-time, or a template giving either. A task that names an assignee or candidates is visible and claimable only by them and by task admins |
+| `escalation` | object[] | What happens while the task stays open, each entry `after` an ISO-8601 duration from its creation, listed in the order they fire: `{after, action?, to?, escalateTo?, publishEvent?}`. `action` is `reassign` (the task is for `to` from now on), `notify` (recorded and announced, nothing changes) or `escalateTo` (the task is closed and the process goes on at the step named in `escalateTo`, as `onTimeoutStepId` routes a timed-out step — last entry only, not on a `forEach` step). Any entry may `publishEvent` (the shape of a PUBLISH_EVENT's `event`). Not combined with `deadline` |
+
+```yaml
+- id: approve
+  type: USER_TASK
+  name: Approve the expense
+  formId: expense-approval
+  preconditionStepId: register
+  timeout: P10D
+  assignment:
+    assignee: "${manager}"
+    candidateGroups: ["finance-${region}"]
+    priority: "${amount > 1000 ? 90 : 40}"
+    dueDate: P2D
+  escalation:
+    - after: PT48H
+      action: reassign
+      to: { candidateGroups: [finance-managers] }
+    - after: P5D
+      escalateTo: director-review
+```
+
+See [Human tasks: assignment and escalation](/guides/human-tasks-assignment-and-escalation/).
+
 ---
 
 ## TIMER

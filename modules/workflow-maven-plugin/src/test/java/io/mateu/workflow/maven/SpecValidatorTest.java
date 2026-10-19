@@ -34,6 +34,84 @@ class SpecValidatorTest {
         assertThat(validate(SpecValidator.Kind.WORKFLOW, "/valid/workflows/booking-events.yaml")).isEmpty();
     }
 
+    private static final String USER_TASK_WORKFLOW = """
+            name: Expenses
+            steps:
+              - id: start
+                type: START
+                name: Start
+              - id: approve
+                type: USER_TASK
+                name: Approve
+                formId: approval
+                preconditionStepId: start
+            %s
+              - id: review
+                type: USER_TASK
+                name: Review
+                formId: approval
+                preconditions:
+                  - stepId: approve
+                    expression: "false"
+            """;
+
+    private List<String> userTask(String approveExtra) throws Exception {
+        return validator.validate(SpecValidator.Kind.WORKFLOW,
+                new YAMLMapper().readTree(USER_TASK_WORKFLOW.formatted(approveExtra.indent(4).stripTrailing())));
+    }
+
+    @Test
+    void aUserTasksAssignmentAndEscalationAreValidatedAsTheEngineDoes() throws Exception {
+        assertThat(userTask("""
+                assignment:
+                  assignee: "${manager}"
+                  candidateGroups: [finance]
+                  priority: 80
+                  dueDate: P3D
+                escalation:
+                  - after: PT48H
+                    to: {candidateGroups: [managers]}
+                    publishEvent:
+                      destination: notifications
+                      type: com.acme.task.escalated
+                      payload: {level: "${escalation.level}"}
+                      key: "${businessKey}"
+                  - after: P5D
+                    escalateTo: review""")).isEmpty();
+        assertThat(userTask("""
+                escalation:
+                  - after: P5D
+                    escalateTo: nowhere""")).anyMatch(v -> v.contains("unknown step 'nowhere'"));
+        assertThat(userTask("""
+                assignment:
+                  priority: 150""")).anyMatch(v -> v.contains("priority"));
+        assertThat(userTask("""
+                assignment:
+                  assignee: "${manager +}\"""")).anyMatch(v -> v.contains("assignment"));
+        assertThat(userTask("""
+                escalation:
+                  - after: P1D
+                    to: {assignee: "${boss +}"}""")).anyMatch(v -> v.contains("escalation[0].to"));
+        assertThat(userTask("""
+                escalation:
+                  - after: P1D
+                    publishEvent:
+                      destination: d
+                      type: t
+                      payloadTemplate: "${1 +}\"""")).anyMatch(v -> v.contains("publishEvent.payloadTemplate"));
+        assertThat(userTask("""
+                escalation:
+                  - after: P1D
+                    publishEvent: {destination: d, type: t}
+                forEach:
+                  items: lines""")).isEmpty();
+        assertThat(userTask("""
+                deadline:
+                  date: "${checkIn}"
+                escalation:
+                  - after: P1D""")).anyMatch(v -> v.contains("deadline"));
+    }
+
     @Test
     void eventTriggersAndOnEventAreValidated() throws Exception {
         var doc = new YAMLMapper().readTree("""

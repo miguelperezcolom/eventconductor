@@ -101,7 +101,7 @@ class FormExecutionDBRepositoryTest {
 
     private static FormExecution execution(String id, FormExecutionStatus status,
                                            List<Variable> variables, List<Value> values) {
-        return new FormExecution(id, "checkin", "process-1", "step-1", "exec-1", status,
+        return io.mateu.workflow.domain.TaskFixtures.task(id, "checkin", "process-1", "step-1", "exec-1", status,
                 "alice", "reception", variables, values);
     }
 }

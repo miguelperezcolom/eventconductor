@@ -21,6 +21,7 @@ public class CheckTimeoutUseCase {
     final StepExecutionRepository stepExecutionRepository;
     final ProcessRepository processRepository;
     final CheckStepTimeoutHandler checkTimeoutUseCase;
+    final io.mateu.workflow.application.usecases.checktimeout.escalateusertask.EscalateUserTaskHandler escalateUserTaskHandler;
 
     public void handle(CheckTimeoutCommand command) {
         var now = EngineClock.now();
@@ -29,8 +30,10 @@ public class CheckTimeoutUseCase {
         // deserialising its JSON just to recompute a deadline already on the row; the timeout()>0
         // check below still excludes pure TIMER steps (whose deadline is a due moment, not a
         // timeout) so their firing stays with the timer path.
-        var expired = stepExecutionRepository.findDueByProcessId(command.processId(), now).stream()
+        var due = stepExecutionRepository.findDueByProcessId(command.processId(), now).stream()
                 .filter(se -> se.getStartedAt() != null)
+                .toList();
+        var expired = due.stream()
                 .filter(se -> {
                     var step = pojoFromJson(se.getStepJson(), Step.class);
                     if (!step.hasTimeLimit()) {
@@ -40,7 +43,13 @@ public class CheckTimeoutUseCase {
                     return limit != null && limit.isBefore(now);
                 })
                 .toList();
-        if (expired.isEmpty()) {
+        // A USER_TASK's deadline is also its next escalation. One whose time limit has expired times
+        // out instead — the limit wins — so an escalation is only fired on a step that is still in time.
+        var escalating = due.stream()
+                .filter(se -> !expired.contains(se))
+                .filter(se -> !se.escalationsDue(now).isEmpty())
+                .toList();
+        if (expired.isEmpty() && escalating.isEmpty()) {
             return;
         }
         // A paused process freezes its step clocks: nothing may time out until it is resumed
@@ -50,6 +59,7 @@ public class CheckTimeoutUseCase {
             return;
         }
         expired.forEach(se -> checkTimeoutUseCase.handle(new CheckStepTimeoutCommand(se.id())));
+        escalating.forEach(se -> escalateUserTaskHandler.handle(se.id()));
     }
 
     private boolean isPaused(String processId) {

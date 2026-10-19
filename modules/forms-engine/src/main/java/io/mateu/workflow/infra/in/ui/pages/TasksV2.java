@@ -33,7 +33,14 @@ import io.mateu.workflow.domain.Form;
 import io.mateu.workflow.domain.FormExecutionStatus;
 import io.mateu.workflow.dtos.MessageType;
 import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
-import io.mateu.workflow.infra.out.persistence.FormExecutionEntity;
+import io.mateu.workflow.application.services.TaskActionRefusedException;
+import io.mateu.workflow.application.services.TaskCallers;
+import io.mateu.workflow.application.services.TaskInbox;
+import io.mateu.workflow.application.services.TaskInboxOrder;
+import io.mateu.workflow.application.services.TaskNotFoundException;
+import io.mateu.workflow.application.usecases.claimtask.ClaimTaskUseCase;
+import io.mateu.workflow.domain.FormExecution;
+import io.mateu.workflow.domain.TaskQuery;
 import io.mateu.workflow.infra.out.persistence.FormExecutionEntityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -75,22 +82,24 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
     final CompleteTaskUseCase completeTaskUseCase;
     final TaskAuthorization taskAuthorization;
     final StreamBridge streamBridge;
+    final TaskInbox taskInbox;
+    final TaskCallers taskCallers;
+    final ClaimTaskUseCase claimTaskUseCase;
 
-    private List<FormExecutionEntity> tasks(HttpRequest httpRequest) {
-        // DESC on status puts PENDING before COMPLETED, so completed tasks sink to the bottom
-        var statuses = List.of(FormExecutionStatus.PENDING.name(), FormExecutionStatus.COMPLETED.name());
-        var user = JwtExtractor.getUsername(httpRequest).orElse(null);
-        var page = PageRequest.of(0, MAX_TASKS, Sort.by(Sort.Direction.DESC, "status").and(Sort.by("id")));
-        if (!taskAuthorization.enabled()) {
-            return repository.findByStatusAndUser(statuses, user, page).getContent();
+    /**
+     * The open tasks this person may see, most urgent first (the inbox's rule — what the task names
+     * and what its form requires — the same as the Tasks list and the REST API), then the ones they
+     * completed, newest first, filling the page.
+     */
+    private List<FormExecution> tasks(HttpRequest httpRequest) {
+        var caller = taskCallers.forUser(JwtExtractor.getUsername(httpRequest).orElse(null));
+        var open = taskInbox.search(TaskQuery.open().withPage(0, MAX_TASKS), caller).items();
+        var tasks = new ArrayList<>(open);
+        if (tasks.size() < MAX_TASKS && caller.known()) {
+            tasks.addAll(taskInbox.search(new TaskQuery(TaskQuery.Scope.MINE, List.of(FormExecutionStatus.COMPLETED),
+                    null, null, null, null, null, null, TaskQuery.Sort.CREATED, 0, MAX_TASKS - tasks.size()), caller).items());
         }
-        // Narrowed in the query rather than after it, or a page of fifty would come back holding
-        // however many of those fifty this person may see — which is a shorter list, not a page.
-        var permitted = taskAuthorization.permittedFormIds();
-        if (permitted.isEmpty()) {
-            return List.of();
-        }
-        return repository.findByStatusAndUserAndForms(statuses, user, permitted, page).getContent();
+        return tasks;
     }
 
     private Optional<Form> form(String formId, Map<String, Optional<Form>> cache) {
@@ -113,7 +122,8 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
         var formCache = new HashMap<String, Optional<Form>>();
         var declarations = new ArrayList<DeclaredRestSource>();
         for (var task : repository.findByStatusIn(
-                List.of(FormExecutionStatus.PENDING.name(), FormExecutionStatus.COMPLETED.name()),
+                List.of(FormExecutionStatus.PENDING.name(), FormExecutionStatus.ASSIGNED.name(),
+                        FormExecutionStatus.COMPLETED.name()),
                 PageRequest.of(0, MAX_TASKS, Sort.by("id"))).getContent()) {
             form(task.getFormId(), formCache).ifPresent(form -> form.fields().stream()
                     .filter(field -> field.optionsSource() != null)
@@ -131,7 +141,7 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
         var formCache = new HashMap<String, Optional<Form>>();
         List<Component> rows = new ArrayList<>();
         for (var task : tasks(httpRequest)) {
-            form(task.getFormId(), formCache)
+            form(task.formId(), formCache)
                     .ifPresent(form -> rows.add(taskRow(task, form, username)));
         }
         if (rows.isEmpty()) {
@@ -147,14 +157,14 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
                 .build();
     }
 
-    private Component taskRow(FormExecutionEntity task, Form form, String username) {
-        var completed = FormExecutionStatus.COMPLETED.name().equals(task.getStatus());
-        var unassigned = task.getUserId() == null || task.getUserId().isEmpty();
-        var mine = username != null && username.equals(task.getUserId());
+    private Component taskRow(FormExecution task, Form form, String username) {
+        var completed = !task.isOpen();
+        var unassigned = !task.isAssigned();
+        var mine = username != null && username.equals(task.userId());
 
         var content = new ArrayList<Component>();
         form.fields().forEach(field -> content.add(FormField.builder()
-                .id(task.getId() + SEPARATOR + field.id())
+                .id(task.id() + SEPARATOR + field.id())
                 .label(field.label())
                 .dataType(field.dataType())
                 .stereotype(field.stereotype())
@@ -171,7 +181,7 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
         if (!completed && unassigned) {
             buttons.add(Button.builder()
                     .label("Claim")
-                    .actionId(CLAIM + task.getId())
+                    .actionId(CLAIM + task.id())
                     .build());
         }
         if (!completed) {
@@ -179,7 +189,7 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
                     .label("Complete")
                     .color(ButtonColor.success)
                     .disabled(!mine)
-                    .actionId(COMPLETE + task.getId())
+                    .actionId(COMPLETE + task.id())
                     .build());
         }
         if (!buttons.isEmpty()) {
@@ -200,28 +210,51 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
                 .build();
     }
 
-    private Component summary(FormExecutionEntity task, Form form, boolean completed, boolean unassigned) {
+    private Component summary(FormExecution task, Form form, boolean completed, boolean unassigned) {
+        var parts = new ArrayList<Component>(List.of(
+                Text.builder()
+                        .text(form.name())
+                        .style("font-weight: 600;")
+                        .build(),
+                Text.builder()
+                        .text(task.businessKey() != null ? task.businessKey() : task.processId())
+                        .style("color: var(--lumo-secondary-text-color); font-size: var(--lumo-font-size-s);")
+                        .build(),
+                Text.builder()
+                        .text(unassigned ? "Unassigned" : task.userId())
+                        .style("color: var(--lumo-secondary-text-color); font-size: var(--lumo-font-size-s);")
+                        .build(),
+                Text.builder()
+                        .text("P" + task.priorityOrDefault())
+                        .style("font-size: var(--lumo-font-size-s);")
+                        .build()));
+        if (task.dueDate() != null) {
+            parts.add(Text.builder()
+                    .text("due " + task.dueDate().toString().replace('T', ' ') + " UTC")
+                    .style("color: var(--lumo-secondary-text-color); font-size: var(--lumo-font-size-s);")
+                    .build());
+        }
+        if (task.isOverdue(TaskInboxOrder.nowUtc())) {
+            parts.add(Text.builder()
+                    .text("Overdue")
+                    .style("font-weight: 600; font-size: var(--lumo-font-size-s); color: var(--lumo-error-text-color);")
+                    .build());
+        }
+        if (task.escalations() > 0) {
+            parts.add(Text.builder()
+                    .text("Escalated")
+                    .style("font-weight: 600; font-size: var(--lumo-font-size-s); color: var(--lumo-warning-text-color, #b26b00);")
+                    .build());
+        }
+        parts.add(Text.builder()
+                .text(completed ? "Completed" : "Pending")
+                .style("font-weight: 600; font-size: var(--lumo-font-size-s); color: var(--lumo-"
+                        + (completed ? "success" : "primary") + "-text-color);")
+                .build());
         return HorizontalLayout.builder()
                 .spacing(true)
                 .style("align-items: baseline; flex-wrap: wrap; gap: 0.25rem 1.5rem;")
-                .content(List.of(
-                        Text.builder()
-                                .text(form.name())
-                                .style("font-weight: 600;")
-                                .build(),
-                        Text.builder()
-                                .text(task.getProcessId())
-                                .style("color: var(--lumo-secondary-text-color); font-size: var(--lumo-font-size-s);")
-                                .build(),
-                        Text.builder()
-                                .text(unassigned ? "Unassigned" : task.getUserId())
-                                .style("color: var(--lumo-secondary-text-color); font-size: var(--lumo-font-size-s);")
-                                .build(),
-                        Text.builder()
-                                .text(completed ? "Completed" : "Pending")
-                                .style("font-weight: 600; font-size: var(--lumo-font-size-s); color: var(--lumo-"
-                                        + (completed ? "success" : "primary") + "-text-color);")
-                                .build()))
+                .content(parts)
                 .build();
     }
 
@@ -230,13 +263,12 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
         Map<String, Object> state = new HashMap<>();
         var formCache = new HashMap<String, Optional<Form>>();
         for (var task : tasks(httpRequest)) {
-            var prefix = task.getId() + SEPARATOR;
-            form(task.getFormId(), formCache).ifPresent(form -> form.fields().stream()
+            var prefix = task.id() + SEPARATOR;
+            form(task.formId(), formCache).ifPresent(form -> form.fields().stream()
                     .filter(field -> FieldDataType.bool.equals(field.dataType()))
                     .forEach(field -> state.put(prefix + field.id(), false)));
-            if (task.getValues() != null) {
-                listFromJson(task.getValues(), io.mateu.workflow.domain.Value.class)
-                        .forEach(value -> state.put(prefix + value.name(), value.value()));
+            if (task.values() != null) {
+                task.values().forEach(value -> state.put(prefix + value.name(), value.value()));
             }
         }
         return state;
@@ -247,19 +279,19 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
         var actions = new ArrayList<Action>();
         var formCache = new HashMap<String, Optional<Form>>();
         for (var task : tasks(httpRequest)) {
-            if (!FormExecutionStatus.PENDING.name().equals(task.getStatus())) {
+            if (!task.isOpen()) {
                 continue;
             }
-            var fieldsToValidate = form(task.getFormId(), formCache).stream()
+            var fieldsToValidate = form(task.formId(), formCache).stream()
                     .flatMap(form -> form.fields().stream())
-                    .map(field -> task.getId() + SEPARATOR + field.id())
+                    .map(field -> task.id() + SEPARATOR + field.id())
                     .collect(Collectors.joining(","));
             actions.add(Action.builder()
-                    .id(COMPLETE + task.getId())
+                    .id(COMPLETE + task.id())
                     .validationRequired(true)
                     .fieldsToValidate(fieldsToValidate)
                     .build());
-            actions.add(Action.builder().id(CLAIM + task.getId()).build());
+            actions.add(Action.builder().id(CLAIM + task.id()).build());
         }
         return actions;
     }
@@ -268,7 +300,9 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
     public List<Validation> validations() {
         var validations = new ArrayList<Validation>();
         var formCache = new HashMap<String, Optional<Form>>();
-        for (var task : repository.findByStatus(FormExecutionStatus.PENDING.name())) {
+        for (var task : repository.findByStatusIn(
+                List.of(FormExecutionStatus.PENDING.name(), FormExecutionStatus.ASSIGNED.name()),
+                PageRequest.of(0, 1000, Sort.by("id"))).getContent()) {
             form(task.getFormId(), formCache).ifPresent(form -> form.fields().stream()
                     .filter(Field::required)
                     .forEach(field -> {
@@ -297,30 +331,18 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
 
     private void claim(String taskId, HttpRequest httpRequest) {
         var username = JwtExtractor.getUsername(httpRequest).orElseThrow();
-        // Claiming is taking the work, so it is gated like doing it. The listing above already hides
-        // what this person may not touch; this is what makes that hiding irrelevant to security.
-        taskAuthorization.refuseIfCallerMayNot("claim",
-                repository.findById(taskId).flatMap(t -> formRepository.findById(t.getFormId())).orElse(null),
-                taskId);
-        var claimed = repository.claim(List.of(taskId), username);
-        if (claimed > 0) {
-            repository.findById(taskId).ifPresent(task -> streamBridge.send("upstream", new TaskLogEmitted(
-                    task.getStepExecutionId(),
-                    MessageType.Info,
-                    "form " + task.getFormId() + " claimed by " + username)));
-        } else {
-            log.info("task {} could not be claimed by {} (already assigned)", taskId, username);
+        // Claiming is taking the work, so it is gated like doing it — by what the task names and by
+        // what its form requires (ClaimTaskUseCase). The listing above already hides what this person
+        // may not touch; this is what makes that hiding irrelevant to security.
+        try {
+            claimTaskUseCase.handle(taskId, taskCallers.forUser(username));
+        } catch (TaskActionRefusedException | TaskNotFoundException e) {
+            log.info("task {} could not be claimed by {}: {}", taskId, username, e.getMessage());
         }
     }
 
     private void complete(String taskId, HttpRequest httpRequest) {
         var username = JwtExtractor.getUsername(httpRequest).orElseThrow();
-        var task = repository.findById(taskId).orElseThrow();
-        if (!FormExecutionStatus.PENDING.name().equals(task.getStatus()) || !username.equals(task.getUserId())) {
-            log.info("task {} not completable by {} (status {}, assigned to {})",
-                    taskId, username, task.getStatus(), task.getUserId());
-            return;
-        }
         Map<String, Object> state = httpRequest.getComponentState(Map.class);
         var prefix = taskId + SEPARATOR;
         var values = state.entrySet().stream()
@@ -329,7 +351,11 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
                         entry.getKey().substring(prefix.length()),
                         entry.getValue().toString()))
                 .toList();
-        completeTaskUseCase.handle(new CompleteTaskCommand(taskId, values));
+        try {
+            completeTaskUseCase.handle(new CompleteTaskCommand(taskId, values), taskCallers.forUser(username));
+        } catch (TaskActionRefusedException | TaskNotFoundException e) {
+            log.info("task {} not completable by {}: {}", taskId, username, e.getMessage());
+        }
     }
 
 }

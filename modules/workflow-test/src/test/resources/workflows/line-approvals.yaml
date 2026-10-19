@@ -1,0 +1,25 @@
+id: line-approvals
+name: One approval per order line
+steps:
+  - id: start
+    type: START
+    name: Start
+  - id: approve-line
+    type: USER_TASK
+    name: Approve the line
+    formId: line-approval
+    preconditionStepId: start
+    forEach:
+      items: lines
+      as: line
+    assignment:
+      assignee: "${line.owner}"
+      priority: "${line.amount > 100 ? 80 : 20}"
+    escalation:
+      - after: P1D
+        to:
+          candidateGroups: ["${line.team}-leads"]
+  - id: end
+    type: END
+    name: End
+    preconditionStepId: approve-line

@@ -1387,6 +1387,212 @@
               "description": "Wait before each new run: milliseconds, or an ISO-8601 duration (e.g. PT30S). 0 or absent = at once."
             }
           }
+        },
+        "assignment": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "USER_TASK only: who the task is for and how urgent it is, rendered from the process when the task is created. A task that names an assignee or candidates is visible and claimable only by them (and by task admins); one that names nobody is open to whoever may work on its form. See the 'Human tasks: assignment and escalation' guide.",
+          "additionalProperties": false,
+          "properties": {
+            "assignee": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "The user the task is assigned to: a name or a ${...} template over the process variables (an iteration's item too). Empty renders as unassigned."
+            },
+            "candidateUsers": {
+              "type": [
+                "array",
+                "string",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "description": "Users who may claim the task. A list of names or ${...} templates, or one template giving a list (a JSON array or a comma-separated text)."
+            },
+            "candidateGroups": {
+              "type": [
+                "array",
+                "string",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "description": "Groups whose members may claim the task — a group is one of the caller's roles (workflow.security.claims.roles). A list of names or ${...} templates, or one template giving a list (a JSON array or a comma-separated text)."
+            },
+            "priority": {
+              "type": [
+                "integer",
+                "string",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 100,
+              "description": "0-100, higher is more urgent (default 50), or a ${...} template giving one."
+            },
+            "dueDate": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "When the task is due: an ISO-8601 duration from its creation (P3D, PT4H), an ISO date or date-time, or a ${...} template giving either. Past it the task is overdue."
+            },
+            "followUpDate": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "When someone should look at the task again, in the same forms as dueDate."
+            }
+          }
+        },
+        "escalation": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "description": "USER_TASK only: what happens while the task stays open, each entry `after` a duration from the task's creation, listed in the order they fire. Timer-driven (the deadline scan; the test kit's advanceTime skips to them), each fires once and is recorded on the process timeline. A retry of the step starts its escalations over.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "after"
+            ],
+            "properties": {
+              "after": {
+                "type": "string",
+                "description": "ISO-8601 duration from the task's creation, e.g. PT48H or P2D."
+              },
+              "action": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "reassign",
+                  "notify",
+                  "escalateTo",
+                  null
+                ],
+                "description": "reassign: the task is for `to` from now on (assignee and candidates replaced). notify: nothing changes on the task — the escalation is recorded and announced (a task lifecycle event, and publishEvent if declared). escalateTo: the task is closed and the process goes on at the step in `escalateTo`, as onTimeoutStepId routes a timed-out step (must be the last entry; not on a forEach step). Absent: escalateTo if `escalateTo` names a step, reassign if there is a `to`, else notify."
+              },
+              "to": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": false,
+                "description": "reassign only: who the task is for from now on. Templates over the process variables.",
+                "properties": {
+                  "assignee": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The user the task is assigned to: a name or a ${...} template over the process variables (an iteration's item too). Empty renders as unassigned."
+                  },
+                  "candidateUsers": {
+                    "type": [
+                      "array",
+                      "string",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Users who may claim the task. A list of names or ${...} templates, or one template giving a list (a JSON array or a comma-separated text)."
+                  },
+                  "candidateGroups": {
+                    "type": [
+                      "array",
+                      "string",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Groups whose members may claim the task — a group is one of the caller's roles (workflow.security.claims.roles). A list of names or ${...} templates, or one template giving a list (a JSON array or a comma-separated text)."
+                  }
+                }
+              },
+              "escalateTo": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "escalateTo only: the id of the step the process goes on at. Give that step a precondition on this one that never holds by the normal route (e.g. preconditions: [{stepId: <this>, expression: \"false\"}])."
+              },
+              "publishEvent": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": false,
+                "description": "An event to publish when the escalation fires — the shape of a PUBLISH_EVENT's event, rendered from the process (plus `escalation` = {level, action, after}). Published through the outbox with the escalation. The hook for a notification.",
+                "required": [
+                  "destination",
+                  "type"
+                ],
+                "properties": {
+                  "destination": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "A logical destination, mapped to a topic by workflow.events.destinations.<name> — never a topic itself."
+                  },
+                  "type": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The event type (CloudEvents type), e.g. com.acme.booking.confirmed."
+                  },
+                  "key": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Template for the message key. Default: the business key, else the process id."
+                  },
+                  "payload": {
+                    "description": "The payload as a structured template (JSON/YAML with ${...} leaves). Exclusive with payloadTemplate and payloadVariables."
+                  },
+                  "payloadTemplate": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The payload as a text template. Exclusive with payload and payloadVariables."
+                  },
+                  "payloadVariables": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "The payload is an object of these process variables."
+                  },
+                  "format": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "binary",
+                      "structured",
+                      "plain",
+                      null
+                    ],
+                    "description": "CloudEvents binary (default: ce_* headers) or structured (JSON envelope), or plain (the payload alone). Null takes the destination's format."
+                  }
+                }
+              }
+            }
+          }
         }
       },
       "allOf": [

@@ -46,13 +46,15 @@ class FormsEngineKafkaConsumerConfigTest {
 
     private CreateTaskUseCase createTask;
     private CancelTaskUseCase cancelTask;
+    private io.mateu.workflow.application.usecases.escalatetask.EscalateTaskUseCase escalateTask;
     private Consumer<DomainEvent> consumer;
 
     @BeforeEach
     void setUp() {
         createTask = mock(CreateTaskUseCase.class);
         cancelTask = mock(CancelTaskUseCase.class);
-        consumer = new FormsEngineKafkaConsumerConfig(createTask, cancelTask)
+        escalateTask = mock(io.mateu.workflow.application.usecases.escalatetask.EscalateTaskUseCase.class);
+        consumer = new FormsEngineKafkaConsumerConfig(createTask, cancelTask, escalateTask)
                 .consumeWorkerEventForFormsEngine();
     }
 
@@ -109,10 +111,20 @@ class FormsEngineKafkaConsumerConfigTest {
     }
 
     @Test
+    void an_escalation_is_applied_to_the_task_it_names() {
+        var escalation = new io.mateu.workflow.dtos.humantasks.HumanTaskEscalationRequested("exec-5", "process-1",
+                "approve", 1, "notify", null, null, "2026-10-19T10:00:00Z");
+
+        consumer.accept(escalation);
+
+        verify(escalateTask, timeout(HANDLED)).handle(escalation);
+    }
+
+    @Test
     void an_event_the_forms_engine_has_no_business_with_is_ignored() {
         consumer.accept(new UnrelatedEvent());
 
-        verifyNoInteractions(createTask, cancelTask);
+        verifyNoInteractions(createTask, cancelTask, escalateTask);
     }
 
     private record UnrelatedEvent() implements DomainEvent {

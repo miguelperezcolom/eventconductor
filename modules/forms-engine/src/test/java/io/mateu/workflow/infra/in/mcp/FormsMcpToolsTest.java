@@ -46,7 +46,8 @@ class FormsMcpToolsTest {
         forms = mock(FormRepository.class);
         executions = mock(FormExecutionRepository.class);
         gitImport = mock(ImportFormsFromGitUseCase.class);
-        tools = new FormsMcpTools(forms, executions, gitImport);
+        tools = new FormsMcpTools(forms, executions, gitImport, mock(io.mateu.workflow.application.services.TaskInbox.class),
+                mock(io.mateu.workflow.application.services.TaskCallers.class));
     }
 
     @Test
@@ -86,7 +87,7 @@ class FormsMcpToolsTest {
     @Test
     void the_detail_carries_the_answers_which_is_the_reason_to_ask_for_it() {
         when(executions.findById("fe-1")).thenReturn(Optional.of(
-                new FormExecution("fe-1", "checkin", "process-1", "step-1", "exec-1",
+                io.mateu.workflow.domain.TaskFixtures.task("fe-1", "checkin", "process-1", "step-1", "exec-1",
                         FormExecutionStatus.COMPLETED, "alice", "reception",
                         List.of(new Variable("tenant", "acme")),
                         List.of(new Value("decision", "WALK")))));
@@ -110,7 +111,7 @@ class FormsMcpToolsTest {
     @Test
     void a_detail_with_nothing_filled_in_reads_as_empty_rather_than_failing() {
         when(executions.findById("fe-2")).thenReturn(Optional.of(
-                new FormExecution("fe-2", "checkin", "process-1", "step-1", "exec-1",
+                io.mateu.workflow.domain.TaskFixtures.task("fe-2", "checkin", "process-1", "step-1", "exec-1",
                         FormExecutionStatus.PENDING, null, null, null, null)));
 
         var detail = tools.getFormExecution("fe-2");
@@ -153,6 +154,43 @@ class FormsMcpToolsTest {
     }
 
     @Test
+    void the_task_search_answers_as_the_caller_with_what_a_person_needs_to_pick_one() {
+        var inbox = mock(io.mateu.workflow.application.services.TaskInbox.class);
+        var callers = mock(io.mateu.workflow.application.services.TaskCallers.class);
+        var carol = io.mateu.workflow.domain.TaskCaller.of("carol", List.of("finance"), false);
+        when(callers.current()).thenReturn(carol);
+        var due = java.time.LocalDateTime.of(2020, 1, 1, 9, 0);
+        var task = FormExecution.builder().id("t-1").formId("approve").processId("p-1").businessKey("order-1")
+                .status(FormExecutionStatus.PENDING).candidateGroups(List.of("finance")).priority(80).dueDate(due)
+                .escalationLevel(1).variables(List.of()).values(List.of()).build();
+        var queries = org.mockito.ArgumentCaptor.forClass(io.mateu.workflow.domain.TaskQuery.class);
+        when(inbox.search(queries.capture(), org.mockito.ArgumentMatchers.eq(carol)))
+                .thenReturn(new io.mateu.workflow.domain.TaskPage(List.of(task), 1, 0, 50));
+        var withInbox = new FormsMcpTools(forms, executions, gitImport, inbox, callers);
+
+        var found = withInbox.searchTasks("groups", true, 50, "p-1", "order-1");
+
+        assertThat(found).singleElement().satisfies(summary -> {
+            assertThat(summary.id()).isEqualTo("t-1");
+            assertThat(summary.priority()).isEqualTo(80);
+            assertThat(summary.overdue()).isTrue();
+            assertThat(summary.dueDate()).isEqualTo("2020-01-01T09:00:00Z");
+            assertThat(summary.candidateGroups()).containsExactly("finance");
+            assertThat(summary.escalationLevel()).isEqualTo(1);
+        });
+        var query = queries.getValue();
+        assertThat(query.scope()).isEqualTo(io.mateu.workflow.domain.TaskQuery.Scope.GROUPS);
+        assertThat(query.overdue()).isTrue();
+        assertThat(query.minPriority()).isEqualTo(50);
+        assertThat(query.businessKey()).isEqualTo("order-1");
+
+        when(inbox.search(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(carol)))
+                .thenReturn(new io.mateu.workflow.domain.TaskPage(List.of(task.withDueDate(null)), 1, 0, 50));
+        assertThat(withInbox.searchTasks(null, null, null, null, null)).singleElement()
+                .satisfies(summary -> assertThat(summary.dueDate()).isNull());
+    }
+
+    @Test
     void the_system_context_tells_an_agent_what_it_is_looking_at() {
         assertThat(tools.getSystemContext()).contains("PENDING").contains("stepExecutionId");
     }
@@ -163,7 +201,7 @@ class FormsMcpToolsTest {
 
     private static FormExecution execution(String id, FormExecutionStatus status,
                                            String userId, String userGroup) {
-        return new FormExecution(id, "checkin", "process-1", "step-1", "exec-1", status,
+        return io.mateu.workflow.domain.TaskFixtures.task(id, "checkin", "process-1", "step-1", "exec-1", status,
                 userId, userGroup, List.of(), List.of());
     }
 }

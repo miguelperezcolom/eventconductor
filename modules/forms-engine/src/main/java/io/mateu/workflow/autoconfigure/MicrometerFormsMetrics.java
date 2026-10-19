@@ -24,6 +24,8 @@ public class MicrometerFormsMetrics implements FormsMetrics {
     public static final String TASKS_CANCELLED = "eventconductor.forms.task.cancelled";
     public static final String TASK_DURATION = "eventconductor.forms.task.duration";
     public static final String FORMS_IMPORTED = "eventconductor.forms.imported";
+    public static final String TASK_EVENTS = "eventconductor.tasks.events";
+    public static final String TAG_EVENT = "event";
 
     public static final String TAG_FORM_ID = "formId";
     public static final String TAG_OUTCOME = "outcome";
@@ -57,6 +59,16 @@ public class MicrometerFormsMetrics implements FormsMetrics {
                 .description("Form definitions imported from git")
                 .register(registry)
                 .increment(count);
+    }
+
+    @Override
+    public void taskEvent(String event, String formId) {
+        Counter.builder(TASK_EVENTS)
+                .description("Human task lifecycle events: created, assigned, claimed, released, completed, cancelled, escalated")
+                .tag(TAG_EVENT, tagValue(event))
+                .tag(TAG_FORM_ID, tagValue(formId))
+                .register(registry)
+                .increment();
     }
 
     private void taskFinished(String counterName, String description, String outcome,

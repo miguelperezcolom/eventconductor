@@ -1,81 +1,72 @@
 package io.mateu.workflow.application.usecases.canceltask;
 
-import io.mateu.workflow.application.out.FormExecutionRepository;
 import io.mateu.workflow.application.out.FormsMetrics;
+import io.mateu.workflow.application.services.HumanTaskEvents;
 import io.mateu.workflow.domain.FormExecution;
 import io.mateu.workflow.domain.FormExecutionStatus;
-import io.mateu.workflow.infra.out.persistence.FormExecutionEntity;
-import io.mateu.workflow.infra.out.persistence.FormExecutionEntityRepository;
+import io.mateu.workflow.dtos.events.integration.HumanTaskChanged;
+import io.mateu.workflow.infra.out.memory.InMemoryFormExecutionRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
-@ExtendWith(MockitoExtension.class)
 class CancelTaskUseCaseTest {
 
-    @Mock FormExecutionRepository formExecutionRepository;
-    @Mock FormExecutionEntityRepository formExecutionEntityRepository;
-    @Mock FormsMetrics formsMetrics;
-    @Mock io.mateu.workflow.application.services.HumanTaskEvents humanTaskEvents;
+    InMemoryFormExecutionRepository repository;
+    FormsMetrics formsMetrics;
+    HumanTaskEvents humanTaskEvents;
+    CancelTaskUseCase useCase;
 
-    @InjectMocks CancelTaskUseCase useCase;
-
-    private FormExecutionEntity entity(String id, String stepExecutionId) {
-        var e = new FormExecutionEntity();
-        e.setId(id);
-        e.setStepExecutionId(stepExecutionId);
-        e.setStatus("PENDING");
-        return e;
+    @BeforeEach
+    void setUp() {
+        repository = new InMemoryFormExecutionRepository();
+        formsMetrics = mock(FormsMetrics.class);
+        humanTaskEvents = mock(HumanTaskEvents.class);
+        useCase = new CancelTaskUseCase(repository, formsMetrics, humanTaskEvents);
     }
 
-    private FormExecution formExecution(String id) {
-        return FormExecution.builder()
-                .id(id).formId("f-1").processId("p-1")
-                .status(FormExecutionStatus.PENDING)
+    private static FormExecution task(String id, String stepExecutionId, FormExecutionStatus status) {
+        return FormExecution.builder().id(id).formId("form-1").stepExecutionId(stepExecutionId).status(status)
                 .variables(List.of()).values(List.of()).build();
     }
 
     @Test
-    void cancelsPendingFormExecutions() {
-        var entity = entity("fe-1", "se-1");
-        var fe = formExecution("fe-1");
-        when(formExecutionEntityRepository.findByStepExecutionId("se-1")).thenReturn(List.of(entity));
-        when(formExecutionRepository.findById("fe-1")).thenReturn(Optional.of(fe));
+    void cancelsTheOpenTasksOfTheStepExecution() {
+        repository.save(task("fe-1", "se-1", FormExecutionStatus.PENDING));
+        repository.save(task("fe-2", "se-1", FormExecutionStatus.ASSIGNED));
+        repository.save(task("fe-3", "se-2", FormExecutionStatus.PENDING));
 
         useCase.handle(new CancelTaskCommand("se-1"));
 
-        ArgumentCaptor<FormExecution> captor = ArgumentCaptor.forClass(FormExecution.class);
-        verify(formExecutionRepository).save(captor.capture());
-        assertThat(captor.getValue().status()).isEqualTo(FormExecutionStatus.CANCELLED);
+        assertThat(repository.findById("fe-1").orElseThrow().status()).isEqualTo(FormExecutionStatus.CANCELLED);
+        assertThat(repository.findById("fe-2").orElseThrow().status()).isEqualTo(FormExecutionStatus.CANCELLED);
+        assertThat(repository.findById("fe-3").orElseThrow().status()).isEqualTo(FormExecutionStatus.PENDING);
+        verify(formsMetrics, org.mockito.Mockito.times(2)).taskCancelled(org.mockito.ArgumentMatchers.eq("form-1"), any());
+        verify(humanTaskEvents).changed(repository.findById("fe-1").orElseThrow(), HumanTaskChanged.CANCELLED);
+    }
+
+    /** What someone submitted is not rewritten as never having happened. */
+    @Test
+    void aCompletedTaskKeepsItsStatus() {
+        repository.save(task("fe-1", "se-1", FormExecutionStatus.COMPLETED));
+
+        useCase.handle(new CancelTaskCommand("se-1"));
+
+        assertThat(repository.findById("fe-1").orElseThrow().status()).isEqualTo(FormExecutionStatus.COMPLETED);
+        verify(humanTaskEvents, never()).changed(any(), any());
     }
 
     @Test
     void doesNothingWhenNoFormExecutionsFound() {
-        when(formExecutionEntityRepository.findByStepExecutionId("se-1")).thenReturn(List.of());
+        useCase.handle(new CancelTaskCommand("se-unknown"));
 
-        useCase.handle(new CancelTaskCommand("se-1"));
-
-        verify(formExecutionRepository, never()).save(any());
-    }
-
-    @Test
-    void doesNothingWhenFormExecutionNotInRepository() {
-        var entity = entity("fe-1", "se-1");
-        when(formExecutionEntityRepository.findByStepExecutionId("se-1")).thenReturn(List.of(entity));
-        when(formExecutionRepository.findById("fe-1")).thenReturn(Optional.empty());
-
-        useCase.handle(new CancelTaskCommand("se-1"));
-
-        verify(formExecutionRepository, never()).save(any());
+        verify(formsMetrics, never()).taskCancelled(any(), any());
     }
 }

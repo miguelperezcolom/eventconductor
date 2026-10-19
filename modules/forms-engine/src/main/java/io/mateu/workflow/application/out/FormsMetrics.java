@@ -28,12 +28,20 @@ public interface FormsMetrics {
     default void formsImported(long count) {}
 
     /**
-     * Wall-clock duration of a form execution, best effort. {@link FormExecution}
-     * currently carries no lifecycle timestamps, so there is no usable start time
-     * and this returns null. Kept as a hook mirroring the workflow engine's
-     * {@code WorkflowMetrics.durationOf}.
+     * Something happened to a task — {@code created}, {@code assigned}, {@code claimed},
+     * {@code released}, {@code completed}, {@code cancelled}, {@code escalated} —
+     * {@code eventconductor.tasks.events}, tagged with the event and the form.
+     */
+    default void taskEvent(String event, String formId) {}
+
+    /**
+     * How long a task has been open: from its creation to now (UTC), or null for a task that does not
+     * know when it was created (one from before tasks recorded it).
      */
     static Duration durationOf(FormExecution execution) {
-        return null;
+        if (execution == null || execution.createdAt() == null) {
+            return null;
+        }
+        return Duration.between(execution.createdAt(), io.mateu.workflow.application.services.TaskInboxOrder.nowUtc());
     }
 }

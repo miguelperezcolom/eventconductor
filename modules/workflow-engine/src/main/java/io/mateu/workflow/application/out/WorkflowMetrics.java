@@ -230,4 +230,10 @@ public interface WorkflowMetrics {
      * or {@code skipped}.
      */
     default void batchOperationItems(String type, String outcome, long count) {}
+
+    /**
+     * A human task's escalation fired — {@code eventconductor.tasks.escalations}, tagged with the
+     * {@code action} ({@code reassign}, {@code notify}, {@code escalateTo}) and the definition.
+     */
+    default void taskEscalated(String workflowDefinitionId, String action) {}
 }

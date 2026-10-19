@@ -18,7 +18,7 @@ Events are serialized as JSON with a `type` property carrying the registered eve
 | `llm-calls` | Outbound | `LLM_CALL` prompts, served by `llm-worker-standalone-app` (a step's `topic` overrides) |
 | `dead-letter` | Outbound | Events the engine can never process, parked unchanged for inspection and replay |
 | `process-index` | Internal | Process status changes for the standalone projector (`workflow.projection.mode=remote` only) |
-| `human-tasks` | Outbound | Every change of a human task (opened, assigned, completed, cancelled), published by `forms-standalone-app` (`FORMS_HUMAN_TASKS_TOPIC`) for inboxes and notification centres; nothing in EventConductor reads it |
+| `human-tasks` | Outbound | Every change of a human task (created, assigned, claimed, released, completed, cancelled, escalated), published by `forms-standalone-app` (`FORMS_HUMAN_TASKS_TOPIC`) as a binary CloudEvent (`ce_type` `io.eventconductor.task.<event>`) for inboxes and notification centres — and for [event triggers](/guides/domain-event-triggers/) when a destination maps to it; the engine does not read it otherwise |
 | `rules` | Internal | Rule catalog changes (`rule-published`, `rule-deleted`) published by `rule-standalone-app`, for rule runtimes that keep a local cache (`rules.kafka-refresh=true`, binding `consumeRuleCatalogEvent-in-0`) |
 | *destination topics* | Inbound | Domain events (CloudEvents) on the topics of `workflow.events.destinations.<name>.topic`, for event triggers and `onEvent` waits |
 
@@ -156,6 +156,8 @@ The operator commands are handled by `CancelProcessRequestedEventHandler`, `Paus
 ```
 
 Workers consume this topic, perform their work, and publish a `task-status-changed` to the `upstream` topic.
+
+A USER_TASK's request carries its rendered assignment in the `__task` variable (JSON: `assignee`, `candidateUsers`, `candidateGroups`, `priority`, `dueDate`, `followUpDate`, `businessKey`). When one of its escalations fires, the engine sends a `human-task-escalation-requested` on the same topic the task went to — `{taskExecutionId, processId, stepId, level, action, reassignTo, escalateTo, at}` — which the forms engine applies to the task (once per level).
 
 ## http-calls and llm-calls
 

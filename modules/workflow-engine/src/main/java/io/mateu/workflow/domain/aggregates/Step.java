@@ -281,7 +281,23 @@ public record Step(
         /** An explicit back-edge re-running the section from {@code to} to this step (see {@link LoopBack}). */
         @Hidden
         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-        LoopBack loopBack
+        LoopBack loopBack,
+        /**
+         * USER_TASK only: who the task is for — assignee, candidate users and groups — and how urgent
+         * it is (see {@link TaskAssignment}), rendered from the process when the task is created. Left
+         * out of the JSON when absent, so a step without one hashes into a definition version as before.
+         */
+        @Hidden
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        TaskAssignment assignment,
+        /**
+         * USER_TASK only: what happens while the task stays open — reassign, notify, or route the
+         * process elsewhere — each {@code after} a duration from the task's creation (see
+         * {@link Escalation}). Timer-driven by the deadline scan. Absent or empty: none.
+         */
+        @Hidden
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
+        List<Escalation> escalation
 ) implements Identifiable {
 
     public Step {
@@ -357,6 +373,47 @@ public record Step(
                 onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
                 lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, event, http, until, deadline,
                 llm, onEvent, awaitReply, null, null, null);
+    }
+
+    /** The shape this record had before USER_TASK assignment and escalation, so every caller of the full constructor keeps compiling. */
+    public Step(String id, String workflowDefinitionId, StepType type, String name, String description,
+                String preconditionStepId, List<String> preconditionStepIds, List<Precondition> preconditions,
+                String preconditionExpression, boolean parallel, String topic, String formId, String ruleId,
+                String childWorkflowDefinitionId, List<String> outputVariables, long duration,
+                String untilVariable, String messageName, String correlationExpression,
+                List<String> messageVariables, long timeout, int retries, boolean compensable,
+                String compensationStepId, String onTimeoutStepId, int maxSuccessfulExecutions,
+                JoinType joinType, List<String> requiredScopes, List<String> requiredRoles,
+                String lockName, String lockKey, String task, List<String> replyVariables,
+                String replyExpression, Object replyTemplate, PublishEvent event, HttpCall http,
+                Moment until, Moment deadline, LlmCall llm, EventWait onEvent, AwaitReply awaitReply,
+                ForEach forEach, Repeat repeat, LoopBack loopBack) {
+        this(id, workflowDefinitionId, type, name, description, preconditionStepId, preconditionStepIds,
+                preconditions, preconditionExpression, parallel, topic, formId, ruleId,
+                childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
+                correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
+                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
+                lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, event, http, until, deadline,
+                llm, onEvent, awaitReply, forEach, repeat, loopBack, null, null);
+    }
+
+    /** The escalations of this step, in the order they fire; empty when it declares none. */
+    public List<Escalation> escalations() {
+        if (escalation == null || escalation.isEmpty()) {
+            return List.of();
+        }
+        return escalation.stream()
+                .filter(Objects::nonNull)
+                .sorted(java.util.Comparator.comparing(Escalation::afterDuration))
+                .toList();
+    }
+
+    /** The steps this step's escalations may route the process to ({@code escalateTo}). */
+    public List<String> escalationTargets() {
+        return escalations().stream()
+                .map(Escalation::escalateTo)
+                .filter(target -> target != null && !target.isBlank())
+                .toList();
     }
 
     /** Whether completing this step may send the flow round again (a {@code repeat} or a {@code loopBack}). */

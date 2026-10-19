@@ -460,6 +460,8 @@ public class SpecValidator {
             if (loopBack != null && loopBack.isObject() && isSet(text(loopBack, "while"))) {
                 checkJexl(text(loopBack, "while"), "step '" + id + "' loopBack.while", violations);
             }
+            // USER_TASK assignment and escalation: the engine's own UserTaskRules, then their templates.
+            checkUserTask(step, id, type, ids, violations);
             JsonNode event = step.get("event");
             if (event != null && event.isObject()) {
                 checkTemplate(event.get("payload"), "step '" + id + "' event.payload", violations);
@@ -515,6 +517,46 @@ public class SpecValidator {
         }
         checkTemplate(source.get(textTemplateField), where + " " + textTemplateField, violations);
         checkTemplate(source.get("variables"), where + " variables", violations);
+    }
+
+    /** A USER_TASK's assignment and escalation (definition-analysis {@code UserTaskRules}), then every template in them. */
+    @SuppressWarnings("unchecked")
+    private void checkUserTask(JsonNode step, String id, String type, Set<String> ids, List<String> violations) {
+        JsonNode assignment = step.get("assignment");
+        JsonNode escalation = step.get("escalation");
+        boolean hasAssignment = assignment != null && assignment.isObject();
+        boolean hasEscalation = escalation != null && escalation.isArray() && !escalation.isEmpty();
+        if (!hasAssignment && !hasEscalation) {
+            return;
+        }
+        Map<String, Object> assignmentMap = hasAssignment ? TEMPLATE_READER.convertValue(assignment, Map.class) : null;
+        List<Map<String, Object>> entries = new ArrayList<>();
+        if (hasEscalation) {
+            escalation.forEach(entry -> entries.add(entry.isObject() ? TEMPLATE_READER.convertValue(entry, Map.class) : null));
+        }
+        JsonNode forEach = step.get("forEach");
+        JsonNode deadline = step.get("deadline");
+        var problems = io.mateu.workflow.analysis.UserTaskRules.violations(id, type, assignmentMap,
+                hasEscalation ? entries : null, forEach != null && forEach.isObject(),
+                deadline != null && !deadline.isNull(), ids);
+        violations.addAll(problems);
+        if (!problems.isEmpty()) {
+            return;
+        }
+        if (hasAssignment) {
+            checkTemplate(assignment, "USER_TASK step '" + id + "' assignment", violations);
+        }
+        for (int i = 0; hasEscalation && i < escalation.size(); i++) {
+            JsonNode entry = escalation.get(i);
+            String where = "USER_TASK step '" + id + "' escalation[" + i + "]";
+            checkTemplate(entry.get("to"), where + ".to", violations);
+            JsonNode publishEvent = entry.get("publishEvent");
+            if (publishEvent != null && publishEvent.isObject()) {
+                checkTemplate(publishEvent.get("payload"), where + ".publishEvent.payload", violations);
+                checkTemplate(publishEvent.get("payloadTemplate"), where + ".publishEvent.payloadTemplate", violations);
+                checkTemplate(publishEvent.get("key"), where + ".publishEvent.key", violations);
+            }
+        }
     }
 
     private void checkTemplate(JsonNode template, String where, List<String> violations) {

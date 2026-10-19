@@ -121,7 +121,8 @@ class TaskPageJourneyTest {
         action("/_forms", "complete", "bob", "{\"_taskId\":\"" + taskId + "\",\"comment\":\"from bob\"}");
         var stillOpen = executions.findById(taskId).orElseThrow();
         assertThat(stillOpen.userId()).isEqualTo("ana");
-        assertThat(stillOpen.status()).isEqualTo(FormExecutionStatus.PENDING);
+        // Claimed is ASSIGNED: somebody holds it now.
+        assertThat(stillOpen.status()).isEqualTo(FormExecutionStatus.ASSIGNED);
 
         var answer = action("/_forms", "complete", "ana", "{\"_taskId\":\"" + taskId + "\",\"comment\":\"yes\"}");
 

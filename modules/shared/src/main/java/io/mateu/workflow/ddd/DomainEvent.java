@@ -38,6 +38,7 @@ import io.mateu.workflow.dtos.events.integration.*;
         @JsonSubTypes.Type(value = CompleteStepManuallyRequested.class, name = "complete-step-manually-requested"),
         @JsonSubTypes.Type(value = RetryFromStepRequested.class, name = "retry-from-step-requested"),
         @JsonSubTypes.Type(value = io.mateu.workflow.dtos.events.integration.ExternalEventRequested.class, name = "external-event-requested"),
+        @JsonSubTypes.Type(value = io.mateu.workflow.dtos.humantasks.HumanTaskEscalationRequested.class, name = "human-task-escalation-requested"),
 })
 public interface DomainEvent {
 

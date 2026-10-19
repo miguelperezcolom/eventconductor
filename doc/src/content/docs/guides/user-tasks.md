@@ -29,13 +29,17 @@ A `USER_TASK` step pauses a workflow process until a human submits a form. This 
 
 - `formId` references a form definition by its ID
 - `timeout` (optional) — if the user doesn't submit within this time, the step transitions to `TIMEOUT`
+- `assignment` (optional) — who the task is for (assignee, candidate users and groups), its priority and due date, rendered from the process
+- `escalation` (optional) — what happens while it stays open: reassign, notify, or route the process to another step
+
+Assignment, visibility and claim rules, escalation, the task inbox and lifecycle events are described in [Human tasks: assignment and escalation](/guides/human-tasks-assignment-and-escalation/).
 
 ## Form execution lifecycle
 
 | Status | Description |
 |---|---|
-| `PENDING` | Form execution created, not yet assigned |
-| `ASSIGNED` | Waiting for user submission |
+| `PENDING` | Waiting for somebody to claim it (nobody holds it) |
+| `ASSIGNED` | Held by a person — its assignee, or whoever claimed it — waiting for their submission |
 | `COMPLETED` | User submitted the form |
 | `CANCELLED` | The task (or its process) was cancelled |
 
@@ -43,7 +47,11 @@ A `USER_TASK` step pauses a workflow process until a human submits a form. This 
 
 ### Via the management UI
 
-Navigate to **Form Executions** in the management UI to see all pending and completed user tasks. Filter by workflow, step, or assignee.
+**Tasks** lists the open tasks you may work on — yours, the ones offered to you or your groups, and those that name nobody — most urgent first, with filters for *Mine*, *Claimable*, *My groups*, *Overdue only*, priority, process and business key. **Form Executions** (administration) lists every task.
+
+### Via REST
+
+`GET /forms/api/tasks?scope=mine&overdue=true` — and `claim`, `release`, `complete`, `assign` on `/forms/api/tasks/{id}/…`. See [the task inbox](/guides/human-tasks-assignment-and-escalation/#the-task-inbox).
 
 ### Via MCP (natural language)
 
@@ -57,12 +65,12 @@ Navigate to **Form Executions** in the management UI to see all pending and comp
 
 ```java
 @Autowired
-FormExecutionRepository formExecutionRepository;
+TaskInbox taskInbox;
+@Autowired
+TaskCallers taskCallers;
 
-// FormExecutionRepository is a plain CrudStore — filter findAll() by status
-List<FormExecution> pending = formExecutionRepository.findAll().stream()
-    .filter(e -> e.status() == FormExecutionStatus.ASSIGNED)
-    .toList();
+// The open tasks the current caller may see, most urgent first
+TaskPage page = taskInbox.search(TaskQuery.open(), taskCallers.current());
 ```
 
 ## Submitting a form
@@ -73,9 +81,10 @@ Click on a pending task, fill the form fields, and click Submit.
 
 ### Programmatically
 
-The forms engine exposes no REST submit endpoint; submit through `CompleteTaskUseCase`
-(this stores the values, marks the execution `COMPLETED` and notifies the orchestrator
-with a `TaskStatusChanged` event):
+Over HTTP, `POST /forms/api/tasks/{id}/complete` with `{"values": {...}}`, as the person who holds the task.
+In code, through `CompleteTaskUseCase` (this stores the values, marks the execution `COMPLETED` and
+notifies the orchestrator with a `TaskStatusChanged` event) — `handle(command, caller)` to act for a
+person (only the holder may), `handle(command)` for trusted code:
 
 ```java
 @Autowired
@@ -90,8 +99,6 @@ completeTaskUseCase.handle(new CompleteTaskCommand(
 ));
 ```
 
-If you need an HTTP entry point, wrap this use case in your own controller — see
-`testbench/forms-embedded-mvc` for a minimal example of exposing forms over MVC.
 
 ## Submitted values as process variables
 

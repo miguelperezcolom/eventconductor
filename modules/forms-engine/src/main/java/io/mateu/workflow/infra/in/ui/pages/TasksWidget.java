@@ -24,8 +24,8 @@ import org.springframework.stereotype.Service;
 @Action(id = "refreshTasks")
 public class TasksWidget implements Hydratable, ComponentTreeSupplier {
 
-    final FormExecutionEntityRepository repository;
-    final io.mateu.workflow.application.services.TaskAuthorization taskAuthorization;
+    final io.mateu.workflow.application.services.TaskInbox taskInbox;
+    final io.mateu.workflow.application.services.TaskCallers taskCallers;
 
     String content = "hello";
 
@@ -37,21 +37,13 @@ public class TasksWidget implements Hydratable, ComponentTreeSupplier {
     @Override
     public void hydrate(HttpRequest httpRequest) {
 
-        // The badge is a listing with one number in it: counting tasks this person may not work on
-        // would tell them the work exists, which is most of what hiding it was for.
-        var permitted = taskAuthorization.enabled() ? taskAuthorization.permittedFormIds() : null;
-        var tasks = repository.findAll().stream()
-                .filter(task -> permitted == null || permitted.contains(task.getFormId()))
-                .filter(task -> !"COMPLETED".equals(task.getStatus())
-                        && !"CANCELLED".equals(task.getStatus())
-                        && !"ERROR".equals(task.getStatus())
-                        && (
-                                !"ASSIGNED".equals(task.getStatus()) && (task.getUserId() == null
-                                        || task.getUserId().isEmpty())
-                                        || (task.getUserId() != null && task.getUserId().equals(JwtExtractor.getUsername(httpRequest).orElse("xxx")))
-                        )
-                )
-                .count();
+        // The badge is a listing with one number in it, so it counts what the inbox would list for
+        // this person — what the tasks name and what their forms require: counting tasks they may not
+        // work on would tell them the work exists, which is most of what hiding it was for.
+        var caller = taskCallers.forUser(JwtExtractor.getUsername(httpRequest).orElse(null));
+        var tasks = taskInbox.count(io.mateu.workflow.domain.TaskQuery.open(), caller);
+        var overdue = taskInbox.count(new io.mateu.workflow.domain.TaskQuery(io.mateu.workflow.domain.TaskQuery.Scope.ALL,
+                null, null, Boolean.TRUE, null, null, null, null, null, 0, 1), caller);
 
         /*
         route("/forms/tasks")
@@ -78,7 +70,7 @@ public class TasksWidget implements Hydratable, ComponentTreeSupplier {
                     "text-decoration: none;" +
                     "animation: fade 2s ease-in-out infinite alternate;" +
                     "\">" +
-                    "You have tasks!" +
+                    (overdue > 0 ? "You have " + tasks + " tasks (" + overdue + " overdue)!" : "You have tasks!") +
                     "</a>&nbsp;&nbsp;" +
                     "<style>" +
                     "@keyframes fade { from { opacity: 1; } to { opacity: 0; } }" +

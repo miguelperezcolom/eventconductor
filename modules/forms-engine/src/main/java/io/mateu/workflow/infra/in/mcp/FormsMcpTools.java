@@ -23,9 +23,11 @@ public class FormsMcpTools implements McpTools, McpSystemContext {
                 Motor de formularios (tareas de usuario):
                 - Puedes listar las definiciones de formularios disponibles.
                 - Puedes listar y consultar ejecuciones de formularios (tareas pendientes de usuarios).
-                Estados posibles de una ejecución: PENDING, COMPLETED, CANCELLED.
+                - Puedes buscar las tareas que el usuario actual puede ver (searchTasks): las suyas, las que
+                  puede reclamar, las de sus grupos, las vencidas; ordenadas por prioridad (0-100) y vencimiento.
+                Estados posibles de una ejecución: PENDING, ASSIGNED, COMPLETED, CANCELLED.
                 Cada ejecución está asociada a un proceso (processId) y a un paso concreto (stepExecutionId).
-                Puede estar asignada a un usuario (userId) o a un grupo (userGroup).
+                Puede estar asignada a un usuario (userId) u ofrecida a usuarios y grupos candidatos.
                 """;
     }
 
@@ -33,6 +35,34 @@ public class FormsMcpTools implements McpTools, McpSystemContext {
     private final FormRepository formRepository;
     private final FormExecutionRepository formExecutionRepository;
     private final ImportFormsFromGitUseCase importFormsFromGitUseCase;
+    private final io.mateu.workflow.application.services.TaskInbox taskInbox;
+    private final io.mateu.workflow.application.services.TaskCallers taskCallers;
+
+    public record TaskSummary(
+            String id, String formId, String processId, String businessKey, String status, String assignee,
+            List<String> candidateUsers, List<String> candidateGroups, int priority, String dueDate,
+            boolean overdue, int escalationLevel) {}
+
+    @Tool(description = "Search the human tasks (user tasks) the current user may see, most urgent first. "
+            + "scope: all (default), mine (assigned to me), candidate (unassigned and offered to me or my groups), "
+            + "groups (unassigned and offered to my groups). overdueOnly: only tasks past their due date. "
+            + "minPriority: 0-100. processId / businessKey: the tasks of one process.")
+    public List<TaskSummary> searchTasks(String scope, Boolean overdueOnly, Integer minPriority,
+                                         String processId, String businessKey) {
+        log.info("Searching tasks");
+        var query = new io.mateu.workflow.domain.TaskQuery(io.mateu.workflow.domain.TaskQuery.Scope.parse(scope),
+                null, minPriority, Boolean.TRUE.equals(overdueOnly) ? Boolean.TRUE : null, null, processId,
+                businessKey, null, io.mateu.workflow.domain.TaskQuery.Sort.PRIORITY, 0,
+                io.mateu.workflow.domain.TaskQuery.DEFAULT_SIZE);
+        var now = io.mateu.workflow.application.services.TaskInboxOrder.nowUtc();
+        return taskInbox.search(query, taskCallers.current()).items().stream()
+                .map(task -> new TaskSummary(task.id(), task.formId(), task.processId(), task.businessKey(),
+                        task.status().name(), task.userId(), task.candidateUsers(), task.candidateGroups(),
+                        task.priorityOrDefault(),
+                        task.dueDate() == null ? null : task.dueDate().toInstant(java.time.ZoneOffset.UTC).toString(),
+                        task.isOverdue(now), task.escalations()))
+                .toList();
+    }
 
     public record FormSummary(String id, String name, String description, int fieldCount) {}
 

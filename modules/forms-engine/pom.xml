@@ -67,6 +67,27 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- The task inbox's SQL and the forms migrations on a real PostgreSQL (Testcontainers), next to
+             H2. Those tests skip themselves without Docker, so a plain `mvn verify` never needs it.
+             Testcontainers pinned to 1.x like workflow-engine and workflow-dist-e2e. -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>1.21.4</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <!-- Flyway 10+ ships each database's support as its own module. -->
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

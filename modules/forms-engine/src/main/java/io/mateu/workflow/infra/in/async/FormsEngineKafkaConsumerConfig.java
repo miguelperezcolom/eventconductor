@@ -24,6 +24,7 @@ public class FormsEngineKafkaConsumerConfig {
 
     final CreateTaskUseCase createTaskUseCase;
     final CancelTaskUseCase cancelTaskUseCase;
+    final io.mateu.workflow.application.usecases.escalatetask.EscalateTaskUseCase escalateTaskUseCase;
 
     @Bean
     public Consumer<DomainEvent> consumeWorkerEventForFormsEngine() {
@@ -49,6 +50,11 @@ public class FormsEngineKafkaConsumerConfig {
                                             .map(variable -> new Variable(variable.name(), variable.value()))
                                             .toList()))).start();
                 }
+
+            }
+            if (event instanceof io.mateu.workflow.dtos.humantasks.HumanTaskEscalationRequested escalation) {
+
+                new Thread(() -> escalateTaskUseCase.handle(escalation)).start();
 
             }
             if (event instanceof TaskCancellationRequested(String taskId)) {

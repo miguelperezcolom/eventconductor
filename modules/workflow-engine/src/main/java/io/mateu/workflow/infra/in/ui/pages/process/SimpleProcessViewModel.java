@@ -623,7 +623,14 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
                     + (se.getAwaitingCorrelationKey() != null ? " with key '" + se.getAwaitingCorrelationKey() + "'" : "");
         }
         if (type == StepType.TIMER && se.getDeadlineAt() != null) return "Waiting for timer until " + se.getDeadlineAt();
-        if (type == StepType.USER_TASK) return "Waiting for a human task";
+        if (type == StepType.USER_TASK) {
+            var assignment = se.assignment();
+            var next = se.nextEscalationAt();
+            return "Waiting for a human task"
+                    + (assignment != null && assignment.assignee() != null ? " (assigned to " + assignment.assignee() + ")" : "")
+                    + (se.escalationsFired() > 0 ? ", escalated " + se.escalationsFired() + "x" : "")
+                    + (next != null ? ", next escalation at " + next : "");
+        }
         if (type == StepType.PROCESS) return "Waiting for a child process to finish";
         if (se.getDeadlineAt() != null) return "Waiting (times out at " + se.getDeadlineAt() + ")";
         return "Waiting for its preconditions";

@@ -42,6 +42,29 @@ class MicrometerFormsMetricsTest {
     }
 
     @Test
+    void taskLifecycleEventsAreCountedPerEventAndForm() {
+        metrics.taskEvent("escalated", "form-1");
+        metrics.taskEvent("escalated", "form-1");
+        metrics.taskEvent("claimed", null);
+
+        assertThat(registry.get("eventconductor.tasks.events").tag("event", "escalated").tag("formId", "form-1")
+                .counter().count()).isEqualTo(2.0);
+        assertThat(registry.get("eventconductor.tasks.events").tag("event", "claimed").tag("formId", "unknown")
+                .counter().count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void aTaskIsTimedFromItsCreationWhenItKnowsIt() {
+        var created = io.mateu.workflow.application.services.TaskInboxOrder.nowUtc().minusMinutes(5);
+        var task = io.mateu.workflow.domain.FormExecution.builder().id("t").createdAt(created).build();
+
+        assertThat(io.mateu.workflow.application.out.FormsMetrics.durationOf(task)).isGreaterThanOrEqualTo(Duration.ofMinutes(5));
+        assertThat(io.mateu.workflow.application.out.FormsMetrics.durationOf(task.withCreatedAt(null))).isNull();
+        assertThat(io.mateu.workflow.application.out.FormsMetrics.durationOf(null)).isNull();
+        io.mateu.workflow.application.out.FormsMetrics.NOOP.taskEvent("created", "f");
+    }
+
+    @Test
     void tasksAreCountedPerForm() {
         metrics.taskCreated("form-1");
         metrics.taskCreated("form-1");

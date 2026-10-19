@@ -31,6 +31,19 @@ class MicrometerWorkflowMetricsTest {
     }
 
     @Test
+    void taskEscalationsAreCountedByActionAndDefinition() {
+        metrics.taskEscalated("expenses", "reassign");
+        metrics.taskEscalated("expenses", "reassign");
+        metrics.taskEscalated(null, "escalateTo");
+
+        assertThat(registry.get("eventconductor.tasks.escalations").tag("action", "reassign")
+                .tag("workflowDefinitionId", "expenses").counter().count()).isEqualTo(2);
+        assertThat(registry.get("eventconductor.tasks.escalations").tag("action", "escalateTo")
+                .counter().count()).isEqualTo(1);
+        new io.mateu.workflow.application.out.WorkflowMetrics() {}.taskEscalated("x", "notify");
+    }
+
+    @Test
     void purgedProcessesAreCountedByDefinitionAndStatus() {
         metrics.processesPurged("orders", io.mateu.workflow.domain.aggregates.ProcessStatus.COMPLETED, 3);
         metrics.processesPurged("orders", io.mateu.workflow.domain.aggregates.ProcessStatus.COMPLETED, 2);

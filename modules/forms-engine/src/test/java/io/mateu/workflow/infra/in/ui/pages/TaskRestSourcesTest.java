@@ -44,7 +44,10 @@ class TaskRestSourcesTest {
     @BeforeEach
     void setUp() {
         task = new Task(executions, forms, mock(StreamBridge.class), mock(CompleteTaskUseCase.class),
-                mock(io.mateu.workflow.application.services.TaskAuthorization.class));
+                mock(io.mateu.workflow.application.services.TaskAuthorization.class),
+                mock(io.mateu.workflow.application.services.TaskCallers.class),
+                mock(io.mateu.workflow.application.usecases.claimtask.ClaimTaskUseCase.class),
+                mock(io.mateu.workflow.application.usecases.releasetask.ReleaseTaskUseCase.class));
         task._taskId = "t-1";
         when(executions.findById("t-1"))
                 .thenReturn(Optional.of(FormExecution.builder().id("t-1").formId("f-1").build()));

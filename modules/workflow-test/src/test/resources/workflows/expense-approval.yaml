@@ -1,0 +1,52 @@
+id: expense-approval
+name: Expense approval
+steps:
+  - id: start
+    type: START
+    name: Start
+  - id: approve
+    type: USER_TASK
+    name: Approve the expense
+    formId: expense-approval
+    preconditionStepId: start
+    timeout: P10D
+    assignment:
+      assignee: "${manager}"
+      candidateGroups: ["finance-${region}"]
+      priority: "${amount > 1000 ? 90 : 40}"
+      dueDate: P2D
+    escalation:
+      - after: PT48H
+        action: reassign
+        to:
+          candidateGroups: [finance-managers]
+        publishEvent:
+          destination: notifications
+          type: com.acme.task.escalated
+          payload:
+            task: "${step.id}"
+            level: "${escalation.level}"
+            expense: "${expenseId}"
+      - after: P4D
+        action: notify
+      - after: P5D
+        escalateTo: director-review
+  - id: director-review
+    type: USER_TASK
+    name: Director review
+    formId: expense-approval
+    preconditions:
+      - stepId: approve
+        expression: "false"
+    assignment:
+      candidateGroups: [directors]
+      priority: 100
+  - id: decided
+    type: JOIN
+    name: Decided
+    joinType: XOR
+    preconditionStepIds: [approve, director-review]
+  - id: end
+    type: END
+    name: End
+    preconditionStepId: decided

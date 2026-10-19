@@ -392,11 +392,148 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         if (startedAt == null || isContainer()) {
             return null;
         }
+        LocalDateTime limit;
         try {
-            return pojoFromJson(stepJson, Step.class).deadlineAt(startedAt, variables);
+            limit = pojoFromJson(stepJson, Step.class).deadlineAt(startedAt, variables);
         } catch (IllegalArgumentException e) {
+            limit = null;
+        }
+        // A USER_TASK's next escalation needs the engine's attention as much as its time limit does:
+        // the earlier of the two is what the deadline scan finds it by (CheckTimeoutUseCase tells
+        // them apart). Derived from the same frozen state plus the count of escalations already fired.
+        var escalation = nextEscalationAt();
+        if (escalation == null) {
+            return limit;
+        }
+        return limit == null || escalation.isBefore(limit) ? escalation : limit;
+    }
+
+    // ------------------------------------------------------------------ human task escalation
+
+    /**
+     * The step variable counting the escalations of this USER_TASK that already fired. Kept with the
+     * task's other frozen variables (next to {@code formId} and the assignment), so the deadline stays
+     * derivable from this execution alone and a retry — which starts the step afresh — starts its
+     * escalations over.
+     */
+    public static final String ESCALATIONS_VARIABLE = "__escalations";
+
+    /** One escalation of this task that is due: its 1-based level and what it does. */
+    public record DueEscalation(int level, Escalation escalation) {
+    }
+
+    /** How many of this USER_TASK's escalations have fired. */
+    public int escalationsFired() {
+        if (variables == null) {
+            return 0;
+        }
+        return variables.stream()
+                .filter(variable -> ESCALATIONS_VARIABLE.equals(variable.name()))
+                .map(Variable::value)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .map(value -> {
+                    try {
+                        return Integer.parseInt(value.trim());
+                    } catch (NumberFormatException e) {
+                        return 0;
+                    }
+                })
+                .orElse(0);
+    }
+
+    /**
+     * When this USER_TASK's next escalation is due — its creation plus the {@code after} of the first
+     * one that has not fired — or null when it has none left, has not started, or is not a USER_TASK.
+     */
+    public LocalDateTime nextEscalationAt() {
+        var escalations = escalationsOfThisTask();
+        var fired = escalationsFired();
+        if (startedAt == null || fired >= escalations.size()) {
             return null;
         }
+        return startedAt.plus(escalations.get(fired).afterDuration());
+    }
+
+    /**
+     * The escalations of this task that are due at {@code now} and have not fired, in the order they
+     * fire. Empty for a step that is not live.
+     */
+    public List<DueEscalation> escalationsDue(LocalDateTime now) {
+        if (startedAt == null || now == null
+                || !(StepExecutionStatus.PENDING.equals(status) || StepExecutionStatus.RUNNING.equals(status))) {
+            return List.of();
+        }
+        var escalations = escalationsOfThisTask();
+        var due = new ArrayList<DueEscalation>();
+        for (var i = escalationsFired(); i < escalations.size(); i++) {
+            if (startedAt.plus(escalations.get(i).afterDuration()).isAfter(now)) {
+                break;
+            }
+            due.add(new DueEscalation(i + 1, escalations.get(i)));
+        }
+        return due;
+    }
+
+    private List<Escalation> escalationsOfThisTask() {
+        if (isContainer()) {
+            return List.of();
+        }
+        try {
+            var step = pojoFromJson(stepJson, Step.class);
+            return StepType.USER_TASK.equals(step.type()) ? step.escalations() : List.of();
+        } catch (RuntimeException e) {
+            return List.of();
+        }
+    }
+
+    /**
+     * Records that escalation {@code level} fired, and tells the task's worker side (the forms engine).
+     *
+     * <ul>
+     *   <li>the count of fired escalations moves to {@code level}, and with it the deadline, to the
+     *       next escalation or the time limit — so a redelivered scan does not fire it again;</li>
+     *   <li>a reassignment replaces the task's assignment ({@code __task}) as this execution
+     *       remembers it;</li>
+     *   <li>an {@code escalateTo} becomes this execution's on-timeout route: the step it names is
+     *       where the flow goes when the step now ends {@code TIMEOUT} — the same route, read the same
+     *       way, as a declared {@code onTimeoutStepId}. Only this execution's copy of the step changes;
+     *       the definition does not.</li>
+     * </ul>
+     */
+    public void escalated(int level, String action, io.mateu.workflow.dtos.humantasks.HumanTaskAssignment assignment,
+                          String escalateTo) {
+        var updated = new ArrayList<Variable>();
+        if (variables != null) {
+            variables.stream()
+                    .filter(variable -> !ESCALATIONS_VARIABLE.equals(variable.name()))
+                    .filter(variable -> assignment == null
+                            || !io.mateu.workflow.dtos.humantasks.HumanTaskAssignment.VARIABLE.equals(variable.name()))
+                    .forEach(updated::add);
+        }
+        updated.add(new Variable(ESCALATIONS_VARIABLE, String.valueOf(level)));
+        if (assignment != null) {
+            updated.add(new Variable(io.mateu.workflow.dtos.humantasks.HumanTaskAssignment.VARIABLE, assignment.toJson()));
+        }
+        this.variables = updated;
+        if (escalateTo != null && !escalateTo.isBlank()) {
+            this.stepJson = toJson(pojoFromJson(stepJson, Step.class).withOnTimeoutStepId(escalateTo));
+        }
+        this.deadlineAt = computeDeadline();
+        send(new io.mateu.workflow.dtos.humantasks.HumanTaskEscalationRequested(id, processId, stepId, level, action,
+                assignment, escalateTo, EngineClock.instant().toString()));
+    }
+
+    /** This task's assignment as it was rendered when it was created (or last reassigned); null when none. */
+    public io.mateu.workflow.dtos.humantasks.HumanTaskAssignment assignment() {
+        if (variables == null) {
+            return null;
+        }
+        return variables.stream()
+                .filter(variable -> io.mateu.workflow.dtos.humantasks.HumanTaskAssignment.VARIABLE.equals(variable.name()))
+                .findFirst()
+                .map(variable -> io.mateu.workflow.dtos.humantasks.HumanTaskAssignment.fromJson(variable.value()))
+                .orElse(null);
     }
 
     public StepExecution start(Process process) {
@@ -444,9 +581,29 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
                 updateStatus(StepExecutionStatus.ERROR);
                 return this;
             }
+            // Who the task is for, rendered now from the process (an iteration's item included) — the
+            // forms engine receives the result, never an expression. One that cannot be rendered
+            // fails the step with the reason, like an HTTP_CALL whose request cannot be.
+            io.mateu.workflow.dtos.humantasks.HumanTaskAssignment assignment;
+            try {
+                assignment = io.mateu.workflow.domain.services.HumanTaskAssignments.resolve(step, process, id, typedScope);
+            } catch (IllegalArgumentException | io.mateu.workflow.template.Templates.TemplateException e) {
+                send(new TaskLogEmitted(id, MessageType.Error,
+                        "Step " + step.name() + ": the task assignment could not be rendered: " + e.getMessage()));
+                updateStatus(StepExecutionStatus.ERROR);
+                return this;
+            }
             var taskVariables = new ArrayList<>(variables);
             taskVariables.add(new Variable("formId", step.formId()));
+            taskVariables.add(new Variable(io.mateu.workflow.dtos.humantasks.HumanTaskAssignment.VARIABLE, assignment.toJson()));
             this.variables = taskVariables;
+            if (assignment.restricted()) {
+                send(new TaskLogEmitted(id, MessageType.Info, "Task " + step.name() + " assigned"
+                        + (assignment.assignee() == null ? "" : " to " + assignment.assignee())
+                        + (assignment.candidateUsers().isEmpty() ? "" : ", candidate users " + assignment.candidateUsers())
+                        + (assignment.candidateGroups().isEmpty() ? "" : ", candidate groups " + assignment.candidateGroups())
+                        + "."));
+            }
             send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, "complete-form", taskVariables.stream()
                     .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
                     .toList(), dispatchCount));

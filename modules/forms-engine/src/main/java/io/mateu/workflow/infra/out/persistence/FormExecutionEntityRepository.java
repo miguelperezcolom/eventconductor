@@ -9,7 +9,8 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
-public interface FormExecutionEntityRepository extends JpaRepository<FormExecutionEntity, String> {
+public interface FormExecutionEntityRepository extends JpaRepository<FormExecutionEntity, String>,
+        org.springframework.data.jpa.repository.JpaSpecificationExecutor<FormExecutionEntity> {
 
     interface TaskSummary {
         String getId();
@@ -93,5 +94,17 @@ public interface FormExecutionEntityRepository extends JpaRepository<FormExecuti
     int claim(@Param("ids") List<String> ids, @Param("userId") String userId);
 
     List<FormExecutionEntity> findByStepExecutionId(String stepExecutionId);
+
+    /**
+     * Gives one open task nobody holds to {@code userId}, in one statement: the guard is the claim,
+     * so two people claiming the same task at once cannot both get it.
+     */
+    @org.springframework.transaction.annotation.Transactional
+    @Modifying(clearAutomatically = true)
+    @Query("""
+            UPDATE FormExecutionEntity f SET f.userId = :userId, f.status = 'ASSIGNED'
+            WHERE f.id = :id AND (f.userId IS NULL OR f.userId = '') AND f.status IN ('PENDING', 'ASSIGNED')
+            """)
+    int claimOne(@Param("id") String id, @Param("userId") String userId);
 
 }

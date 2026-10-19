@@ -29,6 +29,7 @@ public class CompleteTaskUseCase {
     final FormsMetrics formsMetrics;
     final TaskAuthorization taskAuthorization;
     final io.mateu.workflow.application.services.HumanTaskEvents humanTaskEvents;
+    final io.mateu.workflow.application.services.TaskInbox taskInbox;
 
     /**
      * Closes a human task and tells the engine — the reply first, and through {@link WorkerReply},
@@ -45,7 +46,27 @@ public class CompleteTaskUseCase {
      * ignores a status update for a step that already reached a terminal state.
      */
     public void handle(CompleteTaskCommand command) {
-        var open = formExecutionRepository.findById(command.taskId()).orElseThrow();
+        complete(command, formExecutionRepository.findById(command.taskId()).orElseThrow());
+    }
+
+    /**
+     * Completes the task on behalf of {@code caller}, who must hold it — the rule every page applies,
+     * here for the REST API and anything else that acts for a person rather than for the system.
+     *
+     * @throws io.mateu.workflow.application.services.TaskNotFoundException when they may not see it
+     * @throws io.mateu.workflow.application.services.TaskActionRefusedException when they do not hold it
+     */
+    public void handle(CompleteTaskCommand command, io.mateu.workflow.domain.TaskCaller caller) {
+        var task = taskInbox.get(command.taskId(), caller);
+        if (!io.mateu.workflow.application.services.TaskVisibility.canComplete(task, caller)) {
+            throw new io.mateu.workflow.application.services.TaskActionRefusedException("Task " + command.taskId()
+                    + " is completed by whoever holds it" + (task.isAssigned() ? " (" + task.userId() + ")" : "; claim it first"),
+                    false);
+        }
+        complete(command, task);
+    }
+
+    private void complete(CompleteTaskCommand command, FormExecution open) {
 
         // A task is completed once. Re-submitting one that is already closed used to overwrite the
         // values it was completed with and send the engine a second reply — harmless to the engine,
@@ -87,7 +108,7 @@ public class CompleteTaskUseCase {
 
         formsMetrics.taskCompleted(execution.formId(), FormsMetrics.durationOf(execution));
 
-        humanTaskEvents.changed(execution);
+        humanTaskEvents.changed(execution, io.mateu.workflow.dtos.events.integration.HumanTaskChanged.COMPLETED);
     }
 
     /**

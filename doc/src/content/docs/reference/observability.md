@@ -58,6 +58,7 @@ modes** (embedded + memory, embedded + jpa, kafka + jpa).
 | `eventconductor.processes.stalled` | Gauge | — | `RUNNING` processes with no step left to run and no deadline anywhere, older than `workflow.stalled-process-after-ms` (scanned every `workflow.stalled-process-scan-interval-ms`; the ids are logged at WARN). Usually guards that leave nothing eligible after the last completed step |
 | `eventconductor.process.concurrent.writes.rejected` | Counter | — | Writes refused by optimistic locking because another writer had the process. Events are keyed by process, so outside a rebalance this stays at zero |
 | `eventconductor.events.dead.lettered` | Counter | `source` | Events parked on the dead-letter destination as unprocessable |
+| `eventconductor.tasks.escalations` | Counter | `workflowDefinitionId`, `action` | Human-task escalations that fired (`reassign` \| `notify` \| `escalateTo`) — see [Human tasks: assignment and escalation](/guides/human-tasks-assignment-and-escalation/) |
 | `eventconductor.processes.purged` | Counter | `workflowDefinitionId`, `status` | Finished processes the [retention purge](/guides/workflow-definitions/#process-retention) deleted, with everything that belonged to them, by definition and the status they ended in. Each pass that deleted anything, or had to keep a due tree still in use, also logs one INFO line |
 | `eventconductor.processes.operations` | Counter | `operation`, `workflowDefinitionId` | Manual operations performed on live processes: `set-variables`, `complete-step`, `retry-from-step`, `retry-incident` (one per retried step). Each is also a line in the process log with who, what and why — see [Operating running processes](/guides/operating-running-processes/#audit) |
 | `eventconductor.batch.operations` | Counter | `type`, `outcome` | [Batch operations](/guides/searching-and-bulk-operations/#batch-operations) that ended, by type (`CANCEL`, `RETRY`, `RESTART`, `PAUSE`, `RESUME`) and outcome: `completed`, `failed` (the batch could not go on) or `cancelled` |
@@ -156,7 +157,8 @@ Tracing: the request's span `eventconductor.sync.invoke` carries a **link** to t
 | `eventconductor.forms.task.created` | Counter | `formId` | User tasks created |
 | `eventconductor.forms.task.completed` | Counter | `formId` | User tasks completed |
 | `eventconductor.forms.task.cancelled` | Counter | `formId` | User tasks cancelled |
-| `eventconductor.forms.task.duration` | Timer | `formId`, `outcome` | Task duration (recorded only when the form execution carries usable timestamps) |
+| `eventconductor.forms.task.duration` | Timer | `formId`, `outcome` | Task duration, from its creation to its completion or cancellation (not recorded for tasks created before 2.31, which carry no creation time) |
+| `eventconductor.tasks.events` | Counter | `event`, `formId` | Human task lifecycle events: `created`, `assigned`, `claimed`, `released`, `completed`, `cancelled`, `escalated` |
 | `eventconductor.forms.imported` | Counter | — | Form definitions imported (e.g. from Git) |
 
 ### Rule engine (catalog)

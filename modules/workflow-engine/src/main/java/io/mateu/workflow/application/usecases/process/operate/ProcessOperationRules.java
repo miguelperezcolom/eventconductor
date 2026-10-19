@@ -198,6 +198,10 @@ public class ProcessOperationRules {
             if (step.onTimeoutStepId() != null && !step.onTimeoutStepId().isBlank()) {
                 successors.computeIfAbsent(step.id(), k -> new LinkedHashSet<>()).add(step.onTimeoutStepId());
             }
+            // A USER_TASK's escalateTo is an on-timeout route the task may take.
+            for (var target : step.escalationTargets()) {
+                successors.computeIfAbsent(step.id(), k -> new LinkedHashSet<>()).add(target);
+            }
         }
         var result = new LinkedHashSet<String>();
         var queue = new ArrayDeque<String>();

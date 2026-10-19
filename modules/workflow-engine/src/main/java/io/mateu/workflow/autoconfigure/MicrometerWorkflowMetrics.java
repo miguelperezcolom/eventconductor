@@ -62,6 +62,8 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String PROCESSES_PURGED = "eventconductor.processes.purged";
     public static final String PROCESS_OPERATIONS = "eventconductor.processes.operations";
     public static final String TAG_OPERATION = "operation";
+    public static final String TASK_ESCALATIONS = "eventconductor.tasks.escalations";
+    public static final String TAG_ACTION = "action";
     public static final String TAG_STATUS = "status";
     public static final String BATCH_OPERATIONS = "eventconductor.batch.operations";
     public static final String BATCH_OPERATION_ITEMS = "eventconductor.batch.operation.items";
@@ -242,6 +244,18 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
                 .tag(TAG_OUTCOME, tagValue(outcome))
                 .register(registry)
                 .increment(count);
+    }
+
+    @Override
+    public void taskEscalated(String workflowDefinitionId, String action) {
+        var registry = registry();
+        if (registry == null) return;
+        Counter.builder(TASK_ESCALATIONS)
+                .description("Human task escalations that fired")
+                .tag(TAG_ACTION, tagValue(action))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .register(registry)
+                .increment();
     }
 
     @Override

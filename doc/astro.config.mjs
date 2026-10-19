@@ -99,6 +99,7 @@ export default defineConfig({
 					items: [
 						{ label: 'Form Definitions', slug: 'guides/form-definitions' },
 						{ label: 'User Tasks', slug: 'guides/user-tasks' },
+						{ label: 'Human Tasks: Assignment and Escalation', slug: 'guides/human-tasks-assignment-and-escalation' },
 					],
 				},
 				{
