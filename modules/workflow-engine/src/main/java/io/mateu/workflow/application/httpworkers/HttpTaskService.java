@@ -42,6 +42,13 @@ import static io.mateu.workflow.application.httpworkers.HttpTaskException.Reason
  * first reply wins and removes the task; a second one — a worker whose lease expired while it was
  * still working, and whose task was re-leased — finds it gone.
  *
+ * <p><b>Time.</b> Leases run on {@code clock} — the wall clock (UTC) in production — and not on
+ * {@code EngineClock}: like the outbox's delivery claims and leases, which {@code EngineClock} names
+ * as not business time, a lease measures a worker thread and a socket waiting in real time. Skipping
+ * business time in a test must not expire every lease a live worker holds, and a lease never feeds a
+ * process or step timestamp. The {@code deadline} a worker is handed is therefore an instant, not
+ * engine time.
+ *
  * <p><b>Order.</b> The reply is published first and the task removed after, so a reply the engine
  * would not take leaves the task where it was (503, the worker retries) rather than lost.
  */
@@ -63,6 +70,7 @@ public class HttpTaskService {
         this.clock = clock;
     }
 
+    /** The lease clock's now (wall clock, UTC in production). */
     public LocalDateTime now() {
         return LocalDateTime.now(clock);
     }

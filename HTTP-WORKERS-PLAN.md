@@ -87,8 +87,17 @@ Memory persistence → `InMemoryHttpTaskQueue` (tests, single JVM). JPA → `Jdb
   `deliveries` counts it (metric `redelivered`). Workers must be idempotent (as Kafka workers are).
 - **Cancellation.** Unleased → row deleted. Leased → `cancelled=true`; the next heartbeat answers
   `cancelled: true` and drops the row; otherwise it is purged once its lease expires.
-- **Maintenance** (every `maintenance-interval`): purge cancelled+expired rows and orphans older than
-  `orphan-retention` (a row whose step moved on without a cancellation), refresh the queue gauges.
+- **Maintenance** — `HttpTaskMaintenance`, a `SchedulerPass` (#548): every `maintenance-interval`
+  (or on demand from the test kit; never in the background with `workflow.schedulers.background=false`)
+  it purges cancelled+expired rows and orphans older than `orphan-retention`, refreshes the gauges and
+  wakes the long-poll so expired leases reach waiting workers at once. Expiry itself needs no scan.
+- **Time (#548's rule).** `created_at` and the orphan cut-off are business time → `EngineClock`.
+  Leases (`lease_until`, the `deadline` a worker gets) are **wall clock, UTC**: like the outbox's
+  delivery claims and leases, which `EngineClock` names as not business time, they measure a worker
+  thread and a socket waiting in real time; skipping three days in a test must not expire the lease of
+  a live worker. The two are never compared with each other.
+- **forEach (#543).** Each iteration is its own step execution with its own task id, so each item is
+  its own `http_task` row, leased and answered independently.
 
 ### 3.3 API — `/workflow/api/workers`
 
@@ -170,6 +179,11 @@ worker.run()   # SIGINT/SIGTERM → graceful shutdown
   queue contract, PostgreSQL Testcontainers concurrent activation (disjoint claims).
 - workflow-e2e: memory and JPA — a workflow whose ACTION is served by a Java test client over the
   endpoints (MockMvc), including retry after failure and cancellation.
+
+## 5b. OpenAPI
+
+The worker endpoints are in the committed spec (`doc/public/openapi/eventconductor-api.yaml`, tag
+`Workers`), kept honest by `EngineOpenApiSpecTest`.
 
 ## 6. Deferred
 

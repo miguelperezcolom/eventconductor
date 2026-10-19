@@ -8,6 +8,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import io.mateu.workflow.time.EngineClock;
 
 /**
  * The engine's side of the HTTP worker queue: tasks dispatched and cancellations, as the routing
@@ -17,6 +18,11 @@ import java.time.LocalDateTime;
  * <p>In JPA mode the dispatch runs inside the outbox relay's transaction, and the queue row joins
  * it: the task is queued if and only if the dispatch commits. The long-poll dispatcher is woken
  * after that commit, never before — a waiter woken early would look for a row it cannot see yet.
+ *
+ * <p><b>Time.</b> A task's {@code createdAt} is business time — the moment the step's task was queued,
+ * which the orphan retention is measured against — so it is read from {@link EngineClock}. Leases are
+ * not (see {@link HttpTaskService}); {@code clock} here is the lease clock, used only to tell whether
+ * a cancelled task is still held.
  */
 @Slf4j
 public class HttpTaskInbox {
@@ -38,7 +44,7 @@ public class HttpTaskInbox {
         var stored = queue.offer(HttpTask.queued(request.taskExecutionId(), request.processId(),
                 request.workflowDefinitionId(), request.stepId(), request.taskId(),
                 DownstreamEventPublisher.destinationFor(topic), request.variables(), request.attempt(),
-                LocalDateTime.now(clock)));
+                EngineClock.now()));
         if (!stored) {
             log.debug("Task {} attempt {} is already queued for HTTP workers; duplicate dispatch ignored",
                     request.taskExecutionId(), request.attempt());

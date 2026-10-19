@@ -30,14 +30,12 @@ import java.util.concurrent.Semaphore;
  *       are refused (429) instead of piling up.</li>
  * </ul>
  *
- * <p>The same thread runs the queue's maintenance (purging cancelled and orphaned rows, refreshing
- * the gauges) every {@code maintenance-interval}.
+ * <p>Purging and the gauges are {@code HttpTaskMaintenance}'s, a scheduler pass of its own.
  */
 @Slf4j
 public class HttpTaskWaiters {
 
     private final HttpTaskService service;
-    private final HttpTaskQueue queue;
     private final HttpTaskSignal signal;
     private final HttpWorkerMetrics metrics;
     private final Settings settings;
@@ -46,17 +44,14 @@ public class HttpTaskWaiters {
     private final Semaphore admission;
     private volatile boolean running;
     private Thread dispatcher;
-    private long nextMaintenanceNanos;
 
     /** The knobs, from {@code workflow.workers.http.*}. */
-    public record Settings(int maxWaiting, Duration pollInterval, Duration maintenanceInterval,
-                           Duration orphanRetention) {
+    public record Settings(int maxWaiting, Duration pollInterval) {
     }
 
-    public HttpTaskWaiters(HttpTaskService service, HttpTaskQueue queue, HttpTaskSignal signal,
-                           HttpWorkerMetrics metrics, Settings settings) {
+    public HttpTaskWaiters(HttpTaskService service, HttpTaskSignal signal, HttpWorkerMetrics metrics,
+                           Settings settings) {
         this.service = service;
-        this.queue = queue;
         this.signal = signal;
         this.metrics = metrics;
         this.settings = settings;
@@ -69,7 +64,6 @@ public class HttpTaskWaiters {
         }
         running = true;
         metrics.waitingGauge(this::waitingCount);
-        nextMaintenanceNanos = System.nanoTime();
         dispatcher = new Thread(this::loop, "http-workers-dispatch");
         dispatcher.setDaemon(true);
         dispatcher.start();
@@ -129,7 +123,6 @@ public class HttpTaskWaiters {
                     return;
                 }
                 pass();
-                maintainIfDue();
             } catch (InterruptedException e) {
                 if (!running) {
                     return;
@@ -148,7 +141,6 @@ public class HttpTaskWaiters {
         for (var waiter : waiters) {
             sleep = Math.min(sleep, waiter.deadlineNanos - now);
         }
-        sleep = Math.min(sleep, nextMaintenanceNanos - now);
         return Math.max(1, sleep / 1_000_000 + (sleep % 1_000_000 > 0 ? 1 : 0));
     }
 
@@ -184,29 +176,6 @@ public class HttpTaskWaiters {
                 iterator.remove();
                 waiter.future.complete(List.of());
             }
-        }
-    }
-
-    private void maintainIfDue() {
-        if (System.nanoTime() - nextMaintenanceNanos < 0) {
-            return;
-        }
-        nextMaintenanceNanos = System.nanoTime() + settings.maintenanceInterval().toNanos();
-        maintain();
-    }
-
-    /** Purges cancelled and orphaned rows and refreshes the queue gauges. */
-    void maintain() {
-        try {
-            var now = service.now();
-            var purged = queue.purge(now, now.minus(settings.orphanRetention()));
-            if (purged > 0) {
-                log.info("Purged {} cancelled or orphaned HTTP worker task(s)", purged);
-            }
-            var counts = queue.counts(now);
-            metrics.queueCounts(counts.available(), counts.leased());
-        } catch (RuntimeException e) {
-            log.warn("HTTP worker queue maintenance failed: {}", e.toString());
         }
     }
 

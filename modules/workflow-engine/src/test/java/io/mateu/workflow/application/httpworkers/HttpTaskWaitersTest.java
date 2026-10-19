@@ -41,8 +41,7 @@ class HttpTaskWaitersTest {
     HttpTaskWaiters waiters;
 
     private HttpTaskWaiters start(int maxWaiting, Duration pollInterval) {
-        waiters = new HttpTaskWaiters(service, queue, signal, metrics, new HttpTaskWaiters.Settings(
-                maxWaiting, pollInterval, Duration.ofMillis(100), Duration.ofDays(7)));
+        waiters = new HttpTaskWaiters(service, signal, metrics, new HttpTaskWaiters.Settings(maxWaiting, pollInterval));
         waiters.start();
         return waiters;
     }
@@ -159,21 +158,6 @@ class HttpTaskWaitersTest {
     }
 
     @Test
-    void maintenancePurgesAndRefreshesTheGauges() throws Exception {
-        start(10, Duration.ofMillis(50));
-        dispatch("se-1");
-        dispatch("se-2");
-        service.claim("w1", List.of("payments"), 1, Duration.ofSeconds(60));
-
-        await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
-            assertThat(registry.find("eventconductor.workers.http.queued").tag("state", "available").gauge().value())
-                    .isEqualTo(1);
-            assertThat(registry.find("eventconductor.workers.http.queued").tag("state", "leased").gauge().value())
-                    .isEqualTo(1);
-        });
-    }
-
-    @Test
     void stoppingAnswersEveryWaiterAndRefusesNewOnes() throws Exception {
         start(10, Duration.ofSeconds(30));
         var waiting = waiters.activate("w1", Set.of("payments"), 1, Duration.ofSeconds(60), Duration.ofSeconds(20));
@@ -194,15 +178,9 @@ class HttpTaskWaitersTest {
                                                      LocalDateTime now, LocalDateTime leaseUntil) {
                 throw new IllegalStateException("db down");
             }
-
-            @Override
-            public synchronized int purge(LocalDateTime now, LocalDateTime orphansBefore) {
-                throw new IllegalStateException("db down");
-            }
         };
         var brokenService = new HttpTaskService(broken, event -> { }, metrics, java.time.Clock.systemUTC());
-        waiters = new HttpTaskWaiters(brokenService, broken, signal, metrics, new HttpTaskWaiters.Settings(
-                10, Duration.ofMillis(50), Duration.ofMillis(50), Duration.ofDays(7)));
+        waiters = new HttpTaskWaiters(brokenService, signal, metrics, new HttpTaskWaiters.Settings(10, Duration.ofMillis(50)));
         waiters.start();
         waiters.start(); // idempotent
 

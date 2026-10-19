@@ -90,4 +90,19 @@ class HttpWorkerJpaE2eTest extends AbstractJpaE2eTest {
         awaitStatus("hwj-3", ProcessStatus.ERROR);
         await().untilAsserted(() -> assertThat(step("hwj-3", "charge").getStatus()).isEqualTo(StepExecutionStatus.ERROR));
     }
+
+    @Test
+    void eachForEachIterationIsQueuedAsItsOwnRow() throws Exception {
+        createProcess("http-worker-foreach", "hwj-4", new Variable("rooms", "[\"a\",\"b\"]"));
+
+        await().atMost(TIMEOUT).untilAsserted(() ->
+                assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM http_task", Long.class)).isEqualTo(2));
+        var first = http.next("py-1", "http-payments", 10_000);
+        var second = http.next("py-2", "http-payments", 10_000);
+        assertThat(first.path("id").asText()).isNotEqualTo(second.path("id").asText());
+
+        assertThat(http.complete(first, Map.of("reservationId", "R1"))).isEqualTo(204);
+        assertThat(http.complete(second, Map.of("reservationId", "R2"))).isEqualTo(204);
+        awaitStatus("hwj-4", ProcessStatus.COMPLETED);
+    }
 }

@@ -7,6 +7,12 @@ import io.mateu.workflow.application.httpworkers.HttpTaskService;
 import io.mateu.workflow.application.httpworkers.HttpTaskWaiters;
 import io.mateu.workflow.infra.config.HttpWorkersProperties;
 import io.mateu.workflow.infra.config.MessageApiProperties;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -58,6 +64,7 @@ import java.util.Map;
 @ConditionalOnProperty(name = "workflow.workers.http.enabled", havingValue = "true")
 @RestController
 @RequestMapping("/workflow/api/workers")
+@Tag(name = "Workers", description = "Workers over HTTP: long-poll for tasks and answer them, in any language.")
 @Slf4j
 public class WorkerApiController {
 
@@ -108,8 +115,14 @@ public class WorkerApiController {
     public record HeartbeatResponse(boolean cancelled, String deadline) {
     }
 
+    @Operation(operationId = "activateTasks", summary = "Long-poll for tasks",
+            description = "Waits up to waitMs (capped by workflow.workers.http.max-wait) for tasks of the given topics and leases them to the caller. An empty list means the wait ran out.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "The leased tasks, possibly none."),
+            @ApiResponse(responseCode = "400", description = "No workerId or topics.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "429", description = "Too many activations waiting on this node (Retry-After).", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))})
     @PostMapping("/activate")
-    public DeferredResult<Activation> activate(@RequestHeader(value = "X-Api-Key", required = false) String apiKey,
+    public DeferredResult<Activation> activate(@io.swagger.v3.oas.annotations.Parameter(hidden = true) @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
                                                @RequestBody(required = false) ActivateRequest request) {
         authorize(apiKey);
         if (request == null) {
@@ -148,9 +161,17 @@ public class WorkerApiController {
         return result;
     }
 
+    @Operation(operationId = "completeTask", summary = "Complete a task",
+            description = "Reports the task done with its output variables; echo the attempt it was activated with.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Taken."),
+            @ApiResponse(responseCode = "400", description = "Malformed request (for example a missing attempt).", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "404", description = "No such task waiting for a reply: answered already, cancelled and dropped, or never served over HTTP.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "STALE_ATTEMPT (the step ran again), or CANCELLED: drop the task.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "503", description = "The engine could not take the reply; retry it (Retry-After).", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))})
     @PostMapping("/tasks/{id}/complete")
-    public ResponseEntity<Void> complete(@RequestHeader(value = "X-Api-Key", required = false) String apiKey,
-                                         @PathVariable("id") String id,
+    public ResponseEntity<Void> complete(@io.swagger.v3.oas.annotations.Parameter(hidden = true) @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
+                                         @io.swagger.v3.oas.annotations.Parameter(description = "The task id (the step execution id) from the activation.") @PathVariable("id") String id,
                                          @RequestBody(required = false) CompleteRequest request) {
         authorize(apiKey);
         var body = request == null ? new CompleteRequest(null, null) : request;
@@ -158,9 +179,17 @@ public class WorkerApiController {
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(operationId = "failTask", summary = "Fail a task",
+            description = "Reports a failure: code and message become the reason; retryable=false fails the step without spending its retries.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Taken."),
+            @ApiResponse(responseCode = "400", description = "Malformed request (for example a missing attempt).", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "404", description = "No such task waiting for a reply: answered already, cancelled and dropped, or never served over HTTP.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "STALE_ATTEMPT (the step ran again), or CANCELLED: drop the task.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "503", description = "The engine could not take the reply; retry it (Retry-After).", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))})
     @PostMapping("/tasks/{id}/fail")
-    public ResponseEntity<Void> fail(@RequestHeader(value = "X-Api-Key", required = false) String apiKey,
-                                     @PathVariable("id") String id,
+    public ResponseEntity<Void> fail(@io.swagger.v3.oas.annotations.Parameter(hidden = true) @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
+                                     @io.swagger.v3.oas.annotations.Parameter(description = "The task id (the step execution id) from the activation.") @PathVariable("id") String id,
                                      @RequestBody(required = false) FailRequest request) {
         authorize(apiKey);
         var body = request == null ? new FailRequest(null, null, null, null) : request;
@@ -168,9 +197,16 @@ public class WorkerApiController {
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(operationId = "heartbeatTask", summary = "Extend a task's lease",
+            description = "Extends the lease of a running task; cancelled=true means the engine cancelled it: stop and report nothing.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "The new deadline, or cancelled."),
+            @ApiResponse(responseCode = "400", description = "No leaseToken.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "404", description = "The task is gone.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "LEASE_LOST: the lease expired and the task was given to another worker.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))})
     @PostMapping("/tasks/{id}/heartbeat")
-    public HeartbeatResponse heartbeat(@RequestHeader(value = "X-Api-Key", required = false) String apiKey,
-                                       @PathVariable("id") String id,
+    public HeartbeatResponse heartbeat(@io.swagger.v3.oas.annotations.Parameter(hidden = true) @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
+                                       @io.swagger.v3.oas.annotations.Parameter(description = "The task id (the step execution id) from the activation.") @PathVariable("id") String id,
                                        @RequestBody(required = false) HeartbeatRequest request) {
         authorize(apiKey);
         var body = request == null ? new HeartbeatRequest(null, null) : request;
@@ -178,9 +214,17 @@ public class WorkerApiController {
         return new HeartbeatResponse(beat.cancelled(), instant(beat.leaseUntil()));
     }
 
+    @Operation(operationId = "injectSteps", summary = "Inject steps (DYNAMIC)",
+            description = "Adds steps to the process of a DYNAMIC step's task; complete the task afterwards.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Taken."),
+            @ApiResponse(responseCode = "400", description = "Malformed request (for example a missing attempt).", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "404", description = "No such task waiting for a reply: answered already, cancelled and dropped, or never served over HTTP.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "STALE_ATTEMPT (the step ran again), or CANCELLED: drop the task.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "503", description = "The engine could not take the reply; retry it (Retry-After).", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))})
     @PostMapping("/tasks/{id}/inject")
-    public ResponseEntity<Void> inject(@RequestHeader(value = "X-Api-Key", required = false) String apiKey,
-                                       @PathVariable("id") String id,
+    public ResponseEntity<Void> inject(@io.swagger.v3.oas.annotations.Parameter(hidden = true) @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
+                                       @io.swagger.v3.oas.annotations.Parameter(description = "The task id (the step execution id) from the activation.") @PathVariable("id") String id,
                                        @RequestBody(required = false) InjectRequest request) {
         authorize(apiKey);
         if (request == null || request.steps() == null) {

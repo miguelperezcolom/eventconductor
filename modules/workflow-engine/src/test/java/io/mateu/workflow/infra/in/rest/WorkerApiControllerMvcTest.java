@@ -64,8 +64,8 @@ class WorkerApiControllerMvcTest {
         properties.setMaxWaiting(2);
         properties.setMaxWait(Duration.ofSeconds(2));
         apiProperties.setApiKey(ENGINE_KEY);
-        waiters = new HttpTaskWaiters(service, queue, signal, HttpWorkerMetrics.none(), new HttpTaskWaiters.Settings(
-                properties.getMaxWaiting(), Duration.ofMillis(100), Duration.ofSeconds(30), Duration.ofDays(7)));
+        waiters = new HttpTaskWaiters(service, signal, HttpWorkerMetrics.none(),
+                new HttpTaskWaiters.Settings(properties.getMaxWaiting(), Duration.ofMillis(100)));
         waiters.start();
         mvc = MockMvcBuilders.standaloneSetup(new WorkerApiController(service, waiters, properties, apiProperties))
                 .build();

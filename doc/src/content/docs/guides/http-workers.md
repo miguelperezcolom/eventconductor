@@ -120,6 +120,13 @@ land on the process's Errors tab.
 **Timeouts.** A step `timeout` bounds the task end to end — heartbeats extend the lease, not the
 step's deadline.
 
+**forEach.** Each iteration of a [`forEach`](/guides/loops-and-multi-instance/) step is its own task
+(its own `id`), so a worker activating with `maxTasks: 10` may get several items of one step at once,
+and answers each independently.
+
+The full request/response schemas are also in the engine's
+[OpenAPI description](/openapi/eventconductor-api.yaml) (tag `Workers`).
+
 ## Security
 
 Every call needs a credential: an `X-Api-Key` listed in `workflow.workers.http.api-keys` (it opens

@@ -145,4 +145,34 @@ class HttpWorkerE2eTest extends AbstractE2eTest {
         assertThat(worker.invocationsOf("extra")).isEqualTo(1);
         assertThat(process("hw-6").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
     }
+
+    @Test
+    void eachForEachIterationIsItsOwnHttpTask() throws Exception {
+        createProcess("http-worker-foreach", "hw-7", new Variable("rooms", "[\"101\",\"102\",\"103\"]"));
+
+        var tasks = http.activate("py-1", "http-payments", 10, 30_000, 2_000).path("tasks");
+        assertThat(tasks).hasSize(3);
+        var ids = new java.util.HashSet<String>();
+        var rooms = new java.util.ArrayList<String>();
+        tasks.forEach(task -> {
+            ids.add(task.path("id").asText());
+            rooms.add(task.path("variables").path("room").asText());
+        });
+        assertThat(ids).hasSize(3);
+        assertThat(rooms).containsExactlyInAnyOrder("101", "102", "103");
+        assertThat(process("hw-7").getStatus()).isEqualTo(ProcessStatus.RUNNING);
+
+        for (var task : tasks) {
+            assertThat(http.complete(task, Map.of("reservationId", "R-" + task.path("variables").path("room").asText())))
+                    .isEqualTo(204);
+        }
+
+        assertThat(process("hw-7").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
+        assertThat(processVariable("hw-7", "reservations")).isEqualTo("[\"R-101\",\"R-102\",\"R-103\"]");
+    }
+
+    private String processVariable(String businessKey, String name) {
+        return process(businessKey).getVariables().stream().filter(v -> name.equals(v.name()))
+                .map(io.mateu.workflow.domain.aggregates.Variable::value).findFirst().orElse(null);
+    }
 }

@@ -8,6 +8,8 @@ import io.mateu.workflow.application.httpworkers.HttpTaskSignal;
 import io.mateu.workflow.application.httpworkers.HttpTaskWaiters;
 import io.mateu.workflow.application.httpworkers.HttpWorkerMetrics;
 import io.mateu.workflow.application.out.UpstreamEventPublisher;
+import io.mateu.workflow.infra.in.scheduler.HttpTaskMaintenance;
+import io.mateu.workflow.infra.in.scheduler.SchedulerPass;
 import io.mateu.workflow.infra.out.async.HttpWorkerRouter;
 import io.mateu.workflow.infra.out.memory.InMemoryHttpTaskQueue;
 import io.mateu.workflow.infra.out.persistence.DbLockDialect;
@@ -45,6 +47,7 @@ public class HttpWorkersConfiguration {
 
     @Bean
     HttpTaskInbox httpTaskInbox(HttpTaskQueue queue, HttpTaskSignal signal, HttpWorkerMetrics metrics) {
+        // The lease clock: wall time, UTC (see HttpTaskService); createdAt is EngineClock's.
         return new HttpTaskInbox(queue, signal, metrics, Clock.systemUTC());
     }
 
@@ -54,7 +57,7 @@ public class HttpWorkersConfiguration {
     }
 
     @Bean(initMethod = "start", destroyMethod = "stop")
-    HttpTaskWaiters httpTaskWaiters(HttpTaskService service, HttpTaskQueue queue, HttpTaskSignal signal,
+    HttpTaskWaiters httpTaskWaiters(HttpTaskService service, HttpTaskSignal signal,
                                     HttpWorkerMetrics metrics, HttpWorkersProperties properties) {
         var routing = new HttpTaskRouting(properties.getTopics());
         if (routing.routesAnything()) {
@@ -63,9 +66,18 @@ public class HttpWorkersConfiguration {
             log.warn("workflow.workers.http.enabled is true but workflow.workers.http.topics is empty: no task is"
                     + " served over HTTP. List the step topics (downstream for steps that name none) or '*'.");
         }
-        return new HttpTaskWaiters(service, queue, signal, metrics, new HttpTaskWaiters.Settings(
-                properties.getMaxWaiting(), properties.getPollInterval(), properties.getMaintenanceInterval(),
-                properties.getOrphanRetention()));
+        return new HttpTaskWaiters(service, signal, metrics, new HttpTaskWaiters.Settings(
+                properties.getMaxWaiting(), properties.getPollInterval()));
+    }
+
+    /** A {@code SchedulerPass}: the test kit runs it on demand; with background schedulers off it never loops. */
+    @Bean(initMethod = "start", destroyMethod = "stop")
+    HttpTaskMaintenance httpTaskMaintenance(HttpTaskQueue queue, HttpTaskService service, HttpTaskSignal signal,
+                                            HttpWorkerMetrics metrics, HttpWorkersProperties properties,
+                                            org.springframework.core.env.Environment environment) {
+        return new HttpTaskMaintenance(queue, service, signal, metrics, properties.getMaintenanceInterval(),
+                properties.getOrphanRetention(),
+                environment.getProperty(SchedulerPass.BACKGROUND_PROPERTY, Boolean.class, true));
     }
 
     @Bean

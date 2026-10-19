@@ -388,8 +388,8 @@ Serve the tasks of some topics to workers in any language that long-poll `/workf
 | `workflow.workers.http.max-tasks` | `100` | The most tasks one activation gets. |
 | `workflow.workers.http.max-waiting` | `200` | Activations waiting per node; past it, 429. |
 | `workflow.workers.http.poll-interval` | `PT1S` | How often waiting activations look at the queue when nothing woke them (tasks queued on another node, expired leases). A task queued on the same node wakes them at once. |
-| `workflow.workers.http.maintenance-interval` | `PT30S` | How often cancelled and orphaned tasks are purged and the queue gauges refreshed. |
-| `workflow.workers.http.orphan-retention` | `P7D` | A queued task older than this is purged (its step moved on without a cancellation). |
+| `workflow.workers.http.maintenance-interval` | `PT30S` | How often cancelled and orphaned tasks are purged, the queue gauges refreshed and waiting workers woken for expired leases (a scheduler pass: with `workflow.schedulers.background=false` only the test kit runs it). |
+| `workflow.workers.http.orphan-retention` | `P7D` | A queued task older than this, in engine (business) time, is purged (its step moved on without a cancellation). Leases are wall-clock time: skipping time in a test does not expire them. |
 
 With `workflow.persistence=jpa` the queue is the `http_task` table (migration `V50`), shared by every node; in memory mode it is in the heap.
 

@@ -50,6 +50,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
                 "workflow.api.openapi.enabled=true",
                 "springdoc.writer-with-order-by-keys=true",
                 "springdoc.writer-with-default-pretty-printer=true",
+                "workflow.workers.http.enabled=true",
         })
 class EngineOpenApiSpecTest {
 
@@ -69,9 +70,11 @@ class EngineOpenApiSpecTest {
             org.springdoc.webmvc.core.configuration.MultipleOpenApiSupportConfiguration.class,
             WorkflowOpenApiAutoConfiguration.class,
     })
-    @EnableConfigurationProperties(MessageApiProperties.class)
+    @EnableConfigurationProperties({MessageApiProperties.class,
+            io.mateu.workflow.infra.config.HttpWorkersProperties.class})
     @Import({ProcessRestController.class, io.mateu.workflow.infra.in.rest.IncidentRestController.class, MessageRestController.class, EventRestController.class,
-            ScheduleRestController.class, SyncInvocationController.class})
+            ScheduleRestController.class, SyncInvocationController.class,
+            io.mateu.workflow.infra.in.rest.WorkerApiController.class})
     static class SpecApplication {
     }
 
@@ -84,6 +87,8 @@ class EngineOpenApiSpecTest {
     @MockitoBean SyncInvocationService syncInvocationService;
     @MockitoBean SyncReplyWaiters syncReplyWaiters;
     @MockitoBean WorkflowMetrics workflowMetrics;
+    @MockitoBean io.mateu.workflow.application.httpworkers.HttpTaskService httpTaskService;
+    @MockitoBean io.mateu.workflow.application.httpworkers.HttpTaskWaiters httpTaskWaiters;
 
     @Autowired WebApplicationContext context;
 
@@ -92,7 +97,8 @@ class EngineOpenApiSpecTest {
         var generated = MockMvcBuilders.webAppContextSetup(context).build()
                 .perform(get("/v3/api-docs.yaml/" + WorkflowOpenApiAutoConfiguration.GROUP))
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertThat(generated).contains("/workflow/api/processes").contains("X-Api-Key");
+        assertThat(generated).contains("/workflow/api/processes").contains("/workflow/api/workers/activate")
+                .contains("X-Api-Key");
 
         var spec = Path.of(SPEC);
         var normalised = normalise(generated);
