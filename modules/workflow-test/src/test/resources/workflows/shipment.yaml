@@ -1,0 +1,28 @@
+id: shipment
+name: Shipment with updates
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: pack, type: ACTION, name: Pack the parcel, preconditionStepId: start }
+  - { id: await-pickup, type: WAIT_FOR_MESSAGE, name: Await pickup, messageName: picked-up,
+      correlationExpression: businessKey, preconditionStepId: pack }
+  - { id: deliver, type: ACTION, name: Deliver, preconditionStepId: await-pickup }
+  - { id: end, type: END, name: End, preconditionStepId: deliver }
+updates:
+  - name: changeAddress
+    accepts:
+      type: object
+      required: [address]
+      properties: { address: { type: string, minLength: 3 } }
+    acceptedWhile: [await-pickup]
+    validate:
+      - expression: "payload.address != address"
+        message: That is already the address.
+    set:
+      address: payload.address
+    reply: "{'address': address}"
+  - name: pickUp
+    completes: await-pickup
+    set:
+      courier: payload.courier
+    reply: courier

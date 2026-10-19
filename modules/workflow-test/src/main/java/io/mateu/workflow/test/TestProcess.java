@@ -79,6 +79,11 @@ public final class TestProcess {
         return state().getReply();
     }
 
+    /** The updates the process received, oldest first — what was asked, by whom, how it ended. */
+    public List<io.mateu.workflow.application.updates.ProcessUpdate> updates() {
+        return runtime.updatesOf(id);
+    }
+
     WorkflowTestRuntime runtime() {
         return runtime;
     }

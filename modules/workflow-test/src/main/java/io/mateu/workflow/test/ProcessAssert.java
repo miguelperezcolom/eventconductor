@@ -205,6 +205,21 @@ public class ProcessAssert extends AbstractAssert<ProcessAssert, TestProcess> {
         return this;
     }
 
+    // ---------------------------------------------------------------- updates
+
+    /** The process applied these updates (COMPLETED), in this order — and no other. */
+    public ProcessAssert hasAppliedUpdates(String... names) {
+        isNotNull();
+        var applied = actual.updates().stream()
+                .filter(update -> update.status() == io.mateu.workflow.application.updates.ProcessUpdate.Status.COMPLETED)
+                .map(io.mateu.workflow.application.updates.ProcessUpdate::name).toList();
+        if (!applied.equals(Arrays.asList(names))) {
+            failWithMessage("Expected %s to have applied the updates %s but it applied %s", actual,
+                    Arrays.toString(names), applied);
+        }
+        return this;
+    }
+
     // ---------------------------------------------------------------- events
 
     /** A PUBLISH_EVENT step of the process published an event of this CloudEvents type. */

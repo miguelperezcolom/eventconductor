@@ -328,6 +328,82 @@ public final class WorkflowTestRuntime {
         return published.forProcess(process.id());
     }
 
+    // ---------------------------------------------------------------- updates
+
+    /**
+     * Sends a named update (declared in the definition's {@code updates}) to a running process and applies
+     * it at once, as the owner of the process would — then lets the engine run as far as the update lets it.
+     * {@code payload} is a map, a list or a value (written as JSON), or JSON text. Returns how it ended; a
+     * refusal is an outcome, not an exception.
+     */
+    public UpdateOutcome update(TestProcess process, String updateName, Object payload) {
+        return update(process, updateName, payload, null);
+    }
+
+    /** {@link #update(TestProcess, String, Object)} with an idempotency key: the same key again is the same update. */
+    public UpdateOutcome update(TestProcess process, String updateName, Object payload, String idempotencyKey) {
+        var service = context.getBean(io.mateu.workflow.application.updates.ProcessUpdateService.class);
+        try {
+            var submitted = service.submitInline(new io.mateu.workflow.application.updates.ProcessUpdateService.UpdateRequest(
+                    process.id(), null, updateName, payloadJson(payload), idempotencyKey, Duration.ZERO, null));
+            runUntilIdle();
+            var latest = repository(io.mateu.workflow.application.out.ProcessUpdateRepository.class)
+                    .findById(submitted.update().id()).orElse(submitted.update());
+            return UpdateOutcome.of(latest, process, false);
+        } catch (io.mateu.workflow.application.updates.ProcessUpdateRejectedException e) {
+            return UpdateOutcome.of(e, process);
+        }
+    }
+
+    /**
+     * An update-with-start: the update goes to the process with {@code businessKey}, or — when there is
+     * none — a process of {@code definitionId} is started with {@code variables} and the update as its
+     * first act. {@link UpdateOutcome#started()} says which; {@link UpdateOutcome#process()} is the process.
+     */
+    public UpdateOutcome updateWithStart(String definitionId, String businessKey, Map<String, ?> variables,
+                                         String updateName, Object payload) {
+        var service = context.getBean(io.mateu.workflow.application.updates.ProcessUpdateService.class);
+        var initial = new java.util.LinkedHashMap<String, String>();
+        if (variables != null) {
+            variables.forEach((name, value) -> initial.put(name, Values.text(value)));
+        }
+        try {
+            var outcome = service.updateWithStartInline(new io.mateu.workflow.application.updates.ProcessUpdateService.StartRequest(
+                    definitionId, businessKey, initial, updateName, payloadJson(payload), null, Duration.ZERO, null));
+            runUntilIdle();
+            var latest = repository(io.mateu.workflow.application.out.ProcessUpdateRepository.class)
+                    .findById(outcome.update().id()).orElse(outcome.update());
+            return UpdateOutcome.of(latest, process(businessKey), outcome.started());
+        } catch (io.mateu.workflow.application.updates.ProcessUpdateRejectedException e) {
+            var existing = repository(ProcessRepository.class).findByBusinessKey(businessKey).map(this::handle).orElse(null);
+            return UpdateOutcome.of(e, existing);
+        }
+    }
+
+    List<io.mateu.workflow.application.updates.ProcessUpdate> updatesOf(String processId) {
+        return repository(io.mateu.workflow.application.out.ProcessUpdateRepository.class).findByProcessId(processId);
+    }
+
+    /** A payload as JSON text: a string that is JSON stays itself, any other string becomes a JSON string. */
+    private static String payloadJson(Object payload) {
+        if (payload == null) {
+            return null;
+        }
+        if (payload instanceof String text) {
+            try {
+                Values.JSON.readTree(text);
+                return text;
+            } catch (IOException notJson) {
+                try {
+                    return Values.JSON.writeValueAsString(text);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        }
+        return Values.text(payload);
+    }
+
     // ---------------------------------------------------------------- tasks
 
     /** Mocks a step's task by step id — the most specific mock. */

@@ -204,6 +204,12 @@ public interface WorkflowMetrics {
     default void syncWakeup(String via) {}
 
     /**
+     * A process update reached its outcome ({@code COMPLETED}, {@code REFUSED}, {@code NOT_ACCEPTED},
+     * {@code FAILED}) on the node that owns the process.
+     */
+    default void processUpdateFinished(String workflowDefinitionId, String updateName, String status) {}
+
+    /**
      * The retention purge deleted {@code count} processes of this definition that had ended in
      * {@code status} — {@code eventconductor.processes.purged}.
      */

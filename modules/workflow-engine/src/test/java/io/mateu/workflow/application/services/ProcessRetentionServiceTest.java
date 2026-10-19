@@ -58,6 +58,8 @@ class ProcessRetentionServiceTest {
     InMemoryResourceRepository resources;
     InMemoryProcessTraceContextRepository traces;
     InMemoryInvocationRepository invocations;
+    final io.mateu.workflow.infra.out.memory.InMemoryProcessUpdateRepository updates =
+            new io.mateu.workflow.infra.out.memory.InMemoryProcessUpdateRepository();
     InMemoryLockService locks;
     InMemoryProcessIndexRepository index;
     WorkflowDefinitionRepository definitions;
@@ -95,6 +97,7 @@ class ProcessRetentionServiceTest {
 
     ProcessRetentionService service() {
         var purge = new InMemoryProcessPurgeRepository(processes, steps, logs, resources, traces, invocations, locks);
+        purge.setUpdates(updates);
         var beans = new StaticListableBeanFactory();
         beans.addBean("index", index);
         ObjectProvider<ProcessIndexRepository> indexProvider = beans.getBeanProvider(ProcessIndexRepository.class);
@@ -133,6 +136,9 @@ class ProcessRetentionServiceTest {
         traces.save(id, TraceContext.of("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01", null, null));
         invocations.createWith(new Invocation(id + "-inv", definitionId, "key-" + id, null, id, null, NOW, NOW.plusDays(1), null),
                 () -> { });
+        updates.insert(new io.mateu.workflow.application.updates.ProcessUpdate(id + "-upd", id, definitionId, "rename",
+                "key-" + id, null, null, io.mateu.workflow.application.updates.ProcessUpdate.Status.COMPLETED, "{}", null,
+                null, false, NOW, NOW, NOW.plusDays(1)));
     }
 
     boolean gone(String id) {
@@ -142,6 +148,7 @@ class ProcessRetentionServiceTest {
                 && resources.findByProcessId(id).isEmpty()
                 && traces.findByProcessId(id).isEmpty()
                 && invocations.findByProcessId(id).isEmpty()
+                && updates.findByProcessId(id).isEmpty()
                 && index.findByProcessId(id).isEmpty();
     }
 

@@ -76,7 +76,8 @@ class EngineOpenApiSpecTest {
             ScheduleRestController.class, SyncInvocationController.class,
             io.mateu.workflow.infra.in.rest.WorkerApiController.class,
             io.mateu.workflow.infra.in.rest.BatchOperationRestController.class,
-            io.mateu.workflow.infra.in.rest.SensitiveVariableRestController.class})
+            io.mateu.workflow.infra.in.rest.SensitiveVariableRestController.class,
+            io.mateu.workflow.infra.in.rest.ProcessUpdateController.class})
     static class SpecApplication {
     }
 
@@ -92,6 +93,7 @@ class EngineOpenApiSpecTest {
     @MockitoBean io.mateu.workflow.application.httpworkers.HttpTaskService httpTaskService;
     @MockitoBean io.mateu.workflow.application.httpworkers.HttpTaskWaiters httpTaskWaiters;
     @MockitoBean io.mateu.workflow.application.services.BatchOperationService batchOperationService;
+    @MockitoBean io.mateu.workflow.application.updates.ProcessUpdateService processUpdateService;
     @MockitoBean io.mateu.workflow.application.services.SensitiveVariableRevealService sensitiveVariableRevealService;
 
     @Autowired WebApplicationContext context;

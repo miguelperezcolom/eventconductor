@@ -1,0 +1,21 @@
+{
+  "id": "ui-updates",
+  "name": "UI Updates",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "wait", "type": "WAIT_FOR_MESSAGE", "name": "Await shipping", "messageName": "ui-ship",
+      "correlationExpression": "businessKey", "preconditionStepId": "start" },
+    { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "wait" }
+  ],
+  "updates": [
+    {
+      "name": "changeAddress",
+      "accepts": { "type": "object", "required": ["address"] },
+      "validate": [ { "expression": "payload.address != 'Nowhere'", "message": "Nowhere is not an address." } ],
+      "set": { "address": "payload.address" },
+      "reply": "{'shipsTo': address}",
+      "sensitive": ["pin"]
+    }
+  ]
+}

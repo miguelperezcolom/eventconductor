@@ -1,0 +1,49 @@
+{
+  "id": "order-updates",
+  "name": "Order with updates",
+  "version": 1,
+  "steps": [
+    {"id": "start", "type": "START", "name": "Start"},
+    {"id": "reserve", "type": "ACTION", "name": "Reserve stock", "topic": "work",
+     "compensable": true, "compensationStepId": "release", "preconditionStepId": "start"},
+    {"id": "awaitShipping", "type": "WAIT_FOR_MESSAGE", "name": "Await shipping", "messageName": "ship-order",
+     "correlationExpression": "businessKey", "preconditionStepId": "reserve"},
+    {"id": "ship", "type": "ACTION", "name": "Ship", "topic": "work", "retries": 0,
+     "compensable": true, "compensationStepId": "unship", "preconditionStepId": "awaitShipping"},
+    {"id": "release", "type": "ACTION", "name": "Release stock", "topic": "work"},
+    {"id": "unship", "type": "ACTION", "name": "Unship", "topic": "work"},
+    {"id": "end", "type": "END", "name": "End", "preconditionStepId": "ship"}
+  ],
+  "updates": [
+    {
+      "name": "changeAddress",
+      "description": "Change the shipping address while the order waits to be shipped.",
+      "accepts": {"type": "object", "required": ["address"],
+                  "properties": {"address": {"type": "string", "minLength": 3}}},
+      "acceptedWhile": ["awaitShipping"],
+      "validate": [{"expression": "payload.address != address", "message": "That is already the shipping address."}],
+      "set": {
+        "address": "payload.address",
+        "addressHistory": "addressHistory == null ? payload.address : addressHistory + ',' + payload.address"
+      },
+      "reply": "{'address': address, 'history': addressHistory}"
+    },
+    {
+      "name": "addNote",
+      "accepts": {"type": "object", "required": ["note"]},
+      "set": {"notes": "notes == null ? payload.note : notes + ',' + payload.note"},
+      "reply": "{'notes': notes}",
+      "sensitive": ["secret"]
+    },
+    {
+      "name": "approveShipping",
+      "completes": "awaitShipping",
+      "set": {"approvedBy": "payload.by"},
+      "reply": "{'approvedBy': approvedBy}"
+    },
+    {
+      "name": "broken",
+      "set": {"boom": "1 / 0"}
+    }
+  ]
+}

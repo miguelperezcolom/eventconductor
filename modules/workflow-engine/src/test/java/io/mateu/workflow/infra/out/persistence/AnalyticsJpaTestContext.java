@@ -39,7 +39,9 @@ import java.util.Map;
                 // The incidents query.
                 StepExecutionEntityRepository.class, LogMessageEntityRepository.class,
                 // Search attributes and batch operations (2.30), on the same migrated schemas.
-                ProcessSearchAttributeEntityRepository.class, BatchOperationEntityRepository.class}))
+                ProcessSearchAttributeEntityRepository.class, BatchOperationEntityRepository.class,
+                // Process updates (2.33).
+                ProcessUpdateEntityRepository.class}))
 class AnalyticsJpaTestContext {
 
     static AnnotationConfigApplicationContext open(DataSource dataSource) {

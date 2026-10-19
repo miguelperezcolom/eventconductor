@@ -34,6 +34,7 @@ abstract class ProcessPurgeContract {
             new String[]{"resource_entity", "process_id"},
             new String[]{"process_trace_context", "process_id"},
             new String[]{"sync_invocation", "process_id"},
+            new String[]{"process_update", "process_id"},
             new String[]{"analytics_counted_process", "process_id"},
             new String[]{"process_index", "process_id"});
 
@@ -80,6 +81,8 @@ abstract class ProcessPurgeContract {
         jdbc.update("INSERT INTO process_trace_context (process_id, trace_parent) VALUES (?, '00-x-y-01')", id);
         jdbc.update("INSERT INTO sync_invocation (id, workflow_definition_id, idempotency_key, process_id) VALUES (?, ?, ?, ?)",
                 id + "-inv", definition, "key-" + id, id);
+        jdbc.update("INSERT INTO process_update (id, process_id, update_name, idempotency_key, status, with_start)"
+                + " VALUES (?, ?, 'rename', ?, 'COMPLETED', FALSE)", id + "-upd", id, "key-" + id);
         jdbc.update("INSERT INTO analytics_counted_process (process_id, workflow_definition_id, status) VALUES (?, ?, ?)",
                 id, definition, status);
         jdbc.update("INSERT INTO analytics_counted_step (step_execution_id, workflow_definition_id, step_id, status)"
@@ -109,14 +112,14 @@ abstract class ProcessPurgeContract {
         finished("other", "orders", "COMPLETED");
         jdbc.update("INSERT INTO process_status_daily (k, workflow_definition_id, created_day, status, cnt)"
                 + " VALUES ('orders|COMPLETED', 'orders', CURRENT_DATE, 'COMPLETED', 2)");
-        assertThat(rowsOf("old")).isEqualTo(9);
+        assertThat(rowsOf("old")).isEqualTo(10);
 
         var found = roots("orders", ProcessStatus.COMPLETED);
         assertThat(found).extracting(PurgeCandidate::id).containsExactly("old", "other");
         assertThat(repository.purge(List.of(found.getFirst()))).isTrue();
 
         assertThat(rowsOf("old")).isZero();
-        assertThat(rowsOf("other")).isEqualTo(9);
+        assertThat(rowsOf("other")).isEqualTo(10);
         // Kept: the daily rollups, and the sent outbox rows (the outbox's own retention removes them).
         assertThat(jdbc.queryForObject("SELECT cnt FROM process_status_daily", Long.class)).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM outbox_message_entity WHERE partition_key = 'old'",
@@ -166,7 +169,7 @@ abstract class ProcessPurgeContract {
         var before = rowsOf("root");
 
         assertThat(repository.purge(tree)).isFalse();
-        assertThat(rowsOf("root")).isEqualTo(before).isEqualTo(10);
+        assertThat(rowsOf("root")).isEqualTo(before).isEqualTo(11);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM process_entity", Integer.class)).isEqualTo(2);
 
         jdbc.update("UPDATE process_entity SET status = 'COMPLETED', finished = ? WHERE id = 'child'", Timestamp.valueOf(LONG_AGO));

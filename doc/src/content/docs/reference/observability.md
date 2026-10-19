@@ -98,6 +98,7 @@ table — there it means "not measured", not "nothing stalled".
 | `eventconductor.sync.deadline.expired` | counter | `workflowDefinitionId` | Callers whose deadline passed before the reply |
 | `eventconductor.sync.rejected` | counter | `workflowDefinitionId`, `reason` | Invocations refused before creating anything |
 | `eventconductor.sync.waiting` | gauge | — | Callers waiting on this node |
+| `eventconductor.process.updates` | counter | `workflowDefinitionId`, `update`, `status` | [Process updates](/guides/updating-running-processes/) by outcome: `COMPLETED`, `REFUSED`, `NOT_ACCEPTED`, `FAILED` (counted where the process's owner decided) |
 | `eventconductor.sync.wakeups` | counter | `via` | How replies reached waiting callers: `registration`, `local`, `notify`, `poll` — a rising `poll` share means NOTIFY is not working |
 | `eventconductor.sync.inline.steps` | summary | — | Outbox messages handled per inline drive (the fast path) |
 | `eventconductor.sync.inline.fallbacks` | counter | `reason` | Inline drives that stopped early or never started: `saturated`, `budget`, `claim_lost`, `failure` |

@@ -82,6 +82,21 @@ public class JEXLEvaluator {
         }
     }
 
+    /**
+     * Why {@code expression} would not parse (or is over the size and nesting limits), or null when it
+     * would — for checks at load, which must not evaluate anything.
+     */
+    public static String syntaxProblem(String expression) {
+        try {
+            ExpressionGuard.check(expression, "workflow");
+            jexl.createExpression(expression);
+            return null;
+        } catch (RuntimeException | StackOverflowError e) {
+            var message = e.getMessage();
+            return message == null ? e.getClass().getSimpleName() : message.replaceAll("\\s+", " ").trim();
+        }
+    }
+
     /** The value alone, for callers that do not care which references were missing. */
     public static Object eval(String expression, Object context) {
         return evaluate(expression, context).value();

@@ -9,4 +9,8 @@ public final class WorkflowAssertions {
     public static ProcessAssert assertThat(TestProcess process) {
         return new ProcessAssert(process);
     }
+
+    public static UpdateAssert assertThat(UpdateOutcome update) {
+        return new UpdateAssert(update);
+    }
 }

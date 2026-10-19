@@ -129,4 +129,11 @@ public class WorkflowDefinitionEntity {
     @Column(columnDefinition = "TEXT")
     String sensitiveVariablesJson;
 
+    /**
+     * The definition's {@code updates} as a JSON array, or null when it declares none (V55). Part of the
+     * version: a process accepts the updates of the version it runs.
+     */
+    @Column(columnDefinition = "TEXT")
+    String updatesJson;
+
 }

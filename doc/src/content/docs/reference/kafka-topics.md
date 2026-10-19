@@ -120,6 +120,11 @@ The engine contributes the `outbox`, `upstream`, `downstream`, `dead-letter` and
   "stepMapping": {"charge": "charge-card"}, "variableMapping": {"currency": "EUR"},
   "reason": "v5 charges through the new gateway", "requestedBy": "alice" }
 
+// An update of a running process (see Updating running processes) — keyed by processId; the
+// updateId is its idempotency key; payload is JSON text, validated against the update's `accepts`
+{ "type": "process-update-requested", "updateId": "upd-7781", "processId": "process-uuid",
+  "updateName": "changeAddress", "payload": "{\"address\":\"Elm Street 2\"}", "requestedBy": "billing" }
+
 // Steps a DYNAMIC step injects into its process
 {
   "type": "steps-injected",
@@ -131,7 +136,7 @@ The engine contributes the `outbox`, `upstream`, `downstream`, `dead-letter` and
 
 A `message-received` event resumes processes waiting on a `WAIT_FOR_MESSAGE` step with the same `messageName` and correlation key. Alternatives to raw Kafka delivery: `POST /workflow/api/messages`, the `sendMessage` MCP tool, a `SEND_MESSAGE` step in another workflow, or programmatically via `ProcessUpstreamEventUseCase` — see [Step Types — WAIT_FOR_MESSAGE](/reference/step-types/#wait_for_message).
 
-The operator commands are handled by `CancelProcessRequestedEventHandler`, `PauseProcessRequestedEventHandler`, `ResumeProcessRequestedEventHandler`, `RestartProcessRequestedEventHandler`, `RetryProcessRequestedEventHandler`, `RetryStepExecutionRequestedEventHandler`, `SetProcessVariablesRequestedEventHandler`, `CompleteStepManuallyRequestedEventHandler` and `RetryFromStepRequestedEventHandler`, which call the same use cases as the UI and MCP tools (`CancelProcessUseCase`, …); `steps-injected` is handled by `StepsInjectedEventHandler`. The commands address the process by `processId`; the optional `businessKey` of a `process-cancellation-requested` is not used to find it. See [Starting a Process — Cancelling a process](/guides/starting-a-process/#cancelling-a-process).
+The operator commands are handled by `CancelProcessRequestedEventHandler`, `PauseProcessRequestedEventHandler`, `ResumeProcessRequestedEventHandler`, `RestartProcessRequestedEventHandler`, `RetryProcessRequestedEventHandler`, `RetryStepExecutionRequestedEventHandler`, `SetProcessVariablesRequestedEventHandler`, `CompleteStepManuallyRequestedEventHandler` and `RetryFromStepRequestedEventHandler`, which call the same use cases as the UI and MCP tools (`CancelProcessUseCase`, …); `steps-injected` is handled by `StepsInjectedEventHandler`. A `process-update-requested` is handled by `ProcessUpdateRequestedEventHandler` (`ApplyProcessUpdateUseCase`): the owner of the process applies the update under its lock and records the outcome in `process_update` — produced directly to the topic, with no row from a door, the update is recorded there (its payload validated first); read it at `GET /workflow/api/updates/{updateId}`. See [Updating running processes](/guides/updating-running-processes/). The commands address the process by `processId`; the optional `businessKey` of a `process-cancellation-requested` is not used to find it. See [Starting a Process — Cancelling a process](/guides/starting-a-process/#cancelling-a-process).
 
 ## downstream
 

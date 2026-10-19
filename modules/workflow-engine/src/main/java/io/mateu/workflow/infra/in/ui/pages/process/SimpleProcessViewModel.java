@@ -104,6 +104,11 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @Hidden
     io.mateu.workflow.application.out.InvocationRepository invocationRepository;
 
+    /** Field-injected and optional, like the invocations: the updates of the process, for the Updates tab. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @Hidden
+    io.mateu.workflow.application.out.ProcessUpdateRepository processUpdateRepository;
+
 
     String id;
 
@@ -166,6 +171,15 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @Tab("Operations")
     @Label("")
     List<Message> operations;
+
+    /**
+     * The updates the process received (see {@code updates} in its definition) — oldest first, with who
+     * asked, how each ended and what it answered; payloads as recorded, their sensitive fields masked.
+     * Hidden for a process that has had none.
+     */
+    @Tab("Updates")
+    @Label("")
+    List<io.mateu.workflow.infra.in.ui.pages.process.childcruds.UpdateEntry> updates;
 
     @Tab
     @Label("")
@@ -274,6 +288,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         // Sensitive values read as the mask; the Reveal action is the audited way to read one.
         this.variables = io.mateu.workflow.application.services.SensitiveVariableMasking.variables(process).stream().map(variable -> new Variable(variable.name(), variable.value())).toList();
         loadReply(process);
+        this.updates = updateEntries(id, processUpdateRepository);
         this.returnTo = httpRequest.getParameterValue("returnTo");
 
         if (ProcessStatus.COMPLETED.equals(process.getStatus())) {
@@ -314,6 +329,27 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
                     }
                 });
         return rows;
+    }
+
+    /**
+     * The process's updates as the Updates tab lists them, oldest first; empty without a repository. Shown as
+     * every door shows them: sealed payload fields and a sealed result masked (see {@code ProcessUpdateService#shown}).
+     */
+    static List<io.mateu.workflow.infra.in.ui.pages.process.childcruds.UpdateEntry> updateEntries(
+            String processId, io.mateu.workflow.application.out.ProcessUpdateRepository repository) {
+        if (repository == null) {
+            return List.of();
+        }
+        return repository.findByProcessId(processId).stream()
+                .map(io.mateu.workflow.application.updates.ProcessUpdateService::shown)
+                .map(update -> new io.mateu.workflow.infra.in.ui.pages.process.childcruds.UpdateEntry(processId,
+                        update.id(), update.requestedAt(), update.name(),
+                        update.requestedBy() == null ? "anonymous" : update.requestedBy(),
+                        toUpperCaseFirst(update.status().name().toLowerCase().replace('_', ' '))
+                                + (update.withStart() ? " (with start)" : ""),
+                        update.payload(),
+                        update.result() != null ? update.result() : update.error()))
+                .toList();
     }
 
     /** Fills the invocation badge and the Reply tab from the process's reply and its invocation. */
@@ -977,6 +1013,9 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         if ("revealVariable".equals(memberName)) {
             // Only where there is something to reveal.
             return !hasSensitiveVariables;
+        }
+        if ("updates".equals(memberName)) {
+            return updates == null || updates.isEmpty();
         }
         if ("operations".equals(memberName)) {
             return operations == null || operations.isEmpty();

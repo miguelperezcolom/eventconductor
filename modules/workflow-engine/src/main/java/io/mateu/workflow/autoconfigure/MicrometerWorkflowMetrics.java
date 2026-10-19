@@ -54,6 +54,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String SYNC_RESPONSE_LATENCY = "eventconductor.sync.response.latency";
     public static final String SYNC_DEADLINE_EXPIRED = "eventconductor.sync.deadline.expired";
     public static final String SYNC_REJECTED = "eventconductor.sync.rejected";
+    public static final String PROCESS_UPDATES = "eventconductor.process.updates";
     public static final String SYNC_WAITING = "eventconductor.sync.waiting";
     public static final String SYNC_WAKEUPS = "eventconductor.sync.wakeups";
     public static final String SYNC_INLINE_STEPS = "eventconductor.sync.inline.steps";
@@ -447,6 +448,19 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
                 .description("Synchronous invocations refused before creating anything, by reason")
                 .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
                 .tag(TAG_REASON, reason == null ? UNKNOWN : reason)
+                .register(registry)
+                .increment();
+    }
+
+    @Override
+    public void processUpdateFinished(String workflowDefinitionId, String updateName, String status) {
+        var registry = registry();
+        if (registry == null) return;
+        Counter.builder(PROCESS_UPDATES)
+                .description("Process updates by outcome (COMPLETED, REFUSED, NOT_ACCEPTED, FAILED)")
+                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag("update", updateName == null ? UNKNOWN : updateName)
+                .tag("status", status == null ? UNKNOWN : status)
                 .register(registry)
                 .increment();
     }

@@ -87,6 +87,7 @@ export default defineConfig({
 						{ label: 'Loops and Multi-Instance', slug: 'guides/loops-and-multi-instance' },
 						{ label: 'Dynamic Workflows', slug: 'guides/dynamic-workflows' },
 						{ label: 'Retries, Timeouts & Compensation', slug: 'guides/retries-timeouts-compensation' },
+						{ label: 'Updating running processes', slug: 'guides/updating-running-processes' },
 						{ label: 'Operating running processes', slug: 'guides/operating-running-processes' },
 						{ label: 'Migrating running processes', slug: 'guides/migrating-running-processes' },
 						{ label: 'Process Analytics', slug: 'guides/analytics' },

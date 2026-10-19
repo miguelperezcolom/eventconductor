@@ -30,6 +30,11 @@ The machine-readable description is published with these docs: **[`/openapi/even
 | `POST /workflow/api/processes/{id}/retry-from/{stepId}` | Run a live process again from one of its steps `{reason}` | `202` |
 | `POST /workflow/api/processes/{id}/migrate` | Move a live process onto another version of its definition `{targetVersion?, stepMapping?, variableMapping?, reason}` | `202` |
 | `POST /workflow/api/processes/{id}/migrate/dry-run` | The plan of that migration, changing nothing `{targetVersion?, stepMapping?, variableMapping?}` | `200` `MigrationPlan` |
+| `POST /workflow/api/processes/{id}/updates/{name}` | Apply a declared [update](/guides/updating-running-processes/); body = its payload; `Idempotency-Key`, `Prefer: wait=N` | `200` `ProcessUpdateResponse` with `result`; `202` + `Location` past the deadline |
+| `POST /workflow/api/processes/by-key/updates/{name}?businessKey=…` | The same, finding the process by business key | as above |
+| `POST /workflow/api/definitions/{definitionId}/update-with-start` | Update the process with `businessKey`, starting it when there is none `{businessKey, variables?, update, payload?}` | as above, with `started` |
+| `GET /workflow/api/updates/{updateId}` | One update, answered as its POST was (`Prefer: wait=N` long-polls) | `200` / `202` / its problem |
+| `GET /workflow/api/processes/{id}/updates` | A process's updates, oldest first | `200` `ProcessUpdateResponse[]` |
 | `GET /workflow/api/incidents?definitionId=…` | Failed steps of failed processes, grouped by definition, step and error family | `200` `IncidentList` |
 | `GET /workflow/api/incidents/{key}/processes?limit=…` | The failed steps (and processes) of one incident | `200` `IncidentMember[]` |
 | `POST /workflow/api/incidents/{key}/retry` | Retry every failed step of one incident `{reason}` | `202` `IncidentRetryAccepted` |
@@ -111,6 +116,10 @@ A [sensitive variable](/guides/sensitive-data-and-encryption/) reads `•••�
 
 The incidents endpoints group the failures waiting for an operator; a group retry is a `RETRY` batch operation over the incident — `202` with its `batchOperationId`, `Location` naming the batch — see [Incidents](/guides/operating-running-processes/#incidents).
 
+### Updates
+
+An update is a validated write that answers with a result, declared in the definition's `updates` — not an admin operation: it needs no reason and no operations role, only what reading or commanding the process needs (the definition's requirements, with flow authorization on). The body is the payload, any JSON. The answer is `200` with `{updateId, processId, name, status: COMPLETED, result, payload, requestedBy, requestedAt, completedAt, location}` (`payload` with the update's `sensitive` fields masked), or `202` + `Location` when `Prefer: wait=N` ran out first — the update still completes. Refusals: `400` (`INVALID_PAYLOAD`: not JSON or not what `accepts` allows), `404`, `409` (`NOT_ACCEPTING`, the detail says why), `422` (`REFUSED` by a guard, or `IDEMPOTENCY_KEY_REUSED`), `500` (`FAILED`: an expression of the update failed) — in every case nothing changed, and a refusal the owner recorded is replayed to a retry with the same `Idempotency-Key`. Semantics: [Updating running processes](/guides/updating-running-processes/).
+
 ## Batch operations
 
 `/workflow/api/batch-operations` applies one command to every process a filter matches, in the background ([guide](/guides/searching-and-bulk-operations/#batch-operations)).
@@ -147,7 +156,10 @@ Errors are `application/problem+json` (RFC 9457):
 | `401` | missing or wrong `X-Api-Key`, or an anonymous request the engine refuses |
 | `403` | flow authorization, or `workflow.security.operations.required-roles`, refused the caller |
 | `404` | no such process, step execution of it, or definition (on start) |
-| `409` | the business key belongs to another definition's process; the definition accepts no new processes; the process's status does not allow the command |
+| `409` | the business key belongs to another definition's process; the definition accepts no new processes; the process's status does not allow the command, or is not accepting an update |
+| `422` | an update refused by its guard, or an `Idempotency-Key` reused for another update |
+| `429` | too many callers waiting for an update on this node |
+| `500` | an update whose `set` or `reply` failed to evaluate (nothing changed) |
 | `413` | body over `workflow.rest.max-body-bytes` |
 
 ```json

@@ -251,6 +251,28 @@ does the same for a model: `outputVariable`, `usageVariable` and `output` expres
 | `cancel(process)` | Cancels it, as an operator would |
 | `process(businessKey)` / `processes(definitionId)` | Finds processes the test did not start itself (triggers, cron, children) |
 
+## Updates
+
+[Updates](/guides/updating-running-processes/) are applied at once, as the owner of the process would, and the engine then runs as far as the update lets it. A refusal is an outcome to assert on, not an exception.
+
+| Call | What it does |
+|---|---|
+| `update(process, "changeAddress", payload)` | Sends the update (`payload`: a map, a value, or JSON text) and returns its `UpdateOutcome`: `status()` (`COMPLETED`, `REFUSED`, `NOT_ACCEPTED`, `FAILED`, `INVALID_PAYLOAD`, `UNKNOWN_UPDATE`, `KEY_REUSED`), `result()` (JSON), `resultValue()` (parsed), `error()` |
+| `update(process, name, payload, idempotencyKey)` | The same with a key: the same key again is the same update |
+| `updateWithStart(definitionId, businessKey, variables, name, payload)` | Update-with-start: `started()` says whether it started the process, `process()` is the process |
+| `process.updates()` | The process's recorded updates, oldest first |
+
+```java
+var outcome = runtime.update(order, "changeAddress", Map.of("address", "Elm Street 2"));
+
+assertThat(outcome).isCompleted().hasResult("{\"address\": \"Elm Street 2\", \"changes\": \"1\"}");
+assertThat(runtime.update(order, "changeAddress", Map.of("address", "Elm Street 2")))
+        .isRefusedWith("already the shipping address");
+assertThat(order).hasAppliedUpdates("changeAddress");
+```
+
+`assertThat(outcome)` offers `isCompleted()`, `isRefused()`, `isRefusedWith(fragment)`, `isNotAccepted()`, `isFailed()`, `isInvalidPayload()`, `hasStatus(s)`, `hasResult(json)` (compared as JSON), `hasErrorContaining(fragment)` and `startedTheProcess()`.
+
 ## Assertions
 
 `import static io.mateu.workflow.test.WorkflowAssertions.assertThat;` — every assertion reads
@@ -266,6 +288,7 @@ the process from the engine when it runs, and a failure prints its steps and var
 | `hasVariable(name, value)` / `hasVariables(map)` / `hasVariable(name)` / `doesNotHaveVariable(name)` | Variables are text in the engine: a text value is compared as text, anything else as the JSON it is stored as (`hasVariable("nights", 3)`) |
 | `hasReplied()` / `hasReplied(json)` / `hasReplyOutcome(outcome)` | A `REPLY` step answered (compared as JSON), or the engine answered for the process |
 | `hasPublishedEvent(type)` | A `PUBLISH_EVENT` step published an event of that type |
+| `hasAppliedUpdates("a", "b")` | The process applied exactly these [updates](#updates), in this order |
 
 A retried step is one step execution with several attempts, so `stepExecutions("charge")` has one
 element after two retries; count dispatches with `runtime.invocationsOf("charge")`.

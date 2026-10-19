@@ -1,0 +1,30 @@
+{
+  "id": "dist-updates",
+  "name": "Distributed: updates of a waiting process",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    {
+      "id": "wait",
+      "type": "WAIT_FOR_MESSAGE",
+      "name": "Wait for release",
+      "messageName": "dist-updates-release",
+      "correlationExpression": "businessKey",
+      "preconditionStepId": "start"
+    },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "wait" }
+  ],
+  "updates": [
+    {
+      "name": "addNote",
+      "accepts": { "type": "object", "required": ["note"] },
+      "set": { "notes": "notes == null ? payload.note : notes + ',' + payload.note" },
+      "reply": "{'notes': notes}"
+    },
+    {
+      "name": "release",
+      "completes": "wait",
+      "reply": "'released'"
+    }
+  ]
+}

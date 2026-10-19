@@ -123,6 +123,12 @@ public class WorkflowDefinitionVersioningService {
         if (d.sensitiveVariables() != null) {
             canonical.put("sensitiveVariables", io.mateu.core.infra.JsonSerializer.toJson(d.sensitiveVariables()));
         }
+        // Updates likewise: a process accepts the updates of the version it runs (they ride in its
+        // snapshot), so what it accepts is part of the version. Only written when present, so a
+        // definition without them hashes as before and an upgrade mints nothing.
+        if (d.updates() != null) {
+            canonical.put("updates", io.mateu.core.infra.JsonSerializer.toJson(d.updates()));
+        }
         canonical.put("defaultMaxStepExecutions", d.defaultMaxStepExecutions());
         canonical.put("steps", d.steps().stream()
                 .sorted(Comparator.comparing(Step::id, Comparator.nullsLast(Comparator.naturalOrder())))

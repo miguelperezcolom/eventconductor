@@ -86,7 +86,8 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 .withTags(tagsFromJson(entity.getTagsJson()))
                 .withRetention(retentionFromJson(entity.getRetentionJson()))
                 .withSearchAttributes(searchAttributesFromJson(entity.getSearchAttributesJson()))
-                .withSensitiveVariables(sensitiveVariablesFromJson(entity.getSensitiveVariablesJson()));
+                .withSensitiveVariables(sensitiveVariablesFromJson(entity.getSensitiveVariablesJson()))
+                .withUpdates(updatesFromJson(entity.getUpdatesJson()));
     }
 
     /** The stored sensitive variables, or null when the definition declares none (read leniently, like the tags). */
@@ -189,6 +190,30 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
         }
     }
 
+    /** The stored updates, or null when there are none (read leniently, like the triggers). */
+    static List<io.mateu.workflow.domain.aggregates.UpdateDefinition> updatesFromJson(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return LAYOUT_MAPPER.readValue(json,
+                    new TypeReference<List<io.mateu.workflow.domain.aggregates.UpdateDefinition>>() {});
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    static String updatesToJson(List<io.mateu.workflow.domain.aggregates.UpdateDefinition> updates) {
+        if (updates == null) {
+            return null;
+        }
+        try {
+            return LAYOUT_MAPPER.writeValueAsString(updates);
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not serialise the updates " + updates, e);
+        }
+    }
+
     static String retentionToJson(io.mateu.workflow.domain.aggregates.ProcessRetention retention) {
         if (retention == null) {
             return null;
@@ -257,7 +282,8 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 workflowDefinition.tags() == null ? null : toJson(workflowDefinition.tags()),
                 retentionToJson(workflowDefinition.retention()),
                 searchAttributesToJson(workflowDefinition.searchAttributes()),
-                workflowDefinition.sensitiveVariables() == null ? null : toJson(workflowDefinition.sensitiveVariables())
+                workflowDefinition.sensitiveVariables() == null ? null : toJson(workflowDefinition.sensitiveVariables()),
+                updatesToJson(workflowDefinition.updates())
         ));
         triggerCleanup().definitionSaved(workflowDefinition);
         return workflowDefinition.id();

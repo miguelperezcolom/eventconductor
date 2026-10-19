@@ -47,6 +47,7 @@ The process tools have REST twins on the same application services — start, re
 | `pauseProcess` / `resumeProcess` | Pause a `PENDING` or `RUNNING` process (in-flight work finishes, successors held, clocks frozen) and resume it |
 | `pauseWorkflow` / `resumeWorkflow` | Pause/resume a whole definition: all its processes, with new instances born paused |
 | `sendMessage` | Send an external message to resume processes waiting on a `WAIT_FOR_MESSAGE` step |
+| `updateProcess` / `updateWithStart` / `listProcessUpdates` | Apply a declared update to a running process (by id or business key) and get its result or why not; the same, starting the process when the key has none; a process's updates ([guide](/guides/updating-running-processes/)) |
 | `getWorkflowAnalytics` | Per-definition analytics: counts by status, rates, throughput per day, avg/p95 durations, bottleneck step ([guide](/guides/analytics/)) |
 | `findBottleneck` | Where processes get stuck: slowest step, steps with waiting instances, steps with failures |
 | `importWorkflowDefinitionsFromGit` | Pull and upsert workflow JSON files from Git |

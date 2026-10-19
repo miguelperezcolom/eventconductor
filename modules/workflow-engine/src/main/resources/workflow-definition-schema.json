@@ -262,6 +262,119 @@
         }
       }
     },
+    "updates": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "description": "Named updates a running process of this definition accepts: validated writes that answer with a result, over POST /workflow/api/processes/{id}/updates/{name}, MCP, Kafka (process-update-requested) or update-with-start. Applied atomically under the process lock; a refusal changes nothing. Any number of updates over a process's life. Part of the version: a process accepts the updates of the version it runs.",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,99}$",
+            "description": "Unique in the definition; the {name} of POST /workflow/api/processes/{id}/updates/{name}."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the update is for, shown in the console and the MCP tools."
+          },
+          "accepts": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "JSON Schema (2020-12) the payload must satisfy; a payload that does not is refused with 400 and nothing is recorded."
+          },
+          "acceptedWhile": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Step ids: the update is accepted only while one of them is waiting (PENDING or RUNNING); otherwise 409 NOT_ACCEPTING. Absent: accepted whenever the process is RUNNING or PENDING."
+          },
+          "validate": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "description": "Guards evaluated in order against the payload and the variables before the update; the first that is not true refuses it with 422 and its message. Nothing changes.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "expression"
+              ],
+              "properties": {
+                "expression": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "A JEXL expression over payload, the process variables and businessKey; must be true."
+                },
+                "message": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The refusal the caller gets when it is not true."
+                }
+              }
+            }
+          },
+          "set": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Variables the update writes: name → JEXL expression over payload, the variables (as they were before the update) and businessKey. A value that is not text is stored as JSON."
+          },
+          "completes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A WAIT_FOR_MESSAGE step the update resumes, so the flow moves on; it must be waiting (otherwise 409)."
+          },
+          "reply": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A JEXL expression, evaluated after the update's variables are written, whose value (as JSON) is the update's result. Neither reply nor replyTemplate: the result is {}."
+          },
+          "replyTemplate": {
+            "description": "A JSON template (as a REPLY's replyTemplate; payload is in scope) for the result. Not together with reply."
+          },
+          "sensitive": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Payload fields never shown: the recorded copy of the payload (console, REST, MCP) carries a mask instead."
+          }
+        }
+      }
+    },
     "draftOfId": {
       "type": [
         "string",

@@ -30,6 +30,13 @@ public class InvocationRetention implements SchedulerPass {
 
     final InvocationRepository invocationRepository;
 
+    /**
+     * Optional (built by hand without it): process updates keep their idempotency key for the same
+     * {@code workflow.sync.retention}; this pass frees the expired ones (the records stay, with the process).
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    io.mateu.workflow.application.out.ProcessUpdateRepository processUpdateRepository;
+
     @org.springframework.beans.factory.annotation.Value("${workflow.sync.purge-interval:PT10M}")
     Duration purgeInterval;
 
@@ -62,11 +69,16 @@ public class InvocationRetention implements SchedulerPass {
     /** One pass: forgets the synchronous invocations whose retention has run out. */
     @Override
     public int runOnce() {
-        var purged = invocationRepository.purgeExpired(EngineClock.now());
+        var now = EngineClock.now();
+        var purged = invocationRepository.purgeExpired(now);
         if (purged > 0) {
             log.info("Forgot {} expired synchronous invocations", purged);
         }
-        return purged;
+        var freed = processUpdateRepository == null ? 0 : processUpdateRepository.expireKeys(now);
+        if (freed > 0) {
+            log.info("Freed the idempotency keys of {} process updates past their retention", freed);
+        }
+        return purged + freed;
     }
 
     void purgeQuietly() {

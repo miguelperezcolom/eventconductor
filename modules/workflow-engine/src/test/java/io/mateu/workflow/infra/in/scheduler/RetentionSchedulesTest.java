@@ -90,4 +90,18 @@ class RetentionSchedulesTest {
         // The cutoff is "now": an invocation is purged once its own expiry has passed, no earlier.
         assertThat(captor.getValue()).isAfterOrEqualTo(before).isBeforeOrEqualTo(LocalDateTime.now());
     }
+
+    @Test
+    void theSamePassFreesTheKeysOfExpiredUpdates() {
+        var invocations = mock(InvocationRepository.class);
+        when(invocations.purgeExpired(any())).thenReturn(1);
+        var updates = mock(io.mateu.workflow.application.out.ProcessUpdateRepository.class);
+        when(updates.expireKeys(any())).thenReturn(2, 0);
+        var retention = new InvocationRetention(invocations);
+
+        assertThat(retention.runOnce()).isEqualTo(1);
+        retention.processUpdateRepository = updates;
+        assertThat(retention.runOnce()).isEqualTo(3);
+        assertThat(retention.runOnce()).isEqualTo(1);
+    }
 }

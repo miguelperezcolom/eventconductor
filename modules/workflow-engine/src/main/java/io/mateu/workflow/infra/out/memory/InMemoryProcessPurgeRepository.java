@@ -42,6 +42,14 @@ public class InMemoryProcessPurgeRepository implements ProcessPurgeRepository {
     final InMemoryInvocationRepository invocations;
     final InMemoryLockService locks;
 
+    /** Optional, so a hand-built purge repository keeps compiling: the updates of a purged process go with it. */
+    io.mateu.workflow.application.out.ProcessUpdateRepository updates;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setUpdates(io.mateu.workflow.application.out.ProcessUpdateRepository updates) {
+        this.updates = updates;
+    }
+
     @Override
     public Set<String> knownWorkflowDefinitionIds() {
         var ids = new LinkedHashSet<String>();
@@ -103,6 +111,9 @@ public class InMemoryProcessPurgeRepository implements ProcessPurgeRepository {
                 .map(r -> r.id()).filter(Objects::nonNull).toList());
         traceContexts.deleteAllByProcessId(ids);
         invocations.deleteByProcessIds(ids);
+        if (updates != null) {
+            updates.deleteByProcessIds(ids);
+        }
         processes.deleteAllById(ids);
         return true;
     }

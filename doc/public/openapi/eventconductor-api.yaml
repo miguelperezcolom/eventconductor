@@ -16,6 +16,8 @@ security:
 tags:
 - description: "Workers over HTTP: long-poll for tasks and answer them, in any language."
   name: Workers
+- description: Validated writes to running processes that answer with a result.
+  name: Updates
 - description: "Failures waiting for an operator, grouped by definition, step and\
     \ error family."
   name: Incidents
@@ -196,6 +198,76 @@ paths:
           description: OK
       tags:
       - sync-invocation-controller
+  /workflow/api/definitions/{definitionId}/update-with-start:
+    post:
+      description: "With no process for the key, starts one whose first act is the\
+        \ update: evaluated against the initial variables, its `set` seeds them, and\
+        \ the process and its completed update are created together. With one, delivers\
+        \ the update to it (as `updateProcess`). A refused update starts nothing.\
+        \ `started` says which happened."
+      operationId: updateWithStart
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
+      - in: header
+        name: Prefer
+        required: false
+        schema:
+          type: string
+      - in: path
+        name: definitionId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWithStartRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+          description: Applied; `started` says whether this call started the process.
+        "202":
+          content:
+            application/json:
+              schema:
+                type: object
+          description: The deadline passed first; read the update at Location.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No business key, or an invalid payload."
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such definition or update.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The key belongs to another definition's process, or the process\
+            \ is not accepting."
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: A guard refused it.
+      summary: "Update the process with a business key, starting it if there is none"
+      tags:
+      - Updates
   /workflow/api/events/received:
     get:
       operationId: received
@@ -595,6 +667,71 @@ paths:
       summary: Find a process by its business key
       tags:
       - Processes
+  /workflow/api/processes/by-key/updates/{name}:
+    post:
+      description: "As `updateProcess`, finding the process by its business key."
+      operationId: updateProcessByBusinessKey
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
+      - in: header
+        name: Prefer
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: businessKey
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+        description: The update's payload (any JSON).
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+          description: Applied; `result` is the reply.
+        "202":
+          content:
+            application/json:
+              schema:
+                type: object
+          description: The deadline passed first; read the update at Location.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No process has the key, or no such update."
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The process is not accepting the update now.
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: A guard refused it.
+      summary: Apply an update to the running process with a business key
+      tags:
+      - Updates
   /workflow/api/processes/{id}:
     get:
       operationId: getProcess
@@ -1102,6 +1239,131 @@ paths:
       summary: Retry one failed step execution
       tags:
       - Processes
+  /workflow/api/processes/{id}/updates:
+    get:
+      description: Oldest first.
+      operationId: getProcessUpdates
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProcessUpdateResponse"
+          description: Its updates.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such process.
+      summary: The updates of a process
+      tags:
+      - Updates
+  /workflow/api/processes/{id}/updates/{name}:
+    post:
+      description: "Validates the payload against the update's `accepts` schema, then\
+        \ — on the node that owns the process, under its lock — checks it is accepting,\
+        \ runs the `validate` guards, writes `set` and answers `reply`. Any number\
+        \ of updates over a process's life, one at a time per process."
+      operationId: updateProcess
+      parameters:
+      - description: Makes a retry land on the same update and get its recorded outcome.
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
+      - description: "RFC 7240 `wait=N`: seconds to wait for the outcome before answering\
+          \ 202."
+        in: header
+        name: Prefer
+        required: false
+        schema:
+          type: string
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+        description: The update's payload (any JSON).
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+          description: Applied; `result` is the reply.
+        "202":
+          content:
+            application/json:
+              schema:
+                type: object
+          description: The deadline passed first; the update completes durably — read
+            it at Location.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The payload is not JSON or not what the update accepts.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The caller may not update the process.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such process, or its definition declares no such update."
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The process is not accepting the update now.
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "A guard refused it, or the Idempotency-Key was used for another\
+            \ request."
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Too many callers waiting on this node.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: An expression of the update failed; nothing changed.
+      summary: Apply an update to a running process
+      tags:
+      - Updates
   /workflow/api/processes/{id}/variables:
     get:
       description: By name; values are strings.
@@ -1580,6 +1842,44 @@ paths:
           description: OK
       tags:
       - event-rest-controller
+  /workflow/api/updates/{updateId}:
+    get:
+      description: "Answered as its POST was: 200 with the result, 202 while not applied\
+        \ yet (Prefer: wait=N long-polls), the problem of a refusal otherwise."
+      operationId: getProcessUpdate
+      parameters:
+      - in: header
+        name: Prefer
+        required: false
+        schema:
+          type: string
+      - in: path
+        name: updateId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+          description: Applied.
+        "202":
+          content:
+            application/json:
+              schema:
+                type: object
+          description: Not applied yet.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such update.
+      summary: Read an update
+      tags:
+      - Updates
   /workflow/api/workers/activate:
     post:
       description: Waits up to waitMs (capped by workflow.workers.http.max-wait) for
@@ -2511,6 +2811,46 @@ components:
           type: string
         status:
           type: string
+    ProcessUpdateResponse:
+      type: object
+      properties:
+        completedAt:
+          type: string
+          format: date-time
+        error:
+          type: string
+          description: "Why it was refused, not accepted or failed."
+        location:
+          type: string
+          description: Where the update is read again.
+        name:
+          type: string
+          description: The update's name in the definition.
+        payload:
+          type: string
+          description: "The payload as recorded: fields the update declares sensitive\
+            \ are masked."
+        processId:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
+        requestedBy:
+          type: string
+        result:
+          type: string
+          description: The update's reply (any JSON) when COMPLETED.
+        started:
+          type: boolean
+          description: Whether this update started its process (update-with-start).
+        status:
+          type: string
+          description: "REQUESTED (not applied yet: 202), COMPLETED, REFUSED, NOT_ACCEPTED\
+            \ or FAILED."
+        updateId:
+          type: string
+          description: "The update's id; GET /workflow/api/updates/{updateId} reads\
+            \ it again."
     Result:
       type: object
       properties:
@@ -2831,6 +3171,27 @@ components:
           type: boolean
         workflowStatus:
           type: string
+    UpdateWithStartRequest:
+      type: object
+      properties:
+        businessKey:
+          type: string
+          description: "The process's business key: the existing process with it gets\
+            \ the update, or a new one is started with it."
+        payload:
+          type: string
+          description: The update's payload (any JSON).
+        update:
+          type: string
+          description: The update's name.
+        variables:
+          type: object
+          additionalProperties: {}
+          description: Initial variables of a process started by this call (ignored
+            when it exists). Values that are not text are stored as JSON.
+      required:
+      - businessKey
+      - update
   securitySchemes:
     apiKey:
       in: header

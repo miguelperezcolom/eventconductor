@@ -133,6 +133,13 @@ public final class UpstreamInputGuard {
                 InputLimits.checkText(e.reason(), "an operation's reason");
                 InputLimits.checkIdentifier(e.requestedBy(), "requestedBy");
             }
+            case io.mateu.workflow.dtos.events.integration.ProcessUpdateRequested e -> {
+                InputLimits.checkIdentifier(e.updateId(), "updateId");
+                InputLimits.checkIdentifier(e.processId(), "processId");
+                InputLimits.checkIdentifier(e.updateName(), "updateName");
+                InputLimits.checkText(e.payload(), "an update's payload");
+                InputLimits.checkIdentifier(e.requestedBy(), "requestedBy");
+            }
             case ProcessCancellationRequested e -> {
                 InputLimits.checkIdentifier(e.businessKey(), "businessKey");
                 InputLimits.checkIdentifier(e.processId(), "processId");

@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
  *   <li>{@code process_trace_context} — the trace it joined;</li>
  *   <li>{@code sync_invocation} — the synchronous invocation that started it, if any (its idempotency
  *       key is then free, as after the invocation's own retention);</li>
+ *   <li>{@code process_update} — its updates (V55), with their results;</li>
  *   <li>{@code analytics_counted_process}, {@code analytics_counted_step} — the analytics projector's
  *       ledger of what it counted for the process and its steps. The daily rollups themselves are
  *       kept: the report still counts the process on the days it ran;</li>
@@ -153,6 +154,7 @@ public class JdbcProcessPurgeRepository implements ProcessPurgeRepository {
             updateIn("DELETE FROM resource_entity WHERE process_id IN (%s)", ids);
             updateIn("DELETE FROM process_trace_context WHERE process_id IN (%s)", ids);
             updateIn("DELETE FROM sync_invocation WHERE process_id IN (%s)", ids);
+            updateIn("DELETE FROM process_update WHERE process_id IN (%s)", ids);
             updateIn("DELETE FROM analytics_counted_process WHERE process_id IN (%s)", ids);
             updateIn("DELETE FROM process_index WHERE process_id IN (%s)", ids);
             // Search attributes (V48): the process's own, and the embedded index's copy.
