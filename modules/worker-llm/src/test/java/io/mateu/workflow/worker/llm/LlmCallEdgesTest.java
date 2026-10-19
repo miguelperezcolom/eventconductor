@@ -346,11 +346,12 @@ class LlmCallEdgesTest {
         runner.withPropertyValues("workflow.llm.topic=my-llm").run(context -> {
             assertThat(context).hasSingleBean(LlmCallHandler.class);
             assertThat(context.getBean(ChatModelFactory.class)).isInstanceOf(SpringAiChatModelFactory.class);
-            var registration = context.getBean(TaskRegistration.class);
-            assertThat(registration.ref()).isEqualTo("llm-call@1");
-            assertThat(registration.topic()).isEqualTo("my-llm");
+            assertThat(context).hasSingleBean(AgentTurnHandler.class);
+            var registrations = context.getBeansOfType(TaskRegistration.class).values();
+            assertThat(registrations).extracting(TaskRegistration::ref).containsExactlyInAnyOrder("llm-call@1", "agent-turn@1");
+            assertThat(registrations).allSatisfy(registration -> assertThat(registration.topic()).isEqualTo("my-llm"));
         });
         runner.withPropertyValues("workflow.llm.enabled=false")
-                .run(context -> assertThat(context).doesNotHaveBean(LlmCallHandler.class));
+                .run(context -> assertThat(context).doesNotHaveBean(LlmCallHandler.class).doesNotHaveBean(AgentTurnHandler.class));
     }
 }
