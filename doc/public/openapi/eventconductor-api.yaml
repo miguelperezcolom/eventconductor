@@ -2412,6 +2412,12 @@ components:
       type: object
       description: One step execution of a process.
       properties:
+        agent:
+          type: object
+          additionalProperties: {}
+          description: "For an AGENT_CALL's own execution: its state, turns, tool\
+            \ calls, tokens and last message; null for every other execution. Its\
+            \ turns and tool calls are executions of their own, with this one as parentExecutionId."
         attemptCount:
           type: integer
           format: int32
