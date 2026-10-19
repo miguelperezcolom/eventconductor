@@ -20,7 +20,8 @@ clock you move. Canonical: `doc/src/content/docs/guides/testing-workflows.md`,
 
 - `mvn eventconductor:validate` on demand (prints `N definition(s) validated successfully` — not with `-q`); bound to `process-resources`, so `mvn test`/`verify` run it.
 - Reads `src/main/resources/{workflows,forms,rules,tasks}/**` (`.ec .ecform .ecrule .ectask .json .yaml .yml`),
-  plus `workflows/cron.yaml` and `workflows/events.yaml`.
+  plus `workflows/cron.yaml` and `workflows/events.yaml`. `forms/` is validated only — forms ship via
+  `forms.directory-import` / `forms.git-import`, never the classpath (`formsDirectory` can point elsewhere).
 - Checks: the JSON schema (unknown keys are errors — a typo like `retires` fails), roots/START rule,
   dangling ids, cycles, JEXL parseability, loops, HTTP/LLM/agent blocks, triggers, schedules,
   retention, sensitive-variable rules, task contracts. Warnings (never fail): JOIN on a guarded step,

@@ -79,7 +79,11 @@ src/main/resources/
   tasks/**/*.{ec,ecform,ecrule,ectask,json,yaml,yml}
 ```
 
-The same extensions the engine imports. `.ec`, `.ecform` and `.ecrule` are what the graph editor and the
+The same extensions the engine imports. Workflows, rules and task contracts are also what the engines
+load from the classpath. **Forms are not**: the forms engine imports them with
+`forms.directory-import.directories` or `forms.git-import` (whose `directory` can name this folder in the
+repository), so `src/main/resources/forms/` is only the default place the plugin validates them — point
+`formsDirectory` at wherever your forms really live. The plugin logs a reminder when it validates forms. `.ec`, `.ecform` and `.ecrule` are what the graph editor and the
 two IDE plugins write, and they were not collected before 2.2.3 — a repository of them was walked,
 nothing was found, and the build passed. Anything that is not `.json` is read by the YAML parser,
 which reads JSON too, so an `.ec` holding either parses.
@@ -100,7 +104,7 @@ src/main/resources/workflows/order.yaml:
 | Parameter | Property | Default | Description |
 |---|---|---|---|
 | `workflowsDirectory` | | `${basedir}/src/main/resources/workflows` | Workflow definitions directory. |
-| `formsDirectory` | | `${basedir}/src/main/resources/forms` | Form definitions directory. |
+| `formsDirectory` | | `${basedir}/src/main/resources/forms` | Form definitions directory (validated only; forms ship via forms directory/git import). |
 | `rulesDirectory` | | `${basedir}/src/main/resources/rules` | Rule definitions directory. |
 | `tasksDirectory` | | `${basedir}/src/main/resources/tasks` | Task contracts directory. |
 | `validateWorkflows` | `eventconductor.validate.workflows` | `true` | Validate workflows. |

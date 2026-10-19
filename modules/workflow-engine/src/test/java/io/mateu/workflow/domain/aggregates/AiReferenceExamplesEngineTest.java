@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * The engine's half of {@code AiReferenceExamplesTest} (workflow-maven-plugin): every whole workflow
  * definition shown in the Claude Code skills ({@code .claude/skills/**}) and the published AI reference
- * files ({@code doc/public/eventconductor-ai-*.md}) must be accepted by the engine as it loads a file —
+ * files ({@code doc/public/eventconductor-ai-*.md}) and a set of doc pages must be accepted by the engine as it loads a file —
  * the schema on the document as written, then binding and {@link WorkflowDefinition#checkInvariants()} —
  * so an example cannot teach an assistant something the engine would refuse at import.
  */
@@ -76,6 +76,19 @@ class AiReferenceExamplesEngineTest {
         return tests.stream();
     }
 
+    /** Doc pages whose examples are checked too (the ones the AI material leans on most). */
+    static final List<String> DOC_PAGES = List.of(
+            "doc/src/content/docs/guides/http-calls.md",
+            "doc/src/content/docs/guides/llm-calls.md",
+            "doc/src/content/docs/guides/workers.md",
+            "doc/src/content/docs/guides/updating-running-processes.md",
+            "doc/src/content/docs/guides/workflow-definitions.md",
+            "doc/src/content/docs/guides/testing-workflows.md",
+            "doc/src/content/docs/guides/request-response.md",
+            "doc/src/content/docs/reference/step-types.md",
+            "doc/src/content/docs/reference/maven-plugin.md",
+            "doc/src/content/docs/reference/configuration.md");
+
     private static List<Path> aiFiles() throws IOException {
         List<Path> files = new ArrayList<>();
         Path skills = REPO.resolve(".claude/skills");
@@ -87,6 +100,7 @@ class AiReferenceExamplesEngineTest {
         try (Stream<Path> list = Files.list(REPO.resolve("doc/public"))) {
             list.filter(p -> p.getFileName().toString().matches("eventconductor-ai-.*\\.md")).sorted().forEach(files::add);
         }
+        DOC_PAGES.stream().map(REPO::resolve).forEach(files::add);
         return files;
     }
 }

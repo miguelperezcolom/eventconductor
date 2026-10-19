@@ -24,8 +24,11 @@ import java.util.stream.Stream;
  *
  * <p>By default it scans, under the project's resources, {@code workflows/}, {@code forms/}
  * and {@code rules/} for {@code *.ec}, {@code *.ecform}, {@code *.ecrule}, {@code *.json},
- * {@code *.yaml} and {@code *.yml} files — the same six the engine imports, and the same layout
- * it loads from the classpath. Each directory is validated against the matching specification.
+ * {@code *.yaml} and {@code *.yml} files — the same six the engine imports. Workflows, rules and task
+ * contracts are also what the engines load from the classpath; forms are not — the forms engine reads them
+ * through {@code forms.directory-import} or {@code forms.git-import} — so {@code forms/} is simply where a
+ * project keeps the forms it ships that way, and {@code formsDirectory} can point anywhere else. Each
+ * directory is validated against the matching specification.
  *
  * <p>A {@code cron.yaml} (or {@code cron.yml}) under the workflows directory is a schedule file, and an
  * {@code events.yaml} (or {@code events.yml}) an event-trigger file, not a definition: each is validated
@@ -42,7 +45,11 @@ public class ValidateMojo extends AbstractMojo {
     @Parameter(defaultValue = "${project.basedir}/src/main/resources/workflows")
     private File workflowsDirectory;
 
-    /** Directory holding form definitions. */
+    /**
+     * Directory holding form definitions. Validated only: the forms engine never loads forms from the
+     * classpath, it imports them with {@code forms.directory-import} or {@code forms.git-import}, so point
+     * this wherever those read from (the default suits a repository that keeps them beside the workflows).
+     */
     @Parameter(defaultValue = "${project.basedir}/src/main/resources/forms")
     private File formsDirectory;
 
@@ -99,7 +106,13 @@ public class ValidateMojo extends AbstractMojo {
             validated += validateEventFiles(validator, failures);
         }
         if (validateForms) {
-            validated += validateDirectory(validator, SpecValidator.Kind.FORM, formsDirectory, failures);
+            int forms = validateDirectory(validator, SpecValidator.Kind.FORM, formsDirectory, failures);
+            if (forms > 0) {
+                getLog().info("EventConductor: " + forms + " form(s) validated in " + formsDirectory
+                        + " — forms are not loaded from the classpath; ship them with forms.directory-import"
+                        + " or forms.git-import.");
+            }
+            validated += forms;
         }
         if (validateRules) {
             validated += validateDirectory(validator, SpecValidator.Kind.RULE, rulesDirectory, failures);

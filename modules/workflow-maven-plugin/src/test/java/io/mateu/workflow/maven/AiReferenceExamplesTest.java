@@ -234,6 +234,19 @@ class AiReferenceExamplesTest {
                 .toList();
     }
 
+    /** Doc pages whose examples are checked too (the ones the AI material leans on most). */
+    static final List<String> DOC_PAGES = List.of(
+            "doc/src/content/docs/guides/http-calls.md",
+            "doc/src/content/docs/guides/llm-calls.md",
+            "doc/src/content/docs/guides/workers.md",
+            "doc/src/content/docs/guides/updating-running-processes.md",
+            "doc/src/content/docs/guides/workflow-definitions.md",
+            "doc/src/content/docs/guides/testing-workflows.md",
+            "doc/src/content/docs/guides/request-response.md",
+            "doc/src/content/docs/reference/step-types.md",
+            "doc/src/content/docs/reference/maven-plugin.md",
+            "doc/src/content/docs/reference/configuration.md");
+
     private static List<Path> aiFiles() throws IOException {
         List<Path> files = new ArrayList<>();
         Path skills = REPO.resolve(".claude/skills");
@@ -245,6 +258,7 @@ class AiReferenceExamplesTest {
         try (Stream<Path> list = Files.list(REPO.resolve("doc/public"))) {
             list.filter(p -> p.getFileName().toString().matches("eventconductor-ai-.*\\.md")).sorted().forEach(files::add);
         }
+        DOC_PAGES.stream().map(REPO::resolve).forEach(files::add);
         return files;
     }
 

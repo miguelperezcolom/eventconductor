@@ -72,7 +72,8 @@ public class BatchOperationMcpTools implements McpTools, McpSystemContext {
             + " trail. Processes the command does not apply to are skipped, not failed. Returns the batch;"
             + " follow it with getBatchOperation.")
     public BatchOperationSummary createBatchOperation(
-            @ToolParam(description = "CANCEL, RETRY, RESTART, PAUSE or RESUME") String type,
+            @ToolParam(description = "CANCEL, RETRY, RESTART, PAUSE, RESUME, SET_VARIABLES or RETRY_FROM_STEP"
+                    + " (MIGRATE goes through migrateProcessesInBatch)") String type,
             @ToolParam(required = false, description = "Only processes of this definition") String workflowDefinitionId,
             @ToolParam(required = false, description = "Comma-separated statuses") String status,
             @ToolParam(required = false, description = "Only processes of the definitions carrying this tag") String tag,

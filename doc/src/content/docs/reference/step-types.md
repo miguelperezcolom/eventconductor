@@ -20,6 +20,7 @@ declares one, holds:
 {
   "id": "ship",
   "type": "ACTION",
+  "name": "Ship",
   "preconditions": [
     { "stepId": "pack" },
     { "stepId": "charge", "expression": "amount > 100" }
@@ -46,6 +47,7 @@ Waiting is one of two things a false condition can mean, and the link says which
 {
   "id": "charge-penalty",
   "type": "ACTION",
+  "name": "Charge the penalty",
   "preconditions": [
     { "stepId": "validate", "expression": "ratePlan == 'NON_REFUNDABLE'", "onFalse": "DISCARD" }
   ]
@@ -551,33 +553,35 @@ live on the link (a `preconditions` entry with an `expression`), so a `CHOICE` r
 per-route conditions the graph shows.
 
 ```json
-{
-  "id": "route",
-  "type": "CHOICE",
-  "name": "Route by customer tier",
-  "preconditionStepId": "score-customer"
-},
-{
-  "id": "handle-vip",
-  "type": "ACTION",
-  "name": "White-glove path",
-  "topic": "vip-service",
-  "preconditions": [{ "stepId": "route", "expression": "tier == 'gold' && region == 'EU'" }]
-},
-{
-  "id": "handle-priority",
-  "type": "ACTION",
-  "name": "Priority path",
-  "topic": "priority-service",
-  "preconditions": [{ "stepId": "route", "expression": "tier == 'gold'" }]
-},
-{
-  "id": "handle-standard",
-  "type": "ACTION",
-  "name": "Standard path",
-  "topic": "standard-service",
-  "preconditions": [{ "stepId": "route" }]
-}
+[
+  {
+    "id": "route",
+    "type": "CHOICE",
+    "name": "Route by customer tier",
+    "preconditionStepId": "score-customer"
+  },
+  {
+    "id": "handle-vip",
+    "type": "ACTION",
+    "name": "White-glove path",
+    "topic": "vip-service",
+    "preconditions": [{ "stepId": "route", "expression": "tier == 'gold' && region == 'EU'" }]
+  },
+  {
+    "id": "handle-priority",
+    "type": "ACTION",
+    "name": "Priority path",
+    "topic": "priority-service",
+    "preconditions": [{ "stepId": "route", "expression": "tier == 'gold'" }]
+  },
+  {
+    "id": "handle-standard",
+    "type": "ACTION",
+    "name": "Standard path",
+    "topic": "standard-service",
+    "preconditions": [{ "stepId": "route" }]
+  }
+]
 ```
 
 Here a `gold`/`EU` customer takes `handle-vip` (longest guard, evaluated first); any other `gold`

@@ -28,6 +28,7 @@ Use a **message** when another system reports something happened and does not ne
 
 ```yaml
 id: order-fulfilment
+name: Order fulfilment
 steps:
   - { id: start, type: START, name: Start }
   - { id: reserve, type: ACTION, name: Reserve stock, preconditionStepId: start,
@@ -58,7 +59,7 @@ updates:
     reply: approvedBy
   - name: addNote
     accepts: { type: object, required: [note] }
-    set: { notes: "notes == null ? payload.note : notes + '\n' + payload.note" }
+    set: { notes: "notes == null ? payload.note : notes + '\\n' + payload.note" }
     sensitive: [customerPin]                     # never shown in the recorded payload
 ```
 

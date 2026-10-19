@@ -96,7 +96,7 @@ never coming.
 
 ## Git import (`workflow.git-import.*`)
 
-Clones Git repositories at startup and imports workflow definition files (`.ec`, `.json`, `.yaml`, `.yml`). `.ec` is EventConductor's first-class extension — its content may be JSON or YAML (detected automatically). Only available when `workflow.persistence=jpa`.
+Clones Git repositories at startup and imports workflow definition files (`.ec`, `.json`, `.yaml`, `.yml`). `.ec` is EventConductor's first-class extension — its content may be JSON or YAML (detected automatically). Works with either `workflow.persistence`: with `memory` the definitions are held in the heap and imported again at every start; with `jpa` they are stored (with version history), and what each source imported is remembered across restarts so a definition removed from the repository is archived.
 
 | Property | Default | Description |
 |---|---|---|
@@ -469,6 +469,7 @@ Read by the `webhook-gateway` module (`webhook-gateway-standalone-app`, or any a
 |---|---|---|
 | `workflow.webhooks.enabled` | `true` | `false` leaves the endpoints unmapped. |
 | `workflow.webhooks.path` | `/webhooks` | The path the endpoints hang from: `POST <path>/<endpoint>`. |
+| `workflow.webhooks.max-body-bytes` | `26214400` (25 MB) | The largest webhook body accepted; a larger one is refused with `413` before it is read whole (declared length or chunked). |
 | `workflow.webhooks.transport` | `kafka` | `kafka`: binary CloudEvents on the destination's topic (`workflow.events.destinations.<name>.topic`); `rest`: the engine's `POST /workflow/api/events/{destination}`. |
 | `workflow.webhooks.engine.url` | — | The engine's base URL, for the `rest` transport (e.g. `http://orchestrator:8080`). |
 | `workflow.webhooks.engine.api-key` | — | Its `X-Api-Key`, when the message API requires one. |

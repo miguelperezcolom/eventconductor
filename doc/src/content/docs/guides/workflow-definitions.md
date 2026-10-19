@@ -5,12 +5,13 @@ description: The EventConductor workflow DSL — steps, branching, retries, and 
 
 Workflow definitions describe the steps of a business process. They can be written in **JSON** or **YAML** (`.json`, `.yaml`, `.yml`), are version-controlled, and are reviewable in a pull request.
 
-In `embedded` + `memory` mode, definitions are loaded from `classpath:/workflows/` at startup. In `jpa` persistence mode, they can also be imported from Git — either at startup, on demand via the MCP tool `importWorkflowDefinitionsFromGit`, or automatically via a **git webhook** (GitHub, GitLab, Bitbucket or generic).
+Definitions are loaded from `classpath:/workflows/` at startup, in every mode. They can also be imported from Git (with `memory` persistence into the in-memory store, so they are imported again at every start; with `jpa` into the database) — either at startup, on demand via the MCP tool `importWorkflowDefinitionsFromGit`, or automatically via a **git webhook** (GitHub, GitLab, Bitbucket or generic).
 
 ## IDE support
 
 Add a `$schema` reference to your JSON files to enable autocomplete and inline validation in IntelliJ, VS Code, and any other JSON Schema-aware editor:
 
+<!-- ec-example: skip -->
 ```json
 {
   "$schema": "https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json",
@@ -35,6 +36,7 @@ Both formats are fully equivalent — use whichever fits your team's conventions
 
 **JSON:**
 
+<!-- ec-example: skip -->
 ```json
 {
   "id": "my-workflow",
@@ -50,6 +52,7 @@ Both formats are fully equivalent — use whichever fits your team's conventions
 
 **YAML:**
 
+<!-- ec-example: skip -->
 ```yaml
 id: my-workflow
 name: My Workflow
@@ -95,11 +98,15 @@ A workflow's graph is laid out automatically unless somebody has arranged it. Dr
 graph editor — VS Code or IntelliJ — and the arrangement is written into the file under `layout`:
 
 ```yaml
+id: payment
+name: Payment
 steps:
   - id: start
     type: START
+    name: Start
   - id: charge
     type: ACTION
+    name: Charge
     preconditionStepId: start
 
 layout:
@@ -306,7 +313,7 @@ can be configured at once.
 
 ## Importing from Git
 
-When `workflow.persistence=jpa`, EventConductor can clone one or more Git repositories at startup and import every `.json` / `.yaml` / `.yml` / `.ec` file that contains a valid workflow definition (i.e. has both `name` and `steps` fields).
+EventConductor can clone one or more Git repositories at startup (any `workflow.persistence`: with `memory` the imported definitions live in the heap and are imported again on every start; with `jpa` they are stored, versioned and pruned across restarts) and import every `.json` / `.yaml` / `.yml` / `.ec` file that contains a valid workflow definition (i.e. has both `name` and `steps` fields).
 
 ### Configuration
 

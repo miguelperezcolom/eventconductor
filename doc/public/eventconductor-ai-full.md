@@ -977,7 +977,7 @@ record Variable(String name, String value) {}
 
 ---
 
-## 12. Git import & working copies (jpa mode)
+## 12. Git import (any persistence) & working copies (jpa)
 
 **Git import** — clone repos at startup and import every valid definition file (has `name` + `steps`):
 ```yaml

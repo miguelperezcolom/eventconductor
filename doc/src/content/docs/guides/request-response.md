@@ -266,6 +266,7 @@ The order of the two branches in the file does not matter; the `JOIN` `quoted` c
 
 ### Never: request, then wait
 
+<!-- ec-example: skip -->
 ```yaml
 # Unsafe: a fast reply can arrive before wait-quote is PENDING, and is lost.
 - id: ask-quote
