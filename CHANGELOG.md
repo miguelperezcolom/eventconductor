@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.33.0] - 2026-10-19
+
+### Upgrading
+- **Migrations V55, V56 and V56.1** run on start: `process_update` and `workflow_definition_entity.updates_json` (V55); flow-control tables and nullable columns, including `process_entity.released_business_key` (V56); and two indexes on existing tables, built `CONCURRENTLY` on PostgreSQL (V56.1, a non-transactional Java migration). V56 takes a brief exclusive lock per `ALTER TABLE` without rewriting the table; on a busy database set a `lock_timeout` or upgrade off-peak.
+- **Flyway lock:** the engine's migration runner now takes a session-level lock on PostgreSQL so concurrent index builds can run; other Flyway setups fall back to an ordinary index build after 30 s.
+- **Rolling upgrade:** `process_entity.business_key` stays UNIQUE, so 2.32 pods keep rejecting duplicates during the rollout. Don't import definitions that use `CONTINUE_AS_NEW` or a reusing `businessKeyPolicy` until every pod runs 2.33; a 2.32 console shows an empty business key for runs that handed theirs on.
+- **`TaskExecutionRequested` gained a `priority` field.** Code that deconstructs it with a record pattern must add the field (JSON workers are unaffected).
+
+### Added
+- Process updates: a definition declares named `updates` (JSON Schema `accepts`, `acceptedWhile`, `validate` guards, `set`, `completes`, `reply`/`replyTemplate`, `sensitive`) — validated writes to a running process that answer with a result, any number of times, applied under the process lock by its owner. `POST /workflow/api/processes/{id}/updates/{name}` (and by business key) with `Idempotency-Key` and `Prefer: wait=N` (200 / 202 + Location / 400 / 404 / 409 / 422 / 500), `GET /workflow/api/updates/{id}`, `GET /workflow/api/processes/{id}/updates`; Kafka `process-update-requested`; MCP `updateProcess`, `listProcessUpdates`. (#560)
+- Update-with-start: `POST /workflow/api/definitions/{id}/update-with-start` starts the process when its business key is free (the update is its first act) or updates it; pluggable `UpdateWithStartPolicy`; MCP `updateWithStart`. (#560)
+- `process_update` table (V55) and `workflow_definition_entity.updates_json`; Updates tab on the process detail; metric `eventconductor.process.updates`. (#560)
+- Test kit: `runtime.update(...)`, `runtime.updateWithStart(...)`, `UpdateOutcome` and its assertions, `hasAppliedUpdates(...)`. (#560)
+- **Updates and sensitive variables** (#560): idempotency uses the keyed fingerprint; payload fields written into sensitive variables (or marked `sensitive`) are stored and sent encrypted; results of updates that read sensitive variables need `allowSensitiveVariables: true`, are stored encrypted and are returned in clear only to the request that sent them (and its retries).
+- **Flow control** — `startPolicy` with `debounce`, `throttle` (`onLimit: queue|drop`) and `singleton` (`skip|replace`) per rendered key, on event triggers (definition, events.yaml, UI/REST/MCP) and on the definition (REST starts, sync invocation). Durable (V56), safe across pods, receipts and metrics (`eventconductor.flow.starts`). (#561)
+- **Worker rate limits** — `workflow.workers.rate-limits.<topic>.{permits,period}` for Kafka, HTTP and embedded dispatch; tasks over the limit wait PENDING without their timeout running, released by priority and fairly across processes (`eventconductor.dispatch.rate_limited`). (#561)
+- **Task priority** — `priority: 0–100` on worker steps, honoured by the HTTP worker queue, the embedded pool and the rate-limit queue. (#561)
+- **CONTINUE_AS_NEW** step — a fresh run with the same business key and mapped variables, linked to the previous (`continuedFrom`/`continuedAs`, outcome `continued`). (#561)
+- **`businessKeyPolicy`** — `unique` (default), `allowAfterFinished`, `allowAfterFailed`, `terminateRunning`. `process_entity.business_key` stays UNIQUE (the current holder); a run that hands its key over keeps it in `released_business_key` (V56). Rolling upgrades from 2.32 are safe; V56.1 builds its indexes CONCURRENTLY on PostgreSQL. (#561)
+- REST `POST /workflow/api/processes` may answer 202 (held back) and 429 (dropped); sync invocation refusals `SINGLETON_RUNNING` and `THROTTLED`; MCP `listRunsOfBusinessKey`; receipt outcomes `DEBOUNCED`, `THROTTLED`, `DROPPED`, `SKIPPED`, `REPLACED`. (#561)
+- **Update-with-start follows `businessKeyPolicy`** (#561): a running holder receives the update; an ended one either refuses it (`unique`) or a new run starts with the update applied first.
+
+### Security
+- Flow-control keys (`startPolicy.key`) and business keys computed from a sensitive variable are refused at definition load, in the engine and the Maven plugin (#561).
+
+### Fixed
+- The in-memory process store refuses a second holder of a business key, like the database's UNIQUE constraint; before, a lookup by key could return either of two holders (#561).
+
 ## [2.32.0] - 2026-10-19
 
 ### Upgrading
