@@ -108,11 +108,11 @@ public class IncidentRestController {
     @Schema(name = "IncidentRetryAccepted", description = "A group retry was accepted (202).")
     public record IncidentRetryAccepted(
             String key,
-            @Schema(description = "Step retries requested.") int requested,
-            @Schema(description = "Whether they are being requested in the background (more than"
-                    + " workflow.incidents.retry.sync-limit).") boolean async,
-            @Schema(description = "Whether the group held more than workflow.incidents.retry.max-steps; retry again"
-                    + " for the rest.") boolean truncated) {
+            @Schema(description = "Failed steps the incident held when the retry was asked for.") int requested,
+            @Schema(description = "Always true: the retry is a batch operation, run in the background.") boolean async,
+            @Schema(description = "Whether the incident view was truncated (workflow.incidents.scan-limit).") boolean truncated,
+            @Schema(description = "The RETRY batch operation over the incident: GET /workflow/api/batch-operations/{id}.")
+            String batchOperationId) {
     }
 
     @GetMapping
@@ -150,9 +150,9 @@ public class IncidentRestController {
 
     @PostMapping("/{key}/retry")
     @Operation(operationId = "retryIncident", summary = "Retry every failed step of one incident",
-            description = "Each as a step retry: on the node that owns its process, under its lock, recorded in the"
-                    + " process's log with the caller and the reason. Bounded by workflow.incidents.retry.max-steps;"
-                    + " beyond workflow.incidents.retry.sync-limit the retries are requested in the background.")
+            description = "As a RETRY batch operation over the incident, in the background: each member's failed"
+                    + " steps retried on the node that owns its process, under its lock, recorded in the process's log"
+                    + " with the caller and the reason. Location names the batch.")
     @ApiResponses({@ApiResponse(responseCode = "202", description = "Accepted."),
             @ApiResponse(responseCode = "400", description = "No reason.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "403", description = "The caller may not operate on the definition.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
@@ -165,8 +165,10 @@ public class IncidentRestController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A JSON body is required.");
         }
         var outcome = incidents.retryGroup(key, body.reason(), caller());
-        return ResponseEntity.accepted().body(new IncidentRetryAccepted(outcome.key(), outcome.requested(),
-                outcome.async(), outcome.truncated()));
+        return ResponseEntity.accepted()
+                .location(java.net.URI.create("/workflow/api/batch-operations/" + outcome.batchOperationId()))
+                .body(new IncidentRetryAccepted(outcome.key(), outcome.requested(), outcome.async(), outcome.truncated(),
+                        outcome.batchOperationId()));
     }
 
     @ExceptionHandler(IncidentNotFoundException.class)

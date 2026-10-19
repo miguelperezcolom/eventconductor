@@ -1,0 +1,20 @@
+id: foreach-searchable
+name: Reserve every room, searchable by guest
+version: 1
+searchAttributes:
+  guest: "${guest}"
+  room: "${room}"
+  reservations: { value: "${reservations}", type: text }
+steps:
+  - { id: start, type: START, name: Start }
+  - id: reserve
+    type: ACTION
+    name: Reserve a room
+    topic: work
+    preconditionStepId: start
+    forEach:
+      items: rooms
+      as: room
+      output: reservations
+      outputElement: reservationId
+  - { id: end, type: END, name: End, preconditionStepId: reserve }

@@ -38,13 +38,13 @@ class SearchAndBatchPostgresTest extends SearchAndBatchContract {
         var holding = new CountDownLatch(1);
         var release = new CountDownLatch(1);
         var busy = mock(BatchOperationService.class);
-        when(busy.runNextPage()).thenAnswer(call -> {
+        when(busy.runPage()).thenAnswer(call -> {
             holding.countDown();
             release.await(10, TimeUnit.SECONDS);
-            return true;
+            return 3;
         });
         var other = mock(BatchOperationService.class);
-        when(other.runNextPage()).thenReturn(true);
+        when(other.runPage()).thenReturn(1);
 
         var podA = job(busy);
         var podB = job(other);

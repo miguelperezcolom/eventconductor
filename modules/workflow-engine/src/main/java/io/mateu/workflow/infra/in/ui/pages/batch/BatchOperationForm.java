@@ -32,8 +32,9 @@ public class BatchOperationForm {
     @NotNull
     @Label("Operation")
     @Help("What is done to each process: CANCEL, RETRY (pick an ERROR or CANCELLED process up where it stopped),"
-            + " RESTART (run it again from the beginning), PAUSE or RESUME. A process the operation does not apply to"
-            + " is skipped, not failed.")
+            + " RESTART (run it again from the beginning), PAUSE, RESUME, SET_VARIABLES or RETRY_FROM_STEP (a live"
+            + " process, audited with your name and the reason). A process the operation does not apply to is skipped,"
+            + " not failed.")
     BatchOperationType type;
 
     @Lookup(search = WorkflowDefinitionIdOptionsSupplier.class, label = WorkflowDefinitionIdLabelSupplier.class)
@@ -64,6 +65,31 @@ public class BatchOperationForm {
 
     @Label("Only errors")
     Boolean onlyErrors;
+
+    @Label("Variables to set")
+    @Help("SET_VARIABLES: one name=value per line.")
+    @io.mateu.uidl.annotations.Stereotype(io.mateu.uidl.data.FieldStereotype.textarea)
+    String variablesToSet;
+
+    @Label("Variables to remove")
+    @Help("SET_VARIABLES: names, comma-separated.")
+    String variablesToRemove;
+
+    @Label("Step")
+    @Help("RETRY_FROM_STEP: the step id each process runs again from.")
+    String stepId;
+
+    @Label("Reason")
+    @Help("Mandatory for SET_VARIABLES and RETRY_FROM_STEP: recorded with your name in each process's audit trail.")
+    String reason;
+
+    /** The parameters the form describes. */
+    java.util.Map<String, String> parameters() {
+        var remove = variablesToRemove == null ? java.util.List.<String>of()
+                : java.util.Arrays.stream(variablesToRemove.split(",")).map(String::strip).filter(n -> !n.isEmpty()).toList();
+        return io.mateu.workflow.domain.batch.BatchOperationParameters.of(
+                io.mateu.workflow.domain.batch.BatchOperationParameters.assignments(variablesToSet), remove, stepId, reason);
+    }
 
     /** The filter the form describes. */
     BatchOperationFilter filter() {

@@ -50,21 +50,33 @@ class BatchOperationMcpToolsTest {
     @Test
     void createsWithTheFilterGiven() {
         when(service.create(any(), any(), any(), any())).thenReturn(batch());
-        var created = tools.createBatchOperation("retry", "orders", "ERROR, cancelled", null, null, "amount > 100");
+        var created = tools.createBatchOperation("retry", "orders", "ERROR, cancelled", null, null, "amount > 100", null, null, null, null);
         var filter = ArgumentCaptor.forClass(BatchOperationFilter.class);
-        verify(service).create(eq(BatchOperationType.RETRY), filter.capture(), isNull(), isNull());
+        verify(service).create(eq(BatchOperationType.RETRY), filter.capture(), eq(java.util.Map.of()), isNull());
         assertThat(filter.getValue().status()).containsExactlyInAnyOrder(ProcessStatus.ERROR, ProcessStatus.CANCELLED);
         assertThat(filter.getValue().query()).isEqualTo("amount > 100");
         assertThat(created.id()).isEqualTo("b1");
         assertThat(created.filter()).contains("definition orders");
         assertThat(created.createdAt()).isEqualTo("2026-10-18T09:00");
 
-        assertThatThrownBy(() -> tools.createBatchOperation("explode", "orders", null, null, null, null))
+        assertThatThrownBy(() -> tools.createBatchOperation("explode", "orders", null, null, null, null, null, null, null, null))
                 .hasMessageContaining("Unknown batch operation type");
-        assertThatThrownBy(() -> tools.createBatchOperation(" ", "orders", null, null, null, null))
+        assertThatThrownBy(() -> tools.createBatchOperation(" ", "orders", null, null, null, null, null, null, null, null))
                 .hasMessageContaining("type is required");
-        assertThatThrownBy(() -> tools.createBatchOperation("cancel", null, "SLEEPING", null, null, null))
+        assertThatThrownBy(() -> tools.createBatchOperation("cancel", null, "SLEEPING", null, null, null, null, null, null, null))
                 .hasMessageContaining("Unknown status");
+    }
+
+    @Test
+    void theManualOperationTypesCarryTheirParameters() {
+        when(service.create(any(), any(), any(), any())).thenReturn(batch());
+        tools.createBatchOperation("set_variables", "orders", null, null, null, null, java.util.Map.of("approved", "yes"),
+                "tmp, old", null, "fixing data");
+        verify(service).create(eq(BatchOperationType.SET_VARIABLES), any(), eq(java.util.Map.of("set.approved", "yes",
+                "remove.tmp", "", "remove.old", "", "reason", "fixing data")), isNull());
+        tools.createBatchOperation("RETRY_FROM_STEP", "orders", null, null, null, null, null, null, "charge", "again");
+        verify(service).create(eq(BatchOperationType.RETRY_FROM_STEP), any(), eq(java.util.Map.of("stepId", "charge",
+                "reason", "again")), isNull());
     }
 
     @Test

@@ -64,6 +64,8 @@ public class BatchOperationService {
     private final ProcessListingService listing;
     private final BatchOperationProperties properties;
     private final ObjectProvider<WorkflowMetrics> metrics;
+    /** For a batch over an incident: its members, and their retry. Lazy: incidents create such batches. */
+    private final ObjectProvider<IncidentService> incidents;
     /** How often, in processes, a page looks whether its batch was cancelled. */
     static final int CANCEL_CHECK_EVERY = 10;
 
@@ -73,16 +75,107 @@ public class BatchOperationService {
     public BatchOperationService(BatchOperationRepository repository, ProcessRepository processRepository,
                                  ProcessListingService listing, ProcessOperationsService processes,
                                  BatchOperationProperties properties, ObjectProvider<WorkflowMetrics> metrics) {
+        this(repository, processRepository, listing, processes, properties, metrics, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public BatchOperationService(BatchOperationRepository repository, ProcessRepository processRepository,
+                                 ProcessListingService listing, ProcessOperationsService processes,
+                                 BatchOperationProperties properties, ObjectProvider<WorkflowMetrics> metrics,
+                                 ObjectProvider<IncidentService> incidents) {
         this.repository = repository;
         this.processRepository = processRepository;
         this.listing = listing;
         this.properties = properties;
         this.metrics = metrics;
+        this.incidents = incidents;
         actions.put(BatchOperationType.CANCEL, (id, batch) -> processes.cancel(id, batch.caller()));
         actions.put(BatchOperationType.RETRY, (id, batch) -> processes.retry(id, batch.caller()));
         actions.put(BatchOperationType.RESTART, (id, batch) -> processes.restart(id, batch.caller()));
         actions.put(BatchOperationType.PAUSE, (id, batch) -> processes.pause(id, batch.caller()));
         actions.put(BatchOperationType.RESUME, (id, batch) -> processes.resume(id, batch.caller()));
+        // The manual operations (2.30): their own use cases, authorization and audit — the batch's creator
+        // is the operator each process's audit line names, with the batch's reason.
+        actions.put(BatchOperationType.SET_VARIABLES, (id, batch) -> processes.setVariables(id,
+                variablesToSet(batch.parameters()), variablesToRemove(batch.parameters()),
+                reasonOf(batch), batch.caller()));
+        actions.put(BatchOperationType.RETRY_FROM_STEP, (id, batch) -> {
+            try {
+                processes.retryFromStep(id, batch.parameters().get(BatchOperationType.STEP_ID), reasonOf(batch),
+                        batch.caller());
+            } catch (ProcessNotFoundException noSuchStep) {
+                // A process that never reached the step is one the operation does not apply to; a process
+                // that is gone is still counted as gone.
+                if (processRepository.findById(id).isPresent()) {
+                    throw new ProcessStateConflictException(id, "retry from step", null, noSuchStep.getMessage());
+                }
+                throw noSuchStep;
+            }
+        });
+    }
+
+    /** SET_VARIABLES: the variables to set, from {@code set.<name>} parameters. */
+    static List<io.mateu.workflow.domain.aggregates.Variable> variablesToSet(Map<String, String> parameters) {
+        return parameters.entrySet().stream()
+                .filter(e -> e.getKey().startsWith(BatchOperationType.SET_PREFIX))
+                .sorted(Map.Entry.comparingByKey())
+                .map(e -> new io.mateu.workflow.domain.aggregates.Variable(
+                        e.getKey().substring(BatchOperationType.SET_PREFIX.length()), e.getValue()))
+                .toList();
+    }
+
+    /** SET_VARIABLES: the names to remove, from {@code remove.<name>} parameters. */
+    static List<String> variablesToRemove(Map<String, String> parameters) {
+        return parameters.keySet().stream()
+                .filter(key -> key.startsWith(BatchOperationType.REMOVE_PREFIX))
+                .map(key -> key.substring(BatchOperationType.REMOVE_PREFIX.length()))
+                .sorted()
+                .toList();
+    }
+
+    /** The reason audited on each process: the batch's, naming the batch so the line leads back to it. */
+    private static String reasonOf(BatchOperation batch) {
+        var reason = batch.parameters().get(BatchOperationType.REASON);
+        return (reason == null ? "" : reason.strip()) + " (batch " + batch.id() + ")";
+    }
+
+    /**
+     * The parameters a type requires, checked when the batch is created rather than once per process.
+     *
+     * @throws IllegalArgumentException what is missing
+     */
+    static void checkParameters(BatchOperationType type, Map<String, String> parameters) {
+        var given = parameters == null ? Map.<String, String>of() : parameters;
+        if (type.isManualOperation()) {
+            var reason = given.get(BatchOperationType.REASON);
+            if (reason == null || reason.isBlank()) {
+                throw new IllegalArgumentException("A reason is required for a " + type + " batch: it is recorded"
+                        + " in every process's audit trail.");
+            }
+            io.mateu.workflow.input.InputLimits.checkText(reason, "an operation's reason");
+        }
+        if (type == BatchOperationType.SET_VARIABLES) {
+            var set = variablesToSet(given);
+            var remove = variablesToRemove(given);
+            if (set.isEmpty() && remove.isEmpty()) {
+                throw new IllegalArgumentException("Nothing to change: give variables to set or names to remove.");
+            }
+            set.forEach(v -> {
+                if (v.name().isBlank()) {
+                    throw new IllegalArgumentException("A variable to set needs a name.");
+                }
+            });
+            io.mateu.workflow.input.InputLimits.checkNamedValues(set, io.mateu.workflow.domain.aggregates.Variable::name,
+                    io.mateu.workflow.domain.aggregates.Variable::value, "a change of process variables");
+            remove.forEach(name -> io.mateu.workflow.input.InputLimits.checkIdentifier(name, "a variable to remove"));
+        }
+        if (type == BatchOperationType.RETRY_FROM_STEP) {
+            var stepId = given.get(BatchOperationType.STEP_ID);
+            if (stepId == null || stepId.isBlank()) {
+                throw new IllegalArgumentException("stepId is required for a RETRY_FROM_STEP batch.");
+            }
+            io.mateu.workflow.input.InputLimits.checkIdentifier(stepId, "stepId");
+        }
     }
 
     // ── Create, read, cancel ──────────────────────────────────────────────────────────────────────
@@ -102,10 +195,16 @@ public class BatchOperationService {
             throw new IllegalArgumentException("A batch operation needs a filter — a definition, tag, status, business key,"
                     + " dates, text or search attributes. It never acts on every process by default.");
         }
+        checkParameters(type, parameters);
+        if (filter.incident() != null && type != BatchOperationType.RETRY) {
+            throw new IllegalArgumentException("A batch over an incident retries it: type RETRY.");
+        }
         var listingFilter = listingFilter(filter);
-        var matched = processRepository.searchSummaries(listingFilter, 0, 1).totalElements();
+        var matched = filter.incident() != null
+                ? incidentMembers(filter.incident()).keySet().size()
+                : processRepository.searchSummaries(listingFilter, 0, 1).totalElements();
         var batch = BatchOperation.create(UUID.randomUUID().toString(), type, normalised(filter), parameters, matched,
-                caller, LocalDateTime.now());
+                caller, io.mateu.workflow.time.EngineClock.now());
         repository.create(batch);
         log.info("Batch operation {} created: {} over {} process(es) ({}) by {}", batch.id(), type, matched,
                 filter.describe(), batch.createdBy());
@@ -130,7 +229,7 @@ public class BatchOperationService {
      */
     public BatchOperation cancel(String id) {
         var batch = repository.findById(id).orElseThrow(() -> new BatchOperationNotFoundException(id));
-        if (!repository.cancel(id, LocalDateTime.now())) {
+        if (!repository.cancel(id, io.mateu.workflow.time.EngineClock.now())) {
             throw new BatchOperationNotActiveException(id, batch.status());
         }
         metric().batchOperationFinished(batch.type().name(), "cancelled");
@@ -155,7 +254,7 @@ public class BatchOperationService {
         var query = filter.query() == null ? null : SearchQuery.format(SearchQuery.parse(filter.query()));
         return new BatchOperationFilter(filter.workflowDefinitionId(), filter.tag(), filter.status(),
                 filter.createdFrom(), filter.createdTo(), filter.businessKey(), filter.searchText(),
-                filter.onlyErrors(), query);
+                filter.onlyErrors(), query, filter.incident());
     }
 
     // ── The runner's page ─────────────────────────────────────────────────────────────────────────
@@ -168,16 +267,25 @@ public class BatchOperationService {
      * @return whether there was a batch to work on
      */
     public boolean runNextPage() {
+        return runPage() > 0;
+    }
+
+    /**
+     * {@link #runNextPage()}, counting: how many processes the page visited (at least 1 when there was a
+     * batch to work on — starting or finishing one is work too), 0 when there was none. What the runner's
+     * {@code SchedulerPass} reports.
+     */
+    public int runPage() {
         var next = repository.findNextActive();
         if (next.isEmpty()) {
-            return false;
+            return 0;
         }
         var batch = next.get();
-        var now = LocalDateTime.now();
+        var now = io.mateu.workflow.time.EngineClock.now();
         if (batch.status() == BatchOperationStatus.CREATED) {
             batch = batch.started(now);
             if (repository.saveProgress(batch) != BatchOperationStatus.RUNNING) {
-                return true;
+                return 1;
             }
         }
         ProcessListingFilter filter;
@@ -185,13 +293,17 @@ public class BatchOperationService {
             filter = listingFilter(batch.filter());
         } catch (IllegalArgumentException unreadable) {
             finish(batch, BatchOperationStatus.FAILED, "The filter no longer reads: " + unreadable.getMessage());
-            return true;
+            return 1;
         }
         var ids = processRepository.findIdsMatching(filter, batch.cursor(), Math.max(1, properties.getPageSize()));
         if (ids.isEmpty()) {
             finish(batch, BatchOperationStatus.COMPLETED, null);
-            return true;
+            return 1;
         }
+        // Over an incident: its members, read once a page; the definition's other ERROR processes are
+        // passed over, neither counted nor touched.
+        var incidentKey = batch.filter().incident();
+        var members = incidentKey == null ? null : incidentMembers(incidentKey);
         long succeeded = 0;
         long failed = 0;
         var skipped = new LinkedHashMap<String, Long>();
@@ -205,9 +317,18 @@ public class BatchOperationService {
                 break;
             }
             visited++;
+            last = processId;
+            if (members != null && !members.containsKey(processId)) {
+                continue;
+            }
             throttle();
             try {
-                action.apply(processId, batch);
+                if (members != null) {
+                    incidents.getObject().retryInProcess(incidentKey, members.get(processId),
+                            reasonOf(batch), batch.caller());
+                } else {
+                    action.apply(processId, batch);
+                }
                 succeeded++;
             } catch (ProcessStateConflictException notApplicable) {
                 skipped.merge(BatchOperation.SKIPPED_NOT_APPLICABLE, 1L, Long::sum);
@@ -220,9 +341,8 @@ public class BatchOperationService {
                 errors.add(processId + ": " + (error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage()));
                 log.warn("Batch operation {} could not {} process {}", batch.id(), batch.type(), processId, error);
             }
-            last = processId;
         }
-        var progressed = batch.progressed(last, succeeded, failed, skipped, errors, LocalDateTime.now());
+        var progressed = batch.progressed(last, succeeded, failed, skipped, errors, io.mateu.workflow.time.EngineClock.now());
         var stored = repository.saveProgress(progressed);
         var type = batch.type().name();
         metric().batchOperationItems(type, "succeeded", succeeded);
@@ -233,7 +353,19 @@ public class BatchOperationService {
             // A short page is the last one: nothing after it matched when it was read.
             finish(progressed, BatchOperationStatus.COMPLETED, null);
         }
-        return true;
+        return Math.max(1, visited);
+    }
+
+    /** An incident's members by process — the failed steps each holds — as the incident view reads them now. */
+    private Map<String, List<io.mateu.workflow.application.out.IncidentRepository.FailedStep>> incidentMembers(String key) {
+        var service = incidents == null ? null : incidents.getIfAvailable();
+        if (service == null) {
+            throw new IllegalArgumentException("Incidents are not available on this node.");
+        }
+        var byProcess = new LinkedHashMap<String, List<io.mateu.workflow.application.out.IncidentRepository.FailedStep>>();
+        service.members(key, Integer.MAX_VALUE).forEach(step ->
+                byProcess.computeIfAbsent(step.processId(), id -> new ArrayList<>()).add(step));
+        return byProcess;
     }
 
     private boolean cancelled(String id) {
@@ -241,7 +373,7 @@ public class BatchOperationService {
     }
 
     private void finish(BatchOperation batch, BatchOperationStatus outcome, String why) {
-        var stored = repository.saveProgress(batch.finished(outcome, why, LocalDateTime.now()));
+        var stored = repository.saveProgress(batch.finished(outcome, why, io.mateu.workflow.time.EngineClock.now()));
         if (stored == outcome) {
             metric().batchOperationFinished(batch.type().name(), outcome.name().toLowerCase(java.util.Locale.ROOT));
             log.info("Batch operation {} {}: {} succeeded, {} failed, {} skipped{}", batch.id(),

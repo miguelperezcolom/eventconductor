@@ -49,6 +49,9 @@ public class BatchOperationDetailView implements VisibilitySupplier {
     @Label("Filter")
     String filter;
 
+    @Label("Parameters")
+    String parameters;
+
     @Label("Progress")
     String progress;
 
@@ -89,6 +92,10 @@ public class BatchOperationDetailView implements VisibilitySupplier {
         this.status = BatchOperationFormats.status(op.status());
         this.type = op.type().name();
         this.filter = op.filter().describe();
+        this.parameters = op.parameters().isEmpty() ? "—" : op.parameters().entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(e -> e.getValue() == null || e.getValue().isEmpty() ? e.getKey() : e.getKey() + " = " + e.getValue())
+                .collect(Collectors.joining("; "));
         this.progress = BatchOperationFormats.progress(op);
         this.succeeded = String.valueOf(op.succeeded());
         this.failed = String.valueOf(op.failed());

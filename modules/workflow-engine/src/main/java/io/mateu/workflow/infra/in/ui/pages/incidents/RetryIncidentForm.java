@@ -37,9 +37,9 @@ public class RetryIncidentForm {
     public Object apply() {
         try {
             var outcome = incidentService().retryGroup(key, reason, io.mateu.workflow.infra.in.ui.pages.process.operate.OperationForms.caller());
-            return List.of(Message.success(outcome.requested() + " step retr" + (outcome.requested() == 1 ? "y" : "ies")
-                            + " requested" + (outcome.async() ? " in the background" : "")
-                            + (outcome.truncated() ? " — the incident held more; retry it again for the rest" : "") + "."),
+            return List.of(Message.success("Batch operation " + outcome.batchOperationId() + " retries the "
+                            + outcome.requested() + " failed step" + (outcome.requested() == 1 ? "" : "s")
+                            + " of this incident in the background — follow it on the Batch operations page."),
                     UICommand.closeModal());
         } catch (RuntimeException e) {
             return Message.error(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());

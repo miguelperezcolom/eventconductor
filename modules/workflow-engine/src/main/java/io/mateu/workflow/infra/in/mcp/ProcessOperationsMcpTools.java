@@ -123,15 +123,15 @@ public class ProcessOperationsMcpTools implements McpTools, McpSystemContext {
     }
 
     @Tool(description = "Retry every failed step of one incident (key from listIncidents), each as a step retry,"
-            + " recorded with who asked and the reason in each process's log. Large groups are retried in the background."
-            + " A reason is mandatory.")
+            + " recorded with who asked and the reason in each process's log. It creates a RETRY batch operation over the"
+            + " incident, run in the background — follow it with getBatchOperation. A reason is mandatory.")
     public String retryIncident(String key,
                                 @ToolParam(description = "Why — mandatory, recorded in the audit trail") String reason) {
         try {
             var outcome = incidentService.retryGroup(key, reason, caller());
-            return outcome.requested() + " step retr" + (outcome.requested() == 1 ? "y" : "ies") + " requested for incident "
-                    + key + (outcome.async() ? ", in the background" : "")
-                    + (outcome.truncated() ? "; the group held more — retry it again for the rest" : "") + ".";
+            return "Batch operation " + outcome.batchOperationId() + " retries the " + outcome.requested()
+                    + " failed step" + (outcome.requested() == 1 ? "" : "s") + " of incident " + key
+                    + " in the background; follow it with getBatchOperation.";
         } catch (RuntimeException e) {
             return "Refused: " + e.getMessage();
         }

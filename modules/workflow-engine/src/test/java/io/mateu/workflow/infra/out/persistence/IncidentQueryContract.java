@@ -96,7 +96,7 @@ abstract class IncidentQueryContract {
 
     @Test
     void groupsIntoIncidents() {
-        var service = new IncidentService(incidents, null, null, null, 1000, 10, 10);
+        var service = new IncidentService(incidents, null, null, null, null, 1000);
         var groups = service.incidents("orders").groups();
 
         assertThat(groups).hasSize(2);

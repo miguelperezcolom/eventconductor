@@ -38,6 +38,8 @@ Rules — the same in the engine, the [Maven plugin](/reference/maven-plugin/) a
 
 **Part of the version.** Changing `searchAttributes` mints a new definition version. A process evaluates the attributes of the version it runs (they travel in its definition snapshot), so the definition shown as v3 is exactly what v3's processes can be found by; processes of v2 keep v2's attributes.
 
+**Per process, not per iteration.** A forEach iteration's item (`as`) is laid over the variables for that iteration only; attributes are computed from the process's own variables, so an iteration never changes them — what the loop leaves on the process (its `output`) does.
+
 **Where they are kept.**
 
 - **`jpa`** — `process_search_attribute` (migration V48): one row per process and attribute, the value in the column its type uses, indexed by (name, value). The [retention purge](/guides/workflow-definitions/#process-retention) deletes the rows with their process.
@@ -58,7 +60,7 @@ A filter does not need to know an attribute's type — two definitions may decla
 
 ## Batch operations
 
-A batch operation applies one command — `CANCEL`, `RETRY`, `RESTART`, `PAUSE` or `RESUME` — to every process a filter matches. The filter is the listing's (definition, tag, statuses, creation dates, business key, text, only-errors, search attributes) and must narrow something: a batch never acts on every process by default.
+A batch operation applies one command — `CANCEL`, `RETRY`, `RESTART`, `PAUSE`, `RESUME`, or one of the [manual operations](/guides/operating-running-processes/) `SET_VARIABLES` (variables to set and remove) and `RETRY_FROM_STEP` (a step id), which take a mandatory `reason` — to every process a filter matches. The filter is the listing's (definition, tag, statuses, creation dates, business key, text, only-errors, search attributes) and must narrow something: a batch never acts on every process by default.
 
 ```bash
 curl -X POST https://engine.example.com/workflow/api/batch-operations \
@@ -70,10 +72,11 @@ curl -X POST https://engine.example.com/workflow/api/batch-operations \
 It answers `202` with the batch (`CREATED`, and how many processes the filter matched), which a background runner then walks:
 
 - **A page at a time, by process id.** The runner reads the next `page-size` matching processes after the last id it reached, applies the command to each, and saves the cursor and the counters. Walking by id, not by page number, means processes leaving the filter as the batch acts on them (a cancelled process is no longer `RUNNING`) never shift the pages under it.
-- **Each process is one ordinary command** — exactly what `POST /workflow/api/processes/{id}/cancel` does: the definition's [flow authorization](/reference/configuration/#core-properties) is checked against the caller who created the batch, the use case's own status rule decides whether it applies, and the use case runs on the node that owns the process, under its lock.
+- **Each process is one ordinary command** — exactly what `POST /workflow/api/processes/{id}/cancel` (or `/variables`, `/retry-from/{stepId}`) does; the manual operations are audited in each process with the batch's creator as the operator and the batch's reason and id: the definition's [flow authorization](/reference/configuration/#core-properties) is checked against the caller who created the batch, the use case's own status rule decides whether it applies, and the use case runs on the node that owns the process, under its lock.
 - **Counted.** *Succeeded*: the command was accepted. *Skipped*, by reason: `notApplicable` (the process is in a status the command does not apply to — retrying a `RUNNING` one), `notAuthorized` (the caller may not operate that definition), `gone` (purged since it matched). *Failed*: anything else, with a sample of the errors (the first 20).
-- **Throttled** to `max-per-second` processes a second, so a batch over a hundred thousand processes does not crowd out the engine's own work.
-- **One node at a time.** On a database the runner works under an advisory lock, like the retention purge; in memory, in-process.
+- **Incidents.** An incident's *Retry all* is a `RETRY` batch over the incident: the ERROR processes of its definition whose failure is one of the group's, each with its failed steps retried and audited.
+- **Throttled** to `max-per-second` processes a second (real-time pacing, not business time), so a batch over a hundred thousand processes does not crowd out the engine's own work.
+- **One node at a time.** On a database the runner works under an advisory lock, like the retention purge; in memory, in-process. It is a scheduler pass: with `workflow.schedulers.background=false` the [test kit](/guides/testing-workflows/) drives it.
 - **Resumable.** A node that dies mid-batch loses at most the page in hand; the next one to take the lock carries on after the cursor. A command repeated on a process it already moved is refused by its status rule and counted as skipped.
 - **Cancellable.** `POST /workflow/api/batch-operations/{id}/cancel` — or *Cancel batch* in the console, or `cancelBatchOperation` — stops it between two processes. What was done stays done.
 

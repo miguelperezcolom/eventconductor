@@ -100,7 +100,7 @@ Before accepting, the API checks what a synchronous caller needs to know: the pr
 
 Set variables, complete a step and retry from a step change a live (`RUNNING`, `PAUSED` or `ERROR`) process by hand. Each needs a `reason` (`400` without one), answers `202` with `{processId, command, stepExecutionId, stepId}`, and is carried out — and recorded, with the caller and the reason, in the process log — by the node that owns the process. Before accepting, the API checks with the engine's own rules: `404` for an unknown process, step execution or step; `409` with the reason when the process or the step is not in a status the operation is done from, when a saga rollback is under way, for a retry from a step that has not run yet, or when another failure is not downstream of it. Semantics, locks and compensations: [Operating running processes](/guides/operating-running-processes/).
 
-The incidents endpoints group the failures waiting for an operator; a group retry is bounded and runs in the background past `workflow.incidents.retry.sync-limit` — see [Incidents](/guides/operating-running-processes/#incidents).
+The incidents endpoints group the failures waiting for an operator; a group retry is a `RETRY` batch operation over the incident — `202` with its `batchOperationId`, `Location` naming the batch — see [Incidents](/guides/operating-running-processes/#incidents).
 
 ## Batch operations
 
@@ -108,7 +108,7 @@ The incidents endpoints group the failures waiting for an operator; a group retr
 
 | Method and path | Does | Answers |
 |---|---|---|
-| `POST /workflow/api/batch-operations` | Create `{type, filter}` — `type` `CANCEL`, `RETRY`, `RESTART`, `PAUSE` or `RESUME`; `filter` `{definitionId?, tag?, status?[], from?, to?, businessKey?, q?, onlyErrors?, query?, attributes?: {name: value}}`, at least one | `202` + `Location`, the batch `CREATED` with `matched` |
+| `POST /workflow/api/batch-operations` | Create `{type, filter, variables?, remove?, stepId?, reason?}` — `type` `CANCEL`, `RETRY`, `RESTART`, `PAUSE`, `RESUME`, `SET_VARIABLES` (`variables` to set, `remove` names; `reason` mandatory) or `RETRY_FROM_STEP` (`stepId`; `reason` mandatory); `filter` `{definitionId?, tag?, status?[], from?, to?, businessKey?, q?, onlyErrors?, query?, attributes?: {name: value}}`, at least one | `202` + `Location`, the batch `CREATED` with `matched` |
 | `GET /workflow/api/batch-operations` | The most recent batches, newest first | `200` `BatchOperation[]` |
 | `GET /workflow/api/batch-operations/{id}` | One batch: `status`, `matched`, `processed`, `succeeded`, `failed`, `skipped`, `skippedByReason` (`notApplicable`, `notAuthorized`, `gone`), `percent`, `errors` (a sample), `createdBy`, dates, `failure` | `200`; `404` |
 | `POST /workflow/api/batch-operations/{id}/cancel` | Stop it: no further process is touched | `200`; `404`; `409` when it already finished |

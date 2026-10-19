@@ -98,7 +98,7 @@ GET  /workflow/api/incidents/{key}/processes
 POST /workflow/api/incidents/{key}/retry   {"reason": "Gateway back up"}
 ```
 
-The grouping reads at most `workflow.incidents.scan-limit` failed steps (default 10000, the most recent first) and says when it stopped there (`truncated`). A group retry re-drives at most `workflow.incidents.retry.max-steps` steps (default 1000; retry again for the rest), and beyond `workflow.incidents.retry.sync-limit` (default 50) it does so in the background and answers at once. On JPA the query is two indexed reads — failed processes joined to their failed steps, then the error lines of just those processes — in plain JPQL, the same on PostgreSQL, H2, MariaDB and Oracle; the grouping into families happens in the engine, identically for every store.
+The grouping reads at most `workflow.incidents.scan-limit` failed steps (default 10000, the most recent first) and says when it stopped there (`truncated`). A group retry is a `RETRY` [batch operation](/guides/searching-and-bulk-operations/#batch-operations) over the incident (2.30): it answers at once with the batch's id, and the batch runner retries each member process's failed steps of the incident in the background — throttled, one node at a time, resumable and cancellable, each recorded in the process's audit trail with the operator who asked and the reason (followed by the batch id). The UI's *Retry all*, `POST /workflow/api/incidents/{key}/retry` (whose `Location` names the batch) and the `retryIncident` MCP tool all create it; follow it on the Batch operations page. On JPA the query is two indexed reads — failed processes joined to their failed steps, then the error lines of just those processes — in plain JPQL, the same on PostgreSQL, H2, MariaDB and Oracle; the grouping into families happens in the engine, identically for every store.
 
 ## Audit
 
@@ -127,3 +127,7 @@ workflow.security.operations.required-roles=workflow-admin
 ```
 
 A caller who lacks something gets `403` naming it (the UI and MCP say it). The caller is resolved by the same `CallerResolver` as everywhere else — see [Configuration](/reference/configuration/).
+
+## Over many processes at once
+
+Changing variables and retrying from a step are also [batch operation](/guides/searching-and-bulk-operations/#batch-operations) types: `SET_VARIABLES` (variables to set and to remove) and `RETRY_FROM_STEP` (a step id) apply the operation to every process a filter matches, each through the same use case, authorization and audit as a single one — the batch's creator is the operator each audit line names, with the batch's reason (mandatory) and its id.

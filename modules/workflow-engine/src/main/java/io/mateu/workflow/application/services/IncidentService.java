@@ -7,7 +7,6 @@ import io.mateu.workflow.dtos.events.integration.RetryStepExecutionRequested;
 import io.mateu.workflow.input.InputLimits;
 import io.mateu.workflow.security.AuthorizationContext;
 import io.mateu.workflow.worker.FailureMarkers;
-import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,8 +21,6 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.regex.Pattern;
 
 /**
@@ -41,11 +38,10 @@ import java.util.regex.Pattern;
  * members are the drill-down; and the whole group can be retried at once ({@link #retryGroup}).
  *
  * <p><b>Bounded.</b> The grouping reads at most {@code workflow.incidents.scan-limit} failed steps, the
- * most recent first, and says when it stopped there ({@link Incidents#truncated()}). A group retry
- * re-drives at most {@code workflow.incidents.retry.max-steps} of its steps; beyond
- * {@code workflow.incidents.retry.sync-limit} it does so in the background, one step after another,
- * and answers at once. That loop is deliberately minimal — the first thing a batch-operations facility
- * replaces.
+ * most recent first, and says when it stopped there ({@link Incidents#truncated()}). A group retry is a
+ * RETRY batch operation over the incident (2.30): walked in the background, throttled, resumable and
+ * cancellable like any batch, each member process retried and audited as before — see
+ * {@link BatchOperationService}.
  */
 @Service
 @Slf4j
@@ -80,47 +76,35 @@ public class IncidentService {
     }
 
     /**
-     * What a group retry did.
+     * What a group retry did: the batch operation that retries it.
      *
-     * @param requested how many step retries were (or are being) requested
-     * @param async     whether they are being requested in the background
-     * @param truncated whether the group held more steps than one retry re-drives
+     * @param requested how many failed steps the incident held when the batch was created
+     * @param async     always true: the batch runs in the background
+     * @param truncated whether the incident view was truncated when it was read
+     * @param batchOperationId the RETRY batch over the incident — follow it there
      */
-    public record RetryOutcome(String key, int requested, boolean async, boolean truncated) {
+    public record RetryOutcome(String key, int requested, boolean async, boolean truncated, String batchOperationId) {
     }
 
     private final IncidentRepository incidentRepository;
     private final CommandDispatcher commandDispatcher;
     private final ProcessOperationsService processOperations;
     private final OperatorAudit audit;
+    private final org.springframework.beans.factory.ObjectProvider<BatchOperationService> batches;
     private final int scanLimit;
-    private final int retryMaxSteps;
-    private final int retrySyncLimit;
-    private final ExecutorService background = Executors.newSingleThreadExecutor(runnable -> {
-        var thread = new Thread(runnable, "eventconductor-incident-retry");
-        thread.setDaemon(true);
-        return thread;
-    });
 
     public IncidentService(IncidentRepository incidentRepository,
                            CommandDispatcher commandDispatcher,
                            ProcessOperationsService processOperations,
                            OperatorAudit audit,
-                           @Value("${workflow.incidents.scan-limit:10000}") int scanLimit,
-                           @Value("${workflow.incidents.retry.max-steps:1000}") int retryMaxSteps,
-                           @Value("${workflow.incidents.retry.sync-limit:50}") int retrySyncLimit) {
+                           org.springframework.beans.factory.ObjectProvider<BatchOperationService> batches,
+                           @Value("${workflow.incidents.scan-limit:10000}") int scanLimit) {
         this.incidentRepository = incidentRepository;
         this.commandDispatcher = commandDispatcher;
         this.processOperations = processOperations;
         this.audit = audit;
+        this.batches = batches;
         this.scanLimit = Math.max(1, scanLimit);
-        this.retryMaxSteps = Math.max(1, retryMaxSteps);
-        this.retrySyncLimit = Math.max(0, retrySyncLimit);
-    }
-
-    @PreDestroy
-    void stop() {
-        background.shutdownNow();
     }
 
     /**
@@ -162,9 +146,10 @@ public class IncidentService {
     }
 
     /**
-     * Retries every failed step of one incident — each exactly as a step retry from the console does
-     * ({@code RetryStepExecutionUseCase}, on the node that owns the process, under its lock), and each
-     * recorded in its process's audit trail with the operator and the reason.
+     * Retries every failed step of one incident, as a RETRY batch operation over it: in the background,
+     * each member process retried exactly as a step retry from the console does
+     * ({@code RetryStepExecutionUseCase}, on the node that owns the process, under its lock) and recorded
+     * in its audit trail with the operator — the batch's creator — and the reason.
      *
      * @throws IllegalArgumentException no reason, or no such incident
      * @throws io.mateu.workflow.security.FlowAuthorizationDeniedException the caller may not operate on
@@ -175,43 +160,41 @@ public class IncidentService {
             throw new IllegalArgumentException("A reason is required for a manual operation.");
         }
         InputLimits.checkText(reason, "an operation's reason");
-        var members = members(key, retryMaxSteps + 1);
-        if (members.isEmpty()) {
+        var group = incident(key);
+        if (group == null) {
             throw new IncidentNotFoundException(key);
         }
-        var truncated = members.size() > retryMaxSteps;
-        var toRetry = truncated ? members.subList(0, retryMaxSteps) : members;
-        var definitionId = toRetry.getFirst().workflowDefinitionId();
-        processOperations.authorizeOperation(definitionId, caller, "retry incident '" + key + "'");
-        var requestedBy = caller == null ? null : caller.subject();
-        var family = family(toRetry.getFirst().error());
-        var steps = List.copyOf(toRetry);
-        Runnable work = () -> retryAll(steps, family, reason.strip(), requestedBy);
-        var async = steps.size() > retrySyncLimit;
-        if (async) {
-            background.submit(work);
-        } else {
-            work.run();
-        }
-        log.info("Incident {} ({} / {} / {}): {} step retr{} requested{}", key, definitionId,
-                toRetry.getFirst().stepId(), family, steps.size(), steps.size() == 1 ? "y" : "ies",
-                async ? " in the background" : "");
-        return new RetryOutcome(key, steps.size(), async, truncated);
+        processOperations.authorizeOperation(group.workflowDefinitionId(), caller, "retry incident '" + key + "'");
+        var filter = new io.mateu.workflow.domain.batch.BatchOperationFilter(group.workflowDefinitionId(), null,
+                java.util.Set.of(io.mateu.workflow.domain.aggregates.ProcessStatus.ERROR), null, null, null, null,
+                false, null, key);
+        var batch = batches.getObject().create(io.mateu.workflow.domain.batch.BatchOperationType.RETRY, filter,
+                java.util.Map.of(io.mateu.workflow.domain.batch.BatchOperationType.REASON, reason.strip()), caller);
+        log.info("Incident {} ({} / {} / {}): {} failed step(s) to retry, batch operation {}", key,
+                group.workflowDefinitionId(), group.stepId(), group.errorFamily(), group.failedSteps(), batch.id());
+        return new RetryOutcome(key, group.failedSteps(), true, incidents(null).truncated(), batch.id());
     }
 
-    private void retryAll(List<FailedStep> steps, String family, String reason, String requestedBy) {
+    /**
+     * One process of an incident retry: its failed steps of the incident, each audited and retried. Called
+     * by the batch runner, with the batch's creator as the caller.
+     *
+     * @throws io.mateu.workflow.security.FlowAuthorizationDeniedException the caller may not operate on it
+     */
+    public void retryInProcess(String key, List<FailedStep> steps, String reason, AuthorizationContext caller) {
+        if (steps == null || steps.isEmpty()) {
+            return;
+        }
+        var first = steps.getFirst();
+        processOperations.authorizeOperation(first.workflowDefinitionId(), caller,
+                "retry incident '" + key + "' in process '" + first.processId() + "'");
+        var requestedBy = caller == null ? null : caller.subject();
+        var family = family(first.error());
         for (var step : steps) {
-            try {
-                audit.performed(step.processId(), step.workflowDefinitionId(), step.stepExecutionId(),
-                        OperatorAudit.RETRY_INCIDENT, requestedBy, reason,
-                        "retried step " + step.stepId() + " with the rest of its incident (" + family + ")");
-                commandDispatcher.dispatch(new RetryStepExecutionRequested(step.stepExecutionId(), step.processId()));
-            } catch (RuntimeException e) {
-                // One process that cannot be retried now (its lock is busy, it moved on) must not stop
-                // the others; the incident still lists it, to be retried again.
-                log.warn("Incident retry of step execution {} of process {} failed: {}", step.stepExecutionId(),
-                        step.processId(), e.getMessage());
-            }
+            audit.performed(step.processId(), step.workflowDefinitionId(), step.stepExecutionId(),
+                    OperatorAudit.RETRY_INCIDENT, requestedBy, reason,
+                    "retried step " + step.stepId() + " with the rest of its incident (" + family + ")");
+            commandDispatcher.dispatch(new RetryStepExecutionRequested(step.stepExecutionId(), step.processId()));
         }
     }
 

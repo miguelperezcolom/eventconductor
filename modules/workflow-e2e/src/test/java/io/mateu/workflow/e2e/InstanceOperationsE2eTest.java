@@ -34,6 +34,10 @@ import static org.awaitility.Awaitility.await;
  */
 class InstanceOperationsE2eTest extends AbstractE2eTest {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    io.mateu.workflow.application.services.BatchOperationService batches;
+
+
     static final AuthorizationContext ALICE = new AuthorizationContext("alice", List.of(), List.of());
 
     @Autowired ProcessOperationsService operations;
@@ -416,11 +420,21 @@ class InstanceOperationsE2eTest extends AbstractE2eTest {
         var outcome = incidents.retryGroup(group.key(), "Gateway fixed", ALICE);
 
         assertThat(outcome.requested()).isEqualTo(3);
-        assertThat(outcome.async()).isFalse();
+        // A RETRY batch over the incident, walked in the background by the batch runner.
+        assertThat(outcome.async()).isTrue();
+        assertThat(outcome.batchOperationId()).isNotNull();
+        await().atMost(Duration.ofSeconds(20)).untilAsserted(() -> {
+            assertThat(batches.get(outcome.batchOperationId()).orElseThrow().status())
+                    .isEqualTo(io.mateu.workflow.domain.batch.BatchOperationStatus.COMPLETED);
+            for (int i = 0; i < 3; i++) {
+                assertThat(process("ops-inc-" + i).getStatus()).isEqualTo(ProcessStatus.COMPLETED);
+            }
+        });
+        assertThat(batches.get(outcome.batchOperationId()).orElseThrow().succeeded()).isEqualTo(3);
         for (int i = 0; i < 3; i++) {
-            assertThat(process("ops-inc-" + i).getStatus()).isEqualTo(ProcessStatus.COMPLETED);
             assertThat(auditOf("ops-inc-" + i)).singleElement().satisfies(line ->
-                    assertThat(line.getMessage()).contains("[retry-incident] by alice").contains("Gateway fixed"));
+                    assertThat(line.getMessage()).contains("[retry-incident] by alice").contains("Gateway fixed")
+                            .contains("(batch " + outcome.batchOperationId() + ")"));
         }
         assertThat(incidents.incidents("ops-linear").groups()).noneMatch(g -> g.key().equals(group.key()));
     }

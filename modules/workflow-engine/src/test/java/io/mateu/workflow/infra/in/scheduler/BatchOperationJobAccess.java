@@ -21,6 +21,6 @@ public final class BatchOperationJobAccess {
     }
 
     public boolean runOnce() {
-        return job.runOnce();
+        return job.runOnce() > 0;
     }
 }

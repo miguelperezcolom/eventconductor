@@ -45,7 +45,7 @@ class ProcessOperationsMcpToolsTest {
         when(incidents.incidents(null)).thenReturn(new IncidentService.Incidents(List.of(group), 2, false));
         when(incidents.members("k1", 100)).thenReturn(List.of(new FailedStep("p-1", "bk", "orders", "charge", "s-1",
                 StepExecutionStatus.ERROR, LocalDateTime.of(2026, 1, 1, 0, 0), "Card 1 declined")));
-        when(incidents.retryGroup(eq("k1"), eq("fixed"), any())).thenReturn(new IncidentService.RetryOutcome("k1", 2, true, false));
+        when(incidents.retryGroup(eq("k1"), eq("fixed"), any())).thenReturn(new IncidentService.RetryOutcome("k1", 2, true, false, "b-7"));
 
         assertThat(tools.listIncidents(null)).singleElement().satisfies(entry -> {
             assertThat(entry.key()).isEqualTo("k1");
@@ -53,7 +53,7 @@ class ProcessOperationsMcpToolsTest {
         });
         assertThat(tools.getIncidentProcesses("k1")).singleElement().satisfies(member ->
                 assertThat(member.processId()).isEqualTo("p-1"));
-        assertThat(tools.retryIncident("k1", "fixed")).contains("2 step retries").contains("background");
+        assertThat(tools.retryIncident("k1", "fixed")).contains("b-7").contains("2 failed steps").contains("background");
         assertThat(tools.getSystemContext()).contains("retryProcessFromStep");
     }
 }

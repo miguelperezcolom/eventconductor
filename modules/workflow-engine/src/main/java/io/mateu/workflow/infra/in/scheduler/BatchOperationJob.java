@@ -27,11 +27,13 @@ import java.util.concurrent.TimeUnit;
  * one JVM and no lock to take.
  *
  * <p>Off with {@code workflow.batch-operations.enabled=false}: batches are still created and cancelled,
- * and wait as CREATED. A failed page is logged and tried again on the next tick.
+ * and wait as CREATED. A failed page is logged and tried again on the next tick. A {@link SchedulerPass}:
+ * with {@code workflow.schedulers.background=false} the loop does not start and {@link #runOnce()} — the
+ * test kit's — is the only driver.
  */
 @Component
 @Slf4j
-public class BatchOperationJob {
+public class BatchOperationJob implements SchedulerPass {
 
     // Advisory lock ids in use: 222333444 (CronStartScheduler), 333444555 (AnalyticsRollupProjector),
     // 444555666 (EmbeddedOutboxRelay), 555666777 (ProcessRetentionJob), 777888999 (TimeoutScheduler),
@@ -44,6 +46,9 @@ public class BatchOperationJob {
     final ObjectProvider<DbLockDialect> dbLockDialect;
 
     private ScheduledExecutorService runner;
+
+    @org.springframework.beans.factory.annotation.Value("${" + BACKGROUND_PROPERTY + ":true}")
+    boolean background = true;
 
     public BatchOperationJob(BatchOperationService service, BatchOperationProperties properties,
                              ObjectProvider<JdbcTemplate> jdbcTemplate, ObjectProvider<DbLockDialect> dbLockDialect) {
@@ -58,6 +63,10 @@ public class BatchOperationJob {
         var interval = properties.getPollInterval();
         if (!properties.isEnabled() || interval == null || interval.isZero() || interval.isNegative()) {
             log.info("Batch operations runner is off on this node (workflow.batch-operations.enabled)");
+            return;
+        }
+        if (!background) {
+            // workflow.schedulers.background=false: a test kit drives it through runOnce().
             return;
         }
         runner = Executors.newSingleThreadScheduledExecutor(runnable -> {
@@ -83,23 +92,33 @@ public class BatchOperationJob {
         }
     }
 
-    /** One page, under the advisory lock when there is a database. @return whether this node worked one */
-    boolean runOnce() {
+    /**
+     * One page of the oldest active batch, on the calling thread, under the advisory lock when there is a
+     * database — as the background loop runs it.
+     *
+     * @return the processes the page visited (at least 1 when a batch was worked on); 0 when there was
+     *         none, or another pod holds the lock
+     */
+    @Override
+    public int runOnce() {
+        if (!properties.isEnabled()) {
+            return 0;
+        }
         var jdbc = jdbcTemplate.getIfAvailable();
         var dialect = dbLockDialect.getIfAvailable();
         if (jdbc == null || dialect == null) {
-            return service.runNextPage();
+            return service.runPage();
         }
-        var worked = jdbc.execute((ConnectionCallback<Boolean>) con -> {
+        var worked = jdbc.execute((ConnectionCallback<Integer>) con -> {
             if (!dialect.tryLock(con, LOCK_ID)) {
-                return false; // another pod is running batches
+                return 0; // another pod is running batches
             }
             try {
-                return service.runNextPage();
+                return service.runPage();
             } finally {
                 dialect.unlock(con, LOCK_ID);
             }
         });
-        return Boolean.TRUE.equals(worked);
+        return worked == null ? 0 : worked;
     }
 }

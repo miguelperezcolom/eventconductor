@@ -24,7 +24,21 @@ public record BatchOperationFilter(
         String businessKey,
         String searchText,
         boolean onlyErrors,
-        String query) {
+        String query,
+        /**
+         * An incident group's key (2.30): the processes stopped on that incident — the ERROR processes of
+         * its definition whose failure is one of the group's. Set by an incident's "Retry all", which is a
+         * RETRY batch over it; the definition and the ERROR status are set beside it.
+         */
+        String incident) {
+
+    /** A filter on no incident — the listing's own fields. */
+    public BatchOperationFilter(String workflowDefinitionId, String tag, Set<ProcessStatus> status,
+                                LocalDateTime createdFrom, LocalDateTime createdTo, String businessKey,
+                                String searchText, boolean onlyErrors, String query) {
+        this(workflowDefinitionId, tag, status, createdFrom, createdTo, businessKey, searchText, onlyErrors, query,
+                null);
+    }
 
     public BatchOperationFilter {
         status = status == null || status.isEmpty() ? null : Set.copyOf(status);
@@ -33,13 +47,15 @@ public record BatchOperationFilter(
         businessKey = blankToNull(businessKey);
         searchText = blankToNull(searchText);
         query = blankToNull(query);
+        incident = blankToNull(incident);
     }
 
     /** Whether nothing narrows it — which a batch refuses. */
     @com.fasterxml.jackson.annotation.JsonIgnore
     public boolean isEmpty() {
         return workflowDefinitionId == null && tag == null && status == null && createdFrom == null
-                && createdTo == null && businessKey == null && searchText == null && !onlyErrors && query == null;
+                && createdTo == null && businessKey == null && searchText == null && !onlyErrors && query == null
+                && incident == null;
     }
 
     /** One line, for lists and logs. */
@@ -54,6 +70,7 @@ public record BatchOperationFilter(
         if (createdFrom != null) parts.add("created ≥ " + createdFrom);
         if (createdTo != null) parts.add("created ≤ " + createdTo);
         if (query != null) parts.add(query);
+        if (incident != null) parts.add("incident " + incident);
         return parts.isEmpty() ? "—" : String.join("; ", parts);
     }
 

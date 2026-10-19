@@ -37,9 +37,13 @@ class IncidentServiceTest {
     final OperatorAudit audit = mock(OperatorAudit.class);
     static final AuthorizationContext ALICE = new AuthorizationContext("alice", List.of(), List.of());
 
+    final BatchOperationService batches = mock(BatchOperationService.class);
+
     IncidentService service(int scanLimit, int maxSteps, int syncLimit) {
+        var beans = new org.springframework.beans.factory.support.StaticListableBeanFactory();
+        beans.addBean("batches", batches);
         return new IncidentService(repository, new CommandDispatcher(dispatched::add, dispatched::add, false),
-                operations, audit, scanLimit, maxSteps, syncLimit);
+                operations, audit, beans.getBeanProvider(BatchOperationService.class), scanLimit);
     }
 
     @Test
@@ -83,38 +87,43 @@ class IncidentServiceTest {
     }
 
     @Test
-    void retryingAGroupRetriesEachOfItsStepsAndAuditsThem() {
+    void retryingAGroupIsARetryBatchOverTheIncident() {
         rows.add(row("p1", "orders", "charge", "Card 1 declined", 1));
         rows.add(row("p2", "orders", "charge", "Card 2 declined", 2));
-        rows.add(row("p3", "orders", "charge", "Card 3 declined", 3));
         var service = service(100, 2, 10);
         var key = service.incidents(null).groups().getFirst().key();
+        org.mockito.Mockito.when(batches.create(any(), any(), any(), any())).thenReturn(
+                io.mateu.workflow.domain.batch.BatchOperation.create("b-1", io.mateu.workflow.domain.batch.BatchOperationType.RETRY,
+                        new io.mateu.workflow.domain.batch.BatchOperationFilter("orders", null, null, null, null, null, null,
+                                false, null, key), java.util.Map.of(), 2, ALICE, java.time.LocalDateTime.now()));
 
-        var outcome = service.retryGroup(key, "Gateway fixed", ALICE);
+        var outcome = service.retryGroup(key, " Gateway fixed ", ALICE);
 
         assertThat(outcome.requested()).isEqualTo(2);
-        assertThat(outcome.truncated()).isTrue();
-        assertThat(outcome.async()).isFalse();
-        assertThat(dispatched).containsExactly(new RetryStepExecutionRequested("se-p1-charge", "p1"),
-                new RetryStepExecutionRequested("se-p2-charge", "p2"));
-        verify(audit, times(2)).performed(anyString(), eq("orders"), anyString(), eq(OperatorAudit.RETRY_INCIDENT),
-                eq("alice"), eq("Gateway fixed"), anyString());
+        assertThat(outcome.async()).isTrue();
+        assertThat(outcome.batchOperationId()).isEqualTo("b-1");
+        var filter = org.mockito.ArgumentCaptor.forClass(io.mateu.workflow.domain.batch.BatchOperationFilter.class);
+        verify(batches).create(eq(io.mateu.workflow.domain.batch.BatchOperationType.RETRY), filter.capture(),
+                eq(java.util.Map.of("reason", "Gateway fixed")), eq(ALICE));
+        assertThat(filter.getValue().incident()).isEqualTo(key);
+        assertThat(filter.getValue().workflowDefinitionId()).isEqualTo("orders");
+        assertThat(filter.getValue().status()).containsExactly(io.mateu.workflow.domain.aggregates.ProcessStatus.ERROR);
         verify(operations).authorizeOperation(eq("orders"), eq(ALICE), anyString());
+        assertThat(dispatched).isEmpty();
     }
 
     @Test
-    void aLargeGroupIsRetriedInTheBackground() {
-        for (int i = 0; i < 5; i++) {
-            rows.add(row("p" + i, "orders", "charge", "boom", i));
-        }
-        var service = service(100, 100, 2);
-        var key = service.incidents(null).groups().getFirst().key();
-
-        var outcome = service.retryGroup(key, "go", ALICE);
-
-        assertThat(outcome.async()).isTrue();
-        await().untilAsserted(() -> assertThat(dispatched).hasSize(5));
-        service.stop();
+    void eachProcessOfTheBatchRetriesItsFailedStepsAndAuditsThem() {
+        var service = service(100, 2, 10);
+        service.retryInProcess("k", List.of(row("p1", "orders", "charge", "Card 1 declined", 1),
+                row("p1", "orders", "charge", "Card 1 declined", 2)), "Gateway fixed (batch b-1)", ALICE);
+        assertThat(dispatched).containsExactly(new RetryStepExecutionRequested("se-p1-charge", "p1"),
+                new RetryStepExecutionRequested("se-p1-charge", "p1"));
+        verify(audit, times(2)).performed(eq("p1"), eq("orders"), anyString(), eq(OperatorAudit.RETRY_INCIDENT),
+                eq("alice"), eq("Gateway fixed (batch b-1)"), anyString());
+        verify(operations).authorizeOperation(eq("orders"), eq(ALICE), anyString());
+        service.retryInProcess("k", List.of(), "r", ALICE);
+        service.retryInProcess("k", null, "r", ALICE);
     }
 
     @Test

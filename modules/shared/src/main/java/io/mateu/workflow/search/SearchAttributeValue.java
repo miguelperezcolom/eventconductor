@@ -7,7 +7,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.util.Collection;
 import java.util.Locale;
@@ -93,8 +92,8 @@ public record SearchAttributeValue(String name, SearchAttributeType type, String
     }
 
     /**
-     * A moment from ISO text: a date-time with an offset or a {@code Z} (converted to the JVM's zone, as
-     * every timestamp the engine stores), a local date-time, or a date — its first moment, or its last
+     * A moment from ISO text: a date-time with an offset or a {@code Z} (converted to the engine clock's zone,
+     * as every timestamp the engine stores), a local date-time, or a date — its first moment, or its last
      * when {@code endOfDay} (an inclusive upper bound).
      */
     public static Optional<LocalDateTime> moment(String text, boolean endOfDay) {
@@ -103,12 +102,12 @@ public record SearchAttributeValue(String name, SearchAttributeType type, String
         }
         var trimmed = text.strip();
         try {
-            return Optional.of(OffsetDateTime.parse(trimmed).atZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime());
+            return Optional.of(OffsetDateTime.parse(trimmed).atZoneSameInstant(io.mateu.workflow.time.EngineClock.zone()).toLocalDateTime());
         } catch (DateTimeParseException notOffset) {
             // next shape
         }
         try {
-            return Optional.of(LocalDateTime.ofInstant(Instant.parse(trimmed), ZoneId.systemDefault()));
+            return Optional.of(LocalDateTime.ofInstant(Instant.parse(trimmed), io.mateu.workflow.time.EngineClock.zone()));
         } catch (DateTimeParseException notInstant) {
             // next shape
         }

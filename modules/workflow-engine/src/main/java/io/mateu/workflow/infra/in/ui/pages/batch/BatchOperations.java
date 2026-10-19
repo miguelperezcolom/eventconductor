@@ -120,7 +120,7 @@ public class BatchOperations extends Crud<Object, BatchOperationForm, BatchOpera
     public String create(HttpRequest httpRequest) {
         var form = httpRequest.getComponentState(BatchOperationForm.class);
         var resolver = callerResolver == null ? null : callerResolver.getIfAvailable();
-        return batches.create(form.type, form.filter(), null, resolver == null ? null : resolver.current()).id();
+        return batches.create(form.type, form.filter(), form.parameters(), resolver == null ? null : resolver.current()).id();
     }
 
     @Override

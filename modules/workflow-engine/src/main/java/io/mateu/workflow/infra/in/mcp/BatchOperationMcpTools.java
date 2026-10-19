@@ -40,7 +40,7 @@ public class BatchOperationMcpTools implements McpTools, McpSystemContext {
     public String getSystemContext() {
         return """
                 Operaciones masivas (batch operations) del motor:
-                - createBatchOperation aplica CANCEL, RETRY, RESTART, PAUSE o RESUME a todos los procesos que casan con un filtro (definición, estados, tag, business key, y atributos de búsqueda con query: customerId = "C-9" AND amount > 100). El filtro es obligatorio: nunca actúa sobre todos los procesos por defecto.
+                - createBatchOperation aplica CANCEL, RETRY, RESTART, PAUSE, RESUME, SET_VARIABLES (setVariables/removeVariables) o RETRY_FROM_STEP (stepId) — estas dos con reason obligatoria, auditada en cada proceso — a todos los procesos que casan con un filtro (definición, estados, tag, business key, y atributos de búsqueda con query: customerId = "C-9" AND amount > 100). El filtro es obligatorio: nunca actúa sobre todos los procesos por defecto.
                 - Se ejecuta en segundo plano, por páginas y con un límite de procesos por segundo; getBatchOperation da el progreso (matched, succeeded, failed, skipped y los motivos de los omitidos: notApplicable por estado, notAuthorized, gone) y una muestra de errores.
                 - cancelBatchOperation la detiene: no se toca ningún proceso más; lo hecho, hecho está.
                 - Antes de lanzarla, listProcesses con el mismo filtro dice a qué procesos afectará.
@@ -67,7 +67,9 @@ public class BatchOperationMcpTools implements McpTools, McpSystemContext {
             + " type is CANCEL, RETRY (pick ERROR/CANCELLED processes up where they stopped), RESTART (run them again"
             + " from the beginning), PAUSE or RESUME. The filter needs at least one of: workflowDefinitionId, status"
             + " (comma-separated), tag, businessKey (contains), query (search attributes: customerId = \"C-9\" AND"
-            + " amount > 100). Processes the command does not apply to are skipped, not failed. Returns the batch;"
+            + " amount > 100). Also SET_VARIABLES (setVariables name→value and/or removeVariables, comma-separated)"
+            + " and RETRY_FROM_STEP (stepId) — both need a reason, recorded with the caller in each process's audit"
+            + " trail. Processes the command does not apply to are skipped, not failed. Returns the batch;"
             + " follow it with getBatchOperation.")
     public BatchOperationSummary createBatchOperation(
             @ToolParam(description = "CANCEL, RETRY, RESTART, PAUSE or RESUME") String type,
@@ -75,14 +77,22 @@ public class BatchOperationMcpTools implements McpTools, McpSystemContext {
             @ToolParam(required = false, description = "Comma-separated statuses") String status,
             @ToolParam(required = false, description = "Only processes of the definitions carrying this tag") String tag,
             @ToolParam(required = false, description = "Business key contains this") String businessKey,
-            @ToolParam(required = false, description = "Search-attribute conditions: name = value AND name > value") String query) {
+            @ToolParam(required = false, description = "Search-attribute conditions: name = value AND name > value") String query,
+            @ToolParam(required = false, description = "SET_VARIABLES: variables to set, by name") Map<String, String> setVariables,
+            @ToolParam(required = false, description = "SET_VARIABLES: variables to remove, comma-separated") String removeVariables,
+            @ToolParam(required = false, description = "RETRY_FROM_STEP: the step id to run again from") String stepId,
+            @ToolParam(required = false, description = "Why — mandatory for SET_VARIABLES and RETRY_FROM_STEP") String reason) {
         InputLimits.checkIdentifier(workflowDefinitionId, "workflowDefinitionId");
         InputLimits.checkIdentifier(tag, "tag");
         InputLimits.checkIdentifier(businessKey, "businessKey");
         var filter = new BatchOperationFilter(workflowDefinitionId, tag, statusesOf(status), null, null, businessKey,
                 null, false, query);
         log.info("Creating a {} batch operation over {}", type, filter.describe());
-        return BatchOperationSummary.of(batches.create(typeOf(type), filter, null, callerContext()));
+        var remove = removeVariables == null ? List.<String>of() : java.util.Arrays.stream(removeVariables.split(","))
+                .map(String::strip).filter(name -> !name.isEmpty()).toList();
+        InputLimits.checkIdentifier(stepId, "stepId");
+        var parameters = io.mateu.workflow.domain.batch.BatchOperationParameters.of(setVariables, remove, stepId, reason);
+        return BatchOperationSummary.of(batches.create(typeOf(type), filter, parameters, callerContext()));
     }
 
     @Tool(description = "List the batch operations, the most recent first, with their progress.")

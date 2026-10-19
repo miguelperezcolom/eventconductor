@@ -118,7 +118,8 @@ class BatchOperationServiceTest {
     void everyTypeIsItsOwnCommand() {
         var service = service();
         for (var type : BatchOperationType.values()) {
-            service.create(type, ERRORS, null, null);
+            service.create(type, ERRORS, io.mateu.workflow.domain.batch.BatchOperationParameters.of(Map.of("approved", "yes"),
+                    List.of("tmp"), "charge", "why"), null);
         }
         while (service.runNextPage()) {
             // all of them
@@ -128,7 +129,13 @@ class BatchOperationServiceTest {
         verify(operations, org.mockito.Mockito.times(25)).restart(anyString(), any());
         verify(operations, org.mockito.Mockito.times(25)).pause(anyString(), any());
         verify(operations, org.mockito.Mockito.times(25)).resume(anyString(), any());
-        assertThat(service.list()).hasSize(5).allMatch(op -> op.status() == BatchOperationStatus.COMPLETED);
+        var reason = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(operations, org.mockito.Mockito.times(25)).setVariables(anyString(),
+                eq(List.of(new io.mateu.workflow.domain.aggregates.Variable("approved", "yes"))), eq(List.of("tmp")),
+                reason.capture(), any());
+        assertThat(reason.getValue()).startsWith("why (batch ");
+        verify(operations, org.mockito.Mockito.times(25)).retryFromStep(anyString(), eq("charge"), anyString(), any());
+        assertThat(service.list()).hasSize(7).allMatch(op -> op.status() == BatchOperationStatus.COMPLETED);
     }
 
     @Test
