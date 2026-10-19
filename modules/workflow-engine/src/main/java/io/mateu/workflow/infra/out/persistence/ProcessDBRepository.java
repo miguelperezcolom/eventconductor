@@ -45,12 +45,15 @@ public class ProcessDBRepository implements ProcessRepository {
     final org.springframework.beans.factory.ObjectProvider<ReplyNotifier> replyNotifier;
     final io.mateu.workflow.application.services.SearchAttributeIndexer searchAttributeIndexer;
 
-    /** For the listing queries built per filter (search attributes, the batch walk). */
-    // Never serialized: the admin UI writes the views holding this repository as JSON, and an
-    // EntityManager is a JDK proxy no serializer can read.
+    /**
+     * For the listing queries built per filter (search attributes, the batch walk). The shared,
+     * transaction-bound EntityManager, constructor-injected and final like every other collaborator:
+     * the admin UI rebuilds the views holding this repository from their state and treats final
+     * fields as injected — a field-injected one came back null — and never serializes it (it is a
+     * JDK proxy).
+     */
     @com.fasterxml.jackson.annotation.JsonIgnore
-    @jakarta.persistence.PersistenceContext
-    jakarta.persistence.EntityManager entityManager;
+    final jakarta.persistence.EntityManager entityManager;
 
     @Override
     public Optional<Process> findById(String id) {

@@ -20,17 +20,19 @@ public class ProcessIndexDBRepository implements ProcessIndexRepository {
     private final ProcessIndexEntityRepository repository;
     private final ProcessIndexSearchAttributeEntityRepository attributes;
 
-    /** The engine's own persistence unit — where the embedded index lives. */
-    // Never serialized: the admin UI writes the views holding this repository as JSON, and an
-    // EntityManager is a JDK proxy no serializer can read.
+    /**
+     * The engine's own persistence unit — where the embedded index lives. Final and constructor-injected,
+     * never serialized (see ProcessDBRepository).
+     */
     @com.fasterxml.jackson.annotation.JsonIgnore
-    @jakarta.persistence.PersistenceContext
-    private jakarta.persistence.EntityManager entityManager;
+    private final jakarta.persistence.EntityManager entityManager;
 
     public ProcessIndexDBRepository(ProcessIndexEntityRepository repository,
-                                    ProcessIndexSearchAttributeEntityRepository attributes) {
+                                    ProcessIndexSearchAttributeEntityRepository attributes,
+                                    jakarta.persistence.EntityManager entityManager) {
         this.repository = repository;
         this.attributes = attributes;
+        this.entityManager = entityManager;
     }
 
     @Override
