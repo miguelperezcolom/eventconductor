@@ -197,6 +197,11 @@ finishing and the next starting, which contains no worker time: **7.7 ms p50, 11
 transitions/second (40 instances/second of a five-transition definition). See [Performance](/guides/performance/) for how that is measured, the two ways it
 is easy to measure wrongly, and a harness that reproduces it on your own hardware.
 
+For every deployment mode measured the same way on one machine — sequential, saga, fan-out, timers,
+message correlation and synchronous invocation — see [Benchmarks (local)](/reference/benchmarks/).
+Those numbers compare EventConductor's modes and versions with each other; they are deliberately not
+set against other engines' published figures.
+
 ### The axis that does scale: one engine per bounded context
 
 Because the ceiling is a property of a database rather than of the engine, the way to raise it is

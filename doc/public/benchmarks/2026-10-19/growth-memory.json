@@ -1,0 +1,101 @@
+{
+  "runId" : "1019220829",
+  "startedAt" : "2026-10-19T22:08:29.044870",
+  "environment" : {
+    "ecCommit" : "ad129191-dirty",
+    "ecVersion" : "v2.31.0-1-gad1291911",
+    "machine" : "Apple M3 Max, 14 cores (10 performance + 4 efficiency), 36 GB RAM, macOS 15.6.1",
+    "os" : "Mac OS X 15.6.1 aarch64",
+    "cpus" : 14,
+    "jdk" : "Amazon.com Inc. 21.0.8+9-LTS",
+    "jvmArgs" : [ "-Xms6g", "-Xmx6g", "-XX:+UseG1GC", "-Dsuite.out=<output dir>", "-Dsuite.commit=ad129191-dirty", "-Dsuite.version=v2.31.0-1-gad1291911", "-Dsuite.machine=Apple M3 Max, 14 cores (10 performance + 4 efficiency), 36 GB RAM, macOS 15.6.1", "-Dsuite.docker=Docker 27.4.0 (Docker Desktop), 14 CPUs, 23 GB", "-Dsuite.background=load average 20.80 14.47 10.88; 10 java processes and 4 containers already running before the suite started", "-Dsuite.modes=memory", "-Dsuite.scenarios=growth", "-Dsuite.reps=1", "-Dsuite.scale=5" ],
+    "maxHeapMb" : 6144,
+    "docker" : "Docker 27.4.0 (Docker Desktop), 14 CPUs, 23 GB",
+    "loadAverageAtStart" : 20.79931640625,
+    "backgroundLoad" : "load average 20.80 14.47 10.88; 10 java processes and 4 containers already running before the suite started"
+  },
+  "parameters" : {
+    "modes" : [ "memory" ],
+    "driverThreads" : 8,
+    "repetitions" : 1,
+    "scale" : 5.0,
+    "scenarios" : [ "growth" ]
+  },
+  "results" : {
+    "memory" : {
+      "growth" : {
+        "summary" : {
+          "batch1ThroughputPerSec" : {
+            "median" : 9647.64,
+            "min" : 9647.64,
+            "max" : 9647.64
+          },
+          "batch2ThroughputPerSec" : {
+            "median" : 9964.48,
+            "min" : 9964.48,
+            "max" : 9964.48
+          },
+          "batch3ThroughputPerSec" : {
+            "median" : 10047.35,
+            "min" : 10047.35,
+            "max" : 10047.35
+          },
+          "batch4ThroughputPerSec" : {
+            "median" : 8928.78,
+            "min" : 8928.78,
+            "max" : 8928.78
+          },
+          "batch5ThroughputPerSec" : {
+            "median" : 10443.61,
+            "min" : 10443.61,
+            "max" : 10443.61
+          },
+          "processesPerBatch" : {
+            "median" : 20000.0,
+            "min" : 20000.0,
+            "max" : 20000.0
+          },
+          "loadAverage" : {
+            "median" : 20.99,
+            "min" : 20.99,
+            "max" : 20.99
+          },
+          "wallSeconds" : {
+            "median" : 11.17,
+            "min" : 11.17,
+            "max" : 11.17
+          }
+        },
+        "repetitions" : [ {
+          "batch1ThroughputPerSec" : 9647.64,
+          "batch2ThroughputPerSec" : 9964.48,
+          "batch3ThroughputPerSec" : 10047.35,
+          "batch4ThroughputPerSec" : 8928.78,
+          "batch5ThroughputPerSec" : 10443.61,
+          "processesPerBatch" : 20000,
+          "loadAverage" : 20.98974609375,
+          "wallSeconds" : 11.17
+        } ]
+      }
+    }
+  },
+  "modeSettings" : {
+    "memory" : {
+      "logging.level.io.mateu.workflow" : "WARN",
+      "logging.level.root" : "WARN",
+      "spring.application.name" : "suite-memory",
+      "spring.autoconfigure.exclude" : "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.jdbc.autoconfigure.DataSourceTransactionManagerAutoConfiguration,org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration",
+      "spring.main.banner-mode" : "off",
+      "spring.main.web-application-type" : "none",
+      "workflow.cron-enabled" : "false",
+      "workflow.mode" : "embedded",
+      "workflow.persistence" : "memory"
+    }
+  },
+  "containersAfterMode" : {
+    "memory" : { }
+  },
+  "versions" : { },
+  "finishedAt" : "2026-10-19T22:08:42.675085",
+  "loadAverageAtEnd" : 20.98974609375
+}

@@ -1,0 +1,371 @@
+{
+  "runId" : "1019185000",
+  "startedAt" : "2026-10-19T18:50:00.394069",
+  "environment" : {
+    "ecCommit" : "ad129191-dirty",
+    "ecVersion" : "v2.31.0-1-gad1291911",
+    "machine" : "Apple M3 Max, 14 cores (10 performance + 4 efficiency), 36 GB RAM, macOS 15.6.1",
+    "os" : "Mac OS X 15.6.1 aarch64",
+    "cpus" : 14,
+    "jdk" : "Amazon.com Inc. 21.0.8+9-LTS",
+    "jvmArgs" : [ "-Xms4g", "-Xmx4g", "-XX:+UseG1GC", "-Dsuite.out=<output dir>", "-Dsuite.commit=ad129191-dirty", "-Dsuite.version=v2.31.0-1-gad1291911", "-Dsuite.machine=Apple M3 Max, 14 cores (10 performance + 4 efficiency), 36 GB RAM, macOS 15.6.1", "-Dsuite.docker=Docker 27.4.0 (Docker Desktop), 14 CPUs, 23 GB", "-Dsuite.background=load average 5.88 9.31 12.05; 11 java processes and 4 containers already running before the suite started", "-Dsuite.reps=1", "-Dsuite.modes=memory", "-Dsuite.scenarios=growth,sync", "-Dsuite.sync-seconds=15" ],
+    "maxHeapMb" : 4096,
+    "docker" : "Docker 27.4.0 (Docker Desktop), 14 CPUs, 23 GB",
+    "loadAverageAtStart" : 5.876953125,
+    "backgroundLoad" : "load average 5.88 9.31 12.05; 11 java processes and 4 containers already running before the suite started"
+  },
+  "parameters" : {
+    "scenarios" : [ "growth", "sync" ],
+    "modes" : [ "memory" ],
+    "driverThreads" : 8,
+    "repetitions" : 1,
+    "scale" : 1.0
+  },
+  "results" : {
+    "memory" : {
+      "growth" : {
+        "summary" : {
+          "batch1ThroughputPerSec" : {
+            "median" : 1177.51,
+            "min" : 1177.51,
+            "max" : 1177.51
+          },
+          "batch2ThroughputPerSec" : {
+            "median" : 389.28,
+            "min" : 389.28,
+            "max" : 389.28
+          },
+          "batch3ThroughputPerSec" : {
+            "median" : 172.86,
+            "min" : 172.86,
+            "max" : 172.86
+          },
+          "batch4ThroughputPerSec" : {
+            "median" : 78.14,
+            "min" : 78.14,
+            "max" : 78.14
+          },
+          "batch5ThroughputPerSec" : {
+            "median" : 51.83,
+            "min" : 51.83,
+            "max" : 51.83
+          },
+          "processesPerBatch" : {
+            "median" : 4000.0,
+            "min" : 4000.0,
+            "max" : 4000.0
+          },
+          "loadAverage" : {
+            "median" : 14.43,
+            "min" : 14.43,
+            "max" : 14.43
+          },
+          "wallSeconds" : {
+            "median" : 165.39,
+            "min" : 165.39,
+            "max" : 165.39
+          }
+        },
+        "repetitions" : [ {
+          "batch1ThroughputPerSec" : 1177.51,
+          "batch2ThroughputPerSec" : 389.28,
+          "batch3ThroughputPerSec" : 172.86,
+          "batch4ThroughputPerSec" : 78.14,
+          "batch5ThroughputPerSec" : 51.83,
+          "processesPerBatch" : 4000,
+          "loadAverage" : 14.42724609375,
+          "wallSeconds" : 165.39
+        } ]
+      },
+      "sync" : {
+        "summary" : {
+          "c1.requests" : {
+            "median" : 2300.0,
+            "min" : 2300.0,
+            "max" : 2300.0
+          },
+          "c1.failures" : {
+            "median" : 0.0,
+            "min" : 0.0,
+            "max" : 0.0
+          },
+          "c1.throughputPerSec" : {
+            "median" : 153.29,
+            "min" : 153.29,
+            "max" : 153.29
+          },
+          "c1.latencyMs.n" : {
+            "median" : 2300.0,
+            "min" : 2300.0,
+            "max" : 2300.0
+          },
+          "c1.latencyMs.p50" : {
+            "median" : 6.35,
+            "min" : 6.35,
+            "max" : 6.35
+          },
+          "c1.latencyMs.p95" : {
+            "median" : 8.61,
+            "min" : 8.61,
+            "max" : 8.61
+          },
+          "c1.latencyMs.p99" : {
+            "median" : 10.28,
+            "min" : 10.28,
+            "max" : 10.28
+          },
+          "c1.latencyMs.max" : {
+            "median" : 16.08,
+            "min" : 16.08,
+            "max" : 16.08
+          },
+          "c1.resources.samples" : {
+            "median" : 29.0,
+            "min" : 29.0,
+            "max" : 29.0
+          },
+          "c1.resources.jvmCpuAvgCores" : {
+            "median" : 1.0,
+            "min" : 1.0,
+            "max" : 1.0
+          },
+          "c1.resources.jvmCpuMaxCores" : {
+            "median" : 1.09,
+            "min" : 1.09,
+            "max" : 1.09
+          },
+          "c1.resources.machineCpuAvgPct" : {
+            "median" : 23.4,
+            "min" : 23.4,
+            "max" : 23.4
+          },
+          "c1.resources.heapMaxUsedMb" : {
+            "median" : 862.0,
+            "min" : 862.0,
+            "max" : 862.0
+          },
+          "c4.requests" : {
+            "median" : 2151.0,
+            "min" : 2151.0,
+            "max" : 2151.0
+          },
+          "c4.failures" : {
+            "median" : 0.0,
+            "min" : 0.0,
+            "max" : 0.0
+          },
+          "c4.throughputPerSec" : {
+            "median" : 143.18,
+            "min" : 143.18,
+            "max" : 143.18
+          },
+          "c4.latencyMs.n" : {
+            "median" : 2151.0,
+            "min" : 2151.0,
+            "max" : 2151.0
+          },
+          "c4.latencyMs.p50" : {
+            "median" : 27.35,
+            "min" : 27.35,
+            "max" : 27.35
+          },
+          "c4.latencyMs.p95" : {
+            "median" : 50.02,
+            "min" : 50.02,
+            "max" : 50.02
+          },
+          "c4.latencyMs.p99" : {
+            "median" : 58.69,
+            "min" : 58.69,
+            "max" : 58.69
+          },
+          "c4.latencyMs.max" : {
+            "median" : 77.14,
+            "min" : 77.14,
+            "max" : 77.14
+          },
+          "c4.resources.samples" : {
+            "median" : 29.0,
+            "min" : 29.0,
+            "max" : 29.0
+          },
+          "c4.resources.jvmCpuAvgCores" : {
+            "median" : 1.02,
+            "min" : 1.02,
+            "max" : 1.02
+          },
+          "c4.resources.jvmCpuMaxCores" : {
+            "median" : 1.32,
+            "min" : 1.32,
+            "max" : 1.32
+          },
+          "c4.resources.machineCpuAvgPct" : {
+            "median" : 33.47,
+            "min" : 33.47,
+            "max" : 33.47
+          },
+          "c4.resources.heapMaxUsedMb" : {
+            "median" : 1249.0,
+            "min" : 1249.0,
+            "max" : 1249.0
+          },
+          "c16.requests" : {
+            "median" : 2119.0,
+            "min" : 2119.0,
+            "max" : 2119.0
+          },
+          "c16.failures" : {
+            "median" : 0.0,
+            "min" : 0.0,
+            "max" : 0.0
+          },
+          "c16.throughputPerSec" : {
+            "median" : 140.14,
+            "min" : 140.14,
+            "max" : 140.14
+          },
+          "c16.latencyMs.n" : {
+            "median" : 2119.0,
+            "min" : 2119.0,
+            "max" : 2119.0
+          },
+          "c16.latencyMs.p50" : {
+            "median" : 111.06,
+            "min" : 111.06,
+            "max" : 111.06
+          },
+          "c16.latencyMs.p95" : {
+            "median" : 225.81,
+            "min" : 225.81,
+            "max" : 225.81
+          },
+          "c16.latencyMs.p99" : {
+            "median" : 262.74,
+            "min" : 262.74,
+            "max" : 262.74
+          },
+          "c16.latencyMs.max" : {
+            "median" : 297.66,
+            "min" : 297.66,
+            "max" : 297.66
+          },
+          "c16.resources.samples" : {
+            "median" : 29.0,
+            "min" : 29.0,
+            "max" : 29.0
+          },
+          "c16.resources.jvmCpuAvgCores" : {
+            "median" : 1.0,
+            "min" : 1.0,
+            "max" : 1.0
+          },
+          "c16.resources.jvmCpuMaxCores" : {
+            "median" : 1.16,
+            "min" : 1.16,
+            "max" : 1.16
+          },
+          "c16.resources.machineCpuAvgPct" : {
+            "median" : 35.14,
+            "min" : 35.14,
+            "max" : 35.14
+          },
+          "c16.resources.heapMaxUsedMb" : {
+            "median" : 1637.0,
+            "min" : 1637.0,
+            "max" : 1637.0
+          },
+          "loadAverage" : {
+            "median" : 11.04,
+            "min" : 11.04,
+            "max" : 11.04
+          },
+          "wallSeconds" : {
+            "median" : 45.16,
+            "min" : 45.16,
+            "max" : 45.16
+          }
+        },
+        "repetitions" : [ {
+          "c1" : {
+            "requests" : 2300,
+            "failures" : 0,
+            "throughputPerSec" : 153.29,
+            "latencyMs" : {
+              "n" : 2300,
+              "p50" : 6.35,
+              "p95" : 8.61,
+              "p99" : 10.28,
+              "max" : 16.08
+            },
+            "resources" : {
+              "samples" : 29,
+              "jvmCpuAvgCores" : 1.0,
+              "jvmCpuMaxCores" : 1.09,
+              "machineCpuAvgPct" : 23.4,
+              "heapMaxUsedMb" : 862
+            }
+          },
+          "c4" : {
+            "requests" : 2151,
+            "failures" : 0,
+            "throughputPerSec" : 143.18,
+            "latencyMs" : {
+              "n" : 2151,
+              "p50" : 27.35,
+              "p95" : 50.02,
+              "p99" : 58.69,
+              "max" : 77.14
+            },
+            "resources" : {
+              "samples" : 29,
+              "jvmCpuAvgCores" : 1.02,
+              "jvmCpuMaxCores" : 1.32,
+              "machineCpuAvgPct" : 33.47,
+              "heapMaxUsedMb" : 1249
+            }
+          },
+          "c16" : {
+            "requests" : 2119,
+            "failures" : 0,
+            "throughputPerSec" : 140.14,
+            "latencyMs" : {
+              "n" : 2119,
+              "p50" : 111.06,
+              "p95" : 225.81,
+              "p99" : 262.74,
+              "max" : 297.66
+            },
+            "resources" : {
+              "samples" : 29,
+              "jvmCpuAvgCores" : 1.0,
+              "jvmCpuMaxCores" : 1.16,
+              "machineCpuAvgPct" : 35.14,
+              "heapMaxUsedMb" : 1637
+            }
+          },
+          "loadAverage" : 11.03857421875,
+          "wallSeconds" : 45.16
+        } ]
+      }
+    }
+  },
+  "modeSettings" : {
+    "memory" : {
+      "logging.level.io.mateu.workflow" : "WARN",
+      "logging.level.root" : "WARN",
+      "spring.application.name" : "suite-memory",
+      "spring.autoconfigure.exclude" : "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.jdbc.autoconfigure.DataSourceTransactionManagerAutoConfiguration,org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration",
+      "spring.main.banner-mode" : "off",
+      "spring.main.web-application-type" : "none",
+      "workflow.cron-enabled" : "false",
+      "workflow.mode" : "embedded",
+      "workflow.persistence" : "memory"
+    }
+  },
+  "containersAfterMode" : {
+    "memory" : { }
+  },
+  "versions" : { },
+  "finishedAt" : "2026-10-19T18:53:42.154129",
+  "loadAverageAtEnd" : 11.03857421875
+}

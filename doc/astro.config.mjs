@@ -138,6 +138,7 @@ export default defineConfig({
 						{ label: 'HTTP Worker API', slug: 'reference/http-worker-api' },
 						{ label: 'Java API', slug: 'reference/java-api' },
 						{ label: 'Versioning & Compatibility', slug: 'reference/versioning' },
+						{ label: 'Benchmarks (local)', slug: 'reference/benchmarks' },
 					],
 				},
 				{

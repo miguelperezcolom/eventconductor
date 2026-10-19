@@ -48,6 +48,48 @@ public class InMemoryProcessRepository implements ProcessRepository {
 
     private final Map<String, Process> store = new ConcurrentHashMap<>();
 
+    /**
+     * Process ids by business key — every process that carries the key, holder or released. Every
+     * creation looks its key up and every save checks that no second process holds it, and both
+     * used to scan the whole store, so each process cost more than the last: five batches of 20,000
+     * in the benchmark suite fell from ~5,000 to ~560 processes/s. Reading the few processes under
+     * one key gives the same answers. An id is indexed before its process is stored and unindexed
+     * after it is removed, so a reader can meet an id with no process (skipped) but never a process
+     * it cannot find; {@code compute} keeps a set emptied by one thread from swallowing another's add.
+     */
+    private final Map<String, java.util.Set<String>> idsByBusinessKey = new ConcurrentHashMap<>();
+
+    private void indexKey(String key, String id) {
+        if (key == null) {
+            return;
+        }
+        idsByBusinessKey.compute(key, (k, ids) -> {
+            var set = ids == null ? ConcurrentHashMap.<String>newKeySet() : ids;
+            set.add(id);
+            return set;
+        });
+    }
+
+    private void unindexKey(String key, String id) {
+        if (key == null) {
+            return;
+        }
+        idsByBusinessKey.computeIfPresent(key, (k, ids) -> {
+            ids.remove(id);
+            return ids.isEmpty() ? null : ids;
+        });
+    }
+
+    /** The processes carrying {@code key}, from the index — what a scan of the store would find. */
+    private java.util.stream.Stream<Process> withKey(String key) {
+        var ids = idsByBusinessKey.get(key);
+        if (ids == null) {
+            return java.util.stream.Stream.empty();
+        }
+        return ids.stream().map(store::get).filter(java.util.Objects::nonNull)
+                .filter(p -> key.equals(p.getBusinessKey()));
+    }
+
     @Override
     public Optional<Process> findById(String id) {
         return Optional.ofNullable(store.get(id));
@@ -68,7 +110,12 @@ public class InMemoryProcessRepository implements ProcessRepository {
                     searchAttributeIndexer == null ? null : searchAttributeIndexer.index(process));
         }
         refuseASecondHolder(process);
-        store.put(process.id(), process);
+        indexKey(process.getBusinessKey(), process.id());
+        var previous = store.put(process.id(), process);
+        if (previous != null && previous.getBusinessKey() != null
+                && !previous.getBusinessKey().equals(process.getBusinessKey())) {
+            unindexKey(previous.getBusinessKey(), process.id());
+        }
         if (process.hasReplied() && replySignal != null) {
             replySignal.ifAvailable(signal -> signal.replyRecorded(process.id()));
         }
@@ -88,9 +135,8 @@ public class InMemoryProcessRepository implements ProcessRepository {
             return;
         }
         synchronized (store) {
-            store.values().stream()
-                    .filter(other -> !other.id().equals(process.id()) && key.equals(other.getBusinessKey())
-                            && !other.isBusinessKeyReleased())
+            withKey(key)
+                    .filter(other -> !other.id().equals(process.id()) && !other.isBusinessKeyReleased())
                     .findAny()
                     .ifPresent(other -> {
                         throw new org.springframework.dao.DuplicateKeyException("Business key '" + key
@@ -106,7 +152,12 @@ public class InMemoryProcessRepository implements ProcessRepository {
 
     @Override
     public void deleteAllById(List<String> ids) {
-        ids.forEach(store::remove);
+        ids.forEach(id -> {
+            var removed = store.remove(id);
+            if (removed != null && removed.getBusinessKey() != null) {
+                unindexKey(removed.getBusinessKey(), id);
+            }
+        });
     }
 
     /** The JPA query's semantics over the heap; see {@code ProcessEntityRepository#findStalled}. */
@@ -147,8 +198,8 @@ public class InMemoryProcessRepository implements ProcessRepository {
             return Optional.empty();
         }
         // The run that holds it: one at a time, as the database's UNIQUE column has it.
-        return store.values().stream()
-                .filter(p -> businessKey.equals(p.getBusinessKey()) && !p.isBusinessKeyReleased())
+        return withKey(businessKey)
+                .filter(p -> !p.isBusinessKeyReleased())
                 .max(Comparator.comparing(Process::getCreated, Comparator.nullsFirst(Comparator.naturalOrder())));
     }
 }

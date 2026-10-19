@@ -7,6 +7,7 @@ import io.mateu.workflow.infra.out.persistence.DbLockDialect;
 import io.mateu.workflow.infra.out.persistence.OutboxMessageEntityRepository;
 import io.mateu.workflow.infra.out.persistence.OutboxMessageStatus;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -61,11 +62,14 @@ public class EmbeddedOutboxRelay {
     @org.springframework.beans.factory.annotation.Value("${workflow.outbox.batch-size:100}")
     int batchSize;
 
+    private volatile boolean running = true;
+    Thread thread; // package-private for EmbeddedOutboxRelayStopTest
+
     @PostConstruct
     public void iterate() {
-        var thread = new Thread(() -> {
+        thread = new Thread(() -> {
             try {
-                while (true) {
+                while (running) {
                     try {
                         jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) con -> {
                             if (!dbLockDialect.tryLock(con, LOCK_ID)) return null;
@@ -113,7 +117,9 @@ public class EmbeddedOutboxRelay {
                             return null;
                         });
                     } catch (Throwable e) {
-                        log.error("Error processing embedded outbox messages", e);
+                        if (running) {
+                            log.error("Error processing embedded outbox messages", e);
+                        }
                     }
                     // Same as the Kafka relay: woken by this pod's own writes, polling only as
                     // the fallback for rows another pod wrote.
@@ -125,5 +131,20 @@ public class EmbeddedOutboxRelay {
         }, "embedded-outbox-relay");
         thread.setDaemon(true);
         thread.start();
+    }
+
+    /**
+     * Stops the loop when the context closes. It used to be {@code while (true)}: a closed context
+     * left the thread polling a closed connection pool and logging an error every poll interval,
+     * for as long as the JVM lived — every test or tool that closes one engine context and starts
+     * another in the same JVM inherited the old relay. A pass in progress finishes its current
+     * message; the interrupt only cuts the wait between passes short.
+     */
+    @PreDestroy
+    public void stop() {
+        running = false;
+        if (thread != null) {
+            thread.interrupt();
+        }
     }
 }

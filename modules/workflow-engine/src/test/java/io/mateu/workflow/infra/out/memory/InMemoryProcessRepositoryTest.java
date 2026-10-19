@@ -54,6 +54,31 @@ class InMemoryProcessRepositoryTest {
     }
 
     @Test
+    void findsByBusinessKeyThroughSavesAndDeletes() {
+        // The lookup reads an index rather than scanning the store; it has to agree with the scan.
+        repo.save(process("p-1", "BK-1"));
+        repo.save(process("p-2", "BK-2"));
+        repo.save(process("p-1", "BK-1")); // a re-save keeps the key
+
+        assertThat(repo.findByBusinessKey("BK-1").map(Process::id)).contains("p-1");
+        assertThat(repo.findByBusinessKey("BK-2").map(Process::id)).contains("p-2");
+        assertThat(repo.findByBusinessKey("BK-3")).isEmpty();
+
+        repo.deleteAllById(List.of("p-1"));
+        assertThat(repo.findByBusinessKey("BK-1")).isEmpty();
+        assertThat(repo.findByBusinessKey("BK-2").map(Process::id)).contains("p-2");
+    }
+
+    @Test
+    void aProcessSavedUnderANewKeyIsFoundByTheNewOneOnly() {
+        repo.save(process("p-1", "BK-old"));
+        repo.save(process("p-1", "BK-new"));
+
+        assertThat(repo.findByBusinessKey("BK-old")).isEmpty();
+        assertThat(repo.findByBusinessKey("BK-new").map(Process::id)).contains("p-1");
+    }
+
+    @Test
     void findByIdReturnsEmptyForUnknown() {
         assertThat(repo.findById("missing")).isEmpty();
     }

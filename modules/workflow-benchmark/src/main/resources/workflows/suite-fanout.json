@@ -1,0 +1,11 @@
+{
+  "id": "suite-fanout",
+  "name": "Benchmark suite: forEach over the items variable, parallel, maxConcurrency 10",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "each", "type": "ACTION", "name": "Once per item", "preconditionStepId": "start",
+      "forEach": { "items": "items", "as": "item", "mode": "parallel", "maxConcurrency": 10 } },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "each" }
+  ]
+}

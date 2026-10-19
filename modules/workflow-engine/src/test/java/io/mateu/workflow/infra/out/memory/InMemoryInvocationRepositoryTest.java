@@ -49,4 +49,77 @@ class InMemoryInvocationRepositoryTest {
         assertThat(repository.findByKey("wd", "k1")).isEmpty();
         assertThat(repository.findById("new")).isPresent();
     }
+
+    @Test
+    void findsTheInvocationThatStartedAProcessAndForgetsItWhenPurged() {
+        repository.createWith(invocation("i1", "k1", LocalDateTime.now().minusMinutes(1)), () -> { });
+        repository.createWith(invocation("i2", "k2", LocalDateTime.now().plusHours(1)), () -> { });
+
+        assertThat(repository.findByProcessId("p-i1").map(Invocation::id)).contains("i1");
+        assertThat(repository.findByProcessId("p-i2").map(Invocation::id)).contains("i2");
+        assertThat(repository.findByProcessId("p-unknown")).isEmpty();
+
+        repository.purgeExpired(LocalDateTime.now());
+        assertThat(repository.findByProcessId("p-i1")).isEmpty();
+        repository.deleteByProcessIds(java.util.List.of("p-i2"));
+        assertThat(repository.findByProcessId("p-i2")).isEmpty();
+    }
+
+    @Test
+    void aFailedCreationIsNotFoundByItsProcessEither() {
+        assertThatThrownBy(() -> repository.createWith(invocation("i1", "k1", LocalDateTime.now()),
+                () -> { throw new IllegalStateException("no"); })).hasMessage("no");
+        assertThat(repository.findByProcessId("p-i1")).isEmpty();
+    }
+
+    @Test
+    void creationsWithDifferentKeysDoNotWaitForEachOther() throws Exception {
+        // In memory mode the creation runs the whole process inline. One key's creation blocking
+        // must not hold up another key's — that serialized every synchronous call in the JVM.
+        var inside = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var slow = new Thread(() -> repository.createWith(invocation("slow", "k-slow", LocalDateTime.now().plusHours(1)), () -> {
+            inside.countDown();
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }));
+        slow.start();
+        try {
+            assertThat(inside.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            var other = java.util.concurrent.CompletableFuture.runAsync(() ->
+                    repository.createWith(invocation("fast", "k-fast", LocalDateTime.now().plusHours(1)), () -> { }));
+            other.get(5, java.util.concurrent.TimeUnit.SECONDS); // would time out under one global monitor
+            assertThat(repository.findById("fast")).isPresent();
+        } finally {
+            release.countDown();
+            slow.join(5_000);
+        }
+    }
+
+    @Test
+    void theSameKeyWaitsForTheCreationInFlightAndIsThenADuplicate() throws Exception {
+        var inside = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var first = new Thread(() -> repository.createWith(invocation("first", "k1", LocalDateTime.now().plusHours(1)), () -> {
+            inside.countDown();
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }));
+        first.start();
+        assertThat(inside.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        var second = java.util.concurrent.CompletableFuture.runAsync(() ->
+                repository.createWith(invocation("second", "k1", LocalDateTime.now().plusHours(1)), () -> { }));
+        Thread.sleep(200);
+        assertThat(second).isNotDone(); // blocked on the key, as it would be on the unique index
+        release.countDown();
+        first.join(5_000);
+        assertThatThrownBy(() -> second.get(5, java.util.concurrent.TimeUnit.SECONDS))
+                .hasCauseInstanceOf(InvocationRepository.DuplicateInvocationException.class);
+    }
 }

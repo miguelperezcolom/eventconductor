@@ -1,0 +1,118 @@
+{
+  "runId" : "1019214742",
+  "startedAt" : "2026-10-19T21:47:42.688463",
+  "environment" : {
+    "ecCommit" : "ad129191-dirty",
+    "ecVersion" : "v2.31.0-1-gad1291911",
+    "machine" : "Apple M3 Max, 14 cores (10 performance + 4 efficiency), 36 GB RAM, macOS 15.6.1",
+    "os" : "Mac OS X 15.6.1 aarch64",
+    "cpus" : 14,
+    "jdk" : "Amazon.com Inc. 21.0.8+9-LTS",
+    "jvmArgs" : [ "-Xms6g", "-Xmx6g", "-XX:+UseG1GC", "-Dsuite.out=<output dir>", "-Dsuite.commit=ad129191-dirty", "-Dsuite.version=v2.31.0-1-gad1291911", "-Dsuite.machine=Apple M3 Max, 14 cores (10 performance + 4 efficiency), 36 GB RAM, macOS 15.6.1", "-Dsuite.docker=Docker 27.4.0 (Docker Desktop), 14 CPUs, 23 GB", "-Dsuite.background=load average 6.83 8.37 8.18; 7 java processes and 2 containers already running before the suite started", "-Dsuite.modes=jpa", "-Dsuite.scenarios=growth", "-Dsuite.scale=0.1", "-Dsuite.reps=1" ],
+    "maxHeapMb" : 6144,
+    "docker" : "Docker 27.4.0 (Docker Desktop), 14 CPUs, 23 GB",
+    "loadAverageAtStart" : 6.833984375,
+    "backgroundLoad" : "load average 6.83 8.37 8.18; 7 java processes and 2 containers already running before the suite started"
+  },
+  "parameters" : {
+    "driverThreads" : 8,
+    "repetitions" : 1,
+    "scale" : 0.1,
+    "scenarios" : [ "growth" ],
+    "modes" : [ "jpa" ]
+  },
+  "results" : {
+    "jpa" : {
+      "growth" : {
+        "summary" : {
+          "batch1ThroughputPerSec" : {
+            "median" : 9.82,
+            "min" : 9.82,
+            "max" : 9.82
+          },
+          "batch2ThroughputPerSec" : {
+            "median" : 10.24,
+            "min" : 10.24,
+            "max" : 10.24
+          },
+          "batch3ThroughputPerSec" : {
+            "median" : 10.24,
+            "min" : 10.24,
+            "max" : 10.24
+          },
+          "batch4ThroughputPerSec" : {
+            "median" : 10.4,
+            "min" : 10.4,
+            "max" : 10.4
+          },
+          "batch5ThroughputPerSec" : {
+            "median" : 9.51,
+            "min" : 9.51,
+            "max" : 9.51
+          },
+          "processesPerBatch" : {
+            "median" : 400.0,
+            "min" : 400.0,
+            "max" : 400.0
+          },
+          "loadAverage" : {
+            "median" : 5.09,
+            "min" : 5.09,
+            "max" : 5.09
+          },
+          "wallSeconds" : {
+            "median" : 200.62,
+            "min" : 200.62,
+            "max" : 200.62
+          }
+        },
+        "repetitions" : [ {
+          "batch1ThroughputPerSec" : 9.82,
+          "batch2ThroughputPerSec" : 10.24,
+          "batch3ThroughputPerSec" : 10.24,
+          "batch4ThroughputPerSec" : 10.4,
+          "batch5ThroughputPerSec" : 9.51,
+          "processesPerBatch" : 400,
+          "loadAverage" : 5.08837890625,
+          "wallSeconds" : 200.62
+        } ]
+      }
+    }
+  },
+  "modeSettings" : {
+    "jpa" : {
+      "logging.level.io.mateu.workflow" : "WARN",
+      "logging.level.root" : "WARN",
+      "spring.application.name" : "suite-jpa",
+      "spring.datasource.hikari.maximum-pool-size" : "10",
+      "spring.datasource.username" : "suite",
+      "spring.flyway.enabled" : "false",
+      "spring.jpa.hibernate.ddl-auto" : "update",
+      "spring.jpa.open-in-view" : "false",
+      "spring.jpa.properties.hibernate.jdbc.batch_size" : "20",
+      "spring.jpa.properties.hibernate.order_inserts" : "true",
+      "spring.jpa.properties.hibernate.order_updates" : "true",
+      "spring.main.banner-mode" : "off",
+      "spring.main.web-application-type" : "none",
+      "workflow.cron-enabled" : "false",
+      "workflow.mode" : "embedded",
+      "workflow.persistence" : "jpa",
+      "workflow.schema.enabled" : "true"
+    }
+  },
+  "containersAfterMode" : {
+    "jpa" : {
+      "postgres" : "0.01% cpu, 100.3MiB / 23.43GiB"
+    }
+  },
+  "versions" : {
+    "postgresImage" : "postgres:16-alpine",
+    "postgresVersion" : "16.14",
+    "postgresMaxConnections" : "100",
+    "postgresSharedBuffers" : "128MB",
+    "postgresSynchronousCommit" : "on",
+    "postgresFsync" : "off"
+  },
+  "finishedAt" : "2026-10-19T21:51:17.346809",
+  "loadAverageAtEnd" : 5.08837890625
+}

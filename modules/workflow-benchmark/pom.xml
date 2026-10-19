@@ -46,6 +46,45 @@
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
         </dependency>
+        <!-- The engine's REST layer is scanned with it and parses its configuration classes even
+             with no server, so the servlet API and Spring MVC must resolve (as in workflow-test).
+             Nothing is served. -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+        </dependency>
+        <!-- The engine applies its own migrations (indexes) when Flyway is on the classpath, exactly
+             as apps/orchestrator-standalone-app does. Without them the schema has no indexes and
+             every scan is sequential, which is not a configuration anyone should be measuring. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+        <!-- The local suite (io.mateu.workflowbench.suite) starts its own PostgreSQL and Redpanda.
+             Pinned to Testcontainers 1.x like workflow-dist-e2e (the Boot 4 BOM ships 2.0). -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>1.21.4</version>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>1.21.4</version>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>redpanda</artifactId>
+            <version>1.21.4</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

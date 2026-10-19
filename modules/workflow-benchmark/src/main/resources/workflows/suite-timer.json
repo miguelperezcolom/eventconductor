@@ -1,0 +1,10 @@
+{
+  "id": "suite-timer",
+  "name": "Benchmark suite: a one-second TIMER",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "wait", "type": "TIMER", "name": "Wait one second", "duration": "PT1S", "preconditionStepId": "start" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "wait" }
+  ]
+}

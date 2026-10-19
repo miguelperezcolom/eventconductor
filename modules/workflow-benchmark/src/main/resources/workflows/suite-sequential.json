@@ -1,0 +1,14 @@
+{
+  "id": "suite-sequential",
+  "name": "Benchmark suite: five sequential no-op ACTION steps",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "a1", "type": "ACTION", "name": "Step 1", "preconditionStepId": "start" },
+    { "id": "a2", "type": "ACTION", "name": "Step 2", "preconditionStepId": "a1" },
+    { "id": "a3", "type": "ACTION", "name": "Step 3", "preconditionStepId": "a2" },
+    { "id": "a4", "type": "ACTION", "name": "Step 4", "preconditionStepId": "a3" },
+    { "id": "a5", "type": "ACTION", "name": "Step 5", "preconditionStepId": "a4" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "a5" }
+  ]
+}

@@ -26,6 +26,21 @@ public class InMemoryStepExecutionRepository implements StepExecutionRepository 
 
     private final Map<String, StepExecution> store = new ConcurrentHashMap<>();
 
+    /**
+     * Step execution ids by process id. Every per-process query used to scan the whole store, and
+     * several run on every transition, so a transition cost grew with every step the JVM had ever
+     * run: measured with the benchmark suite, sequential throughput fell from ~1,200 to ~50
+     * processes/s across five batches of 4,000 processes. The index keeps them at the cost of the
+     * one process's own steps.
+     *
+     * <p>Kept so a reader never sees less than the old scan did: an id is indexed <em>before</em>
+     * its execution is stored and unindexed <em>after</em> it is removed, so an id without an
+     * execution is possible (and skipped) but an execution without an id is not. Updates to a key
+     * go through {@code compute}, which is atomic per key, so a set emptied and dropped by one
+     * thread cannot swallow an id another thread is adding.
+     */
+    private final Map<String, java.util.Set<String>> idsByProcess = new ConcurrentHashMap<>();
+
     @Override
     public Optional<StepExecution> findById(String id) {
         return Optional.ofNullable(store.get(id));
@@ -33,7 +48,12 @@ public class InMemoryStepExecutionRepository implements StepExecutionRepository 
 
     @Override
     public String save(StepExecution stepExecution) {
-        store.put(stepExecution.id(), stepExecution);
+        index(stepExecution.getProcessId(), stepExecution.id());
+        var previous = store.put(stepExecution.id(), stepExecution);
+        if (previous != null && previous.getProcessId() != null
+                && !previous.getProcessId().equals(stepExecution.getProcessId())) {
+            unindex(previous.getProcessId(), stepExecution.id());
+        }
         stepExecution.popEvents().forEach(event ->
                 processDomainEventUseCase.handle(new ProcessDomainEventCommand(event)));
         return stepExecution.id();
@@ -46,13 +66,50 @@ public class InMemoryStepExecutionRepository implements StepExecutionRepository 
 
     @Override
     public void deleteAllById(List<String> ids) {
-        ids.forEach(store::remove);
+        ids.forEach(id -> {
+            var removed = store.remove(id);
+            if (removed != null) {
+                unindex(removed.getProcessId(), id);
+            }
+        });
+    }
+
+    private void index(String processId, String id) {
+        if (processId == null) {
+            return;
+        }
+        idsByProcess.compute(processId, (key, ids) -> {
+            var set = ids == null ? ConcurrentHashMap.<String>newKeySet() : ids;
+            set.add(id);
+            return set;
+        });
+    }
+
+    private void unindex(String processId, String id) {
+        if (processId == null) {
+            return;
+        }
+        idsByProcess.computeIfPresent(processId, (key, ids) -> {
+            ids.remove(id);
+            return ids.isEmpty() ? null : ids;
+        });
+    }
+
+    /** The executions of one process, from the index — the same set the full scan would find. */
+    private java.util.stream.Stream<StepExecution> ofProcess(String processId) {
+        var ids = idsByProcess.get(processId);
+        if (ids == null) {
+            return java.util.stream.Stream.empty();
+        }
+        return ids.stream()
+                .map(store::get)
+                .filter(java.util.Objects::nonNull)
+                .filter(se -> processId.equals(se.getProcessId()));
     }
 
     @Override
     public List<StepExecution> findByProcessId(String processId) {
-        return store.values().stream()
-                .filter(se -> processId.equals(se.getProcessId()))
+        return ofProcess(processId)
                 .sorted(java.util.Comparator.comparingLong(StepExecution::getOrder))
                 .toList();
     }
@@ -66,8 +123,7 @@ public class InMemoryStepExecutionRepository implements StepExecutionRepository 
 
     @Override
     public List<StepExecution> findPendingOrRunningByProcessId(String processId) {
-        return store.values().stream()
-                .filter(se -> processId.equals(se.getProcessId()))
+        return ofProcess(processId)
                 .filter(InMemoryStepExecutionRepository::isLive)
                 .toList();
     }
@@ -84,8 +140,7 @@ public class InMemoryStepExecutionRepository implements StepExecutionRepository 
     @Override
     public List<StepExecution> findDueByProcessId(String processId, java.time.LocalDateTime now) {
         // PENDING/RUNNING only — feeds the timeout check, which must not see AWAITING_RETRY steps.
-        return store.values().stream()
-                .filter(se -> processId.equals(se.getProcessId()))
+        return ofProcess(processId)
                 .filter(InMemoryStepExecutionRepository::isLive)
                 .filter(se -> se.getDeadlineAt() != null && !se.getDeadlineAt().isAfter(now))
                 .toList();
@@ -93,8 +148,7 @@ public class InMemoryStepExecutionRepository implements StepExecutionRepository 
 
     @Override
     public List<StepExecution> findDueRetriesByProcessId(String processId, java.time.LocalDateTime now) {
-        return store.values().stream()
-                .filter(se -> processId.equals(se.getProcessId()))
+        return ofProcess(processId)
                 .filter(se -> se.getStatus() == StepExecutionStatus.AWAITING_RETRY)
                 .filter(se -> se.getDeadlineAt() != null && !se.getDeadlineAt().isAfter(now))
                 .toList();

@@ -1,0 +1,12 @@
+{
+  "id": "suite-sync",
+  "name": "Benchmark suite: synchronous invocation, one worker step then REPLY",
+  "version": 1,
+  "syncInvocation": { "enabled": true, "defaultDeadlineMs": 30000 },
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "work", "type": "ACTION", "name": "Work", "preconditionStepId": "start" },
+    { "id": "reply", "type": "REPLY", "name": "Reply", "preconditionStepId": "work" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "reply" }
+  ]
+}

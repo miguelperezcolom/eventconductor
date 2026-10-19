@@ -7,6 +7,25 @@ conditions beside it gets quoted out of context — which is what happened to th
 in the comparison docs, measured on a laptop running everything at once and then repeated as
 though it said something about scale.
 
+## The local suite (`scripts/benchmark.sh`)
+
+The harness below measures one thing (the transition pipeline) against infrastructure you bring. The
+**local suite** in `io.mateu.workflowbench.suite` is the other half: six scenarios — sequential, saga
+with compensation, forEach fan-out, timers, message correlation and synchronous invocation — run in
+every deployment mode (embedded/memory, embedded/jpa, kafka with one and two pods), each with a warm-up
+and three repetitions, against a PostgreSQL and a Redpanda it starts itself in Testcontainers. One
+command, one JSON and one Markdown report:
+
+```bash
+scripts/benchmark.sh                                           # everything (~1-2 h)
+scripts/benchmark.sh -Dsuite.scale=0.01 -Dsuite.reps=1         # smoke (minutes)
+scripts/benchmark.sh -Dsuite.modes=memory,jpa -Dsuite.scenarios=sequential,sync
+```
+
+The method, the machine it was last run on and the results are in the docs:
+[Reference → Benchmarks](../../doc/src/content/docs/reference/benchmarks.md). The same caveat as
+everything here applies, more so: it is one machine running all of it.
+
 ## Running it
 
 ```bash

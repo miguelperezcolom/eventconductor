@@ -1,0 +1,1363 @@
+{
+  "runId" : "1019212402",
+  "startedAt" : "2026-10-19T21:24:02.158236",
+  "environment" : {
+    "ecCommit" : "ad129191-dirty",
+    "ecVersion" : "v2.31.0-1-gad1291911",
+    "machine" : "Apple M3 Max, 14 cores (10 performance + 4 efficiency), 36 GB RAM, macOS 15.6.1",
+    "os" : "Mac OS X 15.6.1 aarch64",
+    "cpus" : 14,
+    "jdk" : "Amazon.com Inc. 21.0.8+9-LTS",
+    "jvmArgs" : [ "-Xms6g", "-Xmx6g", "-XX:+UseG1GC", "-Dsuite.out=<output dir>", "-Dsuite.commit=ad129191-dirty", "-Dsuite.version=v2.31.0-1-gad1291911", "-Dsuite.machine=Apple M3 Max, 14 cores (10 performance + 4 efficiency), 36 GB RAM, macOS 15.6.1", "-Dsuite.docker=Docker 27.4.0 (Docker Desktop), 14 CPUs, 23 GB", "-Dsuite.background=load average 5.76 9.65 10.17; 7 java processes and 3 containers already running before the suite started", "-Dsuite.modes=jpa,kafka1", "-Dsuite.scenarios=sequential,sync", "-Dsuite.postgres.fsync=off", "-Dsuite.scale=0.25" ],
+    "maxHeapMb" : 6144,
+    "docker" : "Docker 27.4.0 (Docker Desktop), 14 CPUs, 23 GB",
+    "loadAverageAtStart" : 5.75634765625,
+    "backgroundLoad" : "load average 5.76 9.65 10.17; 7 java processes and 3 containers already running before the suite started"
+  },
+  "parameters" : {
+    "driverThreads" : 8,
+    "modes" : [ "jpa", "kafka1" ],
+    "scenarios" : [ "sequential", "sync" ],
+    "scale" : 0.25,
+    "repetitions" : 3
+  },
+  "results" : {
+    "jpa" : {
+      "sequential" : {
+        "summary" : {
+          "processes" : {
+            "median" : 500.0,
+            "min" : 500.0,
+            "max" : 500.0
+          },
+          "statuses.COMPLETED" : {
+            "median" : 500.0,
+            "min" : 500.0,
+            "max" : 500.0
+          },
+          "unexpected" : {
+            "median" : 0.0,
+            "min" : 0.0,
+            "max" : 0.0
+          },
+          "throughputPerSec" : {
+            "median" : 9.85,
+            "min" : 9.84,
+            "max" : 9.92
+          },
+          "stepExecutionsPerProcess" : {
+            "median" : 7.0,
+            "min" : 7.0,
+            "max" : 7.0
+          },
+          "stepExecutionsPerSec" : {
+            "median" : 68.96,
+            "min" : 68.85,
+            "max" : 69.47
+          },
+          "resources.samples" : {
+            "median" : 100.0,
+            "min" : 100.0,
+            "max" : 100.0
+          },
+          "resources.jvmCpuAvgCores" : {
+            "median" : 0.21,
+            "min" : 0.2,
+            "max" : 0.26
+          },
+          "resources.jvmCpuMaxCores" : {
+            "median" : 1.16,
+            "min" : 0.81,
+            "max" : 1.43
+          },
+          "resources.machineCpuAvgPct" : {
+            "median" : 25.61,
+            "min" : 23.27,
+            "max" : 25.74
+          },
+          "resources.heapMaxUsedMb" : {
+            "median" : 2344.0,
+            "min" : 1390.0,
+            "max" : 3696.0
+          },
+          "latencyRatePerSec" : {
+            "median" : 4.93,
+            "min" : 4.92,
+            "max" : 4.96
+          },
+          "latencyProcesses" : {
+            "median" : 99.0,
+            "min" : 98.0,
+            "max" : 99.0
+          },
+          "latencyMs.n" : {
+            "median" : 99.0,
+            "min" : 98.0,
+            "max" : 99.0
+          },
+          "latencyMs.p50" : {
+            "median" : 121.62,
+            "min" : 115.78,
+            "max" : 129.3
+          },
+          "latencyMs.p95" : {
+            "median" : 138.52,
+            "min" : 130.51,
+            "max" : 152.05
+          },
+          "latencyMs.p99" : {
+            "median" : 177.08,
+            "min" : 145.89,
+            "max" : 187.92
+          },
+          "latencyMs.max" : {
+            "median" : 177.08,
+            "min" : 145.89,
+            "max" : 187.92
+          },
+          "latencyResources.samples" : {
+            "median" : 39.0,
+            "min" : 39.0,
+            "max" : 39.0
+          },
+          "latencyResources.jvmCpuAvgCores" : {
+            "median" : 0.14,
+            "min" : 0.12,
+            "max" : 0.15
+          },
+          "latencyResources.jvmCpuMaxCores" : {
+            "median" : 0.22,
+            "min" : 0.18,
+            "max" : 0.25
+          },
+          "latencyResources.machineCpuAvgPct" : {
+            "median" : 18.51,
+            "min" : 17.98,
+            "max" : 18.91
+          },
+          "latencyResources.heapMaxUsedMb" : {
+            "median" : 1292.0,
+            "min" : 530.0,
+            "max" : 2720.0
+          },
+          "loadAverage" : {
+            "median" : 3.52,
+            "min" : 3.44,
+            "max" : 3.63
+          },
+          "wallSeconds" : {
+            "median" : 70.97,
+            "min" : 70.59,
+            "max" : 71.11
+          }
+        },
+        "repetitions" : [ {
+          "processes" : 500,
+          "statuses" : {
+            "COMPLETED" : 500
+          },
+          "unexpected" : 0,
+          "throughputPerSec" : 9.84,
+          "stepExecutionsPerProcess" : 7.0,
+          "stepExecutionsPerSec" : 68.85,
+          "resources" : {
+            "samples" : 100,
+            "jvmCpuAvgCores" : 0.26,
+            "jvmCpuMaxCores" : 1.43,
+            "machineCpuAvgPct" : 23.27,
+            "heapMaxUsedMb" : 1390
+          },
+          "latencyRatePerSec" : 4.92,
+          "latencyProcesses" : 98,
+          "latencyMs" : {
+            "n" : 98,
+            "p50" : 129.3,
+            "p95" : 152.05,
+            "p99" : 177.08,
+            "max" : 177.08
+          },
+          "latencyResources" : {
+            "samples" : 39,
+            "jvmCpuAvgCores" : 0.15,
+            "jvmCpuMaxCores" : 0.22,
+            "machineCpuAvgPct" : 17.98,
+            "heapMaxUsedMb" : 530
+          },
+          "loadAverage" : 3.63037109375,
+          "wallSeconds" : 70.97
+        }, {
+          "processes" : 500,
+          "statuses" : {
+            "COMPLETED" : 500
+          },
+          "unexpected" : 0,
+          "throughputPerSec" : 9.92,
+          "stepExecutionsPerProcess" : 7.0,
+          "stepExecutionsPerSec" : 69.47,
+          "resources" : {
+            "samples" : 100,
+            "jvmCpuAvgCores" : 0.21,
+            "jvmCpuMaxCores" : 1.16,
+            "machineCpuAvgPct" : 25.74,
+            "heapMaxUsedMb" : 2344
+          },
+          "latencyRatePerSec" : 4.96,
+          "latencyProcesses" : 99,
+          "latencyMs" : {
+            "n" : 99,
+            "p50" : 115.78,
+            "p95" : 130.51,
+            "p99" : 145.89,
+            "max" : 145.89
+          },
+          "latencyResources" : {
+            "samples" : 39,
+            "jvmCpuAvgCores" : 0.12,
+            "jvmCpuMaxCores" : 0.25,
+            "machineCpuAvgPct" : 18.51,
+            "heapMaxUsedMb" : 2720
+          },
+          "loadAverage" : 3.43994140625,
+          "wallSeconds" : 70.59
+        }, {
+          "processes" : 500,
+          "statuses" : {
+            "COMPLETED" : 500
+          },
+          "unexpected" : 0,
+          "throughputPerSec" : 9.85,
+          "stepExecutionsPerProcess" : 7.0,
+          "stepExecutionsPerSec" : 68.96,
+          "resources" : {
+            "samples" : 100,
+            "jvmCpuAvgCores" : 0.2,
+            "jvmCpuMaxCores" : 0.81,
+            "machineCpuAvgPct" : 25.61,
+            "heapMaxUsedMb" : 3696
+          },
+          "latencyRatePerSec" : 4.93,
+          "latencyProcesses" : 99,
+          "latencyMs" : {
+            "n" : 99,
+            "p50" : 121.62,
+            "p95" : 138.52,
+            "p99" : 187.92,
+            "max" : 187.92
+          },
+          "latencyResources" : {
+            "samples" : 39,
+            "jvmCpuAvgCores" : 0.14,
+            "jvmCpuMaxCores" : 0.18,
+            "machineCpuAvgPct" : 18.91,
+            "heapMaxUsedMb" : 1292
+          },
+          "loadAverage" : 3.52001953125,
+          "wallSeconds" : 71.11
+        } ]
+      },
+      "sync" : {
+        "summary" : {
+          "c1.requests" : {
+            "median" : 335.0,
+            "min" : 325.0,
+            "max" : 349.0
+          },
+          "c1.failures" : {
+            "median" : 0.0,
+            "min" : 0.0,
+            "max" : 0.0
+          },
+          "c1.throughputPerSec" : {
+            "median" : 22.29,
+            "min" : 21.67,
+            "max" : 23.22
+          },
+          "c1.latencyMs.n" : {
+            "median" : 335.0,
+            "min" : 325.0,
+            "max" : 349.0
+          },
+          "c1.latencyMs.p50" : {
+            "median" : 44.3,
+            "min" : 42.54,
+            "max" : 45.33
+          },
+          "c1.latencyMs.p95" : {
+            "median" : 54.54,
+            "min" : 50.97,
+            "max" : 57.12
+          },
+          "c1.latencyMs.p99" : {
+            "median" : 62.34,
+            "min" : 58.43,
+            "max" : 63.75
+          },
+          "c1.latencyMs.max" : {
+            "median" : 72.58,
+            "min" : 65.44,
+            "max" : 94.79
+          },
+          "c1.resources.samples" : {
+            "median" : 29.0,
+            "min" : 29.0,
+            "max" : 29.0
+          },
+          "c1.resources.jvmCpuAvgCores" : {
+            "median" : 0.25,
+            "min" : 0.25,
+            "max" : 0.25
+          },
+          "c1.resources.jvmCpuMaxCores" : {
+            "median" : 0.4,
+            "min" : 0.34,
+            "max" : 0.44
+          },
+          "c1.resources.machineCpuAvgPct" : {
+            "median" : 31.85,
+            "min" : 30.6,
+            "max" : 38.38
+          },
+          "c1.resources.heapMaxUsedMb" : {
+            "median" : 2719.0,
+            "min" : 2606.0,
+            "max" : 2757.0
+          },
+          "c4.requests" : {
+            "median" : 939.0,
+            "min" : 929.0,
+            "max" : 961.0
+          },
+          "c4.failures" : {
+            "median" : 0.0,
+            "min" : 0.0,
+            "max" : 0.0
+          },
+          "c4.throughputPerSec" : {
+            "median" : 62.3,
+            "min" : 61.66,
+            "max" : 63.87
+          },
+          "c4.latencyMs.n" : {
+            "median" : 939.0,
+            "min" : 929.0,
+            "max" : 961.0
+          },
+          "c4.latencyMs.p50" : {
+            "median" : 62.28,
+            "min" : 61.36,
+            "max" : 62.43
+          },
+          "c4.latencyMs.p95" : {
+            "median" : 77.08,
+            "min" : 75.48,
+            "max" : 80.67
+          },
+          "c4.latencyMs.p99" : {
+            "median" : 95.85,
+            "min" : 88.12,
+            "max" : 118.46
+          },
+          "c4.latencyMs.max" : {
+            "median" : 137.4,
+            "min" : 133.64,
+            "max" : 142.84
+          },
+          "c4.resources.samples" : {
+            "median" : 29.0,
+            "min" : 29.0,
+            "max" : 30.0
+          },
+          "c4.resources.jvmCpuAvgCores" : {
+            "median" : 0.48,
+            "min" : 0.46,
+            "max" : 0.48
+          },
+          "c4.resources.jvmCpuMaxCores" : {
+            "median" : 1.06,
+            "min" : 0.96,
+            "max" : 1.06
+          },
+          "c4.resources.machineCpuAvgPct" : {
+            "median" : 55.16,
+            "min" : 53.11,
+            "max" : 57.05
+          },
+          "c4.resources.heapMaxUsedMb" : {
+            "median" : 3687.0,
+            "min" : 3676.0,
+            "max" : 3703.0
+          },
+          "c16.requests" : {
+            "median" : 1189.0,
+            "min" : 1183.0,
+            "max" : 1246.0
+          },
+          "c16.failures" : {
+            "median" : 0.0,
+            "min" : 0.0,
+            "max" : 0.0
+          },
+          "c16.throughputPerSec" : {
+            "median" : 77.04,
+            "min" : 75.72,
+            "max" : 81.09
+          },
+          "c16.latencyMs.n" : {
+            "median" : 1189.0,
+            "min" : 1183.0,
+            "max" : 1246.0
+          },
+          "c16.latencyMs.p50" : {
+            "median" : 76.3,
+            "min" : 72.63,
+            "max" : 78.01
+          },
+          "c16.latencyMs.p95" : {
+            "median" : 965.94,
+            "min" : 915.77,
+            "max" : 977.54
+          },
+          "c16.latencyMs.p99" : {
+            "median" : 1080.55,
+            "min" : 1001.72,
+            "max" : 1099.89
+          },
+          "c16.latencyMs.max" : {
+            "median" : 1100.45,
+            "min" : 1038.22,
+            "max" : 1161.26
+          },
+          "c16.resources.samples" : {
+            "median" : 30.0,
+            "min" : 30.0,
+            "max" : 31.0
+          },
+          "c16.resources.jvmCpuAvgCores" : {
+            "median" : 0.57,
+            "min" : 0.54,
+            "max" : 0.61
+          },
+          "c16.resources.jvmCpuMaxCores" : {
+            "median" : 0.78,
+            "min" : 0.74,
+            "max" : 0.78
+          },
+          "c16.resources.machineCpuAvgPct" : {
+            "median" : 61.13,
+            "min" : 60.21,
+            "max" : 63.31
+          },
+          "c16.resources.heapMaxUsedMb" : {
+            "median" : 2247.0,
+            "min" : 2237.0,
+            "max" : 2329.0
+          },
+          "loadAverage" : {
+            "median" : 8.11,
+            "min" : 6.39,
+            "max" : 8.79
+          },
+          "wallSeconds" : {
+            "median" : 46.43,
+            "min" : 46.21,
+            "max" : 46.7
+          }
+        },
+        "repetitions" : [ {
+          "c1" : {
+            "requests" : 335,
+            "failures" : 0,
+            "throughputPerSec" : 22.29,
+            "latencyMs" : {
+              "n" : 335,
+              "p50" : 44.3,
+              "p95" : 54.54,
+              "p99" : 62.34,
+              "max" : 94.79
+            },
+            "resources" : {
+              "samples" : 29,
+              "jvmCpuAvgCores" : 0.25,
+              "jvmCpuMaxCores" : 0.34,
+              "machineCpuAvgPct" : 30.6,
+              "heapMaxUsedMb" : 2606
+            }
+          },
+          "c4" : {
+            "requests" : 939,
+            "failures" : 0,
+            "throughputPerSec" : 62.3,
+            "latencyMs" : {
+              "n" : 939,
+              "p50" : 62.28,
+              "p95" : 77.08,
+              "p99" : 95.85,
+              "max" : 137.4
+            },
+            "resources" : {
+              "samples" : 29,
+              "jvmCpuAvgCores" : 0.48,
+              "jvmCpuMaxCores" : 0.96,
+              "machineCpuAvgPct" : 53.11,
+              "heapMaxUsedMb" : 3676
+            }
+          },
+          "c16" : {
+            "requests" : 1246,
+            "failures" : 0,
+            "throughputPerSec" : 81.09,
+            "latencyMs" : {
+              "n" : 1246,
+              "p50" : 72.63,
+              "p95" : 915.77,
+              "p99" : 1001.72,
+              "max" : 1038.22
+            },
+            "resources" : {
+              "samples" : 30,
+              "jvmCpuAvgCores" : 0.61,
+              "jvmCpuMaxCores" : 0.78,
+              "machineCpuAvgPct" : 60.21,
+              "heapMaxUsedMb" : 2237
+            }
+          },
+          "loadAverage" : 6.3896484375,
+          "wallSeconds" : 46.21
+        }, {
+          "c1" : {
+            "requests" : 325,
+            "failures" : 0,
+            "throughputPerSec" : 21.67,
+            "latencyMs" : {
+              "n" : 325,
+              "p50" : 45.33,
+              "p95" : 57.12,
+              "p99" : 63.75,
+              "max" : 72.58
+            },
+            "resources" : {
+              "samples" : 29,
+              "jvmCpuAvgCores" : 0.25,
+              "jvmCpuMaxCores" : 0.4,
+              "machineCpuAvgPct" : 38.38,
+              "heapMaxUsedMb" : 2719
+            }
+          },
+          "c4" : {
+            "requests" : 929,
+            "failures" : 0,
+            "throughputPerSec" : 61.66,
+            "latencyMs" : {
+              "n" : 929,
+              "p50" : 62.43,
+              "p95" : 80.67,
+              "p99" : 118.46,
+              "max" : 142.84
+            },
+            "resources" : {
+              "samples" : 30,
+              "jvmCpuAvgCores" : 0.48,
+              "jvmCpuMaxCores" : 1.06,
+              "machineCpuAvgPct" : 57.05,
+              "heapMaxUsedMb" : 3687
+            }
+          },
+          "c16" : {
+            "requests" : 1189,
+            "failures" : 0,
+            "throughputPerSec" : 77.04,
+            "latencyMs" : {
+              "n" : 1189,
+              "p50" : 76.3,
+              "p95" : 965.94,
+              "p99" : 1080.55,
+              "max" : 1100.45
+            },
+            "resources" : {
+              "samples" : 30,
+              "jvmCpuAvgCores" : 0.57,
+              "jvmCpuMaxCores" : 0.74,
+              "machineCpuAvgPct" : 63.31,
+              "heapMaxUsedMb" : 2247
+            }
+          },
+          "loadAverage" : 8.1083984375,
+          "wallSeconds" : 46.43
+        }, {
+          "c1" : {
+            "requests" : 349,
+            "failures" : 0,
+            "throughputPerSec" : 23.22,
+            "latencyMs" : {
+              "n" : 349,
+              "p50" : 42.54,
+              "p95" : 50.97,
+              "p99" : 58.43,
+              "max" : 65.44
+            },
+            "resources" : {
+              "samples" : 29,
+              "jvmCpuAvgCores" : 0.25,
+              "jvmCpuMaxCores" : 0.44,
+              "machineCpuAvgPct" : 31.85,
+              "heapMaxUsedMb" : 2757
+            }
+          },
+          "c4" : {
+            "requests" : 961,
+            "failures" : 0,
+            "throughputPerSec" : 63.87,
+            "latencyMs" : {
+              "n" : 961,
+              "p50" : 61.36,
+              "p95" : 75.48,
+              "p99" : 88.12,
+              "max" : 133.64
+            },
+            "resources" : {
+              "samples" : 29,
+              "jvmCpuAvgCores" : 0.46,
+              "jvmCpuMaxCores" : 1.06,
+              "machineCpuAvgPct" : 55.16,
+              "heapMaxUsedMb" : 3703
+            }
+          },
+          "c16" : {
+            "requests" : 1183,
+            "failures" : 0,
+            "throughputPerSec" : 75.72,
+            "latencyMs" : {
+              "n" : 1183,
+              "p50" : 78.01,
+              "p95" : 977.54,
+              "p99" : 1099.89,
+              "max" : 1161.26
+            },
+            "resources" : {
+              "samples" : 31,
+              "jvmCpuAvgCores" : 0.54,
+              "jvmCpuMaxCores" : 0.78,
+              "machineCpuAvgPct" : 61.13,
+              "heapMaxUsedMb" : 2329
+            }
+          },
+          "loadAverage" : 8.78662109375,
+          "wallSeconds" : 46.7
+        } ]
+      }
+    },
+    "kafka1" : {
+      "sequential" : {
+        "summary" : {
+          "processes" : {
+            "median" : 500.0,
+            "min" : 500.0,
+            "max" : 500.0
+          },
+          "statuses.COMPLETED" : {
+            "median" : 500.0,
+            "min" : 500.0,
+            "max" : 500.0
+          },
+          "unexpected" : {
+            "median" : 0.0,
+            "min" : 0.0,
+            "max" : 0.0
+          },
+          "throughputPerSec" : {
+            "median" : 41.51,
+            "min" : 40.18,
+            "max" : 43.31
+          },
+          "stepExecutionsPerProcess" : {
+            "median" : 7.0,
+            "min" : 7.0,
+            "max" : 7.0
+          },
+          "stepExecutionsPerSec" : {
+            "median" : 290.57,
+            "min" : 281.24,
+            "max" : 303.2
+          },
+          "resources.samples" : {
+            "median" : 24.0,
+            "min" : 23.0,
+            "max" : 24.0
+          },
+          "resources.jvmCpuAvgCores" : {
+            "median" : 0.65,
+            "min" : 0.6,
+            "max" : 1.24
+          },
+          "resources.jvmCpuMaxCores" : {
+            "median" : 0.95,
+            "min" : 0.85,
+            "max" : 1.86
+          },
+          "resources.machineCpuAvgPct" : {
+            "median" : 55.43,
+            "min" : 52.93,
+            "max" : 72.13
+          },
+          "resources.heapMaxUsedMb" : {
+            "median" : 2606.0,
+            "min" : 2429.0,
+            "max" : 3049.0
+          },
+          "latencyRatePerSec" : {
+            "median" : 20.75,
+            "min" : 20.09,
+            "max" : 21.66
+          },
+          "latencyProcesses" : {
+            "median" : 415.0,
+            "min" : 402.0,
+            "max" : 433.0
+          },
+          "latencyMs.n" : {
+            "median" : 415.0,
+            "min" : 402.0,
+            "max" : 433.0
+          },
+          "latencyMs.p50" : {
+            "median" : 193.58,
+            "min" : 191.41,
+            "max" : 207.55
+          },
+          "latencyMs.p95" : {
+            "median" : 287.88,
+            "min" : 284.89,
+            "max" : 290.37
+          },
+          "latencyMs.p99" : {
+            "median" : 312.44,
+            "min" : 307.05,
+            "max" : 360.63
+          },
+          "latencyMs.max" : {
+            "median" : 361.53,
+            "min" : 339.06,
+            "max" : 399.35
+          },
+          "latencyResources.samples" : {
+            "median" : 40.0,
+            "min" : 40.0,
+            "max" : 40.0
+          },
+          "latencyResources.jvmCpuAvgCores" : {
+            "median" : 0.5,
+            "min" : 0.5,
+            "max" : 0.59
+          },
+          "latencyResources.jvmCpuMaxCores" : {
+            "median" : 1.32,
+            "min" : 1.2,
+            "max" : 1.41
+          },
+          "latencyResources.machineCpuAvgPct" : {
+            "median" : 41.84,
+            "min" : 41.41,
+            "max" : 42.8
+          },
+          "latencyResources.heapMaxUsedMb" : {
+            "median" : 3691.0,
+            "min" : 3675.0,
+            "max" : 3701.0
+          },
+          "loadAverage" : {
+            "median" : 7.98,
+            "min" : 7.7,
+            "max" : 8.63
+          },
+          "wallSeconds" : {
+            "median" : 34.69,
+            "min" : 34.12,
+            "max" : 34.98
+          }
+        },
+        "repetitions" : [ {
+          "processes" : 500,
+          "statuses" : {
+            "COMPLETED" : 500
+          },
+          "unexpected" : 0,
+          "throughputPerSec" : 40.18,
+          "stepExecutionsPerProcess" : 7.0,
+          "stepExecutionsPerSec" : 281.24,
+          "resources" : {
+            "samples" : 24,
+            "jvmCpuAvgCores" : 1.24,
+            "jvmCpuMaxCores" : 1.86,
+            "machineCpuAvgPct" : 72.13,
+            "heapMaxUsedMb" : 2606
+          },
+          "latencyRatePerSec" : 20.09,
+          "latencyProcesses" : 402,
+          "latencyMs" : {
+            "n" : 402,
+            "p50" : 191.41,
+            "p95" : 290.37,
+            "p99" : 360.63,
+            "max" : 399.35
+          },
+          "latencyResources" : {
+            "samples" : 40,
+            "jvmCpuAvgCores" : 0.59,
+            "jvmCpuMaxCores" : 1.32,
+            "machineCpuAvgPct" : 41.84,
+            "heapMaxUsedMb" : 3675
+          },
+          "loadAverage" : 8.62646484375,
+          "wallSeconds" : 34.98
+        }, {
+          "processes" : 500,
+          "statuses" : {
+            "COMPLETED" : 500
+          },
+          "unexpected" : 0,
+          "throughputPerSec" : 41.51,
+          "stepExecutionsPerProcess" : 7.0,
+          "stepExecutionsPerSec" : 290.57,
+          "resources" : {
+            "samples" : 24,
+            "jvmCpuAvgCores" : 0.65,
+            "jvmCpuMaxCores" : 0.95,
+            "machineCpuAvgPct" : 55.43,
+            "heapMaxUsedMb" : 3049
+          },
+          "latencyRatePerSec" : 20.75,
+          "latencyProcesses" : 415,
+          "latencyMs" : {
+            "n" : 415,
+            "p50" : 207.55,
+            "p95" : 287.88,
+            "p99" : 307.05,
+            "max" : 361.53
+          },
+          "latencyResources" : {
+            "samples" : 40,
+            "jvmCpuAvgCores" : 0.5,
+            "jvmCpuMaxCores" : 1.41,
+            "machineCpuAvgPct" : 41.41,
+            "heapMaxUsedMb" : 3701
+          },
+          "loadAverage" : 7.982421875,
+          "wallSeconds" : 34.69
+        }, {
+          "processes" : 500,
+          "statuses" : {
+            "COMPLETED" : 500
+          },
+          "unexpected" : 0,
+          "throughputPerSec" : 43.31,
+          "stepExecutionsPerProcess" : 7.0,
+          "stepExecutionsPerSec" : 303.2,
+          "resources" : {
+            "samples" : 23,
+            "jvmCpuAvgCores" : 0.6,
+            "jvmCpuMaxCores" : 0.85,
+            "machineCpuAvgPct" : 52.93,
+            "heapMaxUsedMb" : 2429
+          },
+          "latencyRatePerSec" : 21.66,
+          "latencyProcesses" : 433,
+          "latencyMs" : {
+            "n" : 433,
+            "p50" : 193.58,
+            "p95" : 284.89,
+            "p99" : 312.44,
+            "max" : 339.06
+          },
+          "latencyResources" : {
+            "samples" : 40,
+            "jvmCpuAvgCores" : 0.5,
+            "jvmCpuMaxCores" : 1.2,
+            "machineCpuAvgPct" : 42.8,
+            "heapMaxUsedMb" : 3691
+          },
+          "loadAverage" : 7.69677734375,
+          "wallSeconds" : 34.12
+        } ]
+      },
+      "sync" : {
+        "summary" : {
+          "c1.requests" : {
+            "median" : 345.0,
+            "min" : 336.0,
+            "max" : 357.0
+          },
+          "c1.failures" : {
+            "median" : 0.0,
+            "min" : 0.0,
+            "max" : 0.0
+          },
+          "c1.throughputPerSec" : {
+            "median" : 22.81,
+            "min" : 22.4,
+            "max" : 23.74
+          },
+          "c1.latencyMs.n" : {
+            "median" : 345.0,
+            "min" : 336.0,
+            "max" : 357.0
+          },
+          "c1.latencyMs.p50" : {
+            "median" : 42.4,
+            "min" : 41.37,
+            "max" : 43.55
+          },
+          "c1.latencyMs.p95" : {
+            "median" : 52.74,
+            "min" : 49.35,
+            "max" : 52.88
+          },
+          "c1.latencyMs.p99" : {
+            "median" : 59.05,
+            "min" : 53.3,
+            "max" : 73.41
+          },
+          "c1.latencyMs.max" : {
+            "median" : 107.84,
+            "min" : 83.86,
+            "max" : 155.64
+          },
+          "c1.resources.samples" : {
+            "median" : 29.0,
+            "min" : 29.0,
+            "max" : 29.0
+          },
+          "c1.resources.jvmCpuAvgCores" : {
+            "median" : 0.31,
+            "min" : 0.29,
+            "max" : 0.32
+          },
+          "c1.resources.jvmCpuMaxCores" : {
+            "median" : 0.36,
+            "min" : 0.36,
+            "max" : 0.38
+          },
+          "c1.resources.machineCpuAvgPct" : {
+            "median" : 27.98,
+            "min" : 27.49,
+            "max" : 29.0
+          },
+          "c1.resources.heapMaxUsedMb" : {
+            "median" : 2640.0,
+            "min" : 1210.0,
+            "max" : 3718.0
+          },
+          "c4.requests" : {
+            "median" : 1013.0,
+            "min" : 991.0,
+            "max" : 1017.0
+          },
+          "c4.failures" : {
+            "median" : 0.0,
+            "min" : 0.0,
+            "max" : 0.0
+          },
+          "c4.throughputPerSec" : {
+            "median" : 67.24,
+            "min" : 65.83,
+            "max" : 67.47
+          },
+          "c4.latencyMs.n" : {
+            "median" : 1013.0,
+            "min" : 991.0,
+            "max" : 1017.0
+          },
+          "c4.latencyMs.p50" : {
+            "median" : 58.5,
+            "min" : 58.07,
+            "max" : 59.12
+          },
+          "c4.latencyMs.p95" : {
+            "median" : 73.61,
+            "min" : 73.05,
+            "max" : 76.17
+          },
+          "c4.latencyMs.p99" : {
+            "median" : 82.67,
+            "min" : 81.18,
+            "max" : 85.23
+          },
+          "c4.latencyMs.max" : {
+            "median" : 102.41,
+            "min" : 101.34,
+            "max" : 171.92
+          },
+          "c4.resources.samples" : {
+            "median" : 30.0,
+            "min" : 29.0,
+            "max" : 30.0
+          },
+          "c4.resources.jvmCpuAvgCores" : {
+            "median" : 0.54,
+            "min" : 0.54,
+            "max" : 0.57
+          },
+          "c4.resources.jvmCpuMaxCores" : {
+            "median" : 0.7,
+            "min" : 0.66,
+            "max" : 1.52
+          },
+          "c4.resources.machineCpuAvgPct" : {
+            "median" : 54.61,
+            "min" : 54.53,
+            "max" : 54.7
+          },
+          "c4.resources.heapMaxUsedMb" : {
+            "median" : 2929.0,
+            "min" : 1888.0,
+            "max" : 3684.0
+          },
+          "c16.requests" : {
+            "median" : 1431.0,
+            "min" : 1420.0,
+            "max" : 1459.0
+          },
+          "c16.failures" : {
+            "median" : 0.0,
+            "min" : 0.0,
+            "max" : 0.0
+          },
+          "c16.throughputPerSec" : {
+            "median" : 94.16,
+            "min" : 93.47,
+            "max" : 95.76
+          },
+          "c16.latencyMs.n" : {
+            "median" : 1431.0,
+            "min" : 1420.0,
+            "max" : 1459.0
+          },
+          "c16.latencyMs.p50" : {
+            "median" : 148.37,
+            "min" : 147.28,
+            "max" : 153.61
+          },
+          "c16.latencyMs.p95" : {
+            "median" : 290.74,
+            "min" : 290.11,
+            "max" : 300.2
+          },
+          "c16.latencyMs.p99" : {
+            "median" : 536.99,
+            "min" : 445.99,
+            "max" : 546.8
+          },
+          "c16.latencyMs.max" : {
+            "median" : 868.04,
+            "min" : 800.55,
+            "max" : 894.16
+          },
+          "c16.resources.samples" : {
+            "median" : 30.0,
+            "min" : 30.0,
+            "max" : 30.0
+          },
+          "c16.resources.jvmCpuAvgCores" : {
+            "median" : 0.85,
+            "min" : 0.82,
+            "max" : 0.87
+          },
+          "c16.resources.jvmCpuMaxCores" : {
+            "median" : 1.58,
+            "min" : 1.05,
+            "max" : 1.77
+          },
+          "c16.resources.machineCpuAvgPct" : {
+            "median" : 70.82,
+            "min" : 70.09,
+            "max" : 75.78
+          },
+          "c16.resources.heapMaxUsedMb" : {
+            "median" : 3722.0,
+            "min" : 3132.0,
+            "max" : 3745.0
+          },
+          "loadAverage" : {
+            "median" : 8.5,
+            "min" : 8.14,
+            "max" : 8.88
+          },
+          "wallSeconds" : {
+            "median" : 49.47,
+            "min" : 49.34,
+            "max" : 50.24
+          }
+        },
+        "repetitions" : [ {
+          "c1" : {
+            "requests" : 336,
+            "failures" : 0,
+            "throughputPerSec" : 22.4,
+            "latencyMs" : {
+              "n" : 336,
+              "p50" : 43.55,
+              "p95" : 52.74,
+              "p99" : 73.41,
+              "max" : 107.84
+            },
+            "resources" : {
+              "samples" : 29,
+              "jvmCpuAvgCores" : 0.31,
+              "jvmCpuMaxCores" : 0.36,
+              "machineCpuAvgPct" : 29.0,
+              "heapMaxUsedMb" : 2640
+            }
+          },
+          "c4" : {
+            "requests" : 991,
+            "failures" : 0,
+            "throughputPerSec" : 65.83,
+            "latencyMs" : {
+              "n" : 991,
+              "p50" : 59.12,
+              "p95" : 76.17,
+              "p99" : 85.23,
+              "max" : 171.92
+            },
+            "resources" : {
+              "samples" : 29,
+              "jvmCpuAvgCores" : 0.57,
+              "jvmCpuMaxCores" : 1.52,
+              "machineCpuAvgPct" : 54.53,
+              "heapMaxUsedMb" : 3684
+            }
+          },
+          "c16" : {
+            "requests" : 1459,
+            "failures" : 0,
+            "throughputPerSec" : 95.76,
+            "latencyMs" : {
+              "n" : 1459,
+              "p50" : 147.28,
+              "p95" : 290.74,
+              "p99" : 536.99,
+              "max" : 894.16
+            },
+            "resources" : {
+              "samples" : 30,
+              "jvmCpuAvgCores" : 0.82,
+              "jvmCpuMaxCores" : 1.05,
+              "machineCpuAvgPct" : 70.82,
+              "heapMaxUsedMb" : 3132
+            }
+          },
+          "loadAverage" : 8.1376953125,
+          "wallSeconds" : 50.24
+        }, {
+          "c1" : {
+            "requests" : 345,
+            "failures" : 0,
+            "throughputPerSec" : 22.81,
+            "latencyMs" : {
+              "n" : 345,
+              "p50" : 42.4,
+              "p95" : 52.88,
+              "p99" : 59.05,
+              "max" : 155.64
+            },
+            "resources" : {
+              "samples" : 29,
+              "jvmCpuAvgCores" : 0.29,
+              "jvmCpuMaxCores" : 0.36,
+              "machineCpuAvgPct" : 27.49,
+              "heapMaxUsedMb" : 3718
+            }
+          },
+          "c4" : {
+            "requests" : 1017,
+            "failures" : 0,
+            "throughputPerSec" : 67.47,
+            "latencyMs" : {
+              "n" : 1017,
+              "p50" : 58.07,
+              "p95" : 73.61,
+              "p99" : 81.18,
+              "max" : 102.41
+            },
+            "resources" : {
+              "samples" : 30,
+              "jvmCpuAvgCores" : 0.54,
+              "jvmCpuMaxCores" : 0.7,
+              "machineCpuAvgPct" : 54.61,
+              "heapMaxUsedMb" : 1888
+            }
+          },
+          "c16" : {
+            "requests" : 1420,
+            "failures" : 0,
+            "throughputPerSec" : 93.47,
+            "latencyMs" : {
+              "n" : 1420,
+              "p50" : 153.61,
+              "p95" : 290.11,
+              "p99" : 546.8,
+              "max" : 868.04
+            },
+            "resources" : {
+              "samples" : 30,
+              "jvmCpuAvgCores" : 0.87,
+              "jvmCpuMaxCores" : 1.58,
+              "machineCpuAvgPct" : 75.78,
+              "heapMaxUsedMb" : 3722
+            }
+          },
+          "loadAverage" : 8.880859375,
+          "wallSeconds" : 49.47
+        }, {
+          "c1" : {
+            "requests" : 357,
+            "failures" : 0,
+            "throughputPerSec" : 23.74,
+            "latencyMs" : {
+              "n" : 357,
+              "p50" : 41.37,
+              "p95" : 49.35,
+              "p99" : 53.3,
+              "max" : 83.86
+            },
+            "resources" : {
+              "samples" : 29,
+              "jvmCpuAvgCores" : 0.32,
+              "jvmCpuMaxCores" : 0.38,
+              "machineCpuAvgPct" : 27.98,
+              "heapMaxUsedMb" : 1210
+            }
+          },
+          "c4" : {
+            "requests" : 1013,
+            "failures" : 0,
+            "throughputPerSec" : 67.24,
+            "latencyMs" : {
+              "n" : 1013,
+              "p50" : 58.5,
+              "p95" : 73.05,
+              "p99" : 82.67,
+              "max" : 101.34
+            },
+            "resources" : {
+              "samples" : 30,
+              "jvmCpuAvgCores" : 0.54,
+              "jvmCpuMaxCores" : 0.66,
+              "machineCpuAvgPct" : 54.7,
+              "heapMaxUsedMb" : 2929
+            }
+          },
+          "c16" : {
+            "requests" : 1431,
+            "failures" : 0,
+            "throughputPerSec" : 94.16,
+            "latencyMs" : {
+              "n" : 1431,
+              "p50" : 148.37,
+              "p95" : 300.2,
+              "p99" : 445.99,
+              "max" : 800.55
+            },
+            "resources" : {
+              "samples" : 30,
+              "jvmCpuAvgCores" : 0.85,
+              "jvmCpuMaxCores" : 1.77,
+              "machineCpuAvgPct" : 70.09,
+              "heapMaxUsedMb" : 3745
+            }
+          },
+          "loadAverage" : 8.50048828125,
+          "wallSeconds" : 49.34
+        } ]
+      }
+    }
+  },
+  "modeSettings" : {
+    "jpa" : {
+      "logging.level.io.mateu.workflow" : "WARN",
+      "logging.level.root" : "WARN",
+      "spring.application.name" : "suite-jpa",
+      "spring.datasource.hikari.maximum-pool-size" : "10",
+      "spring.datasource.username" : "suite",
+      "spring.flyway.enabled" : "false",
+      "spring.jpa.hibernate.ddl-auto" : "update",
+      "spring.jpa.open-in-view" : "false",
+      "spring.jpa.properties.hibernate.jdbc.batch_size" : "20",
+      "spring.jpa.properties.hibernate.order_inserts" : "true",
+      "spring.jpa.properties.hibernate.order_updates" : "true",
+      "spring.main.banner-mode" : "off",
+      "spring.main.web-application-type" : "none",
+      "workflow.cron-enabled" : "false",
+      "workflow.mode" : "embedded",
+      "workflow.persistence" : "jpa",
+      "workflow.schema.enabled" : "true"
+    },
+    "kafka1" : {
+      "pod: logging.level.io.mateu.workflow" : "WARN",
+      "pod: logging.level.root" : "WARN",
+      "pod: spring.application.name" : "suite-pod-0",
+      "pod: spring.cloud.function.definition" : "consumeOutbox;consumeUpstream",
+      "pod: spring.cloud.stream.bindings.consumeOutbox-in-0.consumer.batch-mode" : "true",
+      "pod: spring.cloud.stream.bindings.consumeOutbox-in-0.consumer.concurrency" : "3",
+      "pod: spring.cloud.stream.bindings.consumeOutbox-in-0.destination" : "outbox",
+      "pod: spring.cloud.stream.bindings.consumeOutbox-in-0.group" : "orchestrator-outbox",
+      "pod: spring.cloud.stream.bindings.consumeUpstream-in-0.consumer.batch-mode" : "true",
+      "pod: spring.cloud.stream.bindings.consumeUpstream-in-0.consumer.concurrency" : "3",
+      "pod: spring.cloud.stream.bindings.consumeUpstream-in-0.destination" : "upstream",
+      "pod: spring.cloud.stream.bindings.consumeUpstream-in-0.group" : "orchestrator-upstream",
+      "pod: spring.cloud.stream.bindings.deadLetter.destination" : "dead-letter",
+      "pod: spring.cloud.stream.bindings.downstream.destination" : "downstream",
+      "pod: spring.cloud.stream.bindings.outbox.destination" : "outbox",
+      "pod: spring.cloud.stream.bindings.upstream.destination" : "upstream",
+      "pod: spring.datasource.hikari.maximum-pool-size" : "10",
+      "pod: spring.datasource.username" : "suite",
+      "pod: spring.flyway.enabled" : "false",
+      "pod: spring.jpa.hibernate.ddl-auto" : "update",
+      "pod: spring.jpa.open-in-view" : "false",
+      "pod: spring.jpa.properties.hibernate.jdbc.batch_size" : "20",
+      "pod: spring.jpa.properties.hibernate.order_inserts" : "true",
+      "pod: spring.jpa.properties.hibernate.order_updates" : "true",
+      "pod: spring.main.banner-mode" : "off",
+      "pod: spring.main.web-application-type" : "none",
+      "pod: workflow.cron-enabled" : "false",
+      "pod: workflow.mode" : "kafka",
+      "pod: workflow.persistence" : "jpa",
+      "pod: workflow.schema.enabled" : "true",
+      "pods" : 1,
+      "topic partitions" : 6,
+      "worker: logging.level.io.mateu.workflow" : "WARN",
+      "worker: logging.level.root" : "WARN",
+      "worker: spring.application.name" : "suite-worker",
+      "worker: spring.cloud.function.definition" : "consumeWorkerEvent",
+      "worker: spring.cloud.stream.bindings.consumeWorkerEvent-in-0.consumer.concurrency" : "6",
+      "worker: spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination" : "downstream",
+      "worker: spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group" : "suite-worker",
+      "worker: spring.cloud.stream.bindings.upstream.destination" : "upstream",
+      "worker: spring.main.banner-mode" : "off",
+      "worker: spring.main.web-application-type" : "none",
+      "worker: workflow.cron-enabled" : "false",
+      "worker: workflow.mode" : "kafka"
+    }
+  },
+  "containersAfterMode" : {
+    "jpa" : {
+      "postgres" : "0.18% cpu, 110.7MiB / 23.43GiB"
+    },
+    "kafka1" : {
+      "postgres" : "0.07% cpu, 163.4MiB / 23.43GiB",
+      "redpanda" : "0.30% cpu, 393.9MiB / 23.43GiB"
+    }
+  },
+  "versions" : {
+    "postgresImage" : "postgres:16-alpine",
+    "postgresVersion" : "16.14",
+    "postgresMaxConnections" : "100",
+    "postgresSharedBuffers" : "128MB",
+    "postgresSynchronousCommit" : "on",
+    "postgresFsync" : "off",
+    "redpandaImage" : "docker.redpanda.com/redpandadata/redpanda:v24.1.7",
+    "redpandaFlags" : "testcontainers default: --mode=dev-container --smp=1 --memory=1G",
+    "redpandaVersion" : "Version: v24.1.7 Git ref: 53e6eab6ab Build date: 2024-06-06T20:05:27Z OS/Arch: linux/arm64 Go version: go1.22.2 Redpanda Cluster node-0 v24.1.7 - 53e6eab6abe26155d840c7ae960f71153f1b66af"
+  },
+  "finishedAt" : "2026-10-19T21:35:20.117027",
+  "loadAverageAtEnd" : 10.2216796875
+}

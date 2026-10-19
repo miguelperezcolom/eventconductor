@@ -1,0 +1,20 @@
+{
+  "id": "suite-saga",
+  "name": "Benchmark suite: four-step saga that fails at the last step and compensates",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "s1", "type": "ACTION", "name": "Step 1", "preconditionStepId": "start",
+      "compensable": true, "compensationStepId": "undo-s1" },
+    { "id": "s2", "type": "ACTION", "name": "Step 2", "preconditionStepId": "s1",
+      "compensable": true, "compensationStepId": "undo-s2" },
+    { "id": "s3", "type": "ACTION", "name": "Step 3", "preconditionStepId": "s2",
+      "compensable": true, "compensationStepId": "undo-s3" },
+    { "id": "fail-s4", "type": "ACTION", "name": "Step 4 (always fails)", "preconditionStepId": "s3",
+      "retries": 0 },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "fail-s4" },
+    { "id": "undo-s1", "type": "ACTION", "name": "Undo step 1" },
+    { "id": "undo-s2", "type": "ACTION", "name": "Undo step 2" },
+    { "id": "undo-s3", "type": "ACTION", "name": "Undo step 3" }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "suite-message",
+  "name": "Benchmark suite: wait for a message correlated by business key",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "wait", "type": "WAIT_FOR_MESSAGE", "name": "Wait for go", "messageName": "suite-go",
+      "correlationExpression": "businessKey", "preconditionStepId": "start" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "wait" }
+  ]
+}

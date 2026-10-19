@@ -421,6 +421,12 @@ The defaults (`embedded` + `memory`) run entirely in-process with no external
 dependencies, so you can start small and grow into JPA and then Kafka as your
 needs scale.
 
+What each mode costs on one machine — throughput, latency, timer accuracy, correlation and
+synchronous-invocation numbers for all three, measured the same way — is in
+[Benchmarks (local)](doc/src/content/docs/reference/benchmarks.md), reproducible with
+`scripts/benchmark.sh`. Read it as a comparison between modes and an order of magnitude, not as a
+capacity figure.
+
 ### Mode 1 — Full distributed (`kafka` + `jpa`)
 
 Requires a running Kafka broker and PostgreSQL database.

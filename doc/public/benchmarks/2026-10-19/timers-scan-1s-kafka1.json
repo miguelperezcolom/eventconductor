@@ -1,0 +1,251 @@
+{
+  "runId" : "1019215152",
+  "startedAt" : "2026-10-19T21:51:52.013137",
+  "environment" : {
+    "ecCommit" : "ad129191-dirty",
+    "ecVersion" : "v2.31.0-1-gad1291911",
+    "machine" : "Apple M3 Max, 14 cores (10 performance + 4 efficiency), 36 GB RAM, macOS 15.6.1",
+    "os" : "Mac OS X 15.6.1 aarch64",
+    "cpus" : 14,
+    "jdk" : "Amazon.com Inc. 21.0.8+9-LTS",
+    "jvmArgs" : [ "-Xms6g", "-Xmx6g", "-XX:+UseG1GC", "-Dsuite.out=<output dir>", "-Dsuite.commit=ad129191-dirty", "-Dsuite.version=v2.31.0-1-gad1291911", "-Dsuite.machine=Apple M3 Max, 14 cores (10 performance + 4 efficiency), 36 GB RAM, macOS 15.6.1", "-Dsuite.docker=Docker 27.4.0 (Docker Desktop), 14 CPUs, 23 GB", "-Dsuite.background=load average 5.72 6.45 7.33; 7 java processes and 2 containers already running before the suite started", "-Dsuite.modes=kafka1", "-Dsuite.scenarios=timers", "-Dsuite.engine.workflow.timeout-scan-interval-ms=1000" ],
+    "maxHeapMb" : 6144,
+    "docker" : "Docker 27.4.0 (Docker Desktop), 14 CPUs, 23 GB",
+    "loadAverageAtStart" : 5.7216796875,
+    "backgroundLoad" : "load average 5.72 6.45 7.33; 7 java processes and 2 containers already running before the suite started"
+  },
+  "parameters" : {
+    "driverThreads" : 8,
+    "repetitions" : 3,
+    "scale" : 1.0,
+    "scenarios" : [ "timers" ],
+    "modes" : [ "kafka1" ]
+  },
+  "results" : {
+    "kafka1" : {
+      "timers" : {
+        "summary" : {
+          "submitSeconds" : {
+            "median" : 0.06,
+            "min" : 0.04,
+            "max" : 0.1
+          },
+          "processes" : {
+            "median" : 10000.0,
+            "min" : 10000.0,
+            "max" : 10000.0
+          },
+          "statuses.COMPLETED" : {
+            "median" : 10000.0,
+            "min" : 10000.0,
+            "max" : 10000.0
+          },
+          "throughputPerSec" : {
+            "median" : 153.13,
+            "min" : 135.13,
+            "max" : 161.36
+          },
+          "latenessMs.n" : {
+            "median" : 10000.0,
+            "min" : 10000.0,
+            "max" : 10000.0
+          },
+          "latenessMs.p50" : {
+            "median" : 1254.79,
+            "min" : 1135.82,
+            "max" : 1320.0
+          },
+          "latenessMs.p95" : {
+            "median" : 14381.1,
+            "min" : 13443.59,
+            "max" : 14554.75
+          },
+          "latenessMs.p99" : {
+            "median" : 17287.48,
+            "min" : 17263.63,
+            "max" : 20494.35
+          },
+          "latenessMs.max" : {
+            "median" : 18966.43,
+            "min" : 18866.85,
+            "max" : 22228.51
+          },
+          "resources.samples" : {
+            "median" : 130.0,
+            "min" : 123.0,
+            "max" : 148.0
+          },
+          "resources.jvmCpuAvgCores" : {
+            "median" : 0.7,
+            "min" : 0.69,
+            "max" : 0.77
+          },
+          "resources.jvmCpuMaxCores" : {
+            "median" : 1.85,
+            "min" : 1.79,
+            "max" : 3.4
+          },
+          "resources.machineCpuAvgPct" : {
+            "median" : 59.31,
+            "min" : 58.73,
+            "max" : 59.73
+          },
+          "resources.heapMaxUsedMb" : {
+            "median" : 3743.0,
+            "min" : 3726.0,
+            "max" : 3748.0
+          },
+          "loadAverage" : {
+            "median" : 9.55,
+            "min" : 8.17,
+            "max" : 10.81
+          },
+          "wallSeconds" : {
+            "median" : 66.89,
+            "min" : 63.49,
+            "max" : 75.68
+          }
+        },
+        "repetitions" : [ {
+          "submitSeconds" : 0.06,
+          "processes" : 10000,
+          "statuses" : {
+            "COMPLETED" : 10000
+          },
+          "throughputPerSec" : 135.13,
+          "latenessMs" : {
+            "n" : 10000,
+            "p50" : 1135.82,
+            "p95" : 14381.1,
+            "p99" : 20494.35,
+            "max" : 22228.51
+          },
+          "resources" : {
+            "samples" : 148,
+            "jvmCpuAvgCores" : 0.77,
+            "jvmCpuMaxCores" : 3.4,
+            "machineCpuAvgPct" : 59.31,
+            "heapMaxUsedMb" : 3726
+          },
+          "loadAverage" : 8.17236328125,
+          "wallSeconds" : 75.68
+        }, {
+          "submitSeconds" : 0.1,
+          "processes" : 10000,
+          "statuses" : {
+            "COMPLETED" : 10000
+          },
+          "throughputPerSec" : 153.13,
+          "latenessMs" : {
+            "n" : 10000,
+            "p50" : 1254.79,
+            "p95" : 13443.59,
+            "p99" : 17287.48,
+            "max" : 18966.43
+          },
+          "resources" : {
+            "samples" : 130,
+            "jvmCpuAvgCores" : 0.69,
+            "jvmCpuMaxCores" : 1.79,
+            "machineCpuAvgPct" : 59.73,
+            "heapMaxUsedMb" : 3748
+          },
+          "loadAverage" : 10.814453125,
+          "wallSeconds" : 66.89
+        }, {
+          "submitSeconds" : 0.04,
+          "processes" : 10000,
+          "statuses" : {
+            "COMPLETED" : 10000
+          },
+          "throughputPerSec" : 161.36,
+          "latenessMs" : {
+            "n" : 10000,
+            "p50" : 1320.0,
+            "p95" : 14554.75,
+            "p99" : 17263.63,
+            "max" : 18866.85
+          },
+          "resources" : {
+            "samples" : 123,
+            "jvmCpuAvgCores" : 0.7,
+            "jvmCpuMaxCores" : 1.85,
+            "machineCpuAvgPct" : 58.73,
+            "heapMaxUsedMb" : 3743
+          },
+          "loadAverage" : 9.54638671875,
+          "wallSeconds" : 63.49
+        } ]
+      }
+    }
+  },
+  "modeSettings" : {
+    "kafka1" : {
+      "pod: logging.level.io.mateu.workflow" : "WARN",
+      "pod: logging.level.root" : "WARN",
+      "pod: spring.application.name" : "suite-pod-0",
+      "pod: spring.cloud.function.definition" : "consumeOutbox;consumeUpstream",
+      "pod: spring.cloud.stream.bindings.consumeOutbox-in-0.consumer.batch-mode" : "true",
+      "pod: spring.cloud.stream.bindings.consumeOutbox-in-0.consumer.concurrency" : "3",
+      "pod: spring.cloud.stream.bindings.consumeOutbox-in-0.destination" : "outbox",
+      "pod: spring.cloud.stream.bindings.consumeOutbox-in-0.group" : "orchestrator-outbox",
+      "pod: spring.cloud.stream.bindings.consumeUpstream-in-0.consumer.batch-mode" : "true",
+      "pod: spring.cloud.stream.bindings.consumeUpstream-in-0.consumer.concurrency" : "3",
+      "pod: spring.cloud.stream.bindings.consumeUpstream-in-0.destination" : "upstream",
+      "pod: spring.cloud.stream.bindings.consumeUpstream-in-0.group" : "orchestrator-upstream",
+      "pod: spring.cloud.stream.bindings.deadLetter.destination" : "dead-letter",
+      "pod: spring.cloud.stream.bindings.downstream.destination" : "downstream",
+      "pod: spring.cloud.stream.bindings.outbox.destination" : "outbox",
+      "pod: spring.cloud.stream.bindings.upstream.destination" : "upstream",
+      "pod: spring.datasource.hikari.maximum-pool-size" : "10",
+      "pod: spring.datasource.username" : "suite",
+      "pod: spring.flyway.enabled" : "false",
+      "pod: spring.jpa.hibernate.ddl-auto" : "update",
+      "pod: spring.jpa.open-in-view" : "false",
+      "pod: spring.jpa.properties.hibernate.jdbc.batch_size" : "20",
+      "pod: spring.jpa.properties.hibernate.order_inserts" : "true",
+      "pod: spring.jpa.properties.hibernate.order_updates" : "true",
+      "pod: spring.main.banner-mode" : "off",
+      "pod: spring.main.web-application-type" : "none",
+      "pod: workflow.cron-enabled" : "false",
+      "pod: workflow.mode" : "kafka",
+      "pod: workflow.persistence" : "jpa",
+      "pod: workflow.schema.enabled" : "true",
+      "pod: workflow.timeout-scan-interval-ms" : "1000",
+      "pods" : 1,
+      "topic partitions" : 6,
+      "worker: logging.level.io.mateu.workflow" : "WARN",
+      "worker: logging.level.root" : "WARN",
+      "worker: spring.application.name" : "suite-worker",
+      "worker: spring.cloud.function.definition" : "consumeWorkerEvent",
+      "worker: spring.cloud.stream.bindings.consumeWorkerEvent-in-0.consumer.concurrency" : "6",
+      "worker: spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination" : "downstream",
+      "worker: spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group" : "suite-worker",
+      "worker: spring.cloud.stream.bindings.upstream.destination" : "upstream",
+      "worker: spring.main.banner-mode" : "off",
+      "worker: spring.main.web-application-type" : "none",
+      "worker: workflow.cron-enabled" : "false",
+      "worker: workflow.mode" : "kafka",
+      "worker: workflow.timeout-scan-interval-ms" : "1000"
+    }
+  },
+  "containersAfterMode" : {
+    "kafka1" : {
+      "postgres" : "0.06% cpu, 181.8MiB / 23.43GiB",
+      "redpanda" : "0.42% cpu, 432.2MiB / 23.43GiB"
+    }
+  },
+  "versions" : {
+    "postgresImage" : "postgres:16-alpine",
+    "postgresVersion" : "16.14",
+    "postgresMaxConnections" : "100",
+    "postgresSharedBuffers" : "128MB",
+    "postgresSynchronousCommit" : "on",
+    "postgresFsync" : "off",
+    "redpandaImage" : "docker.redpanda.com/redpandadata/redpanda:v24.1.7",
+    "redpandaFlags" : "testcontainers default: --mode=dev-container --smp=1 --memory=1G",
+    "redpandaVersion" : "Version: v24.1.7 Git ref: 53e6eab6ab Build date: 2024-06-06T20:05:27Z OS/Arch: linux/arm64 Go version: go1.22.2 Redpanda Cluster node-0 v24.1.7 - 53e6eab6abe26155d840c7ae960f71153f1b66af"
+  },
+  "finishedAt" : "2026-10-19T21:55:48.460778",
+  "loadAverageAtEnd" : 8.7861328125
+}

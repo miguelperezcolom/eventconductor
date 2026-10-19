@@ -61,6 +61,60 @@ class InMemoryStepExecutionRepositoryTest {
     }
 
     @Test
+    void perProcessQueriesSeeOnlyThatProcessAndForgetDeletedSteps() {
+        // The per-process lookups read an index rather than scanning the store; it has to agree
+        // with the scan through saves, re-saves and deletes.
+        repo.save(se("1", "p-1", StepExecutionStatus.PENDING, 0));
+        repo.save(se("2", "p-1", StepExecutionStatus.CREATED, 1));
+        repo.save(se("3", "p-2", StepExecutionStatus.PENDING, 0));
+        repo.save(se("1", "p-1", StepExecutionStatus.COMPLETED, 0)); // a re-save is not a second entry
+
+        assertThat(repo.findByProcessId("p-1")).extracting(StepExecution::id).containsExactly("1", "2");
+        assertThat(repo.findPendingOrRunningByProcessId("p-1")).isEmpty();
+        assertThat(repo.findPendingOrRunningByProcessId("p-2")).extracting(StepExecution::id).containsExactly("3");
+
+        repo.deleteAllById(List.of("2", "3"));
+        assertThat(repo.findByProcessId("p-1")).extracting(StepExecution::id).containsExactly("1");
+        assertThat(repo.findByProcessId("p-2")).isEmpty();
+    }
+
+    @Test
+    void aStepSavedUnderAnotherProcessMovesWithIt() {
+        repo.save(se("1", "p-1", StepExecutionStatus.PENDING, 0));
+        repo.save(se("1", "p-2", StepExecutionStatus.PENDING, 0));
+
+        assertThat(repo.findByProcessId("p-1")).isEmpty();
+        assertThat(repo.findByProcessId("p-2")).extracting(StepExecution::id).containsExactly("1");
+    }
+
+    @Test
+    void concurrentSavesAndDeletesNeverLoseAStepFromItsProcess() throws Exception {
+        // Steps of one process saved from many threads while others of the same process are deleted:
+        // the index must not drop a live id when a set empties and is removed under a concurrent add.
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(8);
+        try {
+            for (var round = 0; round < 200; round++) {
+                var keep = "keep-" + round;
+                var tasks = new java.util.ArrayList<java.util.concurrent.Callable<Object>>();
+                for (var t = 0; t < 8; t++) {
+                    var id = "tmp-" + round + "-" + t;
+                    tasks.add(() -> {
+                        repo.save(se(id, "p-race", StepExecutionStatus.PENDING, 0));
+                        repo.deleteAllById(List.of(id));
+                        return null;
+                    });
+                }
+                tasks.add(() -> repo.save(se(keep, "p-race", StepExecutionStatus.PENDING, 0)));
+                pool.invokeAll(tasks);
+                assertThat(repo.findByProcessId("p-race")).extracting(StepExecution::id).contains(keep);
+                repo.deleteAllById(List.of(keep));
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
     void findByProcessReturnsSortedByOrder() {
         repo.save(se("2", "p-1", StepExecutionStatus.CREATED, 1));
         repo.save(se("1", "p-1", StepExecutionStatus.CREATED, 0));
