@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.30.0] - 2026-10-19
+
+### Upgrading
+- **Migrations V48, V49 and V50** run on start (Flyway): `process_search_attribute` (V48), `batch_operation` (V49) and `http_task` (V50). New tables only; nothing is backfilled.
+- **Incidents' "Retry all" runs as a batch operation**: it answers at once with the batch id and retries in the background (#547).
+
+### Added
+- **Operate running processes** (#545): set the variables of a live process, complete a step by hand, and run a process again from one of its steps (downstream steps reopened, JOIN/CHOICE aware, step-level and process locks re-taken). Each operation runs under the process lock, is refused on finished processes and during a rollback, and understands forEach iterations and loop passes (only current executions are operated on). From the process detail in the admin UI, `POST /workflow/api/processes/{id}/variables`, `/steps/{stepExecutionId}/complete`, `/retry-from/{stepId}`, MCP tools, and Kafka upstream commands `set-process-variables-requested`, `complete-step-manually-requested`, `retry-from-step-requested`.
+- **Audit of manual operations** (#545): who, when, what and why in the process log (`operator:<subject>`), an Operations tab on the process detail, the `eventconductor.processes.operations{operation}` counter, and `workflow.security.operations.required-roles` for every manual operation.
+- **Incidents** (#545): failed steps grouped by definition, step and error family — an Incidents page with drill-down, `GET /workflow/api/incidents`, `GET /{key}/processes` and `POST /{key}/retry`, MCP `listIncidents`, `getIncidentProcesses` and `retryIncident`; "Retry all" starts a RETRY batch over the group (#547). A failed forEach counts as one incident.
+- **Search attributes** (#547): `searchAttributes: {customerId: "${customerId}", amount: {value: "${total}", type: number}}` (keyword, text, number, date, bool; at most 20) on a definition, evaluated per process whenever it is saved and stored in `process_search_attribute` and the process index. Filter by them on the Processes page, in `GET /workflow/api/processes` (`attr.<name>=`, `.gt/.gte/.lt/.lte`, `query=customerId = "C-9" AND amount > 100` — parsed and bound, never concatenated) and MCP `listProcesses`. Part of the definition's version hash.
+- **Batch operations** (#547): CANCEL, RETRY, RESTART, PAUSE, RESUME, SET_VARIABLES and RETRY_FROM_STEP over every process matching a filter (definition, status, tag, dates, search attributes). A single-node runner (a `SchedulerPass`) pages through matches at a configurable rate, resumes after a restart, can be cancelled, and checks authorization and audits per process (the batch creator is the operator). Batch operations page, "Retry/Cancel all matching" on Processes, `POST/GET /workflow/api/batch-operations`, MCP tools, metrics `eventconductor.batch.*`.
+- **Workers over HTTP, in any language** (#544): `/workflow/api/workers` — `activate` (long poll with leases), `tasks/{id}/complete`, `/fail`, `/inject`, `/heartbeat` (extends the lease; answers `cancelled: true` after a cancellation). Tasks for the topics in `workflow.workers.http.topics` are queued in `http_task` and claimed with `SKIP LOCKED`; an expired lease redelivers, a reply for an old attempt is refused (409), and a manual completion, retry-from-step or cancel invalidates the task. Worker API keys in `workflow.workers.http.api-keys` open this API only. Metrics `eventconductor.workers.http.*`.
+- **Python worker SDK** (#544): `sdks/python/eventconductor-worker`, standard library only (Python 3.9+): `Worker(url, api_key).task("topic")(handler)`, heartbeats, graceful shutdown, retries with backoff. Not on PyPI yet.
+
+### Changed
+- The OpenAPI spec of `/workflow/api/**` now also describes the worker, operations, incidents and batch endpoints.
+
 ## [2.29.0] - 2026-10-19
 
 ### Upgrading
