@@ -21,7 +21,107 @@ tags:
   name: Incidents
 - description: "Start, read, list and operate processes."
   name: Processes
+- description: "Cancel, retry, restart, pause or resume every process a filter matches."
+  name: Batch operations
 paths:
+  /workflow/api/batch-operations:
+    get:
+      description: The most recent first.
+      operationId: listBatchOperations
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BatchOperationView"
+          description: OK
+      summary: List batch operations
+      tags:
+      - Batch operations
+    post:
+      description: "Applies the command to every process the filter matches, in the\
+        \ background, a page at a time."
+      operationId: createBatchOperation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBatchOperationRequest"
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchOperationView"
+          description: Accepted; Location names the batch.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No type, an unknown one, an empty filter or a malformed one."
+      summary: Create a batch operation
+      tags:
+      - Batch operations
+  /workflow/api/batch-operations/{id}:
+    get:
+      operationId: getBatchOperation
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchOperationView"
+          description: The batch and its progress.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such batch.
+      summary: Get a batch operation
+      tags:
+      - Batch operations
+  /workflow/api/batch-operations/{id}/cancel:
+    post:
+      description: No further process is touched; what was done stays done.
+      operationId: cancelBatchOperation
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchOperationView"
+          description: Cancelled.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such batch.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: It already finished.
+      summary: Cancel a batch operation
+      tags:
+      - Batch operations
   /workflow/api/definitions/{definitionId}/invocations:
     get:
       operationId: getByKey
@@ -213,10 +313,10 @@ paths:
       - Incidents
   /workflow/api/incidents/{key}/retry:
     post:
-      description: "Each as a step retry: on the node that owns its process, under\
+      description: "As a RETRY batch operation over the incident, in the background:\
+        \ each member's failed steps retried on the node that owns its process, under\
         \ its lock, recorded in the process's log with the caller and the reason.\
-        \ Bounded by workflow.incidents.retry.max-steps; beyond workflow.incidents.retry.sync-limit\
-        \ the retries are requested in the background."
+        \ Location names the batch."
       operationId: retryIncident
       parameters:
       - in: path
@@ -315,8 +415,12 @@ paths:
   /workflow/api/processes:
     get:
       description: "One page of processes, newest first, narrowed by every filter\
-        \ given (ANDed). Served from the process index (workflow.projection.enabled)\
-        \ when only q is given, from the engine's store otherwise — the same rule\
+        \ given (ANDed). Search attributes (the ones definitions declare in searchAttributes):\
+        \ attr.<name>=value — exact for a keyword or bool, contains for a text, equal\
+        \ for a number or date — and attr.<name>.gt=, .gte=, .lt=, .lte= for a number\
+        \ or a date; repeatable, with query= for the same conditions as text. Served\
+        \ from the process index (workflow.projection.enabled) when only q and search\
+        \ attributes are given, from the engine's store otherwise — the same rule\
         \ as the admin console's listing."
       operationId: listProcesses
       parameters:
@@ -364,6 +468,14 @@ paths:
       - description: Name or business key contains this (case-insensitive).
         in: query
         name: q
+        required: false
+        schema:
+          type: string
+      - description: "Search-attribute conditions joined by AND: customerId = \"C-9\"\
+          \ AND amount > 100 (operators =, >, >=, <, <=). ANDed with every attr.<name>\
+          \ parameter."
+        in: query
+        name: query
         required: false
         schema:
           type: string
@@ -1593,6 +1705,110 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ActivatedTask"
+    BatchOperationFilter:
+      type: object
+      properties:
+        businessKey:
+          type: string
+        createdFrom:
+          type: string
+          format: date-time
+        createdTo:
+          type: string
+          format: date-time
+        incident:
+          type: string
+        onlyErrors:
+          type: boolean
+        query:
+          type: string
+        searchText:
+          type: string
+        status:
+          type: array
+          items:
+            type: string
+            enum:
+            - PENDING
+            - RUNNING
+            - PAUSED
+            - COMPLETED
+            - CANCELLED
+            - ERROR
+            - COMPENSATED
+            - COMPENSATION_FAILED
+          uniqueItems: true
+        tag:
+          type: string
+        workflowDefinitionId:
+          type: string
+    BatchOperationView:
+      type: object
+      description: A batch operation and its progress.
+      properties:
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+        errors:
+          type: array
+          description: "A sample of the failures, 'processId: message'."
+          items:
+            type: string
+        failed:
+          type: integer
+          format: int64
+        failure:
+          type: string
+          description: Why the batch itself failed; null otherwise.
+        filter:
+          $ref: "#/components/schemas/BatchOperationFilter"
+          description: "The filter, as stored (the query normalised)."
+        filterDescription:
+          type: string
+          description: The filter in one line.
+        finishedAt:
+          type: string
+        id:
+          type: string
+        matched:
+          type: integer
+          format: int64
+          description: Processes the filter matched when the batch was created (an
+            estimate while it runs; the number visited once it completes).
+        parameters:
+          type: object
+          additionalProperties:
+            type: string
+          description: "What the type takes: reason, stepId, set.<name>, remove.<name>."
+        percent:
+          type: integer
+          format: int32
+          description: 0–100.
+        processed:
+          type: integer
+          format: int64
+        skipped:
+          type: integer
+          format: int64
+        skippedByReason:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+          description: "Skipped processes by reason: notApplicable (status), notAuthorized,\
+            \ gone."
+        startedAt:
+          type: string
+        status:
+          type: string
+          description: "CREATED, RUNNING, COMPLETED, FAILED or CANCELLED."
+        succeeded:
+          type: integer
+          format: int64
+        type:
+          type: string
+          description: "CANCEL, RETRY, RESTART, PAUSE, RESUME, SET_VARIABLES or RETRY_FROM_STEP."
     CommandAccepted:
       type: object
       description: "A command was accepted (202). It is carried out asynchronously\
@@ -1634,6 +1850,36 @@ components:
             reply would be. A non-string value is stored as its JSON.
       required:
       - reason
+    CreateBatchOperationRequest:
+      type: object
+      description: A batch operation to create.
+      properties:
+        filter:
+          $ref: "#/components/schemas/FilterBody"
+        reason:
+          type: string
+          description: "Why — mandatory for SET_VARIABLES and RETRY_FROM_STEP, recorded\
+            \ in each process's audit trail."
+        remove:
+          type: array
+          description: "SET_VARIABLES: the variables to remove."
+          items:
+            type: string
+        stepId:
+          type: string
+          description: "RETRY_FROM_STEP: the step (a definition step id) to run each\
+            \ process again from."
+        type:
+          type: string
+          description: "CANCEL, RETRY, RESTART, PAUSE, RESUME, SET_VARIABLES or RETRY_FROM_STEP."
+        variables:
+          type: object
+          additionalProperties: {}
+          description: "SET_VARIABLES: the variables to set, by name (a non-string\
+            \ value is kept as its JSON)."
+      required:
+      - filter
+      - type
     EventReceipt:
       type: object
       properties:
@@ -1687,6 +1933,47 @@ components:
           type: string
         retryable:
           type: boolean
+    FilterBody:
+      type: object
+      description: Which processes a batch acts on — the process listing's filter.
+        At least one field.
+      properties:
+        attributes:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Search attributes by name: exact for a keyword, contains for\
+            \ a text (ANDed with query)."
+        businessKey:
+          type: string
+          description: Business key contains this (case-insensitive).
+        definitionId:
+          type: string
+          description: Only processes of this definition.
+        from:
+          type: string
+          description: "Created at or after: an ISO date-time or date."
+        onlyErrors:
+          type: boolean
+          description: Only ERROR processes.
+        q:
+          type: string
+          description: Name or business key contains this (case-insensitive).
+        query:
+          type: string
+          description: "Search-attribute conditions joined by AND: customerId = \"\
+            C-9\" AND amount > 100."
+        status:
+          type: array
+          description: Only processes in any of these statuses.
+          items:
+            type: string
+        tag:
+          type: string
+          description: Only processes of the definitions carrying this tag.
+        to:
+          type: string
+          description: "Created at or before: an ISO date-time or date (its last moment)."
     HeartbeatRequest:
       type: object
       properties:
@@ -1774,18 +2061,19 @@ components:
       properties:
         async:
           type: boolean
-          description: Whether they are being requested in the background (more than
-            workflow.incidents.retry.sync-limit).
+          description: "Always true: the retry is a batch operation, run in the background."
+        batchOperationId:
+          type: string
+          description: "The RETRY batch operation over the incident: GET /workflow/api/batch-operations/{id}."
         key:
           type: string
         requested:
           type: integer
           format: int32
-          description: Step retries requested.
+          description: Failed steps the incident held when the retry was asked for.
         truncated:
           type: boolean
-          description: Whether the group held more than workflow.incidents.retry.max-steps;
-            retry again for the rest.
+          description: Whether the incident view was truncated (workflow.incidents.scan-limit).
     InjectRequest:
       type: object
       properties:
@@ -1892,6 +2180,12 @@ components:
         pausedAt:
           type: string
           description: When it was paused; null unless PAUSED.
+        searchAttributes:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Its search attributes, by name, as the definition declares\
+            \ them (2.30); empty when it declares none."
         started:
           type: string
         status:
@@ -1909,7 +2203,7 @@ components:
         content:
           type: array
           items:
-            $ref: "#/components/schemas/ProcessSummary"
+            $ref: "#/components/schemas/ProcessSummaryView"
         page:
           type: integer
           format: int32
@@ -1926,9 +2220,8 @@ components:
         totalPages:
           type: integer
           format: int32
-    ProcessSummary:
+    ProcessSummaryView:
       type: object
-      description: "A process as the listing shows it: no variables."
       properties:
         businessKey:
           type: string

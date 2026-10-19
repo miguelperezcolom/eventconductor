@@ -208,6 +208,52 @@ class HttpWorkerE2eTest extends AbstractE2eTest {
         assertThat(process("hw-9").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
     }
 
+    @Autowired io.mateu.workflow.application.services.BatchOperationService batches;
+
+    /**
+     * A batch acts on a process whose step is leased to an HTTP worker exactly as the single operation
+     * does: a CANCEL batch cancels the task (the worker hears it on its heartbeat), and a RETRY_FROM_STEP
+     * batch re-dispatches the step as a new attempt, so the worker's reply to the old one is refused.
+     */
+    @Test
+    void batchesCancelOrRedispatchTheTasksLeasedToHttpWorkers() throws Exception {
+        createProcess("http-worker", "hwb-1");
+        createProcess("http-worker", "hwb-2");
+        var leased = http.activate("py-1", "http-payments", 10, 60_000, 2_000).path("tasks");
+        assertThat(leased).hasSize(2);
+        com.fasterxml.jackson.databind.JsonNode first = null;
+        com.fasterxml.jackson.databind.JsonNode second = null;
+        for (var task : leased) {
+            if (task.path("processId").asText().equals(process("hwb-1").getId())) first = task; else second = task;
+        }
+        var cancelTask = first;
+        var retryTask = second;
+
+        var retry = batches.create(io.mateu.workflow.domain.batch.BatchOperationType.RETRY_FROM_STEP,
+                new io.mateu.workflow.domain.batch.BatchOperationFilter("http-worker", null, null, null, null, "hwb-2",
+                        null, false, null),
+                io.mateu.workflow.domain.batch.BatchOperationParameters.of(null, null, "charge", "gateway reset"), null);
+        await().atMost(Duration.ofSeconds(20)).untilAsserted(() -> assertThat(batches.get(retry.id()).orElseThrow()
+                .status()).isEqualTo(io.mateu.workflow.domain.batch.BatchOperationStatus.COMPLETED));
+        assertThat(batches.get(retry.id()).orElseThrow().succeeded()).isEqualTo(1);
+        var again = http.next("py-2", "http-payments", 10_000);
+        assertThat(again.path("id").asText()).isEqualTo(retryTask.path("id").asText());
+        assertThat(again.path("attempt").asInt()).isGreaterThan(retryTask.path("attempt").asInt());
+        assertThat(http.completeWithAttempt(retryTask.path("id").asText(), retryTask.path("attempt").asInt()))
+                .as("the worker's reply to the attempt the batch replaced").isEqualTo(409);
+
+        var cancel = batches.create(io.mateu.workflow.domain.batch.BatchOperationType.CANCEL,
+                new io.mateu.workflow.domain.batch.BatchOperationFilter("http-worker", null, null, null, null, "hwb-",
+                        null, false, null), null, null);
+        await().atMost(Duration.ofSeconds(20)).untilAsserted(() -> assertThat(batches.get(cancel.id()).orElseThrow()
+                .status()).isEqualTo(io.mateu.workflow.domain.batch.BatchOperationStatus.COMPLETED));
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(process("hwb-1").getStatus()).isEqualTo(ProcessStatus.CANCELLED));
+        assertThat(HttpWorkerClient.json(http.heartbeat(cancelTask, 60_000)).path("cancelled").asBoolean()).isTrue();
+        assertThat(http.complete(cancelTask, Map.of())).as("the task is gone once the worker heard").isEqualTo(404);
+        assertThat(HttpWorkerClient.json(http.heartbeat(again, 60_000)).path("cancelled").asBoolean()).isTrue();
+    }
+
     private String processVariable(String businessKey, String name) {
         return process(businessKey).getVariables().stream().filter(v -> name.equals(v.name()))
                 .map(io.mateu.workflow.domain.aggregates.Variable::value).findFirst().orElse(null);
