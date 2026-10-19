@@ -859,6 +859,62 @@ class SpecValidatorTest {
     }
 
     @Test
+    void agentCallsAreCheckedByTheSharedRulesTheirToolStepsAreReachableAndTheirSchemasAreSchemas() throws Exception {
+        var good = json("""
+                {"id": "a", "name": "A", "version": 1, "steps": [
+                  {"id": "start", "type": "START", "name": "Start"},
+                  {"id": "agent", "type": "AGENT_CALL", "name": "Agent", "preconditionStepId": "start",
+                   "agent": {"connection": "claude", "system": "You help.", "goal": "Help ${customer}",
+                     "tools": [
+                       {"name": "lookup", "description": "Look up", "step": "lookup",
+                        "inputSchema": {"type": "object", "properties": {"id": {"type": "string"}}}},
+                       {"name": "fetch", "description": "Fetch", "http": {"method": "GET", "url": "https://x.example/${id}"}},
+                       {"name": "refund", "description": "Refund", "process": "refund-flow", "outputVariables": ["refundId"],
+                        "approval": {"formId": "approve"}}
+                     ],
+                     "output": {"schema": {"type": "object"}, "mapping": {"decision": "json.decision"}},
+                     "maxSteps": 5, "toolConcurrency": 2, "onToolError": "report", "maxDuration": "PT5M"}},
+                  {"id": "end", "type": "END", "name": "End", "preconditionStepId": "agent"},
+                  {"id": "lookup", "type": "ACTION", "name": "Lookup"}
+                ]}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, good)).isEmpty();
+        var bad = json("""
+                {"id": "a", "name": "A", "version": 1, "steps": [
+                  {"id": "start", "type": "START", "name": "Start"},
+                  {"id": "agent", "type": "AGENT_CALL", "name": "Agent", "preconditionStepId": "start",
+                   "agent": {"connection": "claude", "goal": "${(",
+                     "tools": [
+                       {"name": "lookup", "description": "Look up", "step": "end",
+                        "inputSchema": {"type": "object", "properties": {"id": {"type": 7}}}},
+                       {"name": "lookup", "description": "Twice", "task": "t@1"}
+                     ],
+                     "output": {"mapping": {"decision": "json.("}},
+                     "maxSteps": 5}},
+                  {"id": "end", "type": "END", "name": "End", "preconditionStepId": "agent"}
+                ]}
+                """);
+        var violations = validator.validate(SpecValidator.Kind.WORKFLOW, bad);
+        assertThat(violations).anyMatch(v -> v.contains("declares the tool 'lookup' twice"));
+        assertThat(violations).anyMatch(v -> v.contains("a tool step must be one of"));
+        assertThat(violations).anyMatch(v -> v.contains("used only as a tool"));
+        var schemaBad = json("""
+                {"id": "a", "name": "A", "version": 1, "steps": [
+                  {"id": "start", "type": "START", "name": "Start"},
+                  {"id": "agent", "type": "AGENT_CALL", "name": "Agent", "preconditionStepId": "start",
+                   "agent": {"connection": "claude", "goal": "${(",
+                     "tools": [{"name": "t", "description": "T", "task": "t@1",
+                                "inputSchema": {"type": "object", "properties": {"id": {"type": 7}}}}],
+                     "output": {"mapping": {"decision": "json.("}}, "maxSteps": 1}}
+                ]}
+                """);
+        var schemaViolations = validator.validate(SpecValidator.Kind.WORKFLOW, schemaBad);
+        assertThat(schemaViolations).anyMatch(v -> v.contains("agent.goal"));
+        assertThat(schemaViolations).anyMatch(v -> v.contains("output.mapping.decision"));
+        assertThat(schemaViolations).anyMatch(v -> v.contains("inputSchema is not a valid JSON Schema"));
+    }
+
+    @Test
     void momentsAreCheckedByTheSharedRules() throws Exception {
         var good = json("""
                 {"id": "m", "name": "M", "version": 1, "steps": [

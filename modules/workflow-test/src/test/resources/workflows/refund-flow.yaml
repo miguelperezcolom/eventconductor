@@ -1,0 +1,7 @@
+id: refund-flow
+name: Issue a refund
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: issue-refund, type: ACTION, name: Issue the refund, preconditionStepId: start }
+  - { id: end, type: END, name: End, preconditionStepId: issue-refund }

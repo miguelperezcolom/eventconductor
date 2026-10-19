@@ -100,8 +100,30 @@ class WorkflowMcpToolsTest {
                 .map(java.lang.reflect.Method::getName).toList();
         assertThat(Arrays.stream(callbacks).map(c -> c.getToolDefinition().name()))
                 .containsExactlyInAnyOrderElementsOf(declared)
-                .hasSize(16);
+                .hasSize(17);
         assertThat(tools.getSystemContext()).contains("retryProcess", "restartProcess", "sendMessage", "findBottleneck");
+    }
+
+    @Test
+    void anAgentsTranscriptAndItsSummaryAreThereForAnAgentToRead() {
+        var agent = io.mateu.workflow.domain.services.AgentTranscriptsTest.agentExecution();
+        when(steps.findById("agent-1")).thenReturn(java.util.Optional.of(agent));
+        var transcript = tools.getAgentTranscript("agent-1");
+        assertThat(transcript).containsEntry("state", "answered").containsEntry("toolCalls", 1)
+                .containsEntry("lastMessage", "It shipped.");
+        assertThat((List<?>) transcript.get("transcript")).hasSize(4);
+
+        var plain = io.mateu.workflow.domain.aggregates.StepExecution.builder().id("s").stepId("x").build();
+        when(steps.findById("s")).thenReturn(java.util.Optional.of(plain));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> tools.getAgentTranscript("s"))
+                .hasMessageContaining("not an AGENT_CALL");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> tools.getAgentTranscript("none"))
+                .hasMessageContaining("not found");
+
+        var process = process("p-a", "bk-a", List.of());
+        when(processes.findById("p-a")).thenReturn(java.util.Optional.of(process));
+        when(steps.findByProcess(process)).thenReturn(List.of(agent));
+        assertThat(tools.getProcessDetails("p-a").steps().getFirst().agent()).containsEntry("turns", 2);
     }
 
     private ToolCallback callback(String name) {

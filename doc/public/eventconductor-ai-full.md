@@ -302,6 +302,31 @@ The engine renders the request (templates in url/path, query, headers, body) and
 ```
 The engine renders `system` and `prompt` (text templates) and dispatches the built-in task `llm-call@1` (library `worker-llm` on Spring AI, with `spring-ai-anthropic` and/or `spring-ai-openai`: embedded in the engine's pod, or topic `llm-calls` served by `llm-worker-standalone-app`). Connections are configuration: `workflow.llm.connections.<name>` = `provider` (`anthropic` | `openai`), `model`, `api-key`, `base-url`, `temperature`, `max-tokens` (4096), `timeout` (PT60S), `structured-output` (`prompt` | `native`). A step may override `model`, `temperature`, `maxTokens`. With `responseSchema` the answer must be one JSON document valid against it (`LLM_INVALID_OUTPUT` otherwise, retried). Answer → `outputVariable` (text / JSON) and `output` (JEXL over `{text, json, usage, model, finishReason}`); token usage → `usageVariable`. Provider 4xx → `LLM_<status>`, final; 408/409/429/5xx and `LLM_IO` retried. Metrics: `eventconductor.llm.call{workflow,step,connection,model,outcome}`, `eventconductor.llm.tokens{workflow,step,connection,model,type}`.
 
+### AGENT_CALL — a model that uses tools
+```yaml
+- id: triage
+  type: AGENT_CALL
+  name: Triage the ticket
+  preconditionStepId: start
+  timeout: PT60S          # per model call
+  retries: 2              # per model call
+  agent:
+    connection: claude
+    system: You are a support agent. Use the tools; never guess an order.
+    goal: "Customer ${customerId} wrote: ${message}"
+    tools:
+      - { name: lookupOrder, description: Look up an order, http: { connection: orders, method: GET, path: "/orders/${orderId}" },
+          inputSchema: { type: object, required: [orderId], properties: { orderId: { type: string } } } }
+      - { name: openRefund, description: Open a refund, process: refund-flow, outputVariables: [refundId],
+          approval: { formId: approve-refund, candidateGroups: [support-leads] } }
+      - { name: notifyCustomer, description: Email the customer, step: notify-customer }
+    output: { schema: { type: object, required: [decision] }, mapping: { decision: "json.decision" } }
+    maxSteps: 6
+    maxTokens: 50000
+    maxDuration: PT30M
+```
+The agent's execution is a container (the forEach model). Each model turn is a child execution dispatched to the built-in `agent-turn@1` task (`worker-llm`, same connections as `LLM_CALL`, topic `llm-calls`) with the conversation so far and the tool specs; the provider never runs a tool. Each call the model asks for is validated (declared tool, arguments valid against `inputSchema`; otherwise the model is told why and nothing runs) and becomes a child execution of the tool's step: a `step:` tool runs that step of the definition (it must have no preconditions and be nobody's precondition/compensation/on-timeout target — its id is the child's step id), an `http:` tool an HTTP_CALL (allowed hosts, host-bound credentials), a `process:` tool a child process (`outputVariables` = result), a `task:` tool an ACTION; synthesized tools' step id is `<agent>.<tool>`. Arguments are laid over the variables for that call only; a tool never writes process variables — what it reports is the model's tool result. `approval` creates a USER_TASK (`<agent>.<tool>.approval`) first; its `approved` field decides. `toolConcurrency` (default 1) bounds a turn's parallel calls. Final answer → checked against `output.schema` (`LLM_INVALID_OUTPUT`, retried), mapped by `output.mapping` (JEXL over `{text, json, usage, turns, toolCalls}`) / `output.variable`. Budgets fail the step, final: `AGENT_MAX_STEPS`, `AGENT_MAX_TOKENS`, `AGENT_TIMEOUT` (ends TIMEOUT); `AGENT_MODEL_FAILED`; `AGENT_TOOL_FAILED` (or, with `onToolError: report`, the model is told). Completed calls of compensable `step:` tools are compensated per call, newest first. No in-memory state: the loop is rebuilt from the persisted children on every step-over, so it resumes after a crash. The transcript (redacted, ≤ 64 KB) is on the agent's execution: Agent tab, REST `agent` summary, MCP `getAgentTranscript`. Test kit: `runtime.whenAgent("triage").thenCallTool("lookupOrder", Map.of("orderId","O-1")).thenAnswer("{...}")`, tools answered by `whenStep` / `whenHttpCall("triage.lookupOrder")` / `whenTask` / `completeUserTask`.
+
 ### Loops and multi-instance — `forEach`, `repeat`, `loopBack`
 The precondition graph stays acyclic (a cycle is still an error); repetition is declared on a step:
 ```yaml

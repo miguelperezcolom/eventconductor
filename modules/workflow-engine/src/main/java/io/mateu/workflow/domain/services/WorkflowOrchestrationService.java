@@ -65,6 +65,9 @@ public class WorkflowOrchestrationService {
         this.maxForEachItems = maxForEachItems;
     }
 
+    /** Runs the loops of AGENT_CALL steps. Pure, like everything here. */
+    private final AgentLoop agentLoop = new AgentLoop();
+
     public void setMaxLoopIterations(int maxLoopIterations) {
         this.maxLoopIterations = maxLoopIterations;
     }
@@ -95,6 +98,42 @@ public class WorkflowOrchestrationService {
 
         List<StepExecution> current() {
             return StepExecutions.current(working);
+        }
+
+        /** This pass as the agent loop sees it. */
+        AgentLoop.Pass forAgent() {
+            var self = this;
+            return new AgentLoop.Pass() {
+                @Override
+                public Process process() {
+                    return self.process;
+                }
+
+                @Override
+                public void process(Process process) {
+                    self.process = process;
+                }
+
+                @Override
+                public List<StepExecution> working() {
+                    return self.working;
+                }
+
+                @Override
+                public void save(StepExecution execution) {
+                    self.save(execution);
+                }
+
+                @Override
+                public void create(StepExecution execution) {
+                    self.create(execution);
+                }
+
+                @Override
+                public boolean createdNow(String executionId) {
+                    return self.createdNow.contains(executionId);
+                }
+            };
         }
 
         List<StepExecution> saved(List<StepExecution> more) {
@@ -138,7 +177,11 @@ public class WorkflowOrchestrationService {
         // forEach containers first: their iterations are driven here, never by the precondition graph.
         for (var container : pass.current()) {
             if (StepExecutionStatus.PENDING.equals(container.getStatus()) && container.isContainer()) {
-                advanceContainer(container, pass, failed, stepCache);
+                if (container.isAgent()) {
+                    agentLoop.advance(container, getStep(container, stepCache), pass.forAgent(), failed);
+                } else {
+                    advanceContainer(container, pass, failed, stepCache);
+                }
             }
         }
         // Then the loops: each step that completed and may send the flow round again is decided, once.
@@ -907,6 +950,8 @@ public class WorkflowOrchestrationService {
             var step = getStep(stepExecution, cache);
             if (step.forEach() != null) {
                 startContainer(stepExecution, step, pass);
+            } else if (StepType.AGENT_CALL.equals(step.type())) {
+                agentLoop.start(stepExecution, step, pass.forAgent());
             } else {
                 stepsToSave.add(stepExecution.start(pass.process));
             }

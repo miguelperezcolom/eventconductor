@@ -33,6 +33,7 @@ machine, a scheduler, or retry/timeout loops — declare them on the step.
 | start / cancel / query a process | `ProcessUpstreamEventUseCase`, `ProcessRepository` | [api.md](reference/api.md) |
 | call a REST endpoint without writing a worker | `HTTP_CALL` step (+ `worker-http` / `http-worker-standalone-app`, `workflow.http.*`) | [workflow-definitions.md](reference/workflow-definitions.md) |
 | classify / extract / summarize with an LLM without writing a worker | `LLM_CALL` step (+ `worker-llm` / `llm-worker-standalone-app`, `workflow.llm.connections.*`) | [workflow-definitions.md](reference/workflow-definitions.md) |
+| let a model choose and call tools (each call an audited step, bounded by budgets) | `AGENT_CALL` step (`agent: {goal, tools, maxSteps}`; same `worker-llm` connections) | [workflow-definitions.md](reference/workflow-definitions.md) |
 | run a step at / by a date from the process ("3 days before check-in") | TIMER `until` / any waiting step's `deadline` (moments, follow variable changes; `workflow.time.zone`) | [workflow-definitions.md](reference/workflow-definitions.md) |
 | emit a domain event for other services | `PUBLISH_EVENT` step (+ `workflow.events.destinations`) | [workflow-definitions.md](reference/workflow-definitions.md) |
 | call a process over HTTP and wait for its answer | `REPLY` step + definition `syncInvocation.enabled` + `POST /workflow/api/definitions/{id}/invocations` | [workflow-definitions.md](reference/workflow-definitions.md), [api.md](reference/api.md) |

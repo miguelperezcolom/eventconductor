@@ -21,7 +21,8 @@ public final class HttpTaskRouting {
 
     /** The task ids the engine itself gives the built-in step types. */
     static final Set<String> BUILT_IN_TASK_IDS = Set.of("complete-form", "evaluate-rule",
-            HttpRequestRenderer.TASK_ID, LlmRequestRenderer.TASK_ID);
+            HttpRequestRenderer.TASK_ID, LlmRequestRenderer.TASK_ID,
+            io.mateu.workflow.domain.services.AgentLoop.TASK_ID);
 
     /** The default topics of the built-in tasks that have one of their own. */
     static final Set<String> BUILT_IN_TOPICS = Set.of(HttpRequestRenderer.DEFAULT_TOPIC,

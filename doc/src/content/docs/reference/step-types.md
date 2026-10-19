@@ -808,6 +808,29 @@ Rendered by the engine and executed by the built-in `llm-call@1` task (`worker-l
 
 ---
 
+## AGENT_CALL
+
+A language model that works towards a goal by calling tools — every tool call a real step execution
+(retries, timeouts, compensation, cancellation), bounded by budgets. See [Agents with Tools](/guides/agents-with-tools/).
+
+```json
+{ "id": "triage", "type": "AGENT_CALL", "name": "Triage", "preconditionStepId": "start", "timeout": "PT60S", "retries": 2,
+  "agent": { "connection": "claude", "system": "You are a support agent.", "goal": "Customer ${customerId} wrote: ${message}",
+             "tools": [ { "name": "lookupOrder", "description": "Look up an order", "http": { "connection": "orders", "method": "GET", "path": "/orders/${orderId}" },
+                          "inputSchema": { "type": "object", "required": ["orderId"], "properties": { "orderId": { "type": "string" } } } },
+                        { "name": "openRefund", "description": "Open a refund", "process": "refund-flow", "outputVariables": ["refundId"],
+                          "approval": { "formId": "approve-refund", "candidateGroups": ["support-leads"] } },
+                        { "name": "notifyCustomer", "description": "Email the customer", "step": "notify-customer" } ],
+             "output": { "schema": { "type": "object", "required": ["decision"] }, "mapping": { "decision": "json.decision" } },
+             "maxSteps": 6, "maxTokens": 50000, "maxDuration": "PT30M" } }
+```
+
+**Required:** `agent` with `connection`, `goal` (text template), `tools` (at least one) and `maxSteps`. **Optional:** `system`, `model`, `temperature`, `output` (`schema`, `mapping` — JEXL over `{text, json, usage, turns, toolCalls}` — and `variable`), `maxTokens`, `maxDuration`, `toolConcurrency` (default 1), `onToolError` (`fail` | `report`). A tool has a `name`, a `description`, an optional `inputSchema` and `approval` (`{formId, assignee?, candidateUsers?, candidateGroups?}`), and exactly one of `step` (a step of the definition used only as a tool), `http` (an HTTP_CALL block), `process` (a child definition, with `outputVariables`) and `task` (a task contract, with an optional `topic`).
+
+The agent's execution is a container: each model turn is a child dispatched to the built-in `agent-turn@1` task (`worker-llm`, topic `llm-calls` in kafka mode) — the step's `timeout` and `retries` apply per turn — and each tool call is a child execution of the tool's step. An `AGENT_CALL` cannot be `compensable` nor carry `forEach`/`repeat`/`loopBack`; its `step:` tools are compensated per call. Failures: `AGENT_MAX_STEPS`, `AGENT_MAX_TOKENS`, `AGENT_TIMEOUT` (ends `TIMEOUT`), `AGENT_MODEL_FAILED`, `AGENT_TOOL_FAILED`.
+
+---
+
 ## Common fields (all step types)
 
 | Field | Type | Default | Description |

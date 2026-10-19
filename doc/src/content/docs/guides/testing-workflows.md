@@ -203,6 +203,21 @@ A `USER_TASK` always waits unless mocked; complete it with
 `invocations()` and `invocationsOf(stepId)` list every dispatch the test saw — process, step, task
 id, topic, attempt, the variables it was sent and the engine time it happened.
 
+### Agents
+
+An `AGENT_CALL` never calls a model in a test: `whenAgent(stepId)` scripts its turns, and its tools are
+answered by the stubs above — see [Agents with Tools](/guides/agents-with-tools/#testing-an-agent).
+
+```java
+var model = runtime.whenAgent("triage")
+        .thenCallTool("lookupOrder", Map.of("orderId", "O-1"))
+        .thenAnswer("{\"decision\":\"none\"}");
+runtime.whenHttpCall("triage.lookupOrder").thenRespond(200, "{\"status\":\"DELIVERED\"}");
+
+assertThat(runtime.start("support-triage", "T-1", Map.of("customerId", "C", "message", "m"))).isCompleted();
+assertThat(model.lastToolResults()).hasSize(1);
+```
+
 ### HTTP and LLM calls
 
 An `HTTP_CALL` or `LLM_CALL` step never reaches the network in a test: without a stub it fails at

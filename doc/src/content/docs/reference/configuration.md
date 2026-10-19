@@ -486,8 +486,8 @@ The gateway reads the destinations' topics from the same `workflow.events.destin
 
 | Property | Default | Description |
 |---|---|---|
-| `workflow.llm.enabled` | `true` | Register the built-in `llm-call@1` task. |
-| `workflow.llm.topic` | `llm-calls` | The Kafka topic the task is served on. |
+| `workflow.llm.enabled` | `true` | Register the built-in `llm-call@1` and `agent-turn@1` (AGENT_CALL model turns) tasks. |
+| `workflow.llm.topic` | `llm-calls` | The Kafka topic the tasks are served on. |
 | `workflow.llm.connections.<name>.provider` | `anthropic` | `anthropic` or `openai` (OpenAI and any OpenAI-compatible endpoint). Needs `spring-ai-anthropic` / `spring-ai-openai` on the classpath. |
 | `workflow.llm.connections.<name>.model` | — | The model steps use unless they name another (e.g. `claude-sonnet-5-5`). |
 | `workflow.llm.connections.<name>.api-key` | — | Required. Configuration only — from an env var, a K8s secret, Vault; never in a definition. |

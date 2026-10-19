@@ -47,6 +47,7 @@ The process tools have REST twins on the same application services — start, re
 | `getWorkflowAnalytics` | Per-definition analytics: counts by status, rates, throughput per day, avg/p95 durations, bottleneck step ([guide](/guides/analytics/)) |
 | `findBottleneck` | Where processes get stuck: slowest step, steps with waiting instances, steps with failures |
 | `importWorkflowDefinitionsFromGit` | Pull and upsert workflow JSON files from Git |
+| `getAgentTranscript` | The transcript of an `AGENT_CALL` step execution: goal, model turns, tool calls and results, tokens |
 | `listWorkflowDefinitions` | The definitions (id, name, status, whether they accept new instances) — what a schedule can start |
 | `listSchedules` / `getSchedule` | Every schedule, optionally of one workflow: cron (and in words), zone, variables, source, whether it is editable, paused, next starts |
 | `createSchedule` / `updateSchedule` / `deleteSchedule` | Manage the schedules created through the engine (source UI/API). A schedule declared in a definition or a `cron.yaml` is owned by its file and refused here |

@@ -309,6 +309,14 @@ public class SpecValidator {
                 compensationTargets.add(compensationOfThisStep);
             }
         }
+        // An agent's tool step is started by the agent, once per call the model makes.
+        var stepMaps = new java.util.LinkedHashMap<String, java.util.Map<?, ?>>();
+        for (JsonNode step : steps) {
+            if (text(step, "id") != null && step.isObject()) {
+                stepMaps.put(text(step, "id"), TEMPLATE_READER.convertValue(step, java.util.Map.class));
+            }
+        }
+        Set<String> toolSteps = io.mateu.workflow.analysis.AgentCallRules.toolStepIds(stepMaps.values());
         String workflowId = text(wf, "id");
         for (JsonNode step : steps) {
             String id = text(step, "id");
@@ -334,9 +342,9 @@ public class SpecValidator {
                 violations.add("START step '" + id + "' cannot have preconditions.");
             }
             if (!"START".equals(type) && !"WAIT_FOR_MESSAGE".equals(type) && preconditions.isEmpty()
-                    && !compensationTargets.contains(id)) {
+                    && !compensationTargets.contains(id) && !toolSteps.contains(id)) {
                 violations.add("Step '" + id + "' has no preconditions and is not a START, a"
-                        + " WAIT_FOR_MESSAGE or another step's compensation — nothing would ever"
+                        + " WAIT_FOR_MESSAGE, another step's compensation or an agent's tool — nothing would ever"
                         + " start it.");
             }
             if ("PROCESS".equals(type)) {
@@ -411,6 +419,9 @@ public class SpecValidator {
                                 "step '" + id + "' llm.output." + entry.getKey(), violations));
                     }
                 }
+            }
+            if ("AGENT_CALL".equals(type)) {
+                checkAgent(step, id, stepMaps, violations);
             }
             checkMoment(step.get("until"), "TIMER step '" + id + "' until", true, violations);
             checkMoment(step.get("deadline"), "Step '" + id + "' deadline", false, violations);
@@ -556,6 +567,75 @@ public class SpecValidator {
                 checkTemplate(publishEvent.get("payloadTemplate"), where + ".publishEvent.payloadTemplate", violations);
                 checkTemplate(publishEvent.get("key"), where + ".publishEvent.key", violations);
             }
+        }
+    }
+
+    /**
+     * An AGENT_CALL: the rules shared with the engine ({@code AgentCallRules}), then its templates, its
+     * output expressions, its JSON Schemas (which must be JSON Schema) and each http tool as the
+     * HTTP_CALL it runs as.
+     */
+    private void checkAgent(JsonNode step, String id, java.util.Map<String, java.util.Map<?, ?>> stepMaps,
+                            List<String> violations) {
+        var problems = io.mateu.workflow.analysis.AgentCallRules.problems(stepMaps.get(id), stepMaps);
+        violations.addAll(problems);
+        JsonNode agent = step.get("agent");
+        if (!problems.isEmpty() || agent == null || !agent.isObject()) {
+            return;
+        }
+        var where = "AGENT_CALL step '" + id + "'";
+        for (var field : List.of("system", "goal")) {
+            var value = agent.get(field);
+            if (value != null && !value.toString().contains("${secret:")) {
+                checkTemplate(value, where + " agent." + field, violations);
+            }
+        }
+        JsonNode output = agent.get("output");
+        if (output != null && output.isObject()) {
+            JsonNode mapping = output.get("mapping");
+            if (mapping != null && mapping.isObject()) {
+                mapping.properties().forEach(entry -> checkJexl(entry.getValue().asText(),
+                        where + " output.mapping." + entry.getKey(), violations));
+            }
+            checkJsonSchema(output.get("schema"), where + " output.schema", violations);
+        }
+        for (JsonNode tool : agent.path("tools")) {
+            var at = where + " tool '" + tool.path("name").asText() + "'";
+            checkJsonSchema(tool.get("inputSchema"), at + " inputSchema", violations);
+            JsonNode http = tool.get("http");
+            if (http != null && http.isObject()) {
+                @SuppressWarnings("unchecked")
+                var httpMap = (java.util.Map<String, Object>) TEMPLATE_READER.convertValue(http, java.util.Map.class);
+                violations.addAll(io.mateu.workflow.analysis.HttpCallRules.problems(httpMap, at + " http"));
+                for (var field : List.of("url", "path", "query", "headers", "body", "bodyTemplate")) {
+                    var value = http.get(field);
+                    if (value != null && !value.toString().contains("${secret:")) {
+                        checkTemplate(value, at + " http." + field, violations);
+                    }
+                }
+            }
+        }
+    }
+
+    private static volatile Schema jsonSchemaMetaSchema;
+
+    /** A JSON Schema in a definition must be one (2020-12): checked against the meta-schema. */
+    private static void checkJsonSchema(JsonNode schema, String where, List<String> violations) {
+        if (schema == null || !schema.isObject()) {
+            return;
+        }
+        try {
+            var meta = jsonSchemaMetaSchema;
+            if (meta == null) {
+                meta = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12)
+                        .getSchema(com.networknt.schema.SchemaLocation.of("https://json-schema.org/draft/2020-12/schema"));
+                jsonSchemaMetaSchema = meta;
+            }
+            meta.validate(schema.toString(), InputFormat.JSON).stream().limit(5)
+                    .forEach(error -> violations.add(where + " is not a valid JSON Schema — "
+                            + error.getInstanceLocation() + ": " + error.getMessage()));
+        } catch (RuntimeException e) {
+            violations.add(where + " could not be checked as a JSON Schema: " + e.getMessage());
         }
     }
 

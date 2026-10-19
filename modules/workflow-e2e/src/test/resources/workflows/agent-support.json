@@ -1,0 +1,36 @@
+{
+  "id": "agent-support",
+  "name": "A support agent that looks orders up and opens refunds",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "triage", "type": "AGENT_CALL", "name": "Triage the ticket", "preconditionStepId": "start", "retries": 1,
+      "agent": {
+        "connection": "claude",
+        "system": "You are a support agent. Use the tools; never guess an order.",
+        "goal": "Customer ${customerId} wrote: ${message}",
+        "tools": [
+          { "name": "lookupOrder", "description": "Look up an order by id.", "step": "lookup-order",
+            "inputSchema": { "type": "object", "required": ["orderId"], "properties": { "orderId": { "type": "string" } } } },
+          { "name": "openRefund", "description": "Open a refund.", "step": "open-refund",
+            "inputSchema": { "type": "object", "required": ["orderId", "amount"],
+              "properties": { "orderId": { "type": "string" }, "amount": { "type": "number", "minimum": 0 } } } },
+          { "name": "escalate", "description": "Hand the ticket to a person.", "process": "child-flow",
+            "outputVariables": ["handledBy"] }
+        ],
+        "output": {
+          "schema": { "type": "object", "required": ["decision"], "properties": { "decision": { "type": "string" } } },
+          "mapping": { "decision": "json.decision", "agentTurns": "turns" },
+          "variable": "agentAnswer"
+        },
+        "maxSteps": 4,
+        "toolConcurrency": 2
+      } },
+    { "id": "confirm", "type": "ACTION", "name": "Confirm", "preconditionStepId": "triage" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "confirm" },
+    { "id": "lookup-order", "type": "ACTION", "name": "Look up an order", "retries": 1 },
+    { "id": "open-refund", "type": "ACTION", "name": "Open a refund", "compensable": true,
+      "compensationStepId": "cancel-refund" },
+    { "id": "cancel-refund", "type": "ACTION", "name": "Cancel a refund" }
+  ]
+}

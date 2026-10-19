@@ -48,7 +48,16 @@ public enum StepType {
      * to the built-in {@code llm-call} worker task, so timeouts, retries, compensation and cancellation
      * work as for any worker step; a provider 4xx is not retried.
      */
-    LLM_CALL;
+    LLM_CALL,
+
+    /**
+     * Let a language model work towards a goal with tools ({@code agent}: a named connection, templated
+     * system prompt and goal, an allowlist of tools, budgets). The step runs a loop: each model turn is a
+     * child execution dispatched to the built-in {@code agent-turn} worker task, and each tool the model
+     * calls is a child execution of the tool's own step — retried, timed out, cancelled and compensated
+     * like any step — until the model answers or a budget is spent.
+     */
+    AGENT_CALL;
 
     /**
      * Accepts the pre-rename alias {@code MESSAGE} (now {@code WAIT_FOR_MESSAGE}) so that the

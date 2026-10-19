@@ -166,6 +166,16 @@ Never draw a cycle in the preconditions — it is rejected. Declare repetition i
   JSON valid against it (`LLM_INVALID_OUTPUT`, retried). `output`: variable ← JEXL over `{text, json,
   usage, model, finishReason}`. Provider 4xx final; 429/5xx/timeouts retried. Keys ONLY in
   `workflow.llm.connections.<name>.api-key` — no key or `${secret:}` in the block (fails validation).
+- **AGENT_CALL** — `agent: {connection, model?, system?, goal, tools: [{name, description, step | http |
+  process (+outputVariables) | task (+topic), inputSchema?, approval?: {formId, assignee?, candidateUsers?,
+  candidateGroups?}}], output?: {schema?, mapping?, variable?}, maxSteps, maxTokens?, maxDuration?,
+  toolConcurrency?, onToolError?: fail|report}`. A model loop where each turn is a child execution on the
+  built-in `agent-turn@1` task (worker-llm, topic `llm-calls`; step `timeout`/`retries` per turn) and each
+  tool call a child execution of the tool's step (own retries/timeout/compensation). A `step:` tool must
+  be used only as a tool (no preconditions; nobody's precondition). Args validated against `inputSchema`
+  before anything runs; tools never write process vars (their report is the model's tool result). Budgets
+  fail final: `AGENT_MAX_STEPS`, `AGENT_MAX_TOKENS`, `AGENT_TIMEOUT`. Not compensable itself; no
+  forEach/repeat/loopBack. Test: `runtime.whenAgent(id).thenCallTool(name, args).thenAnswer(json)`.
   Retries send the same `Idempotency-Key` (step execution id).
 - **Payload templates** (replyTemplate, event payload, http body/url/path/query/headers): JSON/YAML
   whose string leaves hold `${JEXL}`; a leaf that is exactly one expression keeps its type (a variable

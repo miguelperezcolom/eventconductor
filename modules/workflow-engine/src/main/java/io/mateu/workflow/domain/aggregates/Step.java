@@ -297,7 +297,14 @@ public record Step(
          */
         @Hidden
         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
-        List<Escalation> escalation
+        List<Escalation> escalation,
+        /**
+         * AGENT_CALL only: the model, the goal and the tools it may call (see {@link AgentCall}). Left out
+         * of the JSON when absent, so a step without one hashes into a definition version as before.
+         */
+        @Hidden
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        AgentCall agent
 ) implements Identifiable {
 
     public Step {
@@ -395,6 +402,29 @@ public record Step(
                 onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
                 lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, event, http, until, deadline,
                 llm, onEvent, awaitReply, forEach, repeat, loopBack, null, null);
+    }
+
+    /** The shape this record had before AGENT_CALL, so every caller of the full constructor keeps compiling. */
+    public Step(String id, String workflowDefinitionId, StepType type, String name, String description,
+                String preconditionStepId, List<String> preconditionStepIds, List<Precondition> preconditions,
+                String preconditionExpression, boolean parallel, String topic, String formId, String ruleId,
+                String childWorkflowDefinitionId, List<String> outputVariables, long duration,
+                String untilVariable, String messageName, String correlationExpression,
+                List<String> messageVariables, long timeout, int retries, boolean compensable,
+                String compensationStepId, String onTimeoutStepId, int maxSuccessfulExecutions,
+                JoinType joinType, List<String> requiredScopes, List<String> requiredRoles,
+                String lockName, String lockKey, String task, List<String> replyVariables,
+                String replyExpression, Object replyTemplate, PublishEvent event, HttpCall http,
+                Moment until, Moment deadline, LlmCall llm, EventWait onEvent, AwaitReply awaitReply,
+                ForEach forEach, Repeat repeat, LoopBack loopBack, TaskAssignment assignment,
+                List<Escalation> escalation) {
+        this(id, workflowDefinitionId, type, name, description, preconditionStepId, preconditionStepIds,
+                preconditions, preconditionExpression, parallel, topic, formId, ruleId,
+                childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
+                correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
+                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
+                lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, event, http, until, deadline,
+                llm, onEvent, awaitReply, forEach, repeat, loopBack, assignment, escalation, null);
     }
 
     /** The escalations of this step, in the order they fire; empty when it declares none. */

@@ -46,6 +46,8 @@ class WorkflowMcpToolSurfaceTest {
             "getWorkflowAnalytics",
             "findBottleneck",
             "importWorkflowDefinitionsFromGit",
+            // Added with AGENT_CALL (MINOR).
+            "getAgentTranscript",
     };
 
     private static String[] toolNamesOf(Class<?> type) {

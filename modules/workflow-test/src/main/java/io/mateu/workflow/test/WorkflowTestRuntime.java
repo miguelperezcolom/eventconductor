@@ -353,6 +353,15 @@ public final class WorkflowTestRuntime {
         return executor.llmStub(stepId);
     }
 
+    /**
+     * Scripts the model of an AGENT_CALL step: its turns ask for tool calls and finally answer. Without a
+     * script the agent's first turn fails: a test never calls a model. Its tools are answered by the
+     * ordinary stubs — see {@link AgentStub}.
+     */
+    public AgentStub whenAgent(String stepId) {
+        return executor.agentStub(stepId);
+    }
+
     /** Completes a task that is waiting for its worker (not mocked, or mocked with {@code thenTimeout}). */
     public void completeTask(TestProcess process, String stepId) {
         completeTask(process, stepId, Map.of());
