@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.34.0] - 2026-10-20
+
+The agent step is now `AGENT`: agents published and governed in the IA catalogue, run by the durable IA runtime (contributed by @alejbormeg in #555). The inline `AGENT_CALL` step from 2.32.0 is removed.
+
+### Breaking
+- **`AGENT_CALL` removed** (added in 2.32.0). Use the `AGENT` step instead: agents are published in the IA
+  catalogue and run by the IA runtime. A definition that still declares `type: AGENT_CALL` fails to load — in the
+  engine and in the Maven plugin — with "AGENT_CALL was removed in 2.34.0; use the AGENT step (agents from the IA
+  catalogue)". Gone with it: the `agent` step block, the built-in `agent-turn@1` task (worker-llm), the test kit's
+  `whenAgent(...)`, the MCP tool `getAgentTranscript`, the `agent` field of a step execution in the REST/MCP API and
+  the console's Agent tab. (#568)
+- A process started before the upgrade that reaches an `AGENT_CALL` step, or has one running, fails that step,
+  final, with error code `STEP_TYPE_REMOVED`; migrate it to a version that replaces the step, then retry. (#568)
+
+### Upgrading
+- V57 adds nullable columns only (rolling-upgrade safe). Deploy the engine and the IA agent runtime together; configure `workflow.agents.*` before importing definitions with AGENT steps. (#555)
+
+### Added
+- **`AGENT` step** — invoke an agent published in the IA catalogue (`agent: {ref, taskPrompt, input, outputVariable, mcp?, rag?, peers?}`); references and capability selections checked against the catalogue at import (`workflow.agents.catalogue-url`, `token-uri`, `client-id`, `client-secret` / `WORKFLOW_AGENTS_*`, client credentials), in JPA and memory mode. Dispatched as `run-agent@1` on `agent-calls`; durable invocations (V57); `REVIEW_REQUIRED` holds the process until the runtime's correlated reconciliation; a timed-out or cancelled invocation is held until the runtime confirms it stopped. Works with `forEach` (one invocation per item). Guide: [Agents in workflows](/guides/workflow-agents/). (#555)
+- An AGENT step receives sensitive variables only with `agent.allowSensitiveVariables: true` (engine and Maven plugin); `__agent` is sealed like `__http`/`__llm`. (#555)
+- Test kit: `runtime.whenAgent(step).thenOutput(json)` / `.thenReviewRequired()` / `.thenFail(code, message)` / `.thenCancelled()` / `.thenNoReply()`, `runtime.resolveAgentReview(process, step)`; the kit's catalogue never contacts the IA catalogue. (#555)
+- Processes REST API: `StepExecution.agent` (`invocationId`, `underReview`, `holdReason`, `lastStateSequence`); MCP `getProcessDetails` shows the invocation and hold reason. (#555)
+- Graph editor: published-agent picker; VS Code **EventConductor: Configure Agent Catalogue** (endpoint + SecretStorage credentials). (#555)
+
+### Changed
+- Instance operations: while an AGENT invocation is under review, complete-step, retry-from-step, migration, resume, retry and restart are refused (`409`); an invocation in flight is not completed, reset, migrated or restarted by hand. Setting variables stays allowed. (#555)
+- `TaskExecutionRequested.invocationId`, `TaskStatusChanged.invocationId`/`reviewResolved`/`stateSequence`, `TaskCancellationRequested.invocationId`, `StepExecutionStatusChanged.invocationId` appended (null and left off the wire for every other step). Record patterns over these DTOs stop compiling: use type patterns. The embedded worker SDK echoes the invocation. (#555)
+- HTTP workers with `workflow.workers.http.topics=*` leave `agent-calls` to the agent runtime. (#555)
+- New `json:` template/guard namespace: `json:parse(text)`. (#555)
+
 ## [2.33.1] - 2026-10-20
 
 A patch release: upgrade every kafka-mode deployment. Under concurrent writes to one process (e.g. a parallel `forEach`), versions up to 2.33.0 could discard whole batches of engine events and leave processes stuck forever. No migrations.
