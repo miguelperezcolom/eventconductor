@@ -52,7 +52,7 @@ class Workers {
   stalls every process in the JVM. Use timeouts on outbound calls and `workflow.embedded.worker-threads`
   to dispatch through a pool. A throw fails the step, but reporting `ERROR` yourself is better.
 - A hand-written `EmbeddedTaskExecutor` replaces the SDK's executor — then built-in `HTTP_CALL` /
-  `LLM_CALL` / `AGENT_CALL` tasks also land in your bean. If you use those steps embedded, use option 2.
+  `LLM_CALL` tasks also land in your bean. If you use those steps embedded, use option 2.
 - Async: return at once and call `UpdateStepExecutionUseCase` later (any bean can).
 
 ## 2. Typed handlers: `TaskHandler` (worker-embedded or worker-kafka)

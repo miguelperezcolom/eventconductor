@@ -70,7 +70,7 @@ Add only what you use:
 | `USER_TASK` (forms, task inbox) | `io.mateu.workflow:forms-engine` |
 | `RULE` steps | `io.mateu.workflow:rule-engine` (catalog) and/or `rule-runtime` |
 | `HTTP_CALL` in-process | `io.mateu.workflow:worker-http` + `worker-embedded` (then write ACTION workers as `TaskHandler`s, not a hand-written `EmbeddedTaskExecutor`, which would take the HTTP tasks too) |
-| `LLM_CALL` / `AGENT_CALL` in-process | `io.mateu.workflow:worker-llm` + `worker-embedded` + `org.springframework.ai:spring-ai-anthropic` and/or `spring-ai-openai` (both optional in worker-llm) |
+| `LLM_CALL` in-process | `io.mateu.workflow:worker-llm` + `worker-embedded` + `org.springframework.ai:spring-ai-anthropic` and/or `spring-ai-openai` (both optional in worker-llm) |
 | typed task handlers (`TaskHandler`, task contracts) in-process | `io.mateu.workflow:worker-embedded` |
 | `workflow.persistence=jpa` | `org.flywaydb:flyway-core` (+ `flyway-database-postgresql`) and a JDBC driver |
 | `workflow.mode=kafka` + event `triggers` / `onEvent` | `io.mateu.workflow:inbound-events-kafka` |

@@ -155,18 +155,14 @@ public final class ProcessApi {
             @Schema(description = "The loop pass this execution belongs to: 0 for a step's first run, one more"
                     + " each time a repeat or loopBack runs it again.") int iteration,
             @Schema(description = "True when a later pass of a loop replaced this execution (or a restart"
-                    + " discarded it): history, not the step's current execution.") boolean superseded,
-            @Schema(description = "For an AGENT_CALL's own execution: its state, turns, tool calls, tokens and last"
-                    + " message; null for every other execution. Its turns and tool calls are executions of their"
-                    + " own, with this one as parentExecutionId.") Map<String, Object> agent) {
+                    + " discarded it): history, not the step's current execution.") boolean superseded) {
 
         static StepView of(StepExecution step) {
             return new StepView(step.getId(), step.getStepId(), nameOf(step.getStatus()), step.getOrder(),
                     step.getWorkerId(), step.getAttemptCount(), format(step.getStartedAt()),
                     format(step.getFinishedAt()), format(step.getDeadlineAt()), step.getAwaitingMessageName(),
                     step.getAwaitingCorrelationKey(), step.getParentExecutionId(), step.getItemIndex(),
-                    step.getIteration(), step.isSuperseded(),
-                    io.mateu.workflow.domain.services.AgentTranscripts.summary(step));
+                    step.getIteration(), step.isSuperseded());
         }
     }
 

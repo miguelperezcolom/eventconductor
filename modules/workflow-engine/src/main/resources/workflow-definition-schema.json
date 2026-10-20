@@ -821,7 +821,6 @@
             "PUBLISH_EVENT",
             "HTTP_CALL",
             "LLM_CALL",
-            "AGENT_CALL",
             "CONTINUE_AS_NEW"
           ]
         },
@@ -938,7 +937,7 @@
           ],
           "minimum": 0,
           "maximum": 100,
-          "description": "ACTION, HTTP_CALL, LLM_CALL, RULE and AGENT_CALL only (2.33): 0–100, higher first; absent means 50. Honoured by the HTTP worker queue, the embedded worker pool and the queue of a rate-limited topic; carried on the task for Kafka workers (a topic keeps its own order)."
+          "description": "ACTION, HTTP_CALL, LLM_CALL and RULE only (2.33): 0–100, higher first; absent means 50. Honoured by the HTTP worker queue, the embedded worker pool and the queue of a rate-limited topic; carried on the task for Kafka workers (a topic keeps its own order)."
         },
         "task": {
           "type": [
@@ -1209,232 +1208,6 @@
           "required": [
             "connection",
             "prompt"
-          ]
-        },
-        "agent": {
-          "type": [
-            "object",
-            "null"
-          ],
-          "additionalProperties": false,
-          "description": "AGENT_CALL only: a model that works towards a goal with tools. Every model turn is a child execution dispatched to the built-in agent-turn task; every tool call is a child execution of the tool's own step (retries, timeouts, compensation, cancellation). Bounded by maxSteps, and optionally maxTokens and maxDuration.",
-          "properties": {
-            "connection": {
-              "type": "string",
-              "minLength": 1,
-              "description": "A named connection (workflow.llm.connections.<name>): provider, model, API key."
-            },
-            "model": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "description": "Overrides the connection's model."
-            },
-            "system": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "description": "The system prompt (text template over the process variables), rendered once when the step starts."
-            },
-            "goal": {
-              "type": "string",
-              "minLength": 1,
-              "description": "The first user message (text template over the process variables): what the agent must achieve."
-            },
-            "temperature": {
-              "type": [
-                "number",
-                "null"
-              ],
-              "minimum": 0,
-              "maximum": 2,
-              "description": "Sampling temperature. Omitted unless set."
-            },
-            "tools": {
-              "type": "array",
-              "minItems": 1,
-              "description": "The allowlist of tools the model may call. Exactly one of step, http, process and task per tool.",
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "name",
-                  "description"
-                ],
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "pattern": "^[A-Za-z0-9_-]{1,64}$",
-                    "description": "What the model calls it; unique in the agent."
-                  },
-                  "description": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "What the tool does — all the model knows about it."
-                  },
-                  "step": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "description": "A template step of this definition, used only as a tool (no preconditions, nobody's precondition). Its own timeout, retries, topic and compensation apply."
-                  },
-                  "http": {
-                    "$ref": "#/$defs/Step/properties/http",
-                    "description": "An HTTP_CALL block; its templates see the arguments. Runs on the http-call worker (allowed hosts, host-bound credentials). Without output it reports {status, body}."
-                  },
-                  "process": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "description": "A child workflow definition id: one child process per call."
-                  },
-                  "outputVariables": {
-                    "type": [
-                      "array",
-                      "null"
-                    ],
-                    "items": {
-                      "type": "string"
-                    },
-                    "description": "process tools: the child's variables that are the result."
-                  },
-                  "task": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "description": "A task contract (<id>@<version>), run as an ACTION."
-                  },
-                  "topic": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "description": "task tools: the destination; default the contract's."
-                  },
-                  "inputSchema": {
-                    "type": [
-                      "object",
-                      "null"
-                    ],
-                    "description": "A JSON Schema (type: object) the arguments must be valid against; a call that is not is refused and the model told why."
-                  },
-                  "approval": {
-                    "type": [
-                      "object",
-                      "null"
-                    ],
-                    "additionalProperties": false,
-                    "required": [
-                      "formId"
-                    ],
-                    "description": "A person approves each call first: a USER_TASK on formId whose approved field decides (comment is told to the model on a rejection).",
-                    "properties": {
-                      "formId": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "assignee": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "candidateUsers": {},
-                      "candidateGroups": {}
-                    }
-                  }
-                }
-              }
-            },
-            "output": {
-              "type": [
-                "object",
-                "null"
-              ],
-              "additionalProperties": false,
-              "description": "The final answer: schema (it must be valid against it — LLM_INVALID_OUTPUT, retried, otherwise), mapping (variable → JEXL over {text, json, usage, turns, toolCalls}) and/or variable (receives the text, or the JSON document).",
-              "properties": {
-                "schema": {
-                  "type": [
-                    "object",
-                    "null"
-                  ]
-                },
-                "mapping": {
-                  "type": [
-                    "object",
-                    "null"
-                  ],
-                  "additionalProperties": {
-                    "type": "string"
-                  }
-                },
-                "variable": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                }
-              }
-            },
-            "maxSteps": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Required: the most tool calls over the whole loop (AGENT_MAX_STEPS past it, final)."
-            },
-            "maxTokens": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 1,
-              "description": "The most input + output tokens over every turn (AGENT_MAX_TOKENS past it, final)."
-            },
-            "maxDuration": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "description": "ISO-8601 wall clock for the whole loop (AGENT_TIMEOUT past it: the step ends TIMEOUT, onTimeoutStepId routes it)."
-            },
-            "toolConcurrency": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 1,
-              "description": "How many tool calls of one turn run at once. Default 1."
-            },
-            "onToolError": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "enum": [
-                "fail",
-                "report",
-                null
-              ],
-              "description": "fail (default): a tool that fails for good fails the step. report: the error is the model's tool result."
-            },
-            "allowSensitiveVariables": {
-              "type": [
-                "boolean",
-                "null"
-              ],
-              "description": "True to let system, goal and the tools' templates read the definition's sensitive variables (their values then reach the model provider). Without it, an agent reading one is refused at load."
-            }
-          },
-          "required": [
-            "connection",
-            "goal",
-            "tools",
-            "maxSteps"
           ]
         },
         "event": {
@@ -2272,23 +2045,6 @@
           "then": {
             "required": [
               "llm"
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "AGENT_CALL"
-              }
-            },
-            "required": [
-              "type"
-            ]
-          },
-          "then": {
-            "required": [
-              "agent"
             ]
           }
         },

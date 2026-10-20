@@ -101,8 +101,7 @@ sensitiveVariables: [ cardNumber, "patient.*" ]   # names or globs, part of the 
 - **Refused at load** when computed from a sensitive variable: `searchAttributes`, `correlationExpression`,
   `lockKey`/`processLock.key`, `onEvent.correlationKey`, `awaitReply` correlation, `startPolicy.key`, a
   trigger's `businessKey`.
-- `LLM_CALL` / `AGENT_CALL` reading a sensitive variable are refused unless `llm.allowSensitiveVariables: true`
-  / `agent.allowSensitiveVariables: true`. Update results that read them need `allowSensitiveVariables: true`.
+- An `LLM_CALL` reading a sensitive variable is refused unless `llm.allowSensitiveVariables: true`. Update results that read them need `allowSensitiveVariables: true`.
 
 ## Webhooks, events and Kafka
 

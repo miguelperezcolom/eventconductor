@@ -46,8 +46,7 @@ class WorkflowMcpToolSurfaceTest {
             "getWorkflowAnalytics",
             "findBottleneck",
             "importWorkflowDefinitionsFromGit",
-            // Added with AGENT_CALL (MINOR).
-            "getAgentTranscript",
+            // getAgentTranscript was removed in 2.34.0 with the step it read (a breaking change, in the CHANGELOG).
             // Added with CONTINUE_AS_NEW and businessKeyPolicy (MINOR).
             "listRunsOfBusinessKey",
     };

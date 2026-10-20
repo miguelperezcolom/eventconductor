@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Bean;
 import java.util.Map;
 
 /**
- * Registers the built-in {@code llm-call@1} and {@code agent-turn@1} tasks wherever this module is on the classpath: the
+ * Registers the built-in {@code llm-call@1} task wherever this module is on the classpath: the
  * transport (worker-embedded in the engine's pod, worker-kafka in a worker deployment) collects it
  * like any task. {@code workflow.llm.enabled=false} leaves it out.
  */
@@ -33,21 +33,6 @@ public class LlmWorkerAutoConfiguration {
     public LlmCallHandler llmCallHandler(LlmWorkerProperties properties, ChatModelFactory factory,
                                          ObjectProvider<MeterRegistry> registry) {
         return new LlmCallHandler(properties, factory, new LlmCallMetrics(registry.getIfAvailable()));
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public AgentTurnHandler agentTurnHandler(LlmWorkerProperties properties, ChatModelFactory factory,
-                                             ObjectProvider<MeterRegistry> registry) {
-        return new AgentTurnHandler(properties, factory, new LlmCallMetrics(registry.getIfAvailable()));
-    }
-
-    /** One model turn of an AGENT_CALL step — same topic and connections as llm-call. */
-    @Bean
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    public TaskRegistration agentTurnTaskRegistration(AgentTurnHandler handler, LlmWorkerProperties properties) {
-        return new TaskRegistration<>("agent-turn", 1, properties.getTopic(), AgentTurnHandler.Input.class,
-                (Class<Map<String, Object>>) (Class) Map.class, handler);
     }
 
     @Bean

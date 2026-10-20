@@ -5,8 +5,8 @@
 - **Missing `name` on a step** — the schema requires `id`, `type` AND `name` on every step (the Maven
   plugin and the engine's import refuse the file). Unknown keys are refused too (`retires: 3` fails).
 - **Two `START`s** — at most one START per definition; branch after it with a FORK.
-- **A step with no way in** — every non-START step needs a precondition, except a compensation step,
-  a step used only as an agent tool, and a `WAIT_FOR_MESSAGE` that begins a flow.
+- **A step with no way in** — every non-START step needs a precondition, except a compensation step
+  and a `WAIT_FOR_MESSAGE` that begins a flow.
 - **Array order means nothing** — steps run by preconditions; all eligible steps run concurrently.
   `parallel` is ignored.
 - **Cycles** — rejected; use `repeat` (one step) or `loopBack` (a section).
@@ -53,7 +53,7 @@ requerida 'name'`); set `MAVEN_OPTS=-Duser.language=en` to get English. The engi
 | `/steps/N: required property 'name' not found` (localized) | add `name` to the step |
 | `/steps/N: property 'x' is not defined in the schema` (localized) | typo / field on the wrong level (check the schema) |
 | `A workflow can have at most one START step, but found N.` | keep one START |
-| `Step 'X' has no preconditions and is not a START, a WAIT_FOR_MESSAGE, another step's compensation or an agent's tool — nothing would ever start it.` | add `preconditionStepId` |
+| `Step 'X' has no preconditions and is not a START, a WAIT_FOR_MESSAGE, or another step's compensation — nothing would ever start it.` | add `preconditionStepId` |
 | `Step 'X' references unknown precondition step 'Y'.` / `unknown compensation step` | fix the id |
 | `Duplicate step id 'X'.` | rename |
 | `START step 'X' cannot have preconditions.` | remove them |
@@ -66,7 +66,6 @@ requerida 'name'`); set `MAVEN_OPTS=-Duser.language=en` to get English. The engi
 | `Step 'X' awaitReply: only an HTTP_CALL or a PUBLISH_EVENT awaits a reply.` | move to a WAIT_FOR_MESSAGE |
 | `Step 'X' declares forEach together with awaitReply…` | run a PROCESS per item |
 | `Step 'X' loopBack must define maxIterations…` / `goes back to 'Y', which is not upstream of it` | add the cap / point upstream |
-| `AGENT_CALL step 'X' maxSteps is required: an agent must be bounded.` | add `maxSteps` |
 | `… must declare exactly one of step, http, process and task.` | one kind per tool |
 | `Step 'X' declares both a deadline and an escalation` | keep one |
 | `REPLY step 'X' declares more than one of replyVariables, replyExpression and replyTemplate` | keep one |

@@ -75,65 +75,6 @@ public final class SensitiveVariableMasking {
     }
 
     /**
-     * A JSON document (an agent's transcript) with the process's sensitive variables kept out: every value
-     * under a key named like one, and every occurrence of one of their current values (4 characters or more)
-     * anywhere in its text, replaced by the mask. As it is when the process has nothing sensitive.
-     */
-    public static String redactDocument(String json, Process process) {
-        var names = namesOf(process);
-        if (json == null || names.isEmpty()) {
-            return json;
-        }
-        var text = json;
-        try {
-            var tree = JSON.readTree(json);
-            maskKeys(tree, names);
-            text = JSON.writeValueAsString(tree);
-        } catch (Exception notJson) {
-            // free text: only the values below
-        }
-        var values = process.getVariables().stream()
-                .filter(v -> v != null && v.value() != null && v.value().length() >= 4 && names.test(v.name()))
-                .map(Variable::value).distinct()
-                .sorted(java.util.Comparator.comparingInt(String::length).reversed()).toList();
-        for (var value : values) {
-            text = text.replace(value, MASK);
-            // As it reads inside a JSON string, quotes escaped.
-            var escaped = JSON.valueToTree(value).toString();
-            escaped = escaped.substring(1, escaped.length() - 1);
-            if (!escaped.equals(value)) {
-                text = text.replace(escaped, MASK);
-            }
-        }
-        return text;
-    }
-
-    private static void maskKeys(com.fasterxml.jackson.databind.JsonNode node, SensitiveNames names) {
-        if (node instanceof ObjectNode object) {
-            var fields = new java.util.ArrayList<String>();
-            object.fieldNames().forEachRemaining(fields::add);
-            for (var field : fields) {
-                var child = object.get(field);
-                if (names.test(field)) {
-                    object.put(field, MASK);
-                } else if (child.isTextual() && (child.asText().trim().startsWith("{") || child.asText().trim().startsWith("["))) {
-                    try {
-                        var inner = JSON.readTree(child.asText());
-                        maskKeys(inner, names);
-                        object.put(field, JSON.writeValueAsString(inner));
-                    } catch (Exception notJson) {
-                        // text that only looks like JSON
-                    }
-                } else {
-                    maskKeys(child, names);
-                }
-            }
-        } else if (node instanceof com.fasterxml.jackson.databind.node.ArrayNode array) {
-            array.forEach(child -> maskKeys(child, names));
-        }
-    }
-
-    /**
      * A JSON object (a reply payload) as shown: the members named like a sensitive variable masked. A
      * payload that is not an object is masked whole when the process has anything sensitive.
      */

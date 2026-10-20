@@ -11,11 +11,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * JSON Schema for agents: a tool's {@code inputSchema} and the final answer's {@code output.schema}
- * must be valid JSON Schema (2020-12) — checked at import — and a tool call's arguments are validated
- * against its tool's schema before anything runs. Compiled schemas are cached by their text.
+ * JSON Schema (2020-12) checks: whether a schema is itself valid (checked at import, e.g. an update's
+ * {@code accepts}) and whether a document satisfies one (e.g. an update's arguments). Compiled schemas
+ * are cached by their text.
  */
-public final class AgentSchemas {
+public final class JsonSchemas {
 
     private static final int MAX_REPORTED = 5;
     private static final String META_SCHEMA = "https://json-schema.org/draft/2020-12/schema";
@@ -58,6 +58,6 @@ public final class AgentSchemas {
         return meta;
     }
 
-    private AgentSchemas() {
+    private JsonSchemas() {
     }
 }

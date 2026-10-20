@@ -136,7 +136,7 @@ rows of `deferred_dispatch`, claimed by exactly one pod. Metric:
   priority: 90          # 0–100, higher first; default 50
 ```
 
-On `ACTION`, `HTTP_CALL`, `LLM_CALL`, `RULE` and `AGENT_CALL` steps. Honoured by:
+On `ACTION`, `HTTP_CALL`, `LLM_CALL` and `RULE` steps. Honoured by:
 
 - the **HTTP worker queue** — claimed `ORDER BY priority DESC, created_at`;
 - the **embedded worker pool** when `workflow.embedded.worker-threads > 0` (a priority queue; inline dispatch

@@ -136,25 +136,4 @@ class SensitiveVariableRulesTest {
         assertThat(SensitiveVariableRules.patternsOf(null)).isEmpty();
     }
 
-    @Test
-    void anAgentReadingASensitiveVariableNeedsTheOptIn() {
-        var sensitive = SensitiveVariableRules.matcher(List.of("cardNumber", "patient.*"));
-        Map<String, Object> viaGoal = new java.util.LinkedHashMap<>(Map.of("connection", "claude",
-                "goal", "Dispute the charge on ${cardNumber}", "system", "Be brief"));
-        assertThat(SensitiveVariableRules.agentViolations(viaGoal, sensitive, "step 'agent'"))
-                .singleElement().asString().contains("step 'agent': the agent reads the sensitive variable(s) cardNumber")
-                .contains("agent.allowSensitiveVariables: true");
-        Map<String, Object> viaTool = Map.of("goal", "Help", "tools", List.of(
-                Map.of("name", "fetch", "http", Map.of("method", "GET", "url", "https://x.example/p/${patient.id}",
-                        "headers", Map.of("X-Card", "${cardNumber}"))),
-                Map.of("name", "lookup", "step", "lookup")));
-        assertThat(SensitiveVariableRules.agentViolations(viaTool, sensitive, "step 'agent'"))
-                .singleElement().asString().contains("patient").contains("cardNumber");
-        viaGoal.put("allowSensitiveVariables", true);
-        assertThat(SensitiveVariableRules.agentViolations(viaGoal, sensitive, "x")).isEmpty();
-        assertThat(SensitiveVariableRules.agentViolations(Map.of("goal", "Help ${name}"), sensitive, "x")).isEmpty();
-        assertThat(SensitiveVariableRules.agentViolations(null, sensitive, "x")).isEmpty();
-        assertThat(SensitiveVariableRules.agentViolations(Map.of("tools", List.of(Map.of("http", Map.of("url", "${broken")))),
-                sensitive, "x")).isEmpty();
-    }
 }

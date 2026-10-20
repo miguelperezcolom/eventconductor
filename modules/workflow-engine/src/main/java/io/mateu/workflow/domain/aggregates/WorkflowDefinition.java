@@ -918,13 +918,6 @@ public record WorkflowDefinition(
                     }
                 }
                 for (var step : steps) {
-                    if (step != null && step.agent() != null) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> agent = new com.fasterxml.jackson.databind.ObjectMapper()
-                                .convertValue(step.agent(), Map.class);
-                        violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.agentViolations(
-                                agent, sensitive, "step '" + step.id() + "'"));
-                    }
                     if (step == null || step.llm() == null || !StepType.LLM_CALL.equals(step.type())) continue;
                     var llm = new java.util.HashMap<String, Object>();
                     llm.put("system", step.llm().system());
@@ -937,6 +930,20 @@ public record WorkflowDefinition(
         }
         if (!violations.isEmpty()) {
             throw new IllegalStateException(String.join("; ", violations) + ".");
+        }
+    }
+
+    /**
+     * No step may use a removed type (read back as {@link StepType#REMOVED}): the definition fails to load
+     * with what to use instead ({@code RemovedStepTypes}).
+     */
+    private void checkRemovedStepTypes() {
+        if (steps == null) return;
+        for (var step : steps) {
+            if (step != null && StepType.REMOVED.equals(step.type())) {
+                throw new IllegalStateException(io.mateu.workflow.analysis.RemovedStepTypes
+                        .violation(step.id(), "AGENT_CALL").orElseThrow());
+            }
         }
     }
 
@@ -1068,6 +1075,7 @@ public record WorkflowDefinition(
      * @throws IllegalStateException if any invariant is violated.
      */
     public void checkInvariants() {
+        checkRemovedStepTypes();
         checkFlowControl();
         checkSchedules();
         checkTriggers();
@@ -1080,8 +1088,6 @@ public record WorkflowDefinition(
         // Reachability below is judged against these: a compensation is declared on the step it
         // undoes and started by the rollback pipeline, so it needs no way in of its own.
         var compensationTargets = compensationTargets();
-        // Likewise an agent's tool step: the agent runs it, once per call the model makes.
-        var toolSteps = toolSteps();
         // At most one START: a flow has a single entry point (or enters via WAIT_FOR_MESSAGE).
         // Multiple END steps are fine — a flow may finish through several distinct outcomes.
         long startCount = steps.stream().filter(s -> StepType.START.equals(s.type())).count();
@@ -1109,11 +1115,10 @@ public record WorkflowDefinition(
                         "START step '" + step.id() + "' cannot have preconditions.");
             }
             if (!StepType.START.equals(step.type()) && !StepType.WAIT_FOR_MESSAGE.equals(step.type())
-                    && step.preconditionIds().isEmpty() && !compensationTargets.contains(step.id())
-                    && !toolSteps.contains(step.id())) {
+                    && step.preconditionIds().isEmpty() && !compensationTargets.contains(step.id())) {
                 throw new IllegalStateException(
                         "Step '" + step.id() + "' has no preconditions and is not a START, a"
-                                + " WAIT_FOR_MESSAGE, another step's compensation or an agent's tool — nothing"
+                                + " WAIT_FOR_MESSAGE or another step's compensation — nothing"
                                 + " would ever start it.");
             }
             if (StepType.PROCESS.equals(step.type())) {
@@ -1218,12 +1223,6 @@ public record WorkflowDefinition(
             }
             if (StepType.LLM_CALL.equals(step.type())) {
                 var problems = io.mateu.workflow.domain.services.LlmRequestRenderer.problems(step);
-                if (!problems.isEmpty()) {
-                    throw new IllegalStateException(String.join(" ", problems));
-                }
-            }
-            if (StepType.AGENT_CALL.equals(step.type())) {
-                var problems = io.mateu.workflow.domain.services.AgentCallValidation.problems(step, steps);
                 if (!problems.isEmpty()) {
                     throw new IllegalStateException(String.join(" ", problems));
                 }
@@ -1438,19 +1437,6 @@ public record WorkflowDefinition(
             }
         }
         return problems;
-    }
-
-    /** The steps the AGENT_CALL steps of this definition use as {@code step:} tools. */
-    private java.util.Set<String> toolSteps() {
-        var tools = new java.util.HashSet<String>();
-        for (var step : steps) {
-            if (step.agent() != null) {
-                step.agent().toolList().stream()
-                        .filter(tool -> tool.step() != null && !tool.step().isBlank())
-                        .forEach(tool -> tools.add(tool.step()));
-            }
-        }
-        return tools;
     }
 
     /** The steps some other step names as its {@code compensationStepId}. */

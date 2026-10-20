@@ -77,6 +77,18 @@ public class WorkflowDefinitionValidator {
         if (document == null) {
             return;
         }
+        // A removed step type would only read as "not in the enum" to the schema: say what replaced it.
+        var steps = document.get("steps");
+        if (steps != null && steps.isArray()) {
+            for (var step : steps) {
+                var type = step.path("type").asText(null);
+                var removed = io.mateu.workflow.analysis.RemovedStepTypes.violation(step.path("id").asText("?"), type);
+                if (removed.isPresent()) {
+                    throw new WorkflowDefinitionValidationException(
+                            "Workflow definition file '" + source + "' is invalid:\n" + removed.get());
+                }
+            }
+        }
         try {
             var violations = schema().validate(document.toString(), InputFormat.JSON);
             if (!violations.isEmpty()) {

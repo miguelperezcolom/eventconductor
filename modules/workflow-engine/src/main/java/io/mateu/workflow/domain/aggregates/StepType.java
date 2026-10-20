@@ -51,29 +51,34 @@ public enum StepType {
     LLM_CALL,
 
     /**
-     * Let a language model work towards a goal with tools ({@code agent}: a named connection, templated
-     * system prompt and goal, an allowlist of tools, budgets). The step runs a loop: each model turn is a
-     * child execution dispatched to the built-in {@code agent-turn} worker task, and each tool the model
-     * calls is a child execution of the tool's own step — retried, timed out, cancelled and compensated
-     * like any step — until the model answers or a budget is spent.
-     */
-    AGENT_CALL,
-
-    /**
      * Ends this process — COMPLETED, outcome {@code continued} — and starts a fresh run of the same
      * definition with the same business key and the variables its {@code continueAsNew} block carries,
      * the two linked. Keeps the history of an entity- or subscription-style process bounded.
      */
-    CONTINUE_AS_NEW;
+    CONTINUE_AS_NEW,
+
+    /**
+     * Never accepted in a definition: the type a step reads back as when its persisted JSON names a step
+     * type that was removed ({@link io.mateu.workflow.analysis.RemovedStepTypes}) — the frozen definition
+     * or step of a process started on an older engine. Loading a definition with one fails with the
+     * removal message; an execution of one fails, final, with
+     * {@link io.mateu.workflow.analysis.RemovedStepTypes#ERROR_CODE}.
+     */
+    REMOVED;
 
     /**
      * Accepts the pre-rename alias {@code MESSAGE} (now {@code WAIT_FOR_MESSAGE}) so that the
-     * persisted stepJson of in-flight processes and old definition files keep deserializing.
+     * persisted stepJson of in-flight processes and old definition files keep deserializing, and reads a
+     * removed type (e.g. {@code AGENT_CALL}) as {@link #REMOVED}, so a process persisted with one still
+     * loads — and the definition validation, not a parse error, says what to use instead.
      */
     @JsonCreator
     public static StepType fromJson(String value) {
         if ("MESSAGE".equals(value)) {
             return WAIT_FOR_MESSAGE;
+        }
+        if (io.mateu.workflow.analysis.RemovedStepTypes.isRemoved(value)) {
+            return REMOVED;
         }
         return valueOf(value);
     }

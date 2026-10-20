@@ -41,7 +41,6 @@ The same rules run in the engine at load and in the [Maven plugin](/reference/ma
 
 * **A search attribute may not read a sensitive variable.** An index is plaintext by nature, and an index over ciphertext could find nothing — `searchAttributes: { card: "${cardNumber}" }` is refused.
 * **A correlation or lock key may not read a sensitive variable** — a step's `correlationExpression`, `lockKey`, `onEvent.correlationKey`, `awaitReply` correlation, or the definition's `processLock.key`. A key is stored in clear and looked up by equality (the waiting step, the lock row, the event receipt), so it would be the sensitive value at rest under another name.
-* **An AGENT_CALL may not read a sensitive variable** in its `system`, `goal` or tool templates unless the block opts in with `agent.allowSensitiveVariables: true` — same reason, same message style.
 * **An LLM_CALL may not put a sensitive variable in its prompt** unless the step opts in with `llm.allowSensitiveVariables: true` — the prompt leaves your trust boundary for the model provider. A prompt naming one is refused at load; without the opt-in the engine also leaves sensitive variables out of the prompt's context, so they cannot reach it indirectly.
 
 ## Keys
@@ -135,10 +134,6 @@ Every view of a process shows a sensitive value as `••••` — the consol
 Writing is unchanged: an operator with the right to change variables can set a sensitive one, and the audit line says `set cardNumber = •••• (was ••••)`.
 
 A synchronous invocation's reply is the payload the workflow chose to return to its caller: the caller gets it in clear (it is stored sealed). Don't put a sensitive variable in `replyVariables` unless the caller is meant to have it.
-
-## Agent transcripts
-
-An `AGENT_CALL` keeps a transcript of its turns (shown in the console, REST and MCP). Besides the secret-looking keys it already redacts, every value under a key named like a sensitive variable, and every occurrence of one of the process's current sensitive values in a message, an argument or a result, is stored and shown as `••••`. (An agent whose `system`, `goal` or tool templates read a sensitive variable is refused at load unless it sets `agent.allowSensitiveVariables: true`, as an `LLM_CALL` is.)
 
 ## Logs
 

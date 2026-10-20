@@ -50,7 +50,7 @@ public final class FlowControlRules {
 
     /** The step types that dispatch a task to a worker, and so may carry a {@code priority}. */
     public static final Set<String> PRIORITY_STEP_TYPES =
-            Set.of("ACTION", "HTTP_CALL", "LLM_CALL", "RULE", "AGENT_CALL");
+            Set.of("ACTION", "HTTP_CALL", "LLM_CALL", "RULE");
 
     public static final int MIN_PRIORITY = 0;
     public static final int MAX_PRIORITY = 100;

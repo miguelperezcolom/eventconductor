@@ -15,7 +15,7 @@ Events are serialized as JSON with a `type` property carrying the registered eve
 | `upstream` | Inbound | Integration events from external services |
 | `downstream` | Outbound | Task execution requests sent to workers |
 | `http-calls` | Outbound | `HTTP_CALL` requests, served by `http-worker-standalone-app` (a step's `topic` overrides) |
-| `llm-calls` | Outbound | `LLM_CALL` prompts and `AGENT_CALL` model turns (`agent-turn@1`), served by `llm-worker-standalone-app` (a step's `topic` overrides) |
+| `llm-calls` | Outbound | `LLM_CALL` prompts, served by `llm-worker-standalone-app` (a step's `topic` overrides) |
 | `dead-letter` | Outbound | Events the engine can never process, parked unchanged for inspection and replay |
 | `process-index` | Internal | Process status changes for the standalone projector (`workflow.projection.mode=remote` only) |
 | `human-tasks` | Outbound | Every change of a human task (created, assigned, claimed, released, completed, cancelled, escalated), published by `forms-standalone-app` (`FORMS_HUMAN_TASKS_TOPIC`) as a binary CloudEvent (`ce_type` `io.eventconductor.task.<event>`) for inboxes and notification centres — and for [event triggers](/guides/domain-event-triggers/) when a destination maps to it; the engine does not read it otherwise |

@@ -372,8 +372,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
                 // HTTP egress on a topic of its own, so it can be scaled and network-policed apart.
                 return io.mateu.workflow.domain.services.HttpRequestRenderer.DEFAULT_TOPIC;
             }
-            if ((StepType.LLM_CALL.equals(step.type()) || StepType.AGENT_CALL.equals(step.type()))
-                    && (step.topic() == null || step.topic().isBlank())) {
+            if (StepType.LLM_CALL.equals(step.type()) && (step.topic() == null || step.topic().isBlank())) {
                 // Model egress (and its API keys) on a topic of its own, like HTTP_CALL's.
                 return io.mateu.workflow.domain.services.LlmRequestRenderer.DEFAULT_TOPIC;
             }
@@ -551,7 +550,12 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         this.variables = variables;
         this.startedAt = EngineClock.now();
         var step = pojoFromJson(stepJson, Step.class);
-        if (parentExecutionId == null && (step.forEach() != null || StepType.AGENT_CALL.equals(step.type()))) {
+        if (StepType.REMOVED.equals(step.type())) {
+            // Frozen by an older engine with a step type this one no longer runs: nothing to dispatch.
+            failRemovedStepType();
+            return this;
+        }
+        if (parentExecutionId == null && step.forEach() != null) {
             // A forEach container runs no task of its own: the orchestrator materialises its
             // iterations (beginIterations) and drives them. Reaching here means it was started by a
             // path that does not know that; leave it pending for the orchestrator.
@@ -790,20 +794,6 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
                     io.mateu.workflow.domain.services.LlmRequestRenderer.TASK_ID, taskVariables.stream()
                     .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
                     .toList(), dispatchCount));
-        } else if (StepType.AGENT_CALL.equals(step.type())) {
-            // One model turn of an agent (the agent itself never gets here: it is a container). Its
-            // request — the conversation so far and the tools — was built by the agent's loop and is
-            // in this turn's scope, laid over the variables above; only it is sent.
-            var request = scope.get(io.mateu.workflow.domain.services.AgentLoop.REQUEST_VARIABLE);
-            if (request == null) {
-                send(new TaskLogEmitted(id, MessageType.Error, "Agent turn of step " + step.name() + " has no request."));
-                updateStatus(StepExecutionStatus.ERROR, true);
-                return this;
-            }
-            send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId,
-                    io.mateu.workflow.domain.services.AgentLoop.TASK_ID,
-                    List.of(new io.mateu.workflow.dtos.Variable(io.mateu.workflow.domain.services.AgentLoop.REQUEST_VARIABLE,
-                            request)), dispatchCount));
         } else if (StepType.PUBLISH_EVENT.equals(step.type())) {
             // No worker: the step-over renders the event, writes it to the outbox with this step's
             // completion (published if and only if the step completed), and completes it — or, with an
@@ -1031,74 +1021,10 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             return true;
         }
         try {
-            if (stepJson == null) {
-                return false;
-            }
-            var step = pojoFromJson(stepJson, Step.class);
-            return step.forEach() != null || StepType.AGENT_CALL.equals(step.type());
+            return stepJson != null && pojoFromJson(stepJson, Step.class).forEach() != null;
         } catch (RuntimeException e) {
             return false;
         }
-    }
-
-    /** Whether this is an AGENT_CALL's own execution: the container of its turns and tool calls. */
-    @com.fasterxml.jackson.annotation.JsonIgnore
-    public boolean isAgent() {
-        if (parentExecutionId != null) {
-            return false;
-        }
-        if (io.mateu.workflow.domain.services.AgentLoop.KIND_AGENT.equals(scope().get(io.mateu.workflow.domain.services.AgentLoop.KIND))) {
-            return true;
-        }
-        try {
-            return stepJson != null && StepType.AGENT_CALL.equals(pojoFromJson(stepJson, Step.class).type());
-        } catch (RuntimeException e) {
-            return false;
-        }
-    }
-
-    /**
-     * Starts this execution as an agent: no task of its own, no deadline (each turn and each tool call
-     * has its own), PENDING until its loop says otherwise. {@code scope} holds the rendered system
-     * prompt and goal.
-     */
-    public void beginAgent(Process process, java.util.Map<String, String> scope) {
-        this.dispatchCount++;
-        this.variables = process.getVariables() == null ? List.of() : process.getVariables();
-        this.startedAt = EngineClock.now();
-        this.finishedAt = null;
-        this.deadlineAt = null;
-        this.scopeJson = io.mateu.workflow.domain.services.MultiInstance.toJson(scope);
-        this.status = StepExecutionStatus.PENDING;
-        send(new TaskLogEmitted(id, MessageType.Info, "Agent " + stepId + " started."));
-    }
-
-    /** Records the agent's transcript and usage (see {@code AgentLoop.transcript}). */
-    public void recordAgentState(String json) {
-        this.outputJson = json;
-    }
-
-    /**
-     * A child of an agent: a model turn, a tool call or an approval — CREATED, with its own id, the step
-     * it runs ({@code stepId}, {@code stepJson}), its position among the agent's children and its scope.
-     */
-    public static StepExecution agentChildOf(StepExecution agent, String stepId, String stepJson, int index,
-                                             java.util.Map<String, String> scope) {
-        return StepExecution.builder()
-                .id(UUID.randomUUID().toString())
-                .processId(agent.getProcessId())
-                .workflowDefinitionId(agent.getWorkflowDefinitionId())
-                .stepId(stepId)
-                .stepJson(stepJson)
-                .variables(List.of())
-                .status(StepExecutionStatus.CREATED)
-                .order(agent.getOrder())
-                .iteration(agent.getIteration())
-                .injectedByStepExecutionId(agent.getInjectedByStepExecutionId())
-                .parentExecutionId(agent.getId())
-                .itemIndex(index)
-                .scopeJson(io.mateu.workflow.domain.services.MultiInstance.toJson(scope))
-                .build();
     }
 
     /**
@@ -1254,6 +1180,20 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         this.outputJson = collectedOutput;
         send(new TaskLogEmitted(id, MessageType.Info, why));
         updateStatus(StepExecutionStatus.COMPLETED);
+    }
+
+    /**
+     * Fails this execution, final, because its step's type was removed from the engine (it reads back as
+     * {@link StepType#REMOVED} from a process persisted by an older version): logged with the error code
+     * {@code STEP_TYPE_REMOVED} and what to use instead. No retry spends itself on it; the failure pipeline
+     * — compensation, the process ending ERROR, an operator migrating the process — takes it from there.
+     */
+    public void failRemovedStepType() {
+        this.deadlineAt = null;
+        send(new TaskLogEmitted(id, MessageType.Error, io.mateu.workflow.analysis.RemovedStepTypes.ERROR_CODE
+                + ": step " + stepId + " cannot run on this engine: "
+                + io.mateu.workflow.analysis.RemovedStepTypes.message("AGENT_CALL").orElseThrow()));
+        updateStatus(StepExecutionStatus.ERROR, true);
     }
 
     /** Fails this container because of one of its iterations: final, the iteration spent the retries. */

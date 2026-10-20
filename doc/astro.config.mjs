@@ -74,7 +74,6 @@ export default defineConfig({
 						{ label: 'Asynchronous Request/Response', slug: 'guides/request-response' },
 						{ label: 'HTTP Calls', slug: 'guides/http-calls' },
 						{ label: 'LLM Calls', slug: 'guides/llm-calls' },
-						{ label: 'Agents with Tools', slug: 'guides/agents-with-tools' },
 						{ label: 'Publishing Domain Events', slug: 'guides/publishing-events' },
 						{ label: 'Starting on and Waiting for Domain Events', slug: 'guides/domain-event-triggers' },
 						{ label: 'Starting a Workflow from a Webhook', slug: 'guides/webhooks' },

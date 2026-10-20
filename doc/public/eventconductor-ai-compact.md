@@ -3,7 +3,7 @@
 EventConductor is an event-driven **workflow / saga orchestration engine** for Java/Spring. A business
 process is a **workflow definition** (YAML or JSON) made of **steps** and the preconditions between them;
 the engine schedules steps, enforces retries/timeouts/deadlines and runs compensation, and delegates business
-logic to **workers** (or to built-in steps: HTTP_CALL, LLM_CALL, AGENT_CALL, PUBLISH_EVENT…). The same
+logic to **workers** (or to built-in steps: HTTP_CALL, LLM_CALL, PUBLISH_EVENT…). The same
 definitions run in one JVM with no dependencies or on a Kafka + PostgreSQL cluster.
 
 Artifacts: `io.mateu.workflow:*`, one version for all (2.33.0 at the time of writing; if Central does not
@@ -31,7 +31,7 @@ Spring Boot 4.1, Java 21. Full reference: `eventconductor-ai-full.md`. Examples 
 Add only what you use: `spring-boot-starter-webmvc` (serve REST/UI/MCP — optional in the engine),
 `forms-engine` (USER_TASK), `rule-engine`/`rule-runtime` (RULE), `worker-embedded` (typed `TaskHandler`s
 in-process), `worker-http` + `worker-embedded` (HTTP_CALL in-process), `worker-llm` + `worker-embedded` +
-`spring-ai-anthropic`/`spring-ai-openai` (LLM_CALL/AGENT_CALL), `inbound-events-kafka` (kafka mode with
+`spring-ai-anthropic`/`spring-ai-openai` (LLM_CALL), `inbound-events-kafka` (kafka mode with
 triggers/`onEvent`), `flyway-core` (jpa).
 
 ```java
@@ -67,8 +67,8 @@ HTTP Basic `admin:$SECURITY_PASSWORD`).
 ## Definition rules
 
 - **Every step has `id`, `type`, `name`.** Unknown keys are schema errors.
-- **At most one `START`**; every other step needs a precondition — except compensation steps, steps used
-  only as an agent tool, and a `WAIT_FOR_MESSAGE` beginning a flow.
+- **At most one `START`**; every other step needs a precondition — except compensation steps and a
+  `WAIT_FOR_MESSAGE` beginning a flow.
 - **Order is data flow**: a step runs when ALL its preconditions are `COMPLETED` and its guards hold; all
   eligible steps run concurrently. Array order is irrelevant; `parallel` is ignored.
 - **No precondition cycles** — use `repeat` / `loopBack`.
@@ -109,7 +109,6 @@ steps:
 | work in your code | `ACTION` (+ worker; `topic` routes it in kafka mode, `task` names a contract) |
 | REST call without a worker | `HTTP_CALL` `http: {connection, method, path, body, output, retryOn}` |
 | model call / structured extraction | `LLM_CALL` `llm: {connection, system, prompt, responseSchema, output}` |
-| model choosing tools, bounded | `AGENT_CALL` `agent: {connection, goal, tools, maxSteps}` |
 | human approval / input | `USER_TASK` `formId` (+ `assignment`, `escalation`) |
 | exactly one branch by data | `CHOICE` + guarded `preconditions` links (+ unguarded default) → `JOIN joinType: XOR` |
 | parallel branches | `FORK` … `JOIN` (`preconditionStepIds`) |
@@ -143,7 +142,6 @@ steps:
 | `PUBLISH_EVENT` | domain event via the outbox; destination mapped by `workflow.events.destinations.<name>.topic`; CloudEvents on Kafka |
 | `HTTP_CALL` | built-in `http-call@1` (worker-http; topic `http-calls`); `output` = JEXL over `{status, headers, body}`; default `retryOn: [5xx, io]` (4xx final); same `Idempotency-Key` on retries |
 | `LLM_CALL` | built-in `llm-call@1` (worker-llm; `llm-calls`); `responseSchema` validated (`LLM_INVALID_OUTPUT`); `output` over `{text, json, usage, model}` |
-| `AGENT_CALL` | each model turn (`agent-turn@1`) and tool call is a child step execution; tools `step`\|`http`\|`process`\|`task` with `inputSchema`, optional `approval`; budgets `maxSteps` (required), `maxTokens`, `maxDuration`; `output: {schema, mapping}` |
 | `PROCESS` | child with ALL parent variables, key `parent:<stepExecutionId>`; `outputVariables` come back |
 | `FORK` / `JOIN` / `CHOICE` | gateways (see above); CHOICE picks the longest satisfied guard first, latches |
 | `LOCK` / `UNLOCK` | `lockName`, `lockKey` (JEXL); waiters park `WAITING_ON_LOCK`, FIFO |
@@ -256,8 +254,8 @@ class BookingSagaTest {
 }
 ```
   `whenTask(task|step id|topic)` / `whenStep(id)` → `thenComplete(map)`, `thenFail(code[, retryable])`,
-  `thenTimeout()`, `thenAnswer(fn)`; `whenHttpCall(step).thenRespond(status, body)`, `whenLlmCall(step).thenAnswer(text)`,
-  `whenAgent(step).thenCallTool(name, args).thenAnswer(json)`; `completeUserTask(p, step, values)`,
+  `thenTimeout()`, `thenAnswer(fn)`; `whenHttpCall(step).thenRespond(status, body)`, `whenLlmCall(step).thenAnswer(text)`;
+  `completeUserTask(p, step, values)`,
   `sendMessage`, `publishEvent`, `update`, `updateWithStart`, `advanceTime`. Assertions (`WorkflowAssertions.assertThat`):
   `isCompleted/isCompensated/isFailed/isWaitingAt/hasPassedSteps/hasVariable/hasReplied/hasPublishedEvent`.
   Unique business key per test; don't run kit tests in parallel in one JVM.
@@ -292,7 +290,7 @@ class BookingSagaTest {
   `workflow.http.secrets.<NAME>`. LLM keys: `workflow.llm.connections.<name>.api-key`.
 - `sensitiveVariables` need `workflow.encryption.keys.<id>` (base64, 32 bytes) + `active-key`; masked in UI/REST/MCP;
   reveal with `POST /processes/{id}/variables/{name}/reveal {reason}` for `workflow.security.sensitive.reveal-roles`;
-  never usable as search attribute, correlation, lock or startPolicy key; LLM/agent need `allowSensitiveVariables: true`.
+  never usable as search attribute, correlation, lock or startPolicy key; LLM_CALL needs `llm.allowSensitiveVariables: true`.
 
 ## Gotchas and upgrades
 

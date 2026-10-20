@@ -34,7 +34,7 @@ answered with a **result** — over HTTP, MCP, Kafka and the test kit.
   locally on commit and by a poll across pods.
 - **REPLY is at most once** (`Process.recordReply`). Updates must not reuse it: their results live in
   their own rows.
-- **JSON Schema 2020-12** is already compiled and cached by `AgentSchemas` (networknt 3.x).
+- **JSON Schema 2020-12** is already compiled and cached by `JsonSchemas` (networknt 3.x).
 - The **definition snapshot** on the process (`workflowDefinitionJson`) is what a process runs; a
   migration (#551) swaps it. ⇒ an update is looked up in the *snapshot*, never in the latest version.
 

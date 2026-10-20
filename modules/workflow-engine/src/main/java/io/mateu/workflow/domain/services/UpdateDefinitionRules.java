@@ -49,7 +49,7 @@ public final class UpdateDefinitionRules {
                 violations.add(where + ": the name is declared twice");
             }
             if (update.accepts() != null) {
-                AgentSchemas.problems(update.accepts())
+                JsonSchemas.problems(update.accepts())
                         .forEach(problem -> violations.add(where + ": accepts is not a valid JSON Schema (" + problem + ")"));
             }
             if (update.acceptedWhile() != null) {

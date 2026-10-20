@@ -23,7 +23,7 @@ clock you move. Canonical: `doc/src/content/docs/guides/testing-workflows.md`,
   plus `workflows/cron.yaml` and `workflows/events.yaml`. `forms/` is validated only — forms ship via
   `forms.directory-import` / `forms.git-import`, never the classpath (`formsDirectory` can point elsewhere).
 - Checks: the JSON schema (unknown keys are errors — a typo like `retires` fails), roots/START rule,
-  dangling ids, cycles, JEXL parseability, loops, HTTP/LLM/agent blocks, triggers, schedules,
+  dangling ids, cycles, JEXL parseability, loops, HTTP/LLM blocks, triggers, schedules,
   retention, sensitive-variable rules, task contracts. Warnings (never fail): JOIN on a guarded step,
   CHOICE without a default, message fields on HTTP_CALL/PUBLISH_EVENT outside `awaitReply`.
 - Only at engine load: TIMER `duration: 0`, blank `messageName`/`correlationExpression`, missing
@@ -126,7 +126,6 @@ the Spring context (and its processes) is shared across tests.
 | chain `.thenFail("X").thenComplete()` | consecutive answers; the last repeats |
 | `whenHttpCall("step").thenRespond(status, body)` / `.thenIoError()` | stubs HTTP_CALL (`body` a JSON/text `String`; unstubbed calls fail); `.lastRequest()`. No `worker-http`/`worker-embedded` or `workflow.http.connections` needed in tests — those are runtime-only |
 | `whenLlmCall("step").thenAnswer(text)` | stubs LLM_CALL |
-| `whenAgent("step").thenCallTool(name, args).thenAnswer(json)` | scripts AGENT_CALL turns; tool `x` of agent `a` stubbed as `whenHttpCall("a.x")` |
 
 Unmocked tasks wait (or run your real `TaskHandler`s if booted: `@EventConductorTest(classes = {MyApp.class})`
 with `worker-embedded`). Answer by hand: `completeTask(process, stepId, vars)`,

@@ -812,26 +812,17 @@ Rendered by the engine and executed by the built-in `llm-call@1` task (`worker-l
 
 ---
 
-## AGENT_CALL
+## AGENT_CALL (removed)
 
-A language model that works towards a goal by calling tools — every tool call a real step execution
-(retries, timeouts, compensation, cancellation), bounded by budgets. See [Agents with Tools](/guides/agents-with-tools/).
+`AGENT_CALL` (added in 2.32.0) was removed in 2.34.0. A definition that still declares a step of this type
+fails to load — in the engine and in the Maven plugin — with: *AGENT_CALL was removed in 2.34.0; use the AGENT
+step (agents from the IA catalogue)*. Agents are published in the IA catalogue and run by the IA runtime
+through the `AGENT` step.
 
-```json
-{ "id": "triage", "type": "AGENT_CALL", "name": "Triage", "preconditionStepId": "start", "timeout": "PT60S", "retries": 2,
-  "agent": { "connection": "claude", "system": "You are a support agent.", "goal": "Customer ${customerId} wrote: ${message}",
-             "tools": [ { "name": "lookupOrder", "description": "Look up an order", "http": { "connection": "orders", "method": "GET", "path": "/orders/${orderId}" },
-                          "inputSchema": { "type": "object", "required": ["orderId"], "properties": { "orderId": { "type": "string" } } } },
-                        { "name": "openRefund", "description": "Open a refund", "process": "refund-flow", "outputVariables": ["refundId"],
-                          "approval": { "formId": "approve-refund", "candidateGroups": ["support-leads"] } },
-                        { "name": "notifyCustomer", "description": "Email the customer", "step": "notify-customer" } ],
-             "output": { "schema": { "type": "object", "required": ["decision"] }, "mapping": { "decision": "json.decision" } },
-             "maxSteps": 6, "maxTokens": 50000, "maxDuration": "PT30M" } }
-```
-
-**Required:** `agent` with `connection`, `goal` (text template), `tools` (at least one) and `maxSteps`. **Optional:** `system`, `model`, `temperature`, `output` (`schema`, `mapping` — JEXL over `{text, json, usage, turns, toolCalls}` — and `variable`), `maxTokens`, `maxDuration`, `toolConcurrency` (default 1), `onToolError` (`fail` | `report`), `allowSensitiveVariables` (`true` to let `system`, `goal` and tool templates read [sensitive variables](/guides/sensitive-data-and-encryption/) — refused at load otherwise). A tool has a `name`, a `description`, an optional `inputSchema` and `approval` (`{formId, assignee?, candidateUsers?, candidateGroups?}`), and exactly one of `step` (a step of the definition used only as a tool), `http` (an HTTP_CALL block), `process` (a child definition, with `outputVariables`) and `task` (a task contract, with an optional `topic`).
-
-The agent's execution is a container: each model turn is a child dispatched to the built-in `agent-turn@1` task (`worker-llm`, topic `llm-calls` in kafka mode) — the step's `timeout` and `retries` apply per turn — and each tool call is a child execution of the tool's step. An `AGENT_CALL` cannot be `compensable` nor carry `forEach`/`repeat`/`loopBack`; its `step:` tools are compensated per call. Failures: `AGENT_MAX_STEPS`, `AGENT_MAX_TOKENS`, `AGENT_TIMEOUT` (ends `TIMEOUT`), `AGENT_MODEL_FAILED`, `AGENT_TOOL_FAILED`.
+A process started before the upgrade that reaches an `AGENT_CALL` step (or has one running) fails that step,
+final, with error code `STEP_TYPE_REMOVED` in its log: no retry is spent on it, the saga compensates as for any
+failed step, and the process ends `ERROR`. To carry such a process on, [migrate it](/guides/migrating-running-processes/)
+to a version of its definition that replaces the step, then retry it.
 
 ---
 
@@ -879,5 +870,5 @@ parent step waiting until the last run of the chain ends.
 | `maxSuccessfulExecutions` | integer | `0` | Cap on how many times this step may successfully run within one process instance (backstop against runaway loops). `0` inherits the workflow-level `defaultMaxStepExecutions`; both `0` = only the loop's own `maxIterations` and `workflow.loops.max-iterations` bound it. Enforced when a `repeat` or `loopBack` would run the step again: the step fails instead |
 | `forEach` | object | — | ACTION, USER_TASK, PROCESS, HTTP_CALL, LLM_CALL, RULE: run the step once per item — `{items, as?, indexAs?, mode?, maxConcurrency?, output?, outputElement?, completion?}`. See [Loops and Multi-Instance](/guides/loops-and-multi-instance/#foreach--once-per-item) |
 | `repeat` | object | — | Same types: run the step again until a condition holds — `{until, maxIterations, delay?}`. See [repeat](/guides/loops-and-multi-instance/#repeat--one-step-until-a-condition) |
-| `priority` | integer | `50` | ACTION, HTTP_CALL, LLM_CALL, RULE, AGENT_CALL: 0–100, higher first. Honoured by the HTTP worker queue, the embedded worker pool and the rate-limit queue; a Kafka topic keeps its own order. See [Flow control](/guides/flow-control/#task-priority) |
+| `priority` | integer | `50` | ACTION, HTTP_CALL, LLM_CALL, RULE: 0–100, higher first. Honoured by the HTTP worker queue, the embedded worker pool and the rate-limit queue; a Kafka topic keeps its own order. See [Flow control](/guides/flow-control/#task-priority) |
 | `loopBack` | object | — | Any step but START/END/REPLY: when it completes and `while` holds, run every step from `to` to here again — `{to, while?, maxIterations, delay?}`. See [loopBack](/guides/loops-and-multi-instance/#loopback--run-a-section-again) |

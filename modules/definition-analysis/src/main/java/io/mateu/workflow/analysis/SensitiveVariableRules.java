@@ -269,42 +269,6 @@ public final class SensitiveVariableRules {
                 + ": a correlation or lock key is stored in clear, so it cannot be computed from a sensitive variable");
     }
 
-    /**
-     * An AGENT_CALL whose {@code system}, {@code goal} or tool templates (an {@code http} tool's url, headers,
-     * query, body…) read a sensitive variable, refused unless it opts in with
-     * {@code agent.allowSensitiveVariables: true} — what the agent renders and what its tools return reach
-     * the model provider. {@code agent} is the block in its generic (parsed) form.
-     */
-    public static List<String> agentViolations(Map<?, ?> agent, Predicate<String> sensitive, String where) {
-        if (agent == null || Boolean.TRUE.equals(agent.get("allowSensitiveVariables"))) {
-            return List.of();
-        }
-        var read = new LinkedHashSet<String>();
-        for (var key : List.of("system", "goal")) {
-            if (agent.get(key) instanceof String template) {
-                read.addAll(templateReferences(template, sensitive));
-            }
-        }
-        if (agent.get("tools") instanceof Collection<?> tools) {
-            for (var tool : tools) {
-                if (tool instanceof Map<?, ?> map && map.get("http") != null) {
-                    try {
-                        for (var expression : TemplateSyntax.expressions(map.get("http"), "http")) {
-                            read.addAll(sensitiveReferences(expression.getValue(), sensitive));
-                        }
-                    } catch (TemplateSyntax.TemplateSyntaxException e) {
-                        // Reported by the template checks.
-                    }
-                }
-            }
-        }
-        if (read.isEmpty()) {
-            return List.of();
-        }
-        return List.of(where + ": the agent reads the sensitive variable(s) " + String.join(", ", read)
-                + "; an AGENT_CALL only receives sensitive values with agent.allowSensitiveVariables: true");
-    }
-
     /** The sensitive variables a template's expressions read; empty for a malformed template. */
     public static Set<String> templateReferences(String template, Predicate<String> sensitive) {
         var found = new LinkedHashSet<String>();

@@ -477,24 +477,25 @@ class SpecValidatorTest {
                 """);
         assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, keyed))
                 .anySatisfy(v -> assertThat(v).contains("correlationExpression reads the sensitive variable"));
+    }
 
+    @Test
+    void aRemovedStepTypeFailsTheBuildWithWhatToUseInstead() throws Exception {
+        var mapper = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
         var agent = mapper.readTree("""
-                id: payment
-                name: Payment
-                sensitiveVariables: [cardNumber]
+                id: support
+                name: Support
                 steps:
                   - {id: start, type: START, name: Start}
-                  - id: dispute
+                  - id: triage
                     type: AGENT_CALL
-                    name: Dispute
+                    name: Triage
                     preconditionStepId: start
-                    agent: {connection: claude, goal: "Dispute ${cardNumber}", maxSteps: 2, tools: [{name: look, description: Look, http: {method: GET, url: "https://x.example/c"}}]}
+                    agent: {connection: claude, goal: "Help", maxSteps: 2, tools: []}
                 """);
-        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, agent))
-                .anySatisfy(v -> assertThat(v).contains("the agent reads the sensitive variable(s) cardNumber"));
-        ((com.fasterxml.jackson.databind.node.ObjectNode) agent.get("steps").get(1).get("agent")).put("allowSensitiveVariables", true);
-        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, agent))
-                .noneSatisfy(v -> assertThat(v).contains("sensitive"));
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, agent)).containsExactly(
+                "Step 'triage': AGENT_CALL was removed in 2.34.0; use the AGENT step (agents from the IA catalogue)"
+                        + " — see " + io.mateu.workflow.analysis.RemovedStepTypes.AGENT_GUIDE);
     }
 
     @Test
@@ -927,62 +928,6 @@ class SpecValidatorTest {
         assertThat(violations).anyMatch(v -> v.contains("llm.system"));
         assertThat(violations).anyMatch(v -> v.contains("llm.output.category"));
         assertThat(violations).anyMatch(v -> v.contains("'nollm' must define an llm block"));
-    }
-
-    @Test
-    void agentCallsAreCheckedByTheSharedRulesTheirToolStepsAreReachableAndTheirSchemasAreSchemas() throws Exception {
-        var good = json("""
-                {"id": "a", "name": "A", "version": 1, "steps": [
-                  {"id": "start", "type": "START", "name": "Start"},
-                  {"id": "agent", "type": "AGENT_CALL", "name": "Agent", "preconditionStepId": "start",
-                   "agent": {"connection": "claude", "system": "You help.", "goal": "Help ${customer}",
-                     "tools": [
-                       {"name": "lookup", "description": "Look up", "step": "lookup",
-                        "inputSchema": {"type": "object", "properties": {"id": {"type": "string"}}}},
-                       {"name": "fetch", "description": "Fetch", "http": {"method": "GET", "url": "https://x.example/${id}"}},
-                       {"name": "refund", "description": "Refund", "process": "refund-flow", "outputVariables": ["refundId"],
-                        "approval": {"formId": "approve"}}
-                     ],
-                     "output": {"schema": {"type": "object"}, "mapping": {"decision": "json.decision"}},
-                     "maxSteps": 5, "toolConcurrency": 2, "onToolError": "report", "maxDuration": "PT5M"}},
-                  {"id": "end", "type": "END", "name": "End", "preconditionStepId": "agent"},
-                  {"id": "lookup", "type": "ACTION", "name": "Lookup"}
-                ]}
-                """);
-        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, good)).isEmpty();
-        var bad = json("""
-                {"id": "a", "name": "A", "version": 1, "steps": [
-                  {"id": "start", "type": "START", "name": "Start"},
-                  {"id": "agent", "type": "AGENT_CALL", "name": "Agent", "preconditionStepId": "start",
-                   "agent": {"connection": "claude", "goal": "${(",
-                     "tools": [
-                       {"name": "lookup", "description": "Look up", "step": "end",
-                        "inputSchema": {"type": "object", "properties": {"id": {"type": 7}}}},
-                       {"name": "lookup", "description": "Twice", "task": "t@1"}
-                     ],
-                     "output": {"mapping": {"decision": "json.("}},
-                     "maxSteps": 5}},
-                  {"id": "end", "type": "END", "name": "End", "preconditionStepId": "agent"}
-                ]}
-                """);
-        var violations = validator.validate(SpecValidator.Kind.WORKFLOW, bad);
-        assertThat(violations).anyMatch(v -> v.contains("declares the tool 'lookup' twice"));
-        assertThat(violations).anyMatch(v -> v.contains("a tool step must be one of"));
-        assertThat(violations).anyMatch(v -> v.contains("used only as a tool"));
-        var schemaBad = json("""
-                {"id": "a", "name": "A", "version": 1, "steps": [
-                  {"id": "start", "type": "START", "name": "Start"},
-                  {"id": "agent", "type": "AGENT_CALL", "name": "Agent", "preconditionStepId": "start",
-                   "agent": {"connection": "claude", "goal": "${(",
-                     "tools": [{"name": "t", "description": "T", "task": "t@1",
-                                "inputSchema": {"type": "object", "properties": {"id": {"type": 7}}}}],
-                     "output": {"mapping": {"decision": "json.("}}, "maxSteps": 1}}
-                ]}
-                """);
-        var schemaViolations = validator.validate(SpecValidator.Kind.WORKFLOW, schemaBad);
-        assertThat(schemaViolations).anyMatch(v -> v.contains("agent.goal"));
-        assertThat(schemaViolations).anyMatch(v -> v.contains("output.mapping.decision"));
-        assertThat(schemaViolations).anyMatch(v -> v.contains("inputSchema is not a valid JSON Schema"));
     }
 
     @Test

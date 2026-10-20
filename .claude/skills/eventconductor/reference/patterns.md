@@ -401,56 +401,9 @@ steps:
     preconditionStepId: poll
 ```
 
-## 8. Agent with tools
+## 8. Ask a model (LLM_CALL)
 
-```yaml
-id: support-triage
-name: Triage a support ticket
-version: 1
-steps:
-  - id: start
-    type: START
-    name: Start
-  - id: triage
-    type: AGENT_CALL
-    name: Triage the ticket
-    preconditionStepId: start
-    timeout: PT60S                       # per model turn
-    retries: 2
-    agent:
-      connection: claude                 # workflow.llm.connections.claude (key lives there)
-      goal: "Customer ${customerId} wrote: ${message}. Decide whether a refund is due."
-      tools:
-        - name: lookupOrder
-          description: Look up an order by its id.
-          http: { connection: orders, method: GET, path: "/orders/${orderId}" }
-          inputSchema:
-            type: object
-            required: [ orderId ]
-            properties: { orderId: { type: string } }
-        - name: notifyCustomer
-          description: Email the customer.
-          step: notify-customer          # a step used ONLY as a tool
-          approval: { formId: approve-email, candidateGroups: [ support-leads ] }
-      output:
-        schema: { type: object, required: [ decision ], properties: { decision: { type: string } } }
-        mapping: { decision: "json.decision" }
-      maxSteps: 6                        # required budget
-      maxTokens: 20000
-  - id: notify-customer
-    type: ACTION
-    name: Notify the customer
-    topic: emails
-    retries: 3
-  - id: end
-    type: END
-    name: End
-    preconditionStepId: triage
-```
-
-Every model turn (`agent-turn@1`) and tool call is a child step execution with its own
-retries/timeouts/audit. Needs `worker-llm` + a Spring AI provider. Budgets fail the step:
-`AGENT_MAX_STEPS`, `AGENT_MAX_TOKENS`, `AGENT_TIMEOUT`. A single model call without tools: `LLM_CALL`:
+One model call: needs `worker-llm` + a Spring AI provider; the key lives in `workflow.llm.connections.<name>`.
 
 ```yaml
 - id: classify

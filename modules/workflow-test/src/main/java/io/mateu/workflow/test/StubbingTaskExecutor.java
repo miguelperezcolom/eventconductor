@@ -22,8 +22,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * answered, in this order of precedence:
  *
  * <ol>
- *   <li>an {@code HTTP_CALL} / {@code LLM_CALL} step, or an {@code AGENT_CALL}'s model turn — by its
- *       {@link HttpStub} / {@link LlmStub} / {@link AgentStub}, or
+ *   <li>an {@code HTTP_CALL} / {@code LLM_CALL} step — by its {@link HttpStub} / {@link LlmStub}, or
  *       failed (finally) when it has none: a test never reaches the network;</li>
  *   <li>a {@link TaskStub} for the step id ({@code whenStep}), then ({@code whenTask}) for the task id
  *       without its version — the step id when the step names no task, as the worker SDK resolves
@@ -49,7 +48,6 @@ final class StubbingTaskExecutor implements EmbeddedTaskExecutor {
     private final Map<String, TaskStub> taskStubs = new ConcurrentHashMap<>();
     private final Map<String, HttpStub> httpStubs = new ConcurrentHashMap<>();
     private final Map<String, LlmStub> llmStubs = new ConcurrentHashMap<>();
-    private final Map<String, AgentStub> agentStubs = new ConcurrentHashMap<>();
     private final List<TaskInvocation> invocations = new CopyOnWriteArrayList<>();
     private final Map<String, Integer> counts = new ConcurrentHashMap<>();
     // By step execution id, in dispatch order: a multi-instance step parks one task per instance.
@@ -72,7 +70,6 @@ final class StubbingTaskExecutor implements EmbeddedTaskExecutor {
         taskStubs.clear();
         httpStubs.clear();
         llmStubs.clear();
-        agentStubs.clear();
         invocations.clear();
         counts.clear();
         parked.clear();
@@ -93,10 +90,6 @@ final class StubbingTaskExecutor implements EmbeddedTaskExecutor {
 
     LlmStub llmStub(String stepId) {
         return llmStubs.computeIfAbsent(stepId, LlmStub::new);
-    }
-
-    AgentStub agentStub(String stepId) {
-        return agentStubs.computeIfAbsent(stepId, AgentStub::new);
     }
 
     List<TaskInvocation> invocations() {
@@ -146,10 +139,6 @@ final class StubbingTaskExecutor implements EmbeddedTaskExecutor {
             outcome = builtIn(request, invocation, llmStubs.get(request.stepId()) == null ? null
                     : () -> llmStubs.get(request.stepId()).answer(Values.tree(invocation.variable("__llm"))), "LLM_CALL",
                     "whenLlmCall");
-        } else if ("agent-turn".equals(base)) {
-            outcome = builtIn(request, invocation, agentStubs.get(request.stepId()) == null ? null
-                    : () -> agentStubs.get(request.stepId()).answer(Values.tree(invocation.variable("__agent"))), "AGENT_CALL",
-                    "whenAgent");
         } else {
             var stub = stubFor(request, base, invocation.topic());
             if (stub != null) {

@@ -159,12 +159,6 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @Label("")
     List<Message> messages;
 
-    // What the AGENT_CALL steps of the process did: each model turn, the tools it called, their results.
-    // Hidden for a process without agents.
-    @Tab("Agent")
-    @Label("")
-    List<io.mateu.workflow.infra.in.ui.pages.process.childcruds.AgentEntry> agent;
-
     @Tab("Errors")
     @Label("")
     List<Error> errors;
@@ -271,7 +265,6 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
                             Step.format(se.getStartedAt()), Step.format(se.getFinishedAt()));
                 })
                 .toList();
-        this.agent = agentEntries(id, stepExecutions);
         var logs = logMessageRepository.findByProcessId(id);
         this.diagram = buildDiagram(process, stepExecutions, logs);
         this.messages = logs.stream()
@@ -320,32 +313,6 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
             }
         }
         return this;
-    }
-
-    /** The transcripts of the process's agents, oldest agent first, as the Agent tab lists them. */
-    static List<io.mateu.workflow.infra.in.ui.pages.process.childcruds.AgentEntry> agentEntries(
-            String processId, List<StepExecution> executions) {
-        var rows = new ArrayList<io.mateu.workflow.infra.in.ui.pages.process.childcruds.AgentEntry>();
-        executions.stream()
-                .filter(StepExecution::isAgent)
-                .sorted(Comparator.comparing(StepExecution::getStartedAt, Comparator.nullsLast(Comparator.naturalOrder())))
-                .forEach(agent -> {
-                    int line = 0;
-                    for (var entry : io.mateu.workflow.domain.services.AgentTranscripts.entries(agent)) {
-                        var tool = entry.get("tool") != null ? String.valueOf(entry.get("tool"))
-                                : entry.get("toolCalls") instanceof List<?> calls && !calls.isEmpty()
-                                ? calls.stream().map(call -> call instanceof Map<?, ?> m ? m.get("name") + " " + m.get("arguments") : "")
-                                        .collect(java.util.stream.Collectors.joining("; "))
-                                : null;
-                        rows.add(new io.mateu.workflow.infra.in.ui.pages.process.childcruds.AgentEntry(processId,
-                                agent.getId() + "#" + line++, agent.getStepId(),
-                                entry.get("turn") == null ? null : String.valueOf(((Number) entry.get("turn")).intValue() + 1),
-                                String.valueOf(entry.get("role")), tool,
-                                entry.get("content") == null ? null : String.valueOf(entry.get("content")),
-                                entry.get("outcome") == null ? null : String.valueOf(entry.get("outcome"))));
-                    }
-                });
-        return rows;
     }
 
     /**
@@ -524,16 +491,6 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
      * iteration which one it is — "reserve · item 2", "poll · run 3".
      */
     static String rowName(StepExecution se) {
-        var scope = se.isIteration() ? se.scope() : java.util.Map.<String, String>of();
-        var agentKind = scope.get(io.mateu.workflow.domain.services.AgentLoop.KIND);
-        if (io.mateu.workflow.domain.services.AgentLoop.KIND_TURN.equals(agentKind)) {
-            return se.getStepId() + " · turn " + (Integer.parseInt(scope.getOrDefault(io.mateu.workflow.domain.services.AgentLoop.TURN, "0")) + 1);
-        }
-        if (agentKind != null) {
-            return se.getStepId() + " · " + scope.get(io.mateu.workflow.domain.services.AgentLoop.TOOL)
-                    + (io.mateu.workflow.domain.services.AgentLoop.KIND_APPROVAL.equals(agentKind) ? " approval" : " call")
-                    + " (turn " + (Integer.parseInt(scope.getOrDefault(io.mateu.workflow.domain.services.AgentLoop.TURN, "0")) + 1) + ")";
-        }
         if (se.isIteration()) {
             return se.getStepId() + " · item " + (se.getItemIndex() == null ? "?" : se.getItemIndex())
                     + (se.getIteration() > 0 ? " (run " + (se.getIteration() + 1) + ")" : "");
@@ -556,10 +513,6 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
                 .count();
         if (runs > 1) {
             entry.put("runs", runs);
-        }
-        var agent = io.mateu.workflow.domain.services.AgentTranscripts.summary(current);
-        if (agent != null) {
-            entry.put("agent", agent);
         }
         if (current.isContainer() && current.totalIterations() >= 0) {
             var iterations = io.mateu.workflow.domain.services.StepExecutions.iterationsOf(current, all);
@@ -1036,9 +989,6 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
             // The manual operations: a live process only (ProcessOperationRules.LIVE).
             return processStatus == null
                     || !io.mateu.workflow.application.usecases.process.operate.ProcessOperationRules.LIVE.contains(processStatus);
-        }
-        if ("agent".equals(memberName)) {
-            return agent == null || agent.isEmpty();
         }
         if ("revealVariable".equals(memberName)) {
             // Only where there is something to reveal.

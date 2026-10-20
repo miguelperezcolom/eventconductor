@@ -52,9 +52,7 @@ public final class StepTimeoutDefaults {
     private static boolean needsDefault(Step step) {
         return step.timeout() <= 0
                 && (StepType.ACTION.equals(step.type()) || StepType.RULE.equals(step.type())
-                    || StepType.HTTP_CALL.equals(step.type()) || StepType.LLM_CALL.equals(step.type())
-                    // An agent's own step is a container; the timeout is its model turns'.
-                    || StepType.AGENT_CALL.equals(step.type()));
+                    || StepType.HTTP_CALL.equals(step.type()) || StepType.LLM_CALL.equals(step.type()));
     }
 
     /**

@@ -106,7 +106,7 @@ A purged ERROR process cannot be retried; its business key is free again.
 
 ## MCP tools (Spring AI MCP server, Mateu `/mateu/mcp`)
 
-- Processes: `listProcesses`, `getProcessDetails`, `getAgentTranscript`, `findProcessByBusinessKey`,
+- Processes: `listProcesses`, `getProcessDetails`, `findProcessByBusinessKey`,
   `listRunsOfBusinessKey`, `listInFlightProcesses`, `countProcessesByStatus`, `getProcessLogs`,
   `retryProcess`, `restartProcess`, `pauseProcess`, `resumeProcess`, `pauseWorkflow`, `resumeWorkflow`,
   `sendMessage`, `getWorkflowAnalytics`, `findBottleneck`, `importWorkflowDefinitionsFromGit`.

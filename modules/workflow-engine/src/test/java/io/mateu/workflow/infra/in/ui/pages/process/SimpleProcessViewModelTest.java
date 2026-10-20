@@ -526,31 +526,4 @@ class SimpleProcessViewModelTest {
         assertThat(view.isHidden("invocation", null)).isTrue();
         assertThat(view.isHidden("replyOutcome", null)).isTrue();
     }
-
-    @Test
-    void anAgentsChildrenAreNamedForWhatTheyAreAndItsTranscriptFillsTheAgentTab() {
-        var agent = io.mateu.workflow.domain.services.AgentTranscriptsTest.agentExecution();
-        var turn = StepExecution.builder().id("t").stepId("triage").parentExecutionId("agent-1").itemIndex(2)
-                .scopeJson("{\"__agentKind\":\"turn\",\"__agentTurn\":\"1\"}").build();
-        var call = StepExecution.builder().id("c").stepId("lookup-order").parentExecutionId("agent-1").itemIndex(1)
-                .scopeJson("{\"__agentKind\":\"tool\",\"__agentTurn\":\"0\",\"__agentTool\":\"lookup\"}").build();
-        var approval = StepExecution.builder().id("a").stepId("triage.refund.approval").parentExecutionId("agent-1").itemIndex(3)
-                .scopeJson("{\"__agentKind\":\"approval\",\"__agentTurn\":\"1\",\"__agentTool\":\"refund\"}").build();
-        assertThat(SimpleProcessViewModel.rowName(turn)).isEqualTo("triage · turn 2");
-        assertThat(SimpleProcessViewModel.rowName(call)).isEqualTo("lookup-order · lookup call (turn 1)");
-        assertThat(SimpleProcessViewModel.rowName(approval)).isEqualTo("triage.refund.approval · refund approval (turn 2)");
-
-        var rows = SimpleProcessViewModel.agentEntries("p", List.of(turn, agent, call));
-        assertThat(rows).hasSize(4);
-        assertThat(rows.get(0).role()).isEqualTo("user");
-        assertThat(rows.get(0).turn()).isNull();
-        assertThat(rows.get(1).tool()).isEqualTo("lookup {\"id\":\"O-1\"}");
-        assertThat(rows.get(2).outcome()).isEqualTo("completed");
-        assertThat(rows.get(3).turn()).isEqualTo("2");
-        assertThat(rows.get(3).content()).isEqualTo("It shipped.");
-
-        var entry = new java.util.HashMap<String, Object>();
-        SimpleProcessViewModel.putRunsAndIterations(entry, agent, List.of(agent, turn, call));
-        assertThat(entry.get("agent")).isInstanceOf(java.util.Map.class);
-    }
 }

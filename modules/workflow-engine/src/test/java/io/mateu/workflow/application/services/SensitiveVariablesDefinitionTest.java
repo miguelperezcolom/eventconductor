@@ -78,38 +78,6 @@ class SensitiveVariablesDefinitionTest {
     }
 
     @Test
-    void anAgentReadingASensitiveVariableNeedsTheOptIn() {
-        var agentStep = """
-                  - id: dispute
-                    type: AGENT_CALL
-                    name: Dispute
-                    preconditionStepId: start
-                    agent:
-                      connection: claude
-                      goal: "Dispute the charge on ${cardNumber}"
-                      maxSteps: 3
-                      tools:
-                        - { name: lookup, description: Look up, step: charge }
-                """;
-        var refused = SensitiveFixtures.definition(SensitiveFixtures.DEFINITION + agentStep);
-        assertThatThrownBy(refused::checkInvariants)
-                .hasMessageContaining("step 'dispute': the agent reads the sensitive variable(s) cardNumber")
-                .hasMessageContaining("agent.allowSensitiveVariables: true");
-        var allowed = SensitiveFixtures.definition(SensitiveFixtures.DEFINITION
-                + agentStep.replace("maxSteps: 3", "maxSteps: 3\n      allowSensitiveVariables: true"));
-        assertThat(allowed.steps().stream().filter(s -> "dispute".equals(s.id())).findFirst().orElseThrow()
-                .agent().allowsSensitiveVariables()).isTrue();
-        assertThat(SensitiveFixtures.definition(SensitiveFixtures.DEFINITION + agentStep.replace("${cardNumber}", "${amount}"))
-                .steps()).isNotEmpty();
-        try {
-            allowed.checkInvariants();
-        } catch (IllegalStateException other) {
-            // Only the agent's own structural rules may object here, never the sensitivity rule.
-            assertThat(other).hasMessageNotContaining("allowSensitiveVariables");
-        }
-    }
-
-    @Test
     void theDeclarationIsPartOfTheVersion() {
         var versioning = new WorkflowDefinitionVersioningService(mock(WorkflowDefinitionVersionEntityRepository.class));
         var declared = SensitiveFixtures.definition();

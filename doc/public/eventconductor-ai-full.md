@@ -34,7 +34,7 @@ or BOM: a project is a Spring Boot app with these dependencies.
 | `rule-engine` / `rule-runtime` | `RULE` steps |
 | `worker-embedded` | typed `TaskHandler`s in the engine's JVM (needed for the built-in tasks below when embedded) |
 | `worker-http` | `HTTP_CALL` in-process (+ `worker-embedded`) |
-| `worker-llm` + `spring-ai-anthropic` / `spring-ai-openai` | `LLM_CALL` / `AGENT_CALL` in-process (+ `worker-embedded`) |
+| `worker-llm` + `spring-ai-anthropic` / `spring-ai-openai` | `LLM_CALL` in-process (+ `worker-embedded`) |
 | `worker-kafka` | a worker service over Kafka |
 | `inbound-events-kafka` | kafka mode with event `triggers` / `onEvent` waits |
 | `flyway-core` (+ `flyway-database-postgresql`) | `workflow.persistence=jpa` (the engine runs its own migrations) |
@@ -192,7 +192,6 @@ YAML (first line):
 | automated work in your code | `ACTION` (+ a worker; `topic` routes it, `task` names a contract) |
 | call a REST API without a worker | `HTTP_CALL` (`http: {connection, path, …}`; needs `worker-http`) |
 | classify / extract / summarize with a model | `LLM_CALL` (`llm: {connection, prompt, …}`; needs `worker-llm`) |
-| a model that picks and calls tools, bounded | `AGENT_CALL` (`agent: {goal, tools, maxSteps}`) |
 | human approval / data entry | `USER_TASK` (`formId`, `assignment`, `escalation`; forms-engine) |
 | pick ONE branch by data | `CHOICE` + guarded `preconditions` links, converge with `JOIN joinType: XOR` |
 | run branches in parallel, then wait for all | `FORK` … `JOIN` (`preconditionStepIds` = branch ends) |
@@ -220,7 +219,7 @@ YAML (first line):
 | protect PII | `sensitiveVariables` + `workflow.encryption.keys.*` |
 
 Complete, validated examples of each pattern (saga with timer, human approval, HTTP integration, event-triggered
-flow, request/response, forEach fan-out, polling, agent with tools, updates, long-lived flow control, child
+flow, request/response, forEach fan-out, polling, LLM call, updates, long-lived flow control, child
 process, sensitive data): https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/.claude/skills/eventconductor/reference/patterns.md
 
 ## 4. Step types
@@ -229,7 +228,7 @@ Steps run as a **pure dataflow**: a step starts when all its preconditions have 
 and its JEXL guard holds, concurrently with every other eligible step — array order is
 irrelevant and the `parallel` flag is deprecated and ignored. **Roots rule:** a step with no
 preconditions does not run; it must be the `START`, a `WAIT_FOR_MESSAGE` beginning a flow,
-another step's `compensationStepId`, or a step used only as an agent's tool (rejected at load otherwise).
+or another step's `compensationStepId` (rejected at load otherwise).
 **Every step needs `id`, `type` and `name`** (schema).
 
 ### START — entry point
@@ -405,31 +404,6 @@ The engine renders the request (templates in url/path, query, headers, body) and
 ```
 The engine renders `system` and `prompt` (text templates) and dispatches the built-in task `llm-call@1` (library `worker-llm` on Spring AI, with `spring-ai-anthropic` and/or `spring-ai-openai`: embedded in the engine's pod, or topic `llm-calls` served by `llm-worker-standalone-app`). Connections are configuration: `workflow.llm.connections.<name>` = `provider` (`anthropic` | `openai`), `model`, `api-key`, `base-url`, `temperature`, `max-tokens` (4096), `timeout` (PT60S), `structured-output` (`prompt` | `native`). A step may override `model`, `temperature`, `maxTokens`. With `responseSchema` the answer must be one JSON document valid against it (`LLM_INVALID_OUTPUT` otherwise, retried). Answer → `outputVariable` (text / JSON) and `output` (JEXL over `{text, json, usage, model, finishReason}`); token usage → `usageVariable`. Provider 4xx → `LLM_<status>`, final; 408/409/429/5xx and `LLM_IO` retried. Metrics: `eventconductor.llm.call{workflow,step,connection,model,outcome}`, `eventconductor.llm.tokens{workflow,step,connection,model,type}`.
 
-### AGENT_CALL — a model that uses tools
-```yaml
-- id: triage
-  type: AGENT_CALL
-  name: Triage the ticket
-  preconditionStepId: start
-  timeout: PT60S          # per model call
-  retries: 2              # per model call
-  agent:
-    connection: claude
-    system: You are a support agent. Use the tools; never guess an order.
-    goal: "Customer ${customerId} wrote: ${message}"
-    tools:
-      - { name: lookupOrder, description: Look up an order, http: { connection: orders, method: GET, path: "/orders/${orderId}" },
-          inputSchema: { type: object, required: [orderId], properties: { orderId: { type: string } } } }
-      - { name: openRefund, description: Open a refund, process: refund-flow, outputVariables: [refundId],
-          approval: { formId: approve-refund, candidateGroups: [support-leads] } }
-      - { name: notifyCustomer, description: Email the customer, step: notify-customer }
-    output: { schema: { type: object, required: [decision] }, mapping: { decision: "json.decision" } }
-    maxSteps: 6
-    maxTokens: 50000
-    maxDuration: PT30M
-```
-The agent's execution is a container (the forEach model). Each model turn is a child execution dispatched to the built-in `agent-turn@1` task (`worker-llm`, same connections as `LLM_CALL`, topic `llm-calls`) with the conversation so far and the tool specs; the provider never runs a tool. Each call the model asks for is validated (declared tool, arguments valid against `inputSchema`; otherwise the model is told why and nothing runs) and becomes a child execution of the tool's step: a `step:` tool runs that step of the definition (it must have no preconditions and be nobody's precondition/compensation/on-timeout target — its id is the child's step id), an `http:` tool an HTTP_CALL (allowed hosts, host-bound credentials), a `process:` tool a child process (`outputVariables` = result), a `task:` tool an ACTION; synthesized tools' step id is `<agent>.<tool>`. Arguments are laid over the variables for that call only; a tool never writes process variables — what it reports is the model's tool result. `approval` creates a USER_TASK (`<agent>.<tool>.approval`) first; its `approved` field decides. `toolConcurrency` (default 1) bounds a turn's parallel calls. Final answer → checked against `output.schema` (`LLM_INVALID_OUTPUT`, retried), mapped by `output.mapping` (JEXL over `{text, json, usage, turns, toolCalls}`) / `output.variable`. Budgets fail the step, final: `AGENT_MAX_STEPS`, `AGENT_MAX_TOKENS`, `AGENT_TIMEOUT` (ends TIMEOUT); `AGENT_MODEL_FAILED`; `AGENT_TOOL_FAILED` (or, with `onToolError: report`, the model is told). Completed calls of compensable `step:` tools are compensated per call, newest first. No in-memory state: the loop is rebuilt from the persisted children on every step-over, so it resumes after a crash. The transcript (redacted, ≤ 64 KB) is on the agent's execution: Agent tab, REST `agent` summary, MCP `getAgentTranscript`. Test kit: `runtime.whenAgent("triage").thenCallTool("lookupOrder", Map.of("orderId","O-1")).thenAnswer("{...}")`, tools answered by `whenStep` / `whenHttpCall("triage.lookupOrder")` / `whenTask` / `completeUserTask`.
-
 ### Loops and multi-instance — `forEach`, `repeat`, `loopBack`
 The precondition graph stays acyclic (a cycle is still an error); repetition is declared on a step:
 ```yaml
@@ -480,12 +454,12 @@ One per workflow (recommended; the process also completes when nothing is runnab
 
 ### Common step fields
 
-`priority` (0–100, default 50; ACTION, HTTP_CALL, LLM_CALL, RULE, AGENT_CALL): ordering of the HTTP worker queue, the embedded pool (`workflow.embedded.worker-threads > 0`) and the rate-limit queue; Kafka keeps topic order. Worker rate limits per topic: `workflow.workers.rate-limits.<topic>.{permits, period}` — over it the task waits PENDING (timeout not running), released priority first then round-robin per process.
+`priority` (0–100, default 50; ACTION, HTTP_CALL, LLM_CALL, RULE): ordering of the HTTP worker queue, the embedded pool (`workflow.embedded.worker-threads > 0`) and the rate-limit queue; Kafka keeps topic order. Worker rate limits per topic: `workflow.workers.rate-limits.<topic>.{permits, period}` — over it the task waits PENDING (timeout not running), released priority first then round-robin per process.
 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `id` | string | — | Unique within the workflow |
-| `type` | enum | — | `START`/`ACTION`/`USER_TASK`/`RULE`/`TIMER`/`WAIT_FOR_MESSAGE`/`SEND_MESSAGE`/`PROCESS`/`FORK`/`JOIN`/`CHOICE`/`LOCK`/`UNLOCK`/`REPLY`/`PUBLISH_EVENT`/`HTTP_CALL`/`LLM_CALL`/`AGENT_CALL`/`DYNAMIC`/`CONTINUE_AS_NEW`/`END` |
+| `type` | enum | — | `START`/`ACTION`/`USER_TASK`/`RULE`/`TIMER`/`WAIT_FOR_MESSAGE`/`SEND_MESSAGE`/`PROCESS`/`FORK`/`JOIN`/`CHOICE`/`LOCK`/`UNLOCK`/`REPLY`/`PUBLISH_EVENT`/`HTTP_CALL`/`LLM_CALL`/`DYNAMIC`/`CONTINUE_AS_NEW`/`END` |
 | `name` | string | — | Human-readable; **required by the schema** |
 | `description` | string | — | Optional |
 | `preconditionStepId` | string | — | Single step that must complete first |
@@ -523,13 +497,12 @@ One per workflow (recommended; the process also completes when nothing is runnab
 | `awaitReply` | object | — | HTTP_CALL / PUBLISH_EVENT: `{messageName, correlationExpression, onEvent?}` — wait for the reply to the request in the same step, armed before the request leaves |
 | `http` | object | — | HTTP_CALL: `{connection + path \| url, method, query, headers, body \| bodyTemplate, successStatus, output, auth, retryOn}` |
 | `llm` | object | — | LLM_CALL: `{connection, model, system, prompt, temperature, maxTokens, responseSchema, output, outputVariable, usageVariable, allowSensitiveVariables}` |
-| `agent` | object | — | AGENT_CALL: `{connection, goal, tools, maxSteps, system?, model?, output?, maxTokens?, maxDuration?, toolConcurrency?, onToolError?, allowSensitiveVariables?}` |
 | `continueAsNew` | object | — | CONTINUE_AS_NEW: `{version?: same\|latest, variables?}` |
 | `onTimeoutStepId` | string | — | On timeout route to this step instead of failing (guard the target with `preconditions: [{stepId: <this>, expression: "false"}]`) |
 | `onEvent` | object | — | WAIT_FOR_MESSAGE: `{destination, type, correlationKey?, filter?, variables?}` |
 | `joinType` | enum | `AND` | JOIN: `AND` \| `XOR` |
 | `assignment` / `escalation` | object / array | — | USER_TASK: who may claim it, priority, due dates / timed reassign, notify, escalateTo |
-| `priority` | integer | `50` | 0–100; ACTION, HTTP_CALL, LLM_CALL, RULE, AGENT_CALL |
+| `priority` | integer | `50` | 0–100; ACTION, HTTP_CALL, LLM_CALL, RULE |
 | `sensitiveOutputs` | boolean | `false` | PROCESS: its `outputVariables` are sensitive |
 | `rollbackable` | boolean | — | Old spelling of `compensable` |
 
@@ -697,7 +670,7 @@ no `task`, its step id) run by `worker-embedded` or `worker-kafka`; a Kafka cons
 
 ### Embedded worker (mode: embedded)
 
-Register ONE `EmbeddedTaskExecutor` bean; branch on `stepId` (the `topic` is ignored in embedded mode). A hand-written executor replaces `worker-embedded`'s, so it would also receive the built-in `HTTP_CALL`/`LLM_CALL`/`AGENT_CALL` tasks — when you use those embedded, write your workers as `TaskHandler`s instead.
+Register ONE `EmbeddedTaskExecutor` bean; branch on `stepId` (the `topic` is ignored in embedded mode). A hand-written executor replaces `worker-embedded`'s, so it would also receive the built-in `HTTP_CALL`/`LLM_CALL` tasks — when you use those embedded, write your workers as `TaskHandler`s instead.
 
 Mind the two `Variable` records: `UpdateStepExecutionCommand` takes `io.mateu.workflow.domain.aggregates.Variable`, while the events (`TaskExecutionRequested`, `TaskStatusChanged`, `ProcessCreationRequested`) use `io.mateu.workflow.dtos.Variable` — import the right one per use.
 
@@ -900,7 +873,7 @@ Workers may only report `RUNNING`, `COMPLETED`, `ERROR`.
 | `upstream` | into the orchestrator | `ProcessCreationRequested`, `TaskStatusChanged`, `MessageReceived` (`{"type":"message-received","messageName":"...","correlationKey":"...","variables":[{"name":"...","value":"..."}]}`) |
 | `downstream` | orchestrator → workers | `TaskExecutionRequested` (per ACTION step `topic`) |
 | `outbox` | internal | orchestrator outbox relay |
-| `http-calls` / `llm-calls` | orchestrator → built-in workers | `HTTP_CALL` / `LLM_CALL` + `AGENT_CALL` tasks |
+| `http-calls` / `llm-calls` | orchestrator → built-in workers | `HTTP_CALL` / `LLM_CALL` tasks |
 | `dead-letter` | out | records parked as permanently unprocessable |
 | `human-tasks` | forms engine → out | task lifecycle CloudEvents `io.eventconductor.task.*` |
 | destinations | in / out | `workflow.events.destinations.<name>.topic` for PUBLISH_EVENT, triggers, `onEvent` (consumer in `inbound-events-kafka`) |
@@ -1007,7 +980,7 @@ The engine exposes MCP tools (Spring AI MCP server; Mateu `/mateu/mcp`) so AI ag
 admin UI, MCP needs Spring Security or `workflow.message-api.allow-anonymous=true` (403 otherwise);
 `spring.ai.mcp.server.enabled=false` switches it off.
 
-- Processes: `listProcesses` (with `query`), `getProcessDetails`, `getAgentTranscript`, `findProcessByBusinessKey`, `listRunsOfBusinessKey`, `listInFlightProcesses`, `countProcessesByStatus`, `getProcessLogs`, `retryProcess`, `restartProcess`, `pauseProcess`, `resumeProcess`, `pauseWorkflow`, `resumeWorkflow`, `sendMessage`, `getWorkflowAnalytics`, `findBottleneck`, `importWorkflowDefinitionsFromGit`.
+- Processes: `listProcesses` (with `query`), `getProcessDetails`, `findProcessByBusinessKey`, `listRunsOfBusinessKey`, `listInFlightProcesses`, `countProcessesByStatus`, `getProcessLogs`, `retryProcess`, `restartProcess`, `pauseProcess`, `resumeProcess`, `pauseWorkflow`, `resumeWorkflow`, `sendMessage`, `getWorkflowAnalytics`, `findBottleneck`, `importWorkflowDefinitionsFromGit`.
 - Operations: `setProcessVariables`, `completeStepManually`, `retryProcessFromStep`, `dryRunProcessMigration`, `migrateProcess`, `listIncidents`, `getIncidentProcesses`, `retryIncident`, `revealProcessVariable`.
 - Batch: `createBatchOperation`, `migrateProcessesInBatch`, `listBatchOperations`, `getBatchOperation`, `cancelBatchOperation` (no `cancelProcess` tool — a CANCEL batch does it).
 - Updates: `updateProcess`, `updateWithStart`, `listProcessUpdates`.
@@ -1076,17 +1049,18 @@ to `process-resources`):
 ```
 `mvn eventconductor:validate` checks `src/main/resources/{workflows,forms,rules,tasks}` (plus `cron.yaml`,
 `events.yaml`) against the engine's schemas (unknown keys are errors) and its semantic rules (roots, dangling
-ids, cycles, JEXL, loops, HTTP/LLM/agent blocks, triggers, schedules, retention, sensitive-variable rules,
+ids, cycles, JEXL, loops, HTTP/LLM blocks, triggers, schedules, retention, sensitive-variable rules,
 task contracts); warnings for JOINs on guarded steps and CHOICEs without a default. Only at engine load:
 TIMER `duration: 0`, blank message fields, missing encryption keys. Schema messages are in the JVM's language
 (`MAVEN_OPTS=-Duser.language=en`). Other goals: `check-migration` (§6b), `generate-worker-sources` (§4 ACTION).
 
 Frequent errors: a step without `name`; `A workflow can have at most one START step`; `Step 'X' has no
-preconditions and is not a START, a WAIT_FOR_MESSAGE, another step's compensation or an agent's tool — nothing
-would ever start it.`; `Step 'X' references unknown precondition step 'Y'.`; `Timer step 'X' must define a
+preconditions and is not a START, a WAIT_FOR_MESSAGE or another step's compensation — nothing would
+ever start it.`; `Step 'X' references unknown precondition step 'Y'.`; `Timer step 'X' must define a
 duration, an untilVariable or an until.`; `Message step 'X' must define a correlationExpression.`;
 `HTTP_CALL step 'X' must define exactly one of connection and url.`; `Step 'X' loopBack must define
-maxIterations…`; `AGENT_CALL step 'X' maxSteps is required: an agent must be bounded.`
+maxIterations…`; `Step 'X': AGENT_CALL was removed in 2.34.0; use the AGENT step (agents from the IA
+catalogue) — see …`
 
 **Test kit** — see §7 *Testing definitions in JUnit*. A complete saga test:
 ```java
@@ -1104,7 +1078,7 @@ class BookingSagaTest {
     }
 }
 ```
-(`import static io.mateu.workflow.test.WorkflowAssertions.assertThat;`). Also `whenAgent(step)`, `update(...)`,
+(`import static io.mateu.workflow.test.WorkflowAssertions.assertThat;`). Also `update(...)`,
 `updateWithStart(...)`, `hasAppliedUpdates(...)`; `advanceTime` also stops at escalations, flow-control windows
 and rate-limit permits.
 
@@ -1138,7 +1112,7 @@ and rate-limit permits.
   MCP `revealProcessVariable` for `workflow.security.sensitive.reveal-roles` (audited). Embedded workers see
   plaintext; Kafka/HTTP workers see ciphertext unless configured with the same keys. Refused at load when
   computed from a sensitive variable: search attributes, correlation expressions, lock keys, `startPolicy.key`,
-  trigger business keys. `LLM_CALL`/`AGENT_CALL`/update replies reading one need `allowSensitiveVariables: true`.
+  trigger business keys. `LLM_CALL`/update replies reading one need `allowSensitiveVariables: true`.
 - **Webhooks** — git-import webhooks need `workflow.git-import.webhook-secret` (2.28); the `webhook-gateway` verifies
   GitHub / HMAC signatures (`workflow.webhooks.endpoints.<name>.{provider, destination, secret}`); its `rest`
   transport needs `workflow.webhooks.engine.api-key`.
@@ -1155,16 +1129,18 @@ and rate-limit permits.
 - **2.30** — search attributes, batch operations, HTTP workers, incidents; V48–V50.
 - **2.31** — migration, human-task assignment/escalation; forms V8; claimed tasks are `ASSIGNED`. **Upgrade forms
   engines and workers before any definition uses `escalation`.**
-- **2.32** — `AGENT_CALL`; sensitive variables need encryption keys; V53.
+- **2.32** — sensitive variables need encryption keys; V53.
 - **2.33** — updates, flow control, priority, `CONTINUE_AS_NEW`, `businessKeyPolicy`; V55, V56 (brief lock per
   ALTER), V56.1 (concurrent indexes); `TaskExecutionRequested.priority` appended. **Don't import definitions using
   `CONTINUE_AS_NEW` or a reusing `businessKeyPolicy` until every pod runs 2.33.**
+- **2.34** — `AGENT_CALL` removed (breaking): definitions using it fail to load; use the `AGENT` step (agents
+  from the IA catalogue). An in-flight `AGENT_CALL` step fails, final, with `STEP_TYPE_REMOVED`.
 - Own kafka-mode apps with triggers/`onEvent` need `inbound-events-kafka` (since 2.26).
 
 ## Canonical sources of truth (this repo)
 
 - `doc/public/eventconductor-ai-compact.md` — the compact version of this file.
-- `doc/src/content/docs/guides/` — workflow-definitions, starting-a-process, workers, http-workers, retries-timeouts-compensation, testing-workflows, request-response, loops-and-multi-instance, operating-running-processes, searching-and-bulk-operations, migrating-running-processes, updating-running-processes, flow-control, long-running-processes, sensitive-data-and-encryption, human-tasks-assignment-and-escalation, agents-with-tools, http-calls, llm-calls, domain-event-triggers, webhooks, mcp-*.
+- `doc/src/content/docs/guides/` — workflow-definitions, starting-a-process, workers, http-workers, retries-timeouts-compensation, testing-workflows, request-response, loops-and-multi-instance, operating-running-processes, searching-and-bulk-operations, migrating-running-processes, updating-running-processes, flow-control, long-running-processes, sensitive-data-and-encryption, human-tasks-assignment-and-escalation, http-calls, llm-calls, domain-event-triggers, webhooks, mcp-*.
 - `.claude/skills/eventconductor*/` — the Claude Code skills (progressive: SKILL.md → reference/*.md), whose examples are validated by the build.
 - `doc/src/content/docs/reference/` — step-types, statuses, configuration, kafka-topics, java-api, processes-rest-api, http-worker-api, maven-plugin.
 - `modules/workflow-engine/src/main/resources/workflow-definition-schema.json` — the JSON Schema for definitions.

@@ -44,7 +44,7 @@ for autocomplete. The schema forbids unknown keys. Examples: [patterns.md](patte
 | `onTimeoutStepId` | waiting steps | on timeout route to that step instead of failing (guard the target with `preconditions: [{stepId: <this>, expression: "false"}]`) |
 | `deadline` | waiting steps | moment by which to finish (`{date, offset, at, zone}` or a date template); retries don't extend it |
 | `compensable` + `compensationStepId` | worker steps | saga undo; compensation step has NO preconditions (`rollbackable` = old spelling) |
-| `priority` | ACTION, HTTP_CALL, LLM_CALL, RULE, AGENT_CALL | 0–100, default 50 |
+| `priority` | ACTION, HTTP_CALL, LLM_CALL, RULE | 0–100, default 50 |
 | `topic` | worker steps | Kafka destination (default `downstream`; `http-calls`/`llm-calls` for built-ins); embedded ignores it |
 | `task` | ACTION | task contract `<id>` or `<id>@<version>` (`.ectask`) |
 | `formId`, `assignment`, `escalation` | USER_TASK | see below |
@@ -61,7 +61,6 @@ for autocomplete. The schema forbids unknown keys. Examples: [patterns.md](patte
 | `event` | PUBLISH_EVENT | `{destination, type, key?, payload \| payloadTemplate \| payloadVariables, format?}` |
 | `http` | HTTP_CALL | `{connection + path \| url, method, query, headers, body \| bodyTemplate, successStatus, output, auth, retryOn}` |
 | `llm` | LLM_CALL | `{connection, model?, system?, prompt, temperature?, maxTokens?, responseSchema?, output? \| outputVariable?, usageVariable?, allowSensitiveVariables?}` |
-| `agent` | AGENT_CALL | `{connection, goal, tools, maxSteps, system?, model?, output?, maxTokens?, maxDuration?, toolConcurrency?, onToolError?: fail\|report, allowSensitiveVariables?}` |
 | `continueAsNew` | CONTINUE_AS_NEW | `{version?: same\|latest, variables?: [names] \| {name: template}}` |
 | `forEach` | ACTION, USER_TASK, PROCESS, HTTP_CALL, LLM_CALL, RULE | `{items, as?, indexAs?, mode?: parallel\|sequential, maxConcurrency?, output?, outputElement?, completion?: all\|any\|JEXL}` |
 | `repeat` | same as forEach | `{until, maxIterations, delay?}` |
@@ -87,8 +86,8 @@ for autocomplete. The schema forbids unknown keys. Examples: [patterns.md](patte
 - **SEND_MESSAGE** — emit a message to another process; fire-and-forget; fails loud (ERROR) on bad config.
 - **PUBLISH_EVENT** — domain event through the outbox (published iff the step completes; CloudEvents on
   Kafka; `ExternalEventPublisher` bean embedded; `workflow.events.destinations.<name>.topic` maps the name).
-- **HTTP_CALL / LLM_CALL / AGENT_CALL** — built-in tasks `http-call@1` (worker-http), `llm-call@1` and
-  `agent-turn@1` (worker-llm). See [patterns.md](patterns.md) and [security.md](security.md).
+- **HTTP_CALL / LLM_CALL** — built-in tasks `http-call@1` (worker-http) and `llm-call@1`
+  (worker-llm). See [patterns.md](patterns.md) and [security.md](security.md).
 - **PROCESS** — child workflow with ALL parent variables, business key `parent:<stepExecutionId>`;
   child ERROR/CANCELLED → step ERROR; parent cancel cascades.
 - **FORK / JOIN / CHOICE** — no-worker gateways: FORK = all successors; CHOICE = exactly one (first

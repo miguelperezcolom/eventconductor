@@ -16,7 +16,7 @@ import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.UpdateDefinition;
 import io.mateu.workflow.domain.aggregates.Variable;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
-import io.mateu.workflow.domain.services.AgentSchemas;
+import io.mateu.workflow.domain.services.JsonSchemas;
 import io.mateu.workflow.domain.services.UpdateEvaluator;
 import io.mateu.workflow.dtos.MessageType;
 import io.mateu.workflow.dtos.events.integration.ProcessUpdateRequested;
@@ -485,7 +485,7 @@ public class ProcessUpdateService {
         if (handler.accepts() == null) {
             return List.of();
         }
-        return AgentSchemas.validate(handler.accepts(), json);
+        return JsonSchemas.validate(handler.accepts(), json);
     }
 
     /**

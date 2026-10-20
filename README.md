@@ -355,7 +355,7 @@ eventconductor/
 │   ├── worker-embedded/       Worker transport in the engine's JVM (embedded mode)
 │   ├── worker-codegen/        Generates worker project skeletons from task contracts
 │   ├── worker-http/           Built-in http-call task (HTTP_CALL steps)
-│   ├── worker-llm/            Built-in llm-call and agent-turn tasks (LLM_CALL / AGENT_CALL, Spring AI)
+│   ├── worker-llm/            Built-in llm-call task (LLM_CALL steps, Spring AI)
 │   ├── workflow-maven-plugin/ Build-time validator for workflow/form/rule definitions
 │   ├── workflow-e2e/          End-to-end test suite (embedded + JPA/H2 modes)
 │   ├── workflow-test/         Test kit for users' definitions: @EventConductorTest, mocks, time skipping
@@ -501,7 +501,7 @@ public class MyApplication {
 | `upstream` | inbound | Integration events from external services (process creation, timeouts) |
 | `downstream` | outbound | Task execution requests sent to workers |
 | `http-calls` | outbound | `HTTP_CALL` requests, served by `http-worker-standalone-app` |
-| `llm-calls` | outbound | `LLM_CALL` prompts and `AGENT_CALL` model turns, served by `llm-worker-standalone-app` |
+| `llm-calls` | outbound | `LLM_CALL` prompts, served by `llm-worker-standalone-app` |
 | `dead-letter` | outbound | Events the engine can never process, parked for inspection and replay |
 
 ### Kafka configuration (application.properties)
@@ -641,7 +641,6 @@ because nothing would ever start it.
 | `PUBLISH_EVENT` | Publishes a domain event (CloudEvent) from the process's state, via the outbox | `event` |
 | `HTTP_CALL` | Calls an HTTP endpoint and maps the response into variables (built-in `http-call` task) | `http` |
 | `LLM_CALL` | Asks a language model and maps its answer into variables (built-in `llm-call` task) | `llm` |
-| `AGENT_CALL` | A model works towards a goal with tools; every turn and every tool call is a step execution (retries, timeouts, compensation), bounded by `maxSteps`/`maxTokens` | `agent` |
 | `END` | Marks the workflow as complete | — |
 
 Steps run as a **pure dataflow**: a step starts as soon as all its preconditions have

@@ -7,7 +7,7 @@ description: Design, test and operate business processes with EventConductor —
 
 A **workflow definition** (YAML or JSON) is the process as data: steps and the preconditions between
 them. The engine schedules steps, enforces retries/timeouts/deadlines and runs compensation.
-**Business logic lives in stateless workers** (or in built-in steps: HTTP_CALL, LLM_CALL, AGENT_CALL,
+**Business logic lives in stateless workers** (or in built-in steps: HTTP_CALL, LLM_CALL,
 PUBLISH_EVENT…). Never hand-roll a state machine, scheduler or retry loop — declare it on the step.
 
 Current release: **2.33.0** (`io.mateu.workflow:*`, Spring Boot 4.1, Java 21) — if Maven Central does not
@@ -34,7 +34,6 @@ features: `updates`, `startPolicy`, `businessKeyPolicy`, `CONTINUE_AS_NEW`, `pri
 | automated work in your code | `ACTION` (+ a worker; `topic` routes it, `task` names a contract) |
 | call a REST API without a worker | `HTTP_CALL` (`http: {connection, path, …}`; needs `worker-http`) |
 | classify / extract / summarize with a model | `LLM_CALL` (`llm: {connection, prompt, …}`; needs `worker-llm`) |
-| a model that picks and calls tools, bounded | `AGENT_CALL` (`agent: {goal, tools, maxSteps}`) |
 | human approval / data entry | `USER_TASK` (`formId`, `assignment`, `escalation`; forms-engine) |
 | pick ONE branch by data | `CHOICE` + guarded `preconditions` links, converge with `JOIN joinType: XOR` |
 | run branches in parallel, then wait for all | `FORK` … `JOIN` (`preconditionStepIds` = branch ends) |
@@ -92,8 +91,8 @@ steps:
 ## Non-negotiable rules
 
 - **Every step has `id`, `type` and `name`** (the schema requires `name`).
-- **Exactly one `START`; every other step needs a precondition** — except compensation steps,
-  steps used only as an agent's tool, and a `WAIT_FOR_MESSAGE` beginning a flow.
+- **Exactly one `START`; every other step needs a precondition** — except compensation steps
+  and a `WAIT_FOR_MESSAGE` beginning a flow.
 - **Order is data flow, not array order.** A step runs when ALL its preconditions completed (and its
   guards hold); all eligible steps run concurrently. `parallel` is ignored.
 - **No precondition cycles** — use `repeat` / `loopBack`.

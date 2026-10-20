@@ -96,11 +96,10 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
      */
     public record StepSummary(
             String id, String stepId, String status, String workerId, String startedAt,
-            int iteration, boolean superseded, String parentExecutionId, Integer itemIndex,
-            java.util.Map<String, Object> agent) {
+            int iteration, boolean superseded, String parentExecutionId, Integer itemIndex) {
 
         public StepSummary(String id, String stepId, String status, String workerId, String startedAt) {
-            this(id, stepId, status, workerId, startedAt, 0, false, null, null, null);
+            this(id, stepId, status, workerId, startedAt, 0, false, null, null);
         }
     }
 
@@ -197,8 +196,7 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
                         s.getId(), s.getStepId(), s.getStatus().name(),
                         s.getWorkerId(),
                         s.getStartedAt() != null ? s.getStartedAt().toString() : null,
-                        s.getIteration(), s.isSuperseded(), s.getParentExecutionId(), s.getItemIndex(),
-                        io.mateu.workflow.domain.services.AgentTranscripts.summary(s)))
+                        s.getIteration(), s.isSuperseded(), s.getParentExecutionId(), s.getItemIndex()))
                 .toList();
         // A sensitive variable's value reads as the mask: revealing it is revealProcessVariable, audited.
         var vars = io.mateu.workflow.application.services.SensitiveVariableMasking.variables(process).stream()
@@ -207,24 +205,6 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
                 process.getId(), process.getName(), process.getBusinessKey(),
                 process.getStatus().name(), process.getCompletionPercentage(), vars, steps,
                 process.getContinuedFromProcessId(), process.getContinuedAsProcessId(), process.outcome());
-    }
-
-    @Tool(description = "Get the transcript of an AGENT_CALL step execution: the goal, each model turn, the tool"
-            + " calls it asked for (with their arguments, redacted) and each call's result, plus tokens used. Pass the"
-            + " agent's own step execution id (the one with no parentExecutionId).")
-    public java.util.Map<String, Object> getAgentTranscript(String stepExecutionId) {
-        var execution = stepExecutionRepository.findById(stepExecutionId)
-                .orElseThrow(() -> new IllegalArgumentException("Step execution not found: " + stepExecutionId));
-        if (!execution.isAgent()) {
-            throw new IllegalArgumentException("Step execution " + stepExecutionId + " is not an AGENT_CALL's own execution");
-        }
-        var result = new java.util.LinkedHashMap<String, Object>();
-        var summary = io.mateu.workflow.domain.services.AgentTranscripts.summary(execution);
-        if (summary != null) {
-            result.putAll(summary);
-        }
-        result.put("transcript", io.mateu.workflow.domain.services.AgentTranscripts.entries(execution));
-        return result;
     }
 
     @Tool(description = "Find a workflow process by its business key — the run that holds the key now (with a"

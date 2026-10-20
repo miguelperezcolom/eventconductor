@@ -50,7 +50,7 @@ if (typeof window !== "undefined" && !window.__ecClipboardBridge) {
 type StepType =
     | "START" | "ACTION" | "USER_TASK" | "RULE" | "TIMER"
     | "WAIT_FOR_MESSAGE" | "SEND_MESSAGE" | "FORK" | "JOIN" | "CHOICE" | "PROCESS" | "END" | "DYNAMIC"
-    | "LOCK" | "UNLOCK" | "REPLY" | "PUBLISH_EVENT" | "HTTP_CALL" | "LLM_CALL" | "AGENT_CALL"
+    | "LOCK" | "UNLOCK" | "REPLY" | "PUBLISH_EVENT" | "HTTP_CALL" | "LLM_CALL"
     | "CONTINUE_AS_NEW";
 /** Whether a workflow is open for business. DRAFT is an older value that meant nothing. */
 type WorkflowStatus = "ACTIVE" | "DISABLED" | "ARCHIVED" | "DRAFT";
@@ -92,8 +92,6 @@ interface WorkflowStep {
     http?: { connection?: string; url?: string; method?: string; path?: string };
     /** LLM_CALL only: what to ask the model. */
     llm?: { connection?: string; model?: string; responseSchema?: unknown };
-    /** AGENT_CALL only: the model, the goal and the tools it may call. */
-    agent?: AgentSpec;
     /** Worker steps only: 0–100, higher first; absent means the default, 50. */
     priority?: number;
     /** CONTINUE_AS_NEW only: the version the next run starts from and the variables it carries. */
@@ -185,33 +183,6 @@ function describeStartPolicy(p?: StartPolicySpec): string {
     if (p.singleton) parts.push("singleton " + p.singleton);
     if (p.key) parts.push("key " + p.key);
     return parts.join(" · ");
-}
-
-/** One tool of an AGENT_CALL: exactly one of step, http, process and task says what runs. */
-interface AgentToolSpec {
-    name?: string;
-    description?: string;
-    step?: string;
-    http?: { method?: string; url?: string; connection?: string; path?: string };
-    process?: string;
-    task?: string;
-    approval?: { formId?: string };
-}
-/** A step's `agent` block (AGENT_CALL). */
-interface AgentSpec {
-    connection?: string;
-    model?: string;
-    goal?: string;
-    tools?: AgentToolSpec[];
-    maxSteps?: number;
-    maxTokens?: number;
-    toolConcurrency?: number;
-}
-/** "lookupOrder (http) · openRefund (process, approval)" for an agent's tools. */
-function describeAgentTools(agent?: AgentSpec): string {
-    return (agent?.tools ?? []).map(t => (t.name ?? "?") + " ("
-        + (t.step ? "step " + t.step : t.http ? "http" : t.process ? "process " + t.process : t.task ? "task " + t.task : "?")
-        + (t.approval ? ", approval" : "") + ")").join(" · ");
 }
 
 /** A step's `loopBack` block. */
@@ -392,8 +363,6 @@ interface StepOverlay {
     iterations?: {total: number; completed: number; failed: number; active: number};
     /** Process view, looped steps: how many times the step has run (passes of a repeat/loopBack). */
     runs?: number;
-    /** Process view, AGENT_CALL steps: how its loop stands. */
-    agent?: {state?: string; turns?: number; toolCalls?: number; totalTokens?: number; lastMessage?: string};
 }
 
 interface NodePos { x: number; y: number; }
@@ -410,7 +379,7 @@ const PAD = 60;
 const STEP_TYPES: StepType[] = [
     "START", "ACTION", "USER_TASK", "RULE", "TIMER",
     "WAIT_FOR_MESSAGE", "SEND_MESSAGE", "FORK", "JOIN", "CHOICE", "PROCESS", "END", "DYNAMIC",
-    "LOCK", "UNLOCK", "REPLY", "PUBLISH_EVENT", "HTTP_CALL", "LLM_CALL", "AGENT_CALL", "CONTINUE_AS_NEW",
+    "LOCK", "UNLOCK", "REPLY", "PUBLISH_EVENT", "HTTP_CALL", "LLM_CALL", "CONTINUE_AS_NEW",
 ];
 
 /**
@@ -470,8 +439,6 @@ const NODE_STYLE: Record<StepType, NodeStyle> = {
     HTTP_CALL:        {fill: "#eff6ff", stroke: "#2563eb", symbol: "globe"},
     // A language model asked a question: violet, with a sparkle — a colour no other step uses.
     LLM_CALL:         {fill: "#f5f3ff", stroke: "#7c3aed", symbol: "sparkle"},
-    // A model working with tools: indigo, with a robot — its tools hang off it on dotted lines.
-    AGENT_CALL:       {fill: "#eef2ff", stroke: "#4f46e5", symbol: "agent"},
     // Ends this run and starts the next one of the chain: rose, with a restart arrow, drawn with the
     // heavy border of an END — it is an end, followed by a fresh beginning.
     CONTINUE_AS_NEW:  {fill: "#fdf2f8", stroke: "#db2777", symbol: "restart"},
@@ -537,7 +504,7 @@ function isGatewayType(t: StepType): boolean { return t === "FORK" || t === "JOI
 function isTaskStepType(t: StepType): boolean {
     return t === "ACTION" || t === "USER_TASK" || t === "RULE"
         || t === "WAIT_FOR_MESSAGE" || t === "PROCESS" || t === "DYNAMIC" || t === "HTTP_CALL"
-        || t === "LLM_CALL" || t === "AGENT_CALL";
+        || t === "LLM_CALL";
 }
 /** A timeout in ms as a short human string: 30000 → "30s", 90000 → "1m 30s", 120000 → "2m". */
 function formatTimeout(ms: number): string {
@@ -578,7 +545,6 @@ const SYMBOLS: Record<string, ReturnType<typeof svg>> = {
     // A robot head with an antenna — a model that acts, through tools.
     // A circular arrow coming back on itself — the run ends and starts again (CONTINUE_AS_NEW).
     restart:   svg`<path d="M10.2 4.2 A4.6 4.6 0 1 0 10.6 7.6"/><path d="M10.6 1.2 V4.4 H7.4"/>`,
-    agent:     svg`<rect x="1.5" y="3.5" width="9" height="7.5" rx="1.6"/><path d="M6 3.5 V1.2"/><circle cx="6" cy="0.9" r="0.6"/><circle cx="4.2" cy="6.8" r="0.9"/><circle cx="7.8" cy="6.8" r="0.9"/><path d="M4.3 9.2 H7.7"/>`,
 };
 
 /**
@@ -632,8 +598,6 @@ function badgeOf(step: WorkflowStep): string {
         case "HTTP_CALL": return (step.http?.method || "GET") + " " + (step.http?.connection || step.http?.url || "http")
             + (step.awaitReply ? " " + describeAwaitReply(step.awaitReply) : "");
         case "LLM_CALL": return "✦ " + (step.llm?.connection || "llm") + (step.llm?.model ? " · " + step.llm.model : "");
-        case "AGENT_CALL": return "🤖 " + (step.agent?.connection || "agent") + " · "
-            + (step.agent?.tools?.length ?? 0) + " tools" + (step.agent?.maxSteps ? " · ≤" + step.agent.maxSteps : "");
         case "CONTINUE_AS_NEW": return "↻ " + (step.continueAsNew?.version === "latest" ? "latest" : "same version");
         case "TIMER": return "⏱ " + (step.until ? describeMoment(step.until)
             : step.untilVariable ? "until " + step.untilVariable
@@ -1545,18 +1509,7 @@ export class MateuWorkflowElk extends LitElement {
                 targets: [s.onTimeoutStepId!],
                 layoutOptions: {"elk.layered.priority.direction": "0"},
             } as ElkExtendedEdge));
-        // An agent's step tools sit next to it.
-        const tools = steps
-            .filter(s => s.type === "AGENT_CALL")
-            .flatMap(s => (s.agent?.tools ?? [])
-                .filter(t => t.step && ids.has(t.step) && t.step !== s.id)
-                .map(t => ({
-                    id: `${s.id}~tool~${t.step}`,
-                    sources: [s.id],
-                    targets: [t.step!],
-                    layoutOptions: {"elk.layered.priority.direction": "0"},
-                } as ElkExtendedEdge)));
-        return [...flow, ...rollback, ...timeout, ...tools];
+        return [...flow, ...rollback, ...timeout];
     }
 
     private async runElkLayout() {
@@ -2341,10 +2294,10 @@ export class MateuWorkflowElk extends LitElement {
      * node attach at distinct points along that side, so parallel lines never overlap. Sequence
      * edges first, compensation last. The routes are also cached (by "from->to") for the token.
      */
-    private computeEdges(): {key: string; from: string; to: string; comp: boolean; timeout: boolean; loop?: boolean; tool?: boolean; pts: Pt[]}[] {
+    private computeEdges(): {key: string; from: string; to: string; comp: boolean; timeout: boolean; loop?: boolean; pts: Pt[]}[] {
         const steps = this.wf.steps ?? [];
         const targets = compTargets(steps);
-        const raw: {from: string; to: string; comp: boolean; timeout: boolean; loop?: boolean; tool?: boolean}[] = [];
+        const raw: {from: string; to: string; comp: boolean; timeout: boolean; loop?: boolean}[] = [];
         for (const s of steps) {
             for (const {stepId: f} of flowLinksOf(s, targets)) {
                 if (this.boxForId(f) && this.boxForId(s.id)) raw.push({from: f, to: s.id, comp: false, timeout: false});
@@ -2365,15 +2318,6 @@ export class MateuWorkflowElk extends LitElement {
         for (const s of steps) {
             if (s.loopBack?.to && this.boxForId(s.id) && this.boxForId(s.loopBack.to)) {
                 raw.push({from: s.id, to: s.loopBack.to, comp: false, timeout: false, loop: true});
-            }
-        }
-        // An agent's step tools: dotted indigo lines from the agent to the steps it may run — not flow,
-        // not click targets; the tools are edited in the agent's block.
-        for (const s of steps) {
-            for (const tool of s.type === "AGENT_CALL" ? s.agent?.tools ?? [] : []) {
-                if (tool.step && this.boxForId(s.id) && this.boxForId(tool.step)) {
-                    raw.push({from: s.id, to: tool.step, comp: false, timeout: false, tool: true});
-                }
             }
         }
 
@@ -2429,8 +2373,8 @@ export class MateuWorkflowElk extends LitElement {
             for (let i = 0; i < pts.length - 1; i++) priorSegs.push([pts[i], pts[i + 1]]);
             // A distinct key per kind so an on-timeout edge to the same target as a precondition
             // does not collide with it in the cache or the DOM.
-            const key = e.tool ? `${e.from}~tool~${e.to}` : e.loop ? `${e.from}~l~${e.to}` : e.timeout ? `${e.from}~t~${e.to}` : `${e.from}->${e.to}`;
-            return {key, from: e.from, to: e.to, comp: e.comp, timeout: e.timeout, loop: e.loop, tool: e.tool, pts};
+            const key = e.loop ? `${e.from}~l~${e.to}` : e.timeout ? `${e.from}~t~${e.to}` : `${e.from}->${e.to}`;
+            return {key, from: e.from, to: e.to, comp: e.comp, timeout: e.timeout, loop: e.loop, pts};
         });
     }
 
@@ -3328,12 +3272,6 @@ export class MateuWorkflowElk extends LitElement {
             const monDim = mon && !(this.isVisited(e.from) && this.isVisited(e.to)) ? "mon-dim" : "";
             const focusDim = this.focusPaint && !this.focusPaint.edges.has(e.key) ? "focus-dim" : "";
             const sel = this.isEdgeSelected(e) ? "sel" : "";
-            if (e.tool) {
-                out.push(svg`<path class="tool-edge ${monDim} ${focusDim}" data-tool="${e.from}" data-tool-step="${e.to}"
-                                   data-edge="${e.key}" d="${d}" marker-end="url(#ec-arrow-loop)"/>`);
-                for (let i = 0; i < e.pts.length - 1; i++) prior.push([e.pts[i], e.pts[i + 1]]);
-                continue;
-            }
             if (e.loop) {
                 // The back-edge: violet, dashed, with the loop's condition and bound on a chip. Not a
                 // click target — the loop is edited on its step, not on a line.
@@ -3676,16 +3614,10 @@ export class MateuWorkflowElk extends LitElement {
         // A forEach in a process view: "3/5" iterations completed (red when one failed); a looped step:
         // "×3", the times it ran. Top edge, centred — clear of every corner badge.
         const it = ov?.iterations;
-        // An agent: "2↻ 3⚒" — its model turns and the tool calls they made.
-        const ag = ov?.agent;
-        const iterLabel = it ? `${it.completed}/${it.total}`
-            : ag ? `${ag.turns ?? 0}↻ ${ag.toolCalls ?? 0}⚒`
-            : (ov?.runs && ov.runs > 1 ? `×${ov.runs}` : "");
+        const iterLabel = it ? `${it.completed}/${it.total}` : (ov?.runs && ov.runs > 1 ? `×${ov.runs}` : "");
         const iterationsBadge = iterLabel ? svg`
-            <g class="ov-iterations ${ag ? "ov-agent" : ""}" transform="translate(${w / 2}, -2)">
+            <g class="ov-iterations" transform="translate(${w / 2}, -2)">
                 <title>${it ? `${it.completed} of ${it.total} iterations completed, ${it.active} in flight, ${it.failed} failed`
-                    : ag ? `Agent ${ag.state ?? ""}: ${ag.turns ?? 0} model turns, ${ag.toolCalls ?? 0} tool calls, ${ag.totalTokens ?? 0} tokens`
-                        + (ag.lastMessage ? ` — "${ag.lastMessage}"` : "")
                     : `Ran ${ov!.runs} times`}</title>
                 <rect x="${-(iterLabel.length * 3.4 + 8)}" y="-8" width="${iterLabel.length * 6.8 + 16}" height="16" rx="8"
                       style="${it && it.failed > 0 ? "fill:#dc2626" : ""}"/>
@@ -3941,14 +3873,6 @@ export class MateuWorkflowElk extends LitElement {
                         <input class="inp" readonly title="Edit the llm block in the YAML"
                                .value="${(step.llm?.connection || "") + (step.llm?.model ? " · " + step.llm.model : "")
                                    + (step.llm?.responseSchema ? " → JSON" : "")}"/>`) : ""}
-                    ${step.type === "AGENT_CALL" ? field("Agent", html`
-                        <input class="inp" readonly title="Edit the agent block in the YAML"
-                               .value="${(step.agent?.connection || "") + (step.agent?.model ? " · " + step.agent.model : "")
-                                   + " · maxSteps " + (step.agent?.maxSteps ?? "?")
-                                   + (step.agent?.maxTokens ? " · maxTokens " + step.agent.maxTokens : "")}"/>`) : ""}
-                    ${step.type === "AGENT_CALL" ? field("Tools", html`
-                        <input class="inp" readonly title="Edit the tools in the YAML" data-agent-tools="${step.id}"
-                               .value="${describeAgentTools(step.agent)}"/>`) : ""}
                     ${step.type === "TIMER" && step.until ? field("Until", html`
                         <input class="inp" readonly title="Edit the until block in the YAML"
                                .value="${describeMoment(step.until)}"/>`) : ""}
@@ -3970,7 +3894,7 @@ export class MateuWorkflowElk extends LitElement {
                                   .value="${this.wf.triggers.map(t => describeEventSource(t)
                                       + (t.filter ? " · if " + t.filter : "")
                                       + (t.startPolicy ? " · " + describeStartPolicy(t.startPolicy) : "")).join("\n")}"></textarea>`) : ""}
-                    ${["ACTION", "HTTP_CALL", "LLM_CALL", "RULE", "AGENT_CALL"].includes(step.type) ? field("Priority (0–100)", html`
+                    ${["ACTION", "HTTP_CALL", "LLM_CALL", "RULE"].includes(step.type) ? field("Priority (0–100)", html`
                         <input class="inp" type="number" min="0" max="100" placeholder="50" ?readonly="${ro}"
                                data-priority="${step.id}" .value="${step.priority === undefined ? "" : String(step.priority)}"
                                @change="${ro ? nothing : (e: Event) => {
@@ -4556,8 +4480,6 @@ export class MateuWorkflowElk extends LitElement {
         /* loop back-edges: violet dashes with the condition on a chip */
         .loop-edge {fill: none; stroke: #7c3aed; stroke-width: 1.6; stroke-dasharray: 5 4; stroke-linejoin: round; transition: opacity .2s;}
         .loop-edge.mon-dim, .loop-edge.focus-dim {opacity: .25;}
-        .tool-edge {fill: none; stroke: #4f46e5; stroke-width: 1.4; stroke-dasharray: 2 4; stroke-linejoin: round; transition: opacity .2s;}
-        .tool-edge.mon-dim, .tool-edge.focus-dim {opacity: .25;}
         .loop-chip text {font-size: 10.5px; fill: #5b21b6; font-weight: 600;}
         .loop-chip rect {fill: #f5f3ff; stroke: #7c3aed; stroke-width: 1;}
         .loop-chip.focus-dim {opacity: .25;}

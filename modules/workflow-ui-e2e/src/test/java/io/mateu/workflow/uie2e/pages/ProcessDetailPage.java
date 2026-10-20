@@ -191,27 +191,6 @@ public class ProcessDetailPage {
         return new java.util.ArrayList<>((java.util.List<String>) (java.util.List<?>) raw);
     }
 
-    /**
-     * What the diagram draws for agents, as "kind:stepId[:text]" entries — the dotted line from an
-     * agent to each of its step tools, and the turns/tool-calls badge a process view shows.
-     */
-    @SuppressWarnings("unchecked")
-    public java.util.List<String> agentShapes() {
-        var raw = page.locator("eventconductor-workflow-graph").first().evaluate("""
-                el => {
-                    const out = [];
-                    if (!el.shadowRoot) return out;
-                    el.shadowRoot.querySelectorAll('.tool-edge[data-tool]').forEach(e =>
-                        out.push('tool-edge:' + e.getAttribute('data-tool') + '->' + e.getAttribute('data-tool-step')));
-                    el.shadowRoot.querySelectorAll('.node[data-node]').forEach(node => {
-                        const badge = node.querySelector('.ov-agent text');
-                        if (badge) out.push('agent:' + node.getAttribute('data-node') + ':' + badge.textContent.trim());
-                    });
-                    return out;
-                }""");
-        return new java.util.ArrayList<>((java.util.List<String>) (java.util.List<?>) raw);
-    }
-
     /** The full text a guard chip reveals under the pointer, for the first chip on the canvas. */
     public String firstGuardFullText() {
         return page.locator("eventconductor-workflow-graph").first().evaluate("""

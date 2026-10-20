@@ -1,6 +1,6 @@
 # EventConductor
 
-> Event-driven workflow / saga orchestration engine for Java/Spring. Describe a business process as a workflow definition (YAML or JSON) made of steps; the engine drives the state machine, retries, timeouts and compensation, and delegates business logic to stateless workers or built-in steps (HTTP_CALL, LLM_CALL, AGENT_CALL, PUBLISH_EVENT). Scales from a single in-process JVM (no Kafka, no DB) to a multi-pod cluster (Kafka + PostgreSQL) with no change to business code.
+> Event-driven workflow / saga orchestration engine for Java/Spring. Describe a business process as a workflow definition (YAML or JSON) made of steps; the engine drives the state machine, retries, timeouts and compensation, and delegates business logic to stateless workers or built-in steps (HTTP_CALL, LLM_CALL, PUBLISH_EVENT). Scales from a single in-process JVM (no Kafka, no DB) to a multi-pod cluster (Kafka + PostgreSQL) with no change to business code.
 
 Two properties select the topology: `workflow.mode` (`embedded` | `kafka`, default `embedded`) and `workflow.persistence` (`memory` | `jpa`, default `memory`). Artifacts are on Maven Central under `io.mateu.workflow` (`workflow-engine`, `workflow-test`, `workflow-maven-plugin`, `forms-engine`, `rule-engine`, `rule-runtime`, `worker-embedded`, `worker-kafka`, `worker-http`, `worker-llm`, `inbound-events-kafka`, …), one version for all. Secure by default: the REST API needs an API key or Spring Security, the consoles and MCP need Spring Security (`workflow.message-api.allow-anonymous=true` for local development only).
 
@@ -9,7 +9,7 @@ Two properties select the topology: `workflow.mode` (`embedded` | `kafka`, defau
 - [Compact reference](https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/doc/public/eventconductor-ai-compact.md): setup, DSL rules, decision guide, step types, workers, testing, REST/MCP, security, gotchas. Fits a context window; use for day-to-day generation.
 - [Full reference](https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/doc/public/eventconductor-ai-full.md): everything — every step and field, deployment modes, Kafka, Java API, operations, security, upgrade notes 2.27 → 2.33.
 - [Claude Code skills](https://github.com/miguelperezcolom/eventconductor/tree/main/.claude/skills): `eventconductor` (definitions, patterns, testing, workers, operations, security, gotchas), `eventconductor-scaffold` (new project), `eventconductor-run` (run and verify). Copy `.claude/skills/eventconductor*` into your project's `.claude/skills/`.
-- [Validated patterns](https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/.claude/skills/eventconductor/reference/patterns.md): saga with timer, human approval, HTTP integration, event-triggered flow, request/response, forEach fan-out, polling, agent with tools, updates, flow control, child process, sensitive data. Every example is checked by the build against the schema and the engine.
+- [Validated patterns](https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/.claude/skills/eventconductor/reference/patterns.md): saga with timer, human approval, HTTP integration, event-triggered flow, request/response, forEach fan-out, polling, LLM call, updates, flow control, child process, sensitive data. Every example is checked by the build against the schema and the engine.
 - [Workflow definition JSON Schema](https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json): editor autocomplete and validation (also `events-schema.json`, `cron-schema.json`).
 - [OpenAPI of /workflow/api](https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/doc/public/openapi/eventconductor-api.yaml).
 
@@ -32,7 +32,6 @@ Two properties select the topology: `workflow.mode` (`embedded` | `kafka`, defau
 - [Long-Running Processes](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/long-running-processes.md): CONTINUE_AS_NEW and businessKeyPolicy
 - [HTTP Calls](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/http-calls.md): HTTP_CALL, connections, auth profiles, host-bound credentials, secrets
 - [LLM Calls](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/llm-calls.md): LLM_CALL with Spring AI (Anthropic / OpenAI-compatible)
-- [Agents with Tools](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/agents-with-tools.md): AGENT_CALL: goal, tools, budgets, approvals, testing
 - [Publishing Events](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/publishing-events.md): PUBLISH_EVENT through the outbox, CloudEvents
 - [Domain Event Triggers](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/domain-event-triggers.md): triggers, events.yaml, onEvent waits
 - [Webhooks](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/webhooks.md): the webhook gateway: GitHub / HMAC deliveries as CloudEvents
@@ -42,7 +41,7 @@ Two properties select the topology: `workflow.mode` (`embedded` | `kafka`, defau
 - [Form Definitions](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/form-definitions.md): forms for user tasks
 - [Rule Definitions](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/rule-definitions.md): expression rules and decision tables
 - [Rule Evaluation](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/rule-evaluation.md): embedding the rule runtime, RULE steps
-- [Testing Workflows](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/testing-workflows.md): workflow-test: @EventConductorTest, mocks, HTTP/LLM/agent stubs, advanceTime, assertions
+- [Testing Workflows](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/testing-workflows.md): workflow-test: @EventConductorTest, mocks, HTTP/LLM stubs, advanceTime, assertions
 - [Test Worker](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/test-worker.md): drive a deployment through any outcome with TEST_CONFIG
 - [Operating Running Processes](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/operating-running-processes.md): set variables, complete a step, retry from a step, incidents, audit
 - [Searching and Bulk Operations](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/searching-and-bulk-operations.md): search attributes, query language, batch operations
@@ -72,7 +71,7 @@ Two properties select the topology: `workflow.mode` (`embedded` | `kafka`, defau
 ## Key rules for generating definitions
 
 - Every step has `id`, `type` and `name`; unknown keys are refused by the schema.
-- At most one `START`; every other step needs a precondition (`preconditionStepId`, `preconditionStepIds`, or `preconditions: [{stepId, expression, onFalse}]`) — except compensation steps, agent-only tool steps, and a `WAIT_FOR_MESSAGE` that begins a flow.
+- At most one `START`; every other step needs a precondition (`preconditionStepId`, `preconditionStepIds`, or `preconditions: [{stepId, expression, onFalse}]`) — except compensation steps and a `WAIT_FOR_MESSAGE` that begins a flow.
 - Steps run by data flow, never array order; no precondition cycles (use `forEach`, `repeat`, `loopBack`).
 - One `END`; converge FORK branches with an AND `JOIN`, CHOICE branches with `joinType: XOR`.
 - Saga: `compensable: true` + `compensationStepId`; compensation steps have no preconditions.
