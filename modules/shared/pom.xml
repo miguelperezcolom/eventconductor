@@ -64,7 +64,7 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-jexl3</artifactId>
-            <version>3.7.0</version>
+            <version>3.7.1</version>
         </dependency>
         <!-- Template syntax (where the ${…} are), shared with the Maven plugin; JDK-only. -->
         <dependency>
