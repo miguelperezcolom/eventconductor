@@ -1,0 +1,174 @@
+{
+  "id": "ide-all-types",
+  "name": "Synthetic IDE coverage",
+  "version": 17,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "start"
+    },
+    {
+      "id": "rule",
+      "type": "RULE",
+      "name": "rule",
+      "preconditionStepId": "start",
+      "ruleId": "synthetic-rule"
+    },
+    {
+      "id": "choice",
+      "type": "CHOICE",
+      "name": "choice",
+      "preconditionStepId": "rule"
+    },
+    {
+      "id": "fork",
+      "type": "FORK",
+      "name": "fork",
+      "preconditionStepId": "choice"
+    },
+    {
+      "id": "a",
+      "type": "ACTION",
+      "name": "a",
+      "preconditionStepId": "fork",
+      "topic": "synthetic-a"
+    },
+    {
+      "id": "b",
+      "type": "ACTION",
+      "name": "b",
+      "preconditionStepId": "fork",
+      "topic": "synthetic-b"
+    },
+    {
+      "id": "join",
+      "type": "JOIN",
+      "name": "join",
+      "preconditionStepIds": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "id": "lock",
+      "type": "LOCK",
+      "name": "lock",
+      "preconditionStepId": "join",
+      "lockName": "synthetic-test",
+      "lockKey": "bookingId"
+    },
+    {
+      "id": "sub",
+      "type": "PROCESS",
+      "name": "sub",
+      "preconditionStepId": "lock",
+      "childWorkflowDefinitionId": "ide-child",
+      "forEach": {
+        "items": "items",
+        "as": "item"
+      }
+    },
+    {
+      "id": "send",
+      "type": "SEND_MESSAGE",
+      "name": "send",
+      "preconditionStepId": "sub",
+      "messageName": "synthetic-handoff",
+      "correlationExpression": "bookingId"
+    },
+    {
+      "id": "wait",
+      "type": "WAIT_FOR_MESSAGE",
+      "name": "wait",
+      "preconditionStepId": "send",
+      "messageName": "synthetic-go",
+      "correlationExpression": "bookingId"
+    },
+    {
+      "id": "http",
+      "type": "HTTP_CALL",
+      "name": "http",
+      "preconditionStepId": "wait",
+      "retries": 1,
+      "retryInterval": 1000,
+      "http": {
+        "url": "https://example.invalid/synthetic",
+        "method": "GET"
+      }
+    },
+    {
+      "id": "llm",
+      "type": "LLM_CALL",
+      "name": "llm",
+      "preconditionStepId": "http",
+      "llm": {
+        "connection": "synthetic",
+        "prompt": "Synthetic test",
+        "outputVariable": "answer"
+      }
+    },
+    {
+      "id": "agent",
+      "type": "AGENT",
+      "name": "agent",
+      "preconditionStepId": "llm",
+      "agent": {
+        "ref": "synthetic-agent",
+        "taskPrompt": "Synthetic test",
+        "outputVariable": "assessment"
+      }
+    },
+    {
+      "id": "human",
+      "type": "USER_TASK",
+      "name": "human",
+      "preconditionStepId": "agent",
+      "formId": "synthetic-form"
+    },
+    {
+      "id": "publish",
+      "type": "PUBLISH_EVENT",
+      "name": "publish",
+      "preconditionStepId": "human",
+      "event": {
+        "destination": "synthetic-out",
+        "type": "synthetic.done",
+        "payload": {
+          "id": "${bookingId}"
+        }
+      }
+    },
+    {
+      "id": "reply",
+      "type": "REPLY",
+      "name": "reply",
+      "preconditionStepId": "publish",
+      "replyVariables": [
+        "bookingId"
+      ]
+    },
+    {
+      "id": "unlock",
+      "type": "UNLOCK",
+      "name": "unlock",
+      "preconditionStepId": "reply",
+      "lockName": "synthetic-test",
+      "lockKey": "bookingId"
+    },
+    {
+      "id": "timer",
+      "type": "TIMER",
+      "name": "timer",
+      "preconditionStepId": "unlock",
+      "duration": 1000
+    },
+    {
+      "id": "dynamic",
+      "type": "DYNAMIC",
+      "name": "dynamic",
+      "preconditionStepId": "timer",
+      "topic": "synthetic-planner"
+    }
+  ]
+}

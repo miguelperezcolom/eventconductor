@@ -99,6 +99,27 @@ public class ProcessEntity {
     @Column(length = 255)
     private String initiatingActor;
 
+    @Column(nullable = false)
+    private boolean testRun;
+    @Column(length = 64)
+    private String testRunRequestDigest;
+
+    /** The row before IDE test runs: an ordinary process, with no request fingerprint. */
+    public ProcessEntity(String id, String businessKey, String name, String variables, String status,
+                         int completionPercentage, String log, String workflowDefinitionId,
+                         int workflowDefinitionVersion, String workflowDefinitionJson,
+                         LocalDateTime created, LocalDateTime started, LocalDateTime finished,
+                         LocalDateTime pausedAt, String parentStepExecutionId, Integer version,
+                         String replyStepId, String replyJson, String replyOutcome, String replyCompensation,
+                         String replyError, LocalDateTime repliedAt, String continuedFromProcessId,
+                         String continuedAsProcessId, String releasedBusinessKey, String initiatingActor) {
+        this(id, businessKey, name, variables, status, completionPercentage, log, workflowDefinitionId,
+                workflowDefinitionVersion, workflowDefinitionJson, created, started, finished, pausedAt,
+                parentStepExecutionId, version, replyStepId, replyJson, replyOutcome, replyCompensation,
+                replyError, repliedAt, continuedFromProcessId, continuedAsProcessId, releasedBusinessKey,
+                initiatingActor, false, null);
+    }
+
     /** The row before CONTINUE_AS_NEW (V56): no links. */
     public ProcessEntity(String id, String businessKey, String name, String variables, String status,
                          int completionPercentage, String log, String workflowDefinitionId,

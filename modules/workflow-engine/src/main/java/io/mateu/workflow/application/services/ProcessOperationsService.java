@@ -4,6 +4,7 @@ import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessIndexRepository;
 import io.mateu.workflow.application.out.ProcessListingFilter;
 import io.mateu.workflow.application.out.ProcessRepository;
+import io.mateu.workflow.application.out.ProcessSnapshotReader;
 import io.mateu.workflow.application.out.ProcessSummaryPage;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.UnknownWorkflowDefinitionException;
@@ -81,6 +82,7 @@ public class ProcessOperationsService {
     private final boolean flowAuthorizationEnabled;
     private final io.mateu.workflow.application.usecases.process.operate.ProcessOperationRules rules;
     private final List<String> operationsRequiredRoles;
+    private final ObjectProvider<ProcessSnapshotReader> testRunSnapshots;
 
     /** Without the manual operations' own settings: their rules as the engine has them, no extra role. */
     public ProcessOperationsService(ProcessRepository processRepository,
@@ -100,6 +102,23 @@ public class ProcessOperationsService {
                 List.of());
     }
 
+    public ProcessOperationsService(ProcessRepository processRepository,
+                                    StepExecutionRepository stepExecutionRepository,
+                                    LogMessageRepository logMessageRepository,
+                                    WorkflowDefinitionRepository workflowDefinitionRepository,
+                                    CreateProcessUseCase createProcessUseCase,
+                                    CommandDispatcher commandDispatcher,
+                                    ProcessListingService listing,
+                                    ProcessStatusAnnouncer readModel,
+                                    ObjectProvider<ProcessIndexRepository> processIndex,
+                                    boolean flowAuthorizationEnabled,
+                                    io.mateu.workflow.application.usecases.process.operate.ProcessOperationRules rules,
+                                    List<String> operationsRequiredRoles) {
+        this(processRepository, stepExecutionRepository, logMessageRepository, workflowDefinitionRepository,
+                createProcessUseCase, commandDispatcher, listing, readModel, processIndex, flowAuthorizationEnabled,
+                rules, operationsRequiredRoles, null);
+    }
+
     @org.springframework.beans.factory.annotation.Autowired
     public ProcessOperationsService(ProcessRepository processRepository,
                                     StepExecutionRepository stepExecutionRepository,
@@ -114,7 +133,9 @@ public class ProcessOperationsService {
                                     boolean flowAuthorizationEnabled,
                                     io.mateu.workflow.application.usecases.process.operate.ProcessOperationRules rules,
                                     @Value("${workflow.security.operations.required-roles:}")
-                                    List<String> operationsRequiredRoles) {
+                                    List<String> operationsRequiredRoles,
+                                    ObjectProvider<ProcessSnapshotReader> testRunSnapshots) {
+        this.testRunSnapshots = testRunSnapshots;
         this.processRepository = processRepository;
         this.stepExecutionRepository = stepExecutionRepository;
         this.logMessageRepository = logMessageRepository;
@@ -128,6 +149,30 @@ public class ProcessOperationsService {
         this.rules = rules;
         this.operationsRequiredRoles = operationsRequiredRoles == null ? List.of()
                 : operationsRequiredRoles.stream().filter(role -> role != null && !role.isBlank()).map(String::trim).toList();
+    }
+
+    /** Apply the frozen test's requirements as well as any published requirements under its id. */
+    public void authorizeRead(Process process, AuthorizationContext caller) {
+        authorize(process.getWorkflowDefinitionId(), caller, "read process '" + process.getId() + "'");
+        if (!flowAuthorizationEnabled || !process.isTestRun()) return;
+        var reader = testRunSnapshots == null ? null : testRunSnapshots.getIfAvailable();
+        if (reader == null) throw new IllegalStateException("Test run snapshot reader is unavailable.");
+        var snapshot = reader.read(process.getWorkflowDefinitionJson());
+        var decision = FlowAuthorizationService.authorize(caller, snapshot.requiredScopes(), snapshot.requiredRoles());
+        if (!decision.allowed()) throw FlowAuthorizationDeniedException.of("read test run", caller == null ? null : caller.subject(),
+                decision.missingScopes(), decision.missingRoles());
+    }
+
+    /** A test run's frozen requirements; reuses the process {@link #ref} already loaded. */
+    private void authorizeExistingTest(ProcessRef process, AuthorizationContext caller) {
+        if (process.local() != null && process.local().isTestRun()) authorizeRead(process.local(), caller);
+    }
+
+    /** A test run belongs to no published version, so it has nothing to migrate onto. */
+    private static void refuseTestRunMigration(ProcessRef process, String operation) {
+        if (process.local() != null && process.local().isTestRun())
+            throw new ProcessStateConflictException(process.id(), operation, process.status(),
+                    "a test run is not migrated; start a new one from the edited document");
     }
 
     // ── Start ────────────────────────────────────────────────────────────────────────────────────
@@ -272,7 +317,8 @@ public class ProcessOperationsService {
         if (!definitionId.equals(existing.getWorkflowDefinitionId())) {
             throw new BusinessKeyTakenException(existing.getBusinessKey(), existing.getWorkflowDefinitionId());
         }
-        authorize(existing.getWorkflowDefinitionId(), caller, "start workflow '" + definitionId + "'");
+        if (existing.isTestRun()) authorizeRead(existing, caller);
+        else authorize(existing.getWorkflowDefinitionId(), caller, "start workflow '" + definitionId + "'");
         return new StartOutcome(existing, false);
     }
 
@@ -282,7 +328,7 @@ public class ProcessOperationsService {
     public Process get(String processId, AuthorizationContext caller) {
         var process = processRepository.findById(processId)
                 .orElseThrow(() -> new ProcessNotFoundException("No process with id '" + processId + "'."));
-        authorize(process.getWorkflowDefinitionId(), caller, "read process '" + processId + "'");
+        authorizeRead(process, caller);
         return process;
     }
 
@@ -290,7 +336,7 @@ public class ProcessOperationsService {
     public Process getByBusinessKey(String businessKey, AuthorizationContext caller) {
         var process = processRepository.findByBusinessKey(businessKey)
                 .orElseThrow(() -> new ProcessNotFoundException("No process with business key '" + businessKey + "'."));
-        authorize(process.getWorkflowDefinitionId(), caller, "read process '" + process.getId() + "'");
+        authorizeRead(process, caller);
         return process;
     }
 
@@ -357,6 +403,7 @@ public class ProcessOperationsService {
                 .orElseThrow(() -> new ProcessNotFoundException("Process '" + processId
                         + "' has no step execution '" + stepExecutionId + "'."));
         authorize(process.workflowDefinitionId(), caller, "retry a step of process '" + processId + "'");
+        authorizeExistingTest(process, caller);
         if (!RetryStepExecutionUseCase.retriesStepFrom(step.getStatus())) {
             throw new ProcessStateConflictException(processId, "retry step '" + stepExecutionId + "'",
                     process.status(), "the step is " + step.getStatus() + "; only ERROR or TIMEOUT steps are retried");
@@ -396,7 +443,8 @@ public class ProcessOperationsService {
         toRemove.forEach(name -> InputLimits.checkIdentifier(name, "a variable to remove"));
         var process = ref(processId);
         authorizeOperation(process.workflowDefinitionId(), caller, "change the variables of process '" + processId + "'");
-        var local = processRepository.findById(processId).orElse(null);
+        authorizeExistingTest(process, caller);
+        var local = process.local();
         var why = local != null ? rules.whyNotSetVariables(local) : liveOrWhy(process.status());
         if (why != null) {
             throw new ProcessStateConflictException(processId, "change the variables of", process.status(), why);
@@ -421,7 +469,8 @@ public class ProcessOperationsService {
         InputLimits.checkIdentifier(stepExecutionId, "stepExecutionId");
         var process = ref(processId);
         authorizeOperation(process.workflowDefinitionId(), caller, "complete a step of process '" + processId + "'");
-        var local = processRepository.findById(processId).orElse(null);
+        authorizeExistingTest(process, caller);
+        var local = process.local();
         if (local != null) {
             var step = stepExecutionRepository.findById(stepExecutionId)
                     .filter(found -> processId.equals(found.getProcessId()))
@@ -459,7 +508,8 @@ public class ProcessOperationsService {
         InputLimits.checkIdentifier(stepId, "stepId");
         var process = ref(processId);
         authorizeOperation(process.workflowDefinitionId(), caller, "retry process '" + processId + "' from a step");
-        var local = processRepository.findById(processId).orElse(null);
+        authorizeExistingTest(process, caller);
+        var local = process.local();
         if (local != null) {
             var steps = stepExecutionRepository.findByProcess(local);
             if (steps.stream().noneMatch(se -> stepId.equals(se.getStepId()))) {
@@ -505,7 +555,9 @@ public class ProcessOperationsService {
         checkMigrationInput(stepMapping, variableMapping);
         var process = ref(processId);
         authorizeOperation(process.workflowDefinitionId(), caller, "plan the migration of process '" + processId + "'");
-        var local = processRepository.findById(processId).orElse(null);
+        authorizeExistingTest(process, caller);
+        refuseTestRunMigration(process, "plan the migration of");
+        var local = process.local();
         if (local == null || migrationPlanner == null) {
             throw new ProcessStateConflictException(processId, "plan the migration of", process.status(),
                     "it is owned by another node, which is where its migration is planned");
@@ -531,7 +583,9 @@ public class ProcessOperationsService {
         checkMigrationInput(stepMapping, variableMapping);
         var process = ref(processId);
         authorizeOperation(process.workflowDefinitionId(), caller, "migrate process '" + processId + "'");
-        var local = processRepository.findById(processId).orElse(null);
+        authorizeExistingTest(process, caller);
+        refuseTestRunMigration(process, "migrate");
+        var local = process.local();
         if (local != null && migrationPlanner != null) {
             var plan = migrationPlanner.plan(local, stepExecutionRepository.findByProcess(local), targetVersion,
                     stepMapping, variableMapping).plan();
@@ -613,6 +667,7 @@ public class ProcessOperationsService {
                          Function<String, DomainEvent> command, AuthorizationContext caller) {
         var process = ref(processId);
         authorize(process.workflowDefinitionId(), caller, operation + " process '" + processId + "'");
+        authorizeExistingTest(process, caller);
         if (!accepts.test(process.status())) {
             throw new ProcessStateConflictException(processId, operation, process.status(), null);
         }
@@ -621,8 +676,8 @@ public class ProcessOperationsService {
         commandDispatcher.dispatch(command.apply(processId));
     }
 
-    /** What a command needs to know of a process: its definition and its status. */
-    private record ProcessRef(String id, String workflowDefinitionId, ProcessStatus status) {
+    /** What a command needs to know of a process: its definition, its status and, when this node holds it, the process. */
+    private record ProcessRef(String id, String workflowDefinitionId, ProcessStatus status, Process local) {
     }
 
     /**
@@ -633,13 +688,13 @@ public class ProcessOperationsService {
     private ProcessRef ref(String processId) {
         var local = processRepository.findById(processId);
         if (local.isPresent()) {
-            return new ProcessRef(processId, local.get().getWorkflowDefinitionId(), local.get().getStatus());
+            return new ProcessRef(processId, local.get().getWorkflowDefinitionId(), local.get().getStatus(), local.get());
         }
         if (readModel.isEnabled()) {
             var index = processIndex.getIfAvailable();
             var row = index == null ? null : index.findByProcessId(processId).orElse(null);
             if (row != null) {
-                return new ProcessRef(processId, row.workflowDefinitionId(), ProcessStatus.valueOf(row.status()));
+                return new ProcessRef(processId, row.workflowDefinitionId(), ProcessStatus.valueOf(row.status()), null);
             }
         }
         throw new ProcessNotFoundException("No process with id '" + processId + "'.");

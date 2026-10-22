@@ -1220,6 +1220,22 @@ export class MateuWorkflowElk extends LitElement {
      */
     @property({type: Boolean, attribute: "no-expand"}) noExpand = false;
 
+    /** The IDE host owns execution; this button requests its input/run view without starting a process. */
+    @property({type: Boolean, attribute: "host-execution"}) hostExecution = false;
+
+    @property({type: Boolean, attribute: "host-execution-active"}) hostExecutionActive = false;
+    @property({type: Boolean, attribute: "host-execution-stopping"}) hostExecutionStopping = false;
+
+    private requestWorkflowStop() {
+        if (!this.hostExecution || !this.hostExecutionActive || this.hostExecutionStopping) return;
+        this.dispatchEvent(new CustomEvent("ec-stop-workflow", {bubbles: true, composed: true}));
+    }
+
+    private requestWorkflowExecution() {
+        if (!this.hostExecution || this.readOnly || this.hostExecutionStopping) return;
+        this.dispatchEvent(new CustomEvent("ec-run-workflow", {bubbles: true, composed: true}));
+    }
+
     /**
      * Whether to offer the stopped/waiting heatmap toggle. Set by the definition view, where the
      * heatmap belongs. Kept separate from there being heat data: the overlay is empty until some
@@ -1247,6 +1263,8 @@ export class MateuWorkflowElk extends LitElement {
     @state() private overlayData: Record<string, StepOverlay> = {};
     @state() private positions: Record<string, NodePos> = {};
     @state() private layoutReady = false;
+    @state() private layoutPending = false;
+    private layoutGeneration = 0;
     @state() private selectedId: string | null = null;
     /**
      * The selected connection, when one is. A graph has two kinds of thing to delete and only one
@@ -1428,7 +1446,7 @@ export class MateuWorkflowElk extends LitElement {
         this.ensureViewportSetup();
 
         // Once the layout is ready and the viewport is measured, fit the whole graph in view once.
-        if (this.layoutReady && this.viewW > 0 && !this.didInitialFit) {
+        if (this.layoutReady && !this.layoutPending && this.viewW > 0 && this.viewH > 0 && !this.didInitialFit && this.graphBounds()) {
             this.didInitialFit = true;
             this.fitToView();
         }
@@ -1594,10 +1612,13 @@ export class MateuWorkflowElk extends LitElement {
     }
 
     private async runElkLayout() {
+        const generation = ++this.layoutGeneration;
+        this.layoutPending = true;
         const steps = this.wf.steps ?? [];
         if (steps.length === 0) {
             this.positions = {};
             this.layoutReady = true;
+            this.layoutPending = false;
             return;
         }
 
@@ -1624,6 +1645,7 @@ export class MateuWorkflowElk extends LitElement {
         try {
             const elk = await getElk();
             const laid = await elk.layout(graph);
+            if (generation !== this.layoutGeneration) return;
             const newPositions: Record<string, NodePos> = {...this.positions};
             for (const child of laid.children ?? []) {
                 // Only override position for nodes not manually repositioned
@@ -1639,8 +1661,11 @@ export class MateuWorkflowElk extends LitElement {
             this.layoutReady = true;
             this.layoutError = null;
         } catch (e) {
+            if (generation !== this.layoutGeneration) return;
             this.layoutError = (e as Error)?.message ?? "ELK layout failed";
             this.layoutReady = true;
+        } finally {
+            if (generation === this.layoutGeneration) this.layoutPending = false;
         }
     }
 
@@ -2520,6 +2545,9 @@ export class MateuWorkflowElk extends LitElement {
 
     private onNodeClick(e: MouseEvent, id: string) {
         e.stopPropagation();
+        this.dispatchEvent(new CustomEvent("ec-step-selected", {
+            detail: {stepId: id}, bubbles: true, composed: true,
+        }));
         this.selectedEdge = null;                              // one thing selected at a time
         if (e.shiftKey) return;                                // shift is line drawing, not focus
         this.selectedId = id;
@@ -3211,6 +3239,16 @@ export class MateuWorkflowElk extends LitElement {
                 <span class="wf-name">${this.wf.name}</span>
                 <span class="badge badge-${status.toLowerCase()}">${status}</span>
                 <div style="flex:1"></div>
+                ${this.hostExecution && !this.readOnly ? html`
+                    <button class="nbtn run-workflow" ?disabled="${this.hostExecutionStopping}" title="Run this workflow on the configured test engine"
+                            @click="${() => this.requestWorkflowExecution()}">
+                        <span aria-hidden="true">▶</span> Run workflow
+                    </button>` : nothing}
+                ${this.hostExecution && this.hostExecutionActive ? html`
+                    <button class="nbtn" title="Cancel the execution shown here and its child workflows on the engine"
+                            ?disabled="${this.hostExecutionStopping}" @click="${() => this.requestWorkflowStop()}">
+                        <span aria-hidden="true">■</span> ${this.hostExecutionStopping ? "Stopping…" : "Stop execution"}
+                    </button>` : nothing}
                 <button class="nbtn" title="Re-run ELK layout"
                         @click="${() => this.relayout()}">
                     ${iconSitemap}

@@ -114,6 +114,27 @@ public class Process extends AggregateRoot implements Identifiable {
     @Hidden
     private String initiatingActor;
 
+    /** A manually started IDE test; its definition is frozen without publishing it. */
+    @Hidden
+    private boolean testRun;
+    /** Immutable fingerprint of the original test request, not of its mutable process variables. */
+    @Hidden
+    private String testRunRequestDigest;
+
+    /** Source compatibility for processes created before IDE test runs. */
+    public Process(String id, String name, String workflowDefinitionId, int workflowDefinitionVersion,
+                   String workflowDefinitionJson, String businessKey, List<Variable> variables,
+                   ProcessStatus status, int completionPercentage, LocalDateTime created,
+                   LocalDateTime started, LocalDateTime finished, LocalDateTime pausedAt,
+                   String parentStepExecutionId, Integer version, ProcessReply reply,
+                   String continuedFromProcessId, String continuedAsProcessId, boolean businessKeyReleased,
+                   String initiatingActor) {
+        this(id, name, workflowDefinitionId, workflowDefinitionVersion, workflowDefinitionJson, businessKey,
+                variables, status, completionPercentage, created, started, finished, pausedAt,
+                parentStepExecutionId, version, reply, continuedFromProcessId, continuedAsProcessId,
+                businessKeyReleased, initiatingActor, false, null);
+    }
+
     public Process(String id, String name, String workflowDefinitionId, int workflowDefinitionVersion,
                    String workflowDefinitionJson, String businessKey, List<Variable> variables,
                    ProcessStatus status, int completionPercentage, LocalDateTime created,

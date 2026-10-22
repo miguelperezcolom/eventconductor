@@ -14,6 +14,8 @@ servers:
 security:
 - apiKey: []
 tags:
+- description: Opt-in test runs and frozen process graphs.
+  name: Workflow execution
 - description: "Workers over HTTP: long-poll for tasks and answer them, in any language."
   name: Workers
 - description: Validated writes to running processes that answer with a result.
@@ -807,6 +809,67 @@ paths:
       summary: Cancel a process
       tags:
       - Processes
+  /workflow/api/processes/{id}/children:
+    get:
+      description: "Includes earlier attempts, iterations and continuations. Paged\
+        \ oldest first; no recursive traversal. A page holding a child the caller\
+        \ may not read is refused whole with 403, so that totalElements never counts\
+        \ runs the caller cannot see."
+      operationId: getProcessChildren
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      - in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+      - in: query
+        name: stepId
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChildrenPage"
+          description: OK
+      summary: "Direct child runs, linked to their parent step execution"
+      tags:
+      - Workflow execution
+  /workflow/api/processes/{id}/graph:
+    get:
+      operationId: getProcessGraph
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GraphView"
+          description: OK
+      summary: "Frozen graph, runtime steps and masked execution state"
+      tags:
+      - Workflow execution
   /workflow/api/processes/{id}/logs:
     get:
       description: Oldest first.
@@ -1679,6 +1742,31 @@ paths:
           description: OK
       tags:
       - schedule-rest-controller
+  /workflow/api/test-runs:
+    post:
+      description: "Requires workflow.test-runs.enabled=true (off by default) and\
+        \ a caller holding workflow.test-runs.required-roles (falls back to workflow.security.operations.required-roles;\
+        \ none configured is 403). Calls real workers. Runs under a private definition\
+        \ id, vscode-<id>-<runId>, never the published one. Idempotent on runId; reusing\
+        \ it with another document or input is 409. Manual start only: no schedules,\
+        \ triggers or startPolicy admission is registered."
+      operationId: startWorkflowTestRun
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TestRunRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Process"
+          description: OK
+      summary: Run a document without publishing it
+      tags:
+      - Workflow execution
   /workflow/api/triggers:
     get:
       operationId: triggers
@@ -2315,6 +2403,55 @@ components:
           type: string
           description: "CANCEL, RETRY, RESTART, PAUSE, RESUME, SET_VARIABLES, RETRY_FROM_STEP\
             \ or MIGRATE."
+    ChildProcessView:
+      type: object
+      properties:
+        continuedAs:
+          type: string
+        continuedFrom:
+          type: string
+        created:
+          type: string
+        definitionId:
+          type: string
+        definitionVersion:
+          type: integer
+          format: int32
+        id:
+          type: string
+        itemIndex:
+          type: integer
+          format: int32
+        iteration:
+          type: integer
+          format: int32
+        name:
+          type: string
+        parentStepExecutionId:
+          type: string
+        status:
+          type: string
+        stepId:
+          type: string
+    ChildrenPage:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildProcessView"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
     CommandAccepted:
       type: object
       description: "A command was accepted (202). It is carried out asynchronously\
@@ -2502,6 +2639,26 @@ components:
         to:
           type: string
           description: "Created at or before: an ISO date-time or date (its last moment)."
+    GraphView:
+      type: object
+      properties:
+        definition:
+          type: string
+          description: "Frozen graph topology; request, credential and prompt blocks\
+            \ are omitted."
+        overlay:
+          type: object
+          additionalProperties: {}
+        parentProcessId:
+          type: string
+        process:
+          $ref: "#/components/schemas/Process"
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/StepExecution"
+        testRun:
+          type: boolean
     HeartbeatRequest:
       type: object
       properties:
@@ -3194,6 +3351,16 @@ components:
         workerId:
           type: string
           description: "Worker that ran it, when one did."
+    TestRunRequest:
+      type: object
+      properties:
+        definition:
+          type: string
+        runId:
+          type: string
+        variables:
+          type: object
+          additionalProperties: {}
     Throttle:
       type: object
       properties:

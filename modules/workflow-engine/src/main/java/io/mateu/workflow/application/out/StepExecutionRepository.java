@@ -154,6 +154,8 @@ public interface StepExecutionRepository extends CrudStore<StepExecution> {
         var firstOrder = new java.util.LinkedHashMap<String, Long>();
         var durations = new java.util.LinkedHashMap<String, java.util.List<Long>>();
         for (var row : rows) {
+            // Test runs are not analytics; their steps carry the run's private definition id.
+            if (io.mateu.workflow.domain.aggregates.TestRunIds.isTestRun(row.definitionId())) continue;
             var stepKey = row.definitionId() + "\u0000" + row.stepId();
             var key = stepKey + "\u0000" + row.status();
             counts.merge(key, 1L, Long::sum);

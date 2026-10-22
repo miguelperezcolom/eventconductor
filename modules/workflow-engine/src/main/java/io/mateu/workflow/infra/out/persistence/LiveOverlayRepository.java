@@ -16,6 +16,7 @@ interface LiveOverlayRepository extends Repository<ProcessEntity, String> {
                    count(p) as count, min(p.name) as anyName
             from ProcessEntity p
             where p.finished is null and p.created is not null
+              and p.testRun = false
               and (cast(:from as LocalDateTime) is null or p.created >= :from)
               and (cast(:to as LocalDateTime) is null or p.created <= :to)
             group by p.workflowDefinitionId, p.status
@@ -28,6 +29,7 @@ interface LiveOverlayRepository extends Repository<ProcessEntity, String> {
                    count(s) as count, min(s.order) as firstOrder
             from StepExecutionEntity s join ProcessEntity p on p.id = s.processId
             where s.finishedAt is null and p.created is not null
+              and p.testRun = false
               and not (s.parentExecutionId is null and s.scopeJson is not null)
               and (cast(:from as LocalDateTime) is null or p.created >= :from)
               and (cast(:to as LocalDateTime) is null or p.created <= :to)

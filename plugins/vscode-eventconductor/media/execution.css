@@ -1,0 +1,28 @@
+/* Execution tools share the definition editor and its one graph canvas. */
+#execution-dock { flex: 0 0 auto; height: 34vh; min-height: 150px; max-height: 65vh; overflow: auto; resize: vertical; border-top: 2px solid var(--vscode-panel-border, #777); padding: 10px 14px; box-sizing: border-box; color: var(--vscode-foreground); background: var(--vscode-editor-background); font: 12px/1.4 var(--vscode-font-family); }
+#execution-dock[hidden], #execution-dock [hidden] { display: none !important; }
+.execution-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#connection { flex: 1; opacity: .7; overflow-wrap: anywhere; }
+#execution-dock h2 { font-size: 13px; }
+#execution-dock button { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid transparent; padding: 5px 9px; cursor: pointer; }
+#execution-dock button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+#execution-dock button:focus-visible, #variables:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+#execution-dock button:disabled { opacity: .5; cursor: default; }
+#execution-dock button.primary { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
+#execution-dock button[aria-pressed="true"], #execution-dock [aria-selected="true"] { border-bottom: 2px solid var(--vscode-focusBorder); }
+#summary { margin-top: 6px; overflow-wrap: anywhere; }
+#draft-notice { color: var(--vscode-descriptionForeground); margin: 5px 0; }
+#execution-dock .actions, #execution-dock nav, #execution-dock .tabs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+#execution-dock .actions span { flex: 1; min-width: 180px; }
+#variables { display: block; width: 100%; height: 115px; min-height: 60px; resize: vertical; box-sizing: border-box; padding: 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, #777); font-family: var(--vscode-editor-font-family); }
+#execution-error { background: var(--vscode-inputValidation-errorBackground); border: 1px solid var(--vscode-inputValidation-errorBorder); padding: 8px; white-space: pre-wrap; }
+#warnings { background: var(--vscode-inputValidation-warningBackground); padding: 8px; white-space: pre-wrap; }
+#execution-dock table { border-collapse: collapse; width: 100%; font-size: 12px; }
+#execution-dock th, #execution-dock td { padding: 6px; border-bottom: 1px solid var(--vscode-panel-border, #777); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+#execution-dock pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--vscode-editor-font-family); }
+#execution-dock .detail { min-width: 0; overflow: auto; }
+#execution-dock .muted { opacity: .7; }
+#children button, #history button { display: block; text-align: left; margin: 4px 0; overflow-wrap: anywhere; }
+
+#execution-dock button.danger { color: var(--vscode-errorForeground, #f85149); border-color: currentColor; }
+#cancellation-status { padding: 6px 0; overflow-wrap: anywhere; }

@@ -1,0 +1,11 @@
+{
+  "specversion": "1.0",
+  "id": "vscode-payment-event-001",
+  "source": "vscode-local-test",
+  "type": "com.acme.payment.captured",
+  "data": {
+    "bookingId": "IDE-BOOKING-001",
+    "paymentId": "PAY-TEST-001",
+    "status": "CAPTURED"
+  }
+}

@@ -36,6 +36,21 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  vscode-plugin:
+    name: VS Code execution and editor tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '20'
+      - name: Build the shared graph
+        working-directory: modules/workflow-engine/frontend
+        run: npm ci && npm run build
+      - name: Test the extension transport, state and host bridges
+        working-directory: plugins/vscode-eventconductor
+        run: npm ci && npm test
+
   ui-e2e:
     name: Browser suite (Playwright)
     runs-on: ubuntu-latest

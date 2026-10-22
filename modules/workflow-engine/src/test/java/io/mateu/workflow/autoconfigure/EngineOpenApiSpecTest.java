@@ -72,7 +72,7 @@ class EngineOpenApiSpecTest {
     })
     @EnableConfigurationProperties({MessageApiProperties.class,
             io.mateu.workflow.infra.config.HttpWorkersProperties.class})
-    @Import({ProcessRestController.class, io.mateu.workflow.infra.in.rest.IncidentRestController.class, MessageRestController.class, EventRestController.class,
+    @Import({io.mateu.workflow.infra.in.rest.WorkflowExecutionController.class, ProcessRestController.class, io.mateu.workflow.infra.in.rest.IncidentRestController.class, MessageRestController.class, EventRestController.class,
             ScheduleRestController.class, SyncInvocationController.class,
             io.mateu.workflow.infra.in.rest.WorkerApiController.class,
             io.mateu.workflow.infra.in.rest.BatchOperationRestController.class,
@@ -96,6 +96,13 @@ class EngineOpenApiSpecTest {
     @MockitoBean io.mateu.workflow.application.updates.ProcessUpdateService processUpdateService;
     @MockitoBean io.mateu.workflow.application.services.SensitiveVariableRevealService sensitiveVariableRevealService;
 
+    @MockitoBean io.mateu.workflow.application.services.WorkflowTestRunService workflowTestRunService;
+    @MockitoBean io.mateu.workflow.application.out.ProcessRepository processRepository;
+    @MockitoBean io.mateu.workflow.application.out.StepExecutionRepository stepRepository;
+    @MockitoBean io.mateu.workflow.application.out.WorkflowDefinitionRepository definitionRepository;
+    @MockitoBean io.mateu.workflow.application.out.ProcessSnapshotReader snapshotReader;
+    @MockitoBean io.mateu.workflow.application.services.WorkflowDefinitionValidator definitionValidator;
+
     @Autowired WebApplicationContext context;
 
     @Test
@@ -104,7 +111,8 @@ class EngineOpenApiSpecTest {
                 .perform(get("/v3/api-docs.yaml/" + WorkflowOpenApiAutoConfiguration.GROUP))
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         assertThat(generated).contains("/workflow/api/processes").contains("/workflow/api/workers/activate")
-                .contains("X-Api-Key");
+                .contains("X-Api-Key").contains("/workflow/api/test-runs")
+                .contains("/workflow/api/processes/{id}/graph").contains("/workflow/api/processes/{id}/children");
 
         var spec = Path.of(SPEC);
         var normalised = normalise(generated);

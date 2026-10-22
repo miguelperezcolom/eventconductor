@@ -1,8 +1,8 @@
 {
   "name": "eventconductor-vscode",
   "displayName": "EventConductor",
-  "description": "Edit EventConductor workflow definitions (.ec, *.workflow.yaml, *.ec.yaml) as an interactive graph and form definitions (.ecform) as a visual editor, or as YAML/JSON with schema validation.",
-  "version": "0.1.26",
+  "description": "Edit workflows and forms visually; execute workflow drafts on a test engine and follow processes, child workflows, variables and logs.",
+  "version": "0.2.3",
   "publisher": "miguelperezcolom",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -25,8 +25,12 @@
   ],
   "capabilities": {
     "untrustedWorkspaces": {
-      "supported": true,
-      "description": "The graph and form editors only read and rewrite the .ec / .ecform file you open."
+      "supported": "limited",
+      "description": "Visual editors remain available. Engine connections and workflow execution require a trusted workspace.",
+      "restrictedConfigurations": [
+        "eventconductor.testEngineUrl",
+        "eventconductor.agentCatalogueUrl"
+      ]
     }
   },
   "extensionPack": [
@@ -177,6 +181,20 @@
       {
         "command": "eventconductor.configureAgentCatalogue",
         "title": "EventConductor: Configure Agent Catalogue"
+      },
+      {
+        "command": "eventconductor.configureTestEngine",
+        "title": "EventConductor: Configure Test Engine"
+      },
+      {
+        "command": "eventconductor.runWorkflow",
+        "title": "EventConductor: Run Workflow",
+        "icon": "$(play)"
+      },
+      {
+        "command": "eventconductor.openExecution",
+        "title": "EventConductor: Open Execution",
+        "icon": "$(graph)"
       }
     ],
     "menus": {
@@ -201,6 +219,11 @@
           "command": "eventconductor.addTaskDependency",
           "when": "resourceExtname == .ectask",
           "group": "eventconductor@3"
+        },
+        {
+          "command": "eventconductor.runWorkflow",
+          "when": "resourceExtname == .ec && isWorkspaceTrusted",
+          "group": "eventconductor@1"
         }
       ],
       "editor/context": [
@@ -245,6 +268,11 @@
           "command": "eventconductor.form.openAsText",
           "when": "activeCustomEditorId == eventconductor.formEditor",
           "group": "navigation@2"
+        },
+        {
+          "command": "eventconductor.runWorkflow",
+          "when": "activeCustomEditorId == eventconductor.graphEditor && isWorkspaceTrusted",
+          "group": "navigation@4"
         }
       ]
     },
@@ -256,6 +284,12 @@
           "default": "",
           "scope": "machine",
           "description": "Full agent catalogue endpoint URL, for example http://127.0.0.1:18105/api/workflow-agents. Set credentials with EventConductor: Configure Agent Catalogue; never put credentials in this URL."
+        },
+        "eventconductor.testEngineUrl": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Test engine base URL. Configure authentication with EventConductor: Configure Test Engine; credentials are stored in SecretStorage."
         }
       }
     }

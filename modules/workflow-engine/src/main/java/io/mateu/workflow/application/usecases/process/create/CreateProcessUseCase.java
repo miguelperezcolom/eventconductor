@@ -181,13 +181,20 @@ public class CreateProcessUseCase {
                         command.parentStepExecutionId()
                 );
         String initiatingActor = command.caller() == null ? null : command.caller().subject();
-        if (command.parentStepExecutionId() != null) {
-            initiatingActor = stepExecutionRepository.findById(command.parentStepExecutionId())
-                    .flatMap(parentStep -> processRepository.findById(parentStep.getProcessId()))
-                    .map(io.mateu.workflow.domain.aggregates.Process::getInitiatingActor).orElse(null);
-        }
+        var origin = command.parentStepExecutionId() == null ? null
+                : stepExecutionRepository.findById(command.parentStepExecutionId())
+                    .flatMap(parent -> processRepository.findById(parent.getProcessId())).orElse(null);
+        if (command.parentStepExecutionId() != null)
+            initiatingActor = origin == null ? null : origin.getInitiatingActor();
+        if (origin == null && command.continuedFromProcessId() != null)
+            origin = processRepository.findById(command.continuedFromProcessId()).orElse(null);
+        boolean testRun = command.testRun() || origin != null && origin.isTestRun();
+        String testDigest = command.testRunRequestDigest() != null ? command.testRunRequestDigest()
+                : origin == null ? null : origin.getTestRunRequestDigest();
+        if (origin != null && origin.isTestRun()) initiatingActor = origin.getInitiatingActor();
         var creationEvents = process.popEvents();
-        process = process.withInitiatingActor(initiatingActor);
+        process = process.withInitiatingActor(initiatingActor).withTestRun(testRun)
+                .withTestRunRequestDigest(testDigest);
         creationEvents.forEach(process::send);
         if (workflowDefinition.paused()) {
             // Born paused: creation is deliberately still accepted while the definition is

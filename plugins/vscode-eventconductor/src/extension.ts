@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import * as yaml from "js-yaml";
+import { registerWorkflowExecution, GraphExecutionController, executionMarkup } from "./execution";
 import { catalogueEndpoint, fetchAgentCatalogue } from "./agentCatalogue";
 import {
   applicationYaml,
@@ -16,6 +17,18 @@ const FORM_VIEW_TYPE = "eventconductor.formEditor";
 const CATALOGUE_SECRET_PREFIX = "eventconductor.agentCatalogue.auth:";
 
 export function activate(context: vscode.ExtensionContext) {
+  registerWorkflowExecution(context, activeUri, async (uri, id) => {
+    let target = uri;
+    if (!target || !isWorkflowFile(target.path)) {
+      if (!id) throw new Error("Open a workflow definition first.");
+      target = (await vscode.workspace.openTextDocument({ language: "yaml", content: "name: Execution inspection\nsteps: []\n" })).uri;
+    }
+    await vscode.commands.executeCommand("vscode.openWith", target, GRAPH_VIEW_TYPE);
+    const view = graphExecutions.get(target.toString());
+    if (!view) throw new Error("The workflow graph editor could not be opened.");
+    view.panel.reveal();
+    await view.execution.open(id);
+  });
   context.subscriptions.push(
     // The .ec graph editor and the .ecform visual editor share the same webview machinery, differing
     // only in the component they host and the default new-document body — see EditorConfig.
@@ -283,6 +296,7 @@ function activeUri(): vscode.Uri | undefined {
 
 /** Open graph editor panels, so a command can reach the webview of the one in front. */
 const graphPanels = new Set<vscode.WebviewPanel>();
+const graphExecutions = new Map<string, { panel: vscode.WebviewPanel; execution: GraphExecutionController }>();
 
 /**
  * "Export Graph as SVG" from the title bar or the palette. Only the webview can draw the SVG, so
@@ -368,6 +382,11 @@ class EventConductorEditorProvider implements vscode.CustomTextEditorProvider {
     let applyingOwnEdit = false;
     let disposed = false;
     let catalogueRequestId = 0;
+    let pendingDocumentEdit: Promise<void> = Promise.resolve();
+
+    const execution = this.config.tag === GRAPH_CONFIG.tag
+      ? new GraphExecutionController(this.context, webviewPanel, document, () => pendingDocumentEdit) : undefined;
+    if (execution) graphExecutions.set(document.uri.toString(), { panel: webviewPanel, execution });
 
     const pushAgentCatalogue = async () => {
       const requestId = ++catalogueRequestId;
@@ -407,31 +426,51 @@ class EventConductorEditorProvider implements vscode.CustomTextEditorProvider {
       disposed = true;
       changeSub.dispose();
       graphPanels.delete(webviewPanel);
+      if (graphExecutions.get(document.uri.toString())?.panel === webviewPanel) graphExecutions.delete(document.uri.toString());
     });
 
     webview.onDidReceiveMessage(async (msg) => {
       if (msg?.type === "ready") {
         pushToWebview();
+        await execution?.message(msg);
+      } else if (msg?.type === "runWorkflow" && this.config.tag === GRAPH_CONFIG.tag && !disposed) {
+        if (!vscode.workspace.isTrusted) {
+          void vscode.window.showErrorMessage("Trust this workspace before executing workflows on an engine.");
+          return;
+        }
+        try {
+          await pendingDocumentEdit;
+          if (!disposed) await execution?.open();
+        } catch {
+          void vscode.window.showErrorMessage("The graph changes could not be applied. Fix the document before executing it.");
+        }
       } else if (msg?.type === "requestAgentCatalogue" && this.config.tag === GRAPH_CONFIG.tag) {
         await pushAgentCatalogue();
       } else if (msg?.type === "edit") {
-        let obj: unknown;
-        try {
-          obj = JSON.parse(msg.value);
-        } catch {
-          return; // ignore malformed payloads
-        }
-        const newText = serialize(obj, docIsYaml);
-        if (newText === document.getText()) return;
-        applyingOwnEdit = true;
-        const edit = new vscode.WorkspaceEdit();
-        edit.replace(
-          document.uri,
-          new vscode.Range(0, 0, document.lineCount, 0),
-          newText
-        );
-        await vscode.workspace.applyEdit(edit);
-        applyingOwnEdit = false;
+        const apply = pendingDocumentEdit.catch(() => {}).then(async () => {
+          if (disposed) return;
+          let obj: unknown;
+          try {
+            obj = JSON.parse(msg.value);
+          } catch {
+            return; // ignore malformed payloads
+          }
+          const newText = serialize(obj, docIsYaml);
+          if (newText === document.getText()) return;
+          applyingOwnEdit = true;
+          const edit = new vscode.WorkspaceEdit();
+          edit.replace(
+            document.uri,
+            new vscode.Range(0, 0, document.lineCount, 0),
+            newText
+          );
+          try {
+            if (!await vscode.workspace.applyEdit(edit)) throw new Error("VS Code refused the graph changes.");
+          } finally { applyingOwnEdit = false; }
+        });
+        pendingDocumentEdit = apply;
+        try { await apply; }
+        catch (error) { void vscode.window.showErrorMessage(error instanceof Error ? error.message : "Could not apply graph changes."); }
       } else if (msg?.type === "exportSvg") {
         // The webview cannot save a file itself, so the export arrives here as text. Offered
         // beside the definition it came from and named after it (orders.ec -> orders.svg), which
@@ -450,6 +489,8 @@ class EventConductorEditorProvider implements vscode.CustomTextEditorProvider {
         vscode.window.showInformationMessage(
           `Graph exported to ${vscode.workspace.asRelativePath(target)}`
         );
+      } else {
+        await execution?.message(msg);
       }
     });
   }
@@ -461,6 +502,7 @@ class EventConductorEditorProvider implements vscode.CustomTextEditorProvider {
     const main = media(this.config.main);
     const tag = this.config.tag;
     const nonce = getNonce();
+    const graph = this.config.tag === GRAPH_CONFIG.tag;
     const csp =
       `default-src 'none'; img-src ${webview.cspSource} data:; ` +
       `style-src ${webview.cspSource} 'unsafe-inline'; ` +
@@ -472,9 +514,10 @@ class EventConductorEditorProvider implements vscode.CustomTextEditorProvider {
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="${csp}" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  ${graph ? `<link rel="stylesheet" href="${media("execution.css")}">` : ""}
   <style>
     html, body { height: 100%; margin: 0; padding: 0; }
-    body { display: flex; }
+    body { display: flex; flex-direction: column; overflow: hidden; }
     ${tag} { flex: 1 1 auto; min-height: 0; }
     #error { display: none; position: absolute; top: 8px; left: 8px; right: 8px;
              padding: 6px 10px; border-radius: 6px; font: 12px/1.4 var(--vscode-font-family);
@@ -486,8 +529,9 @@ class EventConductorEditorProvider implements vscode.CustomTextEditorProvider {
 <body>
   <div id="error"></div>
   <!-- no-expand: the custom editor already fills the pane, so expanding it means nothing -->
-  <${tag} no-expand${this.config.tag === GRAPH_CONFIG.tag ? " host-agent-catalogue" : ""}></${tag}>
+  <${tag} no-expand${this.config.tag === GRAPH_CONFIG.tag ? " host-agent-catalogue host-execution" : ""}></${tag}>
   <script nonce="${nonce}" type="module" src="${bundle}"></script>
+  ${graph ? executionMarkup() + `<script nonce="${nonce}" src="${media("graph-state.js")}"></script><script nonce="${nonce}" src="${media("execution.js")}"></script>` : ""}
   <script nonce="${nonce}" src="${main}"></script>
 </body>
 </html>`;

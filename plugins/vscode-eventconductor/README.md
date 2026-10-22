@@ -51,13 +51,123 @@ to the graph. The web application retains its same-origin restriction. Loading t
 not execute an agent; the engine still validates references and capability selections when
 importing the workflow.
 
+## Execute and follow a workflow
+
+This requires an engine containing the IDE execution API and database migration **V58**.
+On a **test engine**, enable `workflow.test-runs.enabled=true` (default: `false`). Keep the
+engine's normal authentication configured; this flag does not grant access. The connection's
+identity must also hold a role listed in `workflow.test-runs.required-roles` (falling back to
+`workflow.security.operations.required-roles`); with none configured, every test run is refused. Workers, agent
+catalogues, connections and credentials must exist on that engine. Tasks have real effects.
+
+1. Install the supplied VSIX with **Extensions → … → Install from VSIX…**. No terminal tools
+   are needed to install or use it.
+2. In a trusted workspace, run **EventConductor: Configure Test Engine**. Enter the engine's
+   base URL, optionally including its context path or `/workflow/api`. Choose API key, Bearer,
+   Basic, or explicitly anonymous authentication. Basic and Bearer can include an additional
+   engine API key. Credentials stay in SecretStorage, separately from catalogue credentials;
+   authenticated connections require HTTPS except on localhost.
+3. Open a workflow and click **▶ Run workflow** inside the graph toolbar. The palette command,
+   editor title bar and Explorer action remain available too. An integrated panel below the graph starts with a fresh
+   JSON template inferred from that document's references: blank strings for scalar values,
+   nested objects and empty lists (or a blank item shape when it can be inferred). Fill it in,
+   add any extra inputs, or load a local JSON file. **Reset template** regenerates it from the
+   current unsaved document and discards the values in the input box.
+   **Execute workflow** captures the document at that moment, including unsaved changes.
+4. The definition graph remains editable and displays execution states on unchanged steps.
+   Keep adding steps and components with the existing palette and property editor. New or
+   modified steps have no execution state until you run the updated draft. Moving nodes keeps
+   their execution states. The integrated panel shows the effective version, variables, step
+   executions, retries, times, agent review and logs. Select a node to filter execution details.
+   **Executed snapshot** displays the exact executed topology in the same canvas, read only;
+   **Edit draft** returns to your work, including unsaved changes. Children and continuations
+   with another snapshot use this same canvas. Runtime-injected steps appear in snapshot mode.
+   Child rows identify the exact parent execution, item and loop pass. **New run** prepares a
+   fresh input template while the previous execution keeps being monitored.
+5. Continuations are followed automatically. Selecting a history entry or **Previous run**
+   stops automatic following. **Follow current execution** resumes following from that run
+   along its continuation links. **Initial run** returns to the view's original process.
+   **Open execution…** or **EventConductor: Open Execution** reopens an ID or a recent run
+   in the graph editor on the configured engine. No additional execution editor is created.
+
+Editing the document after starting does not affect that run. Test runs never publish or
+replace a registered definition. A repeated submission reuses the same ID and payload; a
+conflicting payload is refused. If a POST disconnects, use **Check execution** or **Retry
+same request** rather than creating another run. Idempotency lasts while the process is
+retained. Recent history stores only IDs, endpoint and document name, never inputs or secrets.
+
+Polling runs approximately every two seconds, without overlapping polling cycles, only while
+the graph editor is visible. Collapsing the integrated panel keeps the graph states live. Disconnects back off up to 30 seconds. Closing the graph editor aborts its HTTP
+requests and stops polling; an accepted process continues on the engine. Retention may delete
+older runs; a missing history entry is reported and does not reconstruct its deleted data.
+Each view keeps up to 200 visited run summaries; children are loaded one page at a time.
+
+### Stop execution
+
+**Stop execution** is available in the graph toolbar and the integrated execution panel for the
+followed execution shown there. It sends the existing authenticated
+`POST /workflow/api/processes/{id}/cancel` command to the engine. It cancels the selected process
+and uses the engine's native child-workflow cancellation cascade. When inspecting a child, this
+stops that child and its descendants; it does not cancel its parent. Historical views must return
+to **Follow current execution** before Stop is enabled. Continuations are followed during the
+operation, including one committed while the cancellation request is being processed.
+
+The editor stays editable. The host pauses normal monitoring reads while it verifies the command.
+HTTP 202 means accepted, not stopped: confirmation requires reading `CANCELLED` from the engine.
+If the same execution remains active, the idempotent command is retried at most three times,
+five seconds apart; verification is bounded to about 30 seconds plus HTTP timeouts. A refusal,
+connection failure or unconfirmed result is shown explicitly and can be retried. Arbitrary IDs
+or URLs supplied by a webview cannot change the target.
+
+Cancellation prevents further workflow steps and asks in-flight workers to stop. It does not undo
+completed external effects or forcibly terminate arbitrary remote worker code. Agents whose
+effect outcomes require reconciliation may be paused for review instead of becoming CANCELLED;
+the plugin reports that review and does not claim cancellation succeeded. Closing the editor
+without pressing Stop leaves the process running.
+
+### Input templates
+
+Templates use references in agent prompts/input, HTTP/LLM requests, conditions, timers, messages,
+loops and named locks, plus variable names declared by schedules or triggers. Known upstream
+outputs, engine bindings and forEach-local bindings are omitted. Literal sample values, secrets
+and previous execution inputs are never copied into a template. A workflow without detectable
+inputs starts with `{}`.
+
+This is a static hint, not a complete input contract: a worker can require fields that its
+workflow never mentions, and dynamic expressions can need extra inputs. Add those fields
+manually. Scalar types cannot reliably be inferred; replace a blank string with a number,
+boolean, object or list when required. Each new run view starts fresh. Once a submission is
+pending or uncertain, its inputs stay frozen so retries keep the same request.
+
+### Execution coverage and boundaries
+
+All current engine step types use the normal execution pipeline: tasks, rules, HTTP, LLM,
+AGENT, branches/joins, nested PROCESS, timers, messages, locks, events, replies, DYNAMIC and
+CONTINUE_AS_NEW. Controlled tests cover every type; they do not prove the availability of
+your deployed workers or external services. See [validation evidence](EXECUTION-VALIDATION.md).
+
+- Subprocess definitions must already be deployed. Running a file does not upload its siblings.
+- Human tasks and agents under review wait for intervention through the existing tools.
+- Timers and messages wait for real time and real events on your engine.
+- Each run executes under a private definition ID, `vscode-<id>-<runId>`, so it never mixes
+  with a published definition's instances, analytics or migrations.
+- `CONTINUE_AS_NEW` with `version: same` preserves the draft snapshot. `version: latest` is
+  refused at submission, since a test run has no published definition to continue on.
+- This is a manual start. It does not register cron schedules, event triggers or startPolicy
+  admission. Stop execution is supported; there are no breakpoints, other operational controls or agent/worker internal traces.
+- The graph response omits request/prompt payloads. Variables follow the engine's sensitive
+  variable masking. Use the engine's existing reveal/audit tools when permitted.
+- Existing authentication and the test-run role always apply. Roles or scopes declared in the
+  draft never grant access; with flow authorization on they are required too, and the draft's
+  frozen requirements protect reads of the run.
+
 ## Develop
 
 ```bash
 cd plugins/vscode-eventconductor
 npm install
 npm run compile     # syncs the graph bundle + schema, then compiles TypeScript
-npm test            # compiles and tests catalogue transport and the editor bridge
+npm test            # compiles and tests catalogue/execution transport, sessions and editor bridges
 ```
 
 Then press **F5** in VS Code (Extension Development Host) and open a `.ec` file.

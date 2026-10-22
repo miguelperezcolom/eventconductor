@@ -120,7 +120,10 @@ public class InjectStepsUseCase {
         // Effective step budget: the definition's own maxSteps when it declares one (> 0), else the
         // engine-wide default. The definition is loaded from the same process it owns; if it has
         // gone missing, fall back to the global default rather than block a live injection on it.
-        int effectiveBudget = workflowDefinitionRepository.findById(process.getWorkflowDefinitionId())
+        var budgetDefinition = process.isTestRun()
+                ? java.util.Optional.of(pojoFromJson(process.getWorkflowDefinitionJson(), io.mateu.workflow.domain.aggregates.WorkflowDefinition.class))
+                : workflowDefinitionRepository.findById(process.getWorkflowDefinitionId());
+        int effectiveBudget = budgetDefinition
                 .map(io.mateu.workflow.domain.aggregates.WorkflowDefinition::maxSteps)
                 .filter(maxSteps -> maxSteps > 0)
                 .orElse(maxStepsPerProcess);

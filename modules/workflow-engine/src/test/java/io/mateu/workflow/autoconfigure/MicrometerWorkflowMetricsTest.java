@@ -16,6 +16,36 @@ class MicrometerWorkflowMetricsTest {
     private final MicrometerWorkflowMetrics metrics = new MicrometerWorkflowMetrics(registry);
 
     @Test
+    void everyTestRunSharesOneDefinitionTagSoRunsOpenNoSeriesOfTheirOwn() {
+        metrics.processStarted("orders");
+        int before = registry.getMeters().size();
+        for (int i = 0; i < 5; i++) {
+            String run = io.mateu.workflow.domain.aggregates.TestRunIds.of(i % 2 == 0 ? "orders" : null,
+                    java.util.UUID.randomUUID().toString());
+            metrics.processStarted(run);
+            metrics.processCompleted(run, Duration.ofMillis(5));
+            metrics.stepExecutionFinished(run, StepExecutionStatus.COMPLETED, Duration.ofMillis(1));
+            metrics.retryPerformed(run, WorkflowMetrics.RetryTrigger.MANUAL);
+        }
+        int afterFirstRun = registry.getMeters().size();
+        metrics.processStarted(io.mateu.workflow.domain.aggregates.TestRunIds.of("orders", java.util.UUID.randomUUID().toString()));
+        assertThat(registry.getMeters().size()).isEqualTo(afterFirstRun).isGreaterThan(before);
+        assertThat(registry.get(MicrometerWorkflowMetrics.PROCESSES_STARTED)
+                .tag(MicrometerWorkflowMetrics.TAG_WORKFLOW_DEFINITION_ID, "vscode-test-run").counter().count()).isEqualTo(6);
+        assertThat(registry.getMeters()).noneMatch(meter -> {
+            String tag = meter.getId().getTag(MicrometerWorkflowMetrics.TAG_WORKFLOW_DEFINITION_ID);
+            return tag != null && tag.startsWith("vscode-") && !tag.equals("vscode-test-run");
+        });
+    }
+
+    @Test
+    void aPublishedIdThatOnlyLooksLikeATestRunKeepsItsOwnTag() {
+        metrics.processStarted("vscode-integration");
+        assertThat(registry.get(MicrometerWorkflowMetrics.PROCESSES_STARTED)
+                .tag(MicrometerWorkflowMetrics.TAG_WORKFLOW_DEFINITION_ID, "vscode-integration").counter().count()).isEqualTo(1);
+    }
+
+    @Test
     void manualOperationsAreCountedByOperationAndDefinition() {
         metrics.processOperation("orders", "set-variables");
         metrics.processOperation("orders", "set-variables");

@@ -96,6 +96,7 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
             from StepExecutionEntity s
             join ProcessEntity p on p.id = s.processId
             where p.created is not null
+              and p.testRun = false
               and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
               and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
               and not (s.parentExecutionId is null and s.scopeJson is not null)
@@ -117,6 +118,7 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
             from StepExecutionEntity s
             join ProcessEntity p on p.id = s.processId
             where p.created is not null
+              and p.testRun = false
               and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
               and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
               and not (s.parentExecutionId is null and s.scopeJson is not null)
@@ -136,6 +138,7 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
             from StepExecutionEntity s
             join ProcessEntity p on p.id = s.processId
             where p.created is not null
+              and p.testRun = false
               and s.startedAt is not null and s.finishedAt is not null
               and not (s.parentExecutionId is null and s.scopeJson is not null)
               and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)

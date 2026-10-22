@@ -34,8 +34,19 @@ public record CreateProcessCommand(
          * CONTINUE_AS_NEW with version {@code same}: the definition snapshot the new run starts from (the one
          * the previous run ran), instead of the definition as it is now. Null: the current definition.
          */
-        io.mateu.workflow.domain.aggregates.WorkflowDefinition definition
+        io.mateu.workflow.domain.aggregates.WorkflowDefinition definition,
+        boolean testRun,
+        String testRunRequestDigest
 ) {
+
+    public CreateProcessCommand(String processId, String workflowDefinitionId, String businessKey,
+                                List<Variable> variables, String parentStepExecutionId,
+                                AuthorizationContext caller, TraceContext traceContext,
+                                String continuedFromProcessId,
+                                io.mateu.workflow.domain.aggregates.WorkflowDefinition definition) {
+        this(processId, workflowDefinitionId, businessKey, variables, parentStepExecutionId, caller,
+                traceContext, continuedFromProcessId, definition, false, null);
+    }
 
     public CreateProcessCommand(String processId, String workflowDefinitionId, String businessKey,
                                 List<Variable> variables, String parentStepExecutionId,

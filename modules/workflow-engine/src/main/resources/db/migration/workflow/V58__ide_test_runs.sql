@@ -1,0 +1,2 @@
+ALTER TABLE process_entity ADD COLUMN IF NOT EXISTS test_run BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE process_entity ADD COLUMN IF NOT EXISTS test_run_request_digest VARCHAR(64);

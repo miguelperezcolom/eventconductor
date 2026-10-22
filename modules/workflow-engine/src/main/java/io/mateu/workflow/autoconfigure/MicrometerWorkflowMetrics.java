@@ -2,6 +2,7 @@ package io.mateu.workflow.autoconfigure;
 
 import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
+import io.mateu.workflow.domain.aggregates.TestRunIds;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -113,7 +114,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         if (registry == null) return;
         Counter.builder(PROCESSES_STARTED)
                 .description("Workflow processes started")
-                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                 .register(registry)
                 .increment();
     }
@@ -140,14 +141,14 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         var outcomeTag = outcome != null ? outcome.name() : UNKNOWN;
         Counter.builder(STEP_EXECUTIONS)
                 .description("Step executions finished, by outcome")
-                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                 .tag(TAG_OUTCOME, outcomeTag)
                 .register(registry)
                 .increment();
         if (duration != null && !duration.isNegative()) {
             Timer.builder(STEP_DURATION)
                     .description("Step execution duration, from dispatch to final status")
-                    .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                    .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                     .tag(TAG_OUTCOME, outcomeTag)
                     .register(registry)
                     .record(duration);
@@ -160,7 +161,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         if (registry == null) return;
         Counter.builder(STEP_RETRIES)
                 .description("Step execution retries performed")
-                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                 .tag(TAG_TRIGGER, trigger != null ? trigger.name().toLowerCase() : UNKNOWN)
                 .register(registry)
                 .increment();
@@ -172,7 +173,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         if (registry == null) return;
         Counter.builder(STEP_COMPENSATIONS)
                 .description("Compensation steps triggered after retries were exhausted")
-                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                 .register(registry)
                 .increment();
     }
@@ -184,7 +185,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         Counter.builder(COMPENSATIONS_FAILED)
                 .description("Saga rollbacks that could not complete: a compensation step itself failed, "
                         + "leaving the process partially rolled back (COMPENSATION_FAILED)")
-                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                 .register(registry)
                 .increment();
     }
@@ -206,7 +207,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         if (registry == null || count <= 0) return;
         Counter.builder(PROCESSES_PURGED)
                 .description("Finished processes deleted by the retention purge, with everything that belonged to them")
-                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                 .tag(TAG_STATUS, status == null ? UNKNOWN : status.name())
                 .register(registry)
                 .increment(count);
@@ -219,7 +220,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         Counter.builder(PROCESS_OPERATIONS)
                 .description("Manual operations an operator performed on live processes")
                 .tag(TAG_OPERATION, tagValue(operation))
-                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                 .register(registry)
                 .increment();
     }
@@ -255,7 +256,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         Counter.builder(TASK_ESCALATIONS)
                 .description("Human task escalations that fired")
                 .tag(TAG_ACTION, tagValue(action))
-                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                 .register(registry)
                 .increment();
     }
@@ -389,13 +390,13 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         if (registry == null) return;
         Counter.builder(counterName)
                 .description(description)
-                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                 .register(registry)
                 .increment();
         if (duration != null && !duration.isNegative()) {
             Timer.builder(PROCESS_DURATION)
                     .description("Workflow process duration, from start to final status")
-                    .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                    .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                     .tag(TAG_OUTCOME, outcome)
                     .register(registry)
                     .record(duration);
@@ -404,6 +405,11 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
 
     private static String tagValue(String value) {
         return value != null && !value.isBlank() ? value : UNKNOWN;
+    }
+
+    /** Each test run has its own definition id; one shared tag keeps them from opening series per run. */
+    private static String definitionTag(String workflowDefinitionId) {
+        return TestRunIds.isTestRun(workflowDefinitionId) ? TestRunIds.METRIC_TAG : tagValue(workflowDefinitionId);
     }
 
     // ── Synchronous invocation ─────────────────────────────────────────────────────────────────
@@ -418,7 +424,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         registerSyncWaiting(registry);
         Counter.builder(SYNC_INVOCATIONS)
                 .description("Synchronous invocations that started a process")
-                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                 .register(registry)
                 .increment();
     }
@@ -431,21 +437,21 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         var outcomeTag = outcome == null ? UNKNOWN : outcome;
         Counter.builder(SYNC_ANSWERS)
                 .description("Synchronous callers answered, by outcome (DEADLINE = answered 202)")
-                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                 .tag(TAG_OUTCOME, outcomeTag)
                 .register(registry)
                 .increment();
         if ("DEADLINE".equals(outcomeTag)) {
             Counter.builder(SYNC_DEADLINE_EXPIRED)
                     .description("Synchronous callers whose deadline passed before the reply (answered 202)")
-                    .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                    .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                     .register(registry)
                     .increment();
         }
         if (latency != null) {
             Timer.builder(SYNC_RESPONSE_LATENCY)
                     .description("From a synchronous request arriving to its answer being ready")
-                    .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                    .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                     .tag(TAG_OUTCOME, outcomeTag)
                     .publishPercentileHistogram()
                     .register(registry)
@@ -460,7 +466,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         Counter.builder("eventconductor.flow.starts")
                 .description("Starts that met a startPolicy, by what it decided (started, debounced, throttled,"
                         + " dropped, skipped, replaced, released)")
-                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                 .tag("scope", scope == null ? UNKNOWN : scope.startsWith("trigger:") ? "trigger" : "start")
                 .tag(TAG_OUTCOME, outcome == null ? UNKNOWN : outcome)
                 .register(registry)
@@ -485,7 +491,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         if (registry == null) return;
         Counter.builder("eventconductor.process.continued_as_new")
                 .description("Runs a CONTINUE_AS_NEW ended, each starting the next run of its chain")
-                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                 .register(registry)
                 .increment();
     }
@@ -496,7 +502,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         if (registry == null) return;
         Counter.builder("eventconductor.process.business_key_reused")
                 .description("Starts that took a business key over from an earlier run (businessKeyPolicy)")
-                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                 .tag("policy", policy == null ? UNKNOWN : policy)
                 .register(registry)
                 .increment();
@@ -508,7 +514,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         if (registry == null) return;
         Counter.builder(SYNC_REJECTED)
                 .description("Synchronous invocations refused before creating anything, by reason")
-                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                 .tag(TAG_REASON, reason == null ? UNKNOWN : reason)
                 .register(registry)
                 .increment();
@@ -520,7 +526,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         if (registry == null) return;
         Counter.builder(PROCESS_UPDATES)
                 .description("Process updates by outcome (COMPLETED, REFUSED, NOT_ACCEPTED, FAILED)")
-                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, definitionTag(workflowDefinitionId))
                 .tag("update", updateName == null ? UNKNOWN : updateName)
                 .tag("status", status == null ? UNKNOWN : status)
                 .register(registry)

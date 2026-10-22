@@ -749,6 +749,14 @@ public record WorkflowDefinition(
         return identified;
     }
 
+    /** Returns a copy under another id, its steps included — a test run's private id, for one. */
+    public WorkflowDefinition withId(String newId) {
+        return new WorkflowDefinition(newId, name, version, description, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
+                steps == null ? null : steps.stream().map(step -> step.withWorkflowDefinitionId(newId)).toList(),
+                paused, declaredStatus(), runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates, startPolicy, businessKeyPolicy);
+    }
+
     /** Returns a copy carrying the given (engine-assigned) version number. */
     public WorkflowDefinition withVersion(int newVersion) {
         return new WorkflowDefinition(id, name, newVersion, description, limitConcurrentExecutions,

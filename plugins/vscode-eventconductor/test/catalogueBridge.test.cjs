@@ -9,9 +9,11 @@ const normal = value => JSON.parse(JSON.stringify(value));
 const disposable = () => ({ dispose() {} });
 
 // Exercise the actual activated provider without depending on an installed VS Code process.
-function extensionHost({ trusted = true, endpoint = 'http://127.0.0.1:18105/api/workflow-agents', fetch } = {}) {
+function extensionHost({ trusted = true, endpoint = 'http://127.0.0.1:18105/api/workflow-agents', fetch, applyEdit = async () => true } = {}) {
   const providers = new Map();
   const fetched = [];
+  const runs = [];
+  const errors = [];
   const secretReads = [];
   const authorization = 'Basic private-test-credential';
   const uri = value => ({ path: value, toString: () => value });
@@ -24,11 +26,13 @@ function extensionHost({ trusted = true, endpoint = 'http://127.0.0.1:18105/api/
     },
   };
   const vscode = {
+    WorkspaceEdit: class { replace() {} },
+    Range: class {},
     Uri: { joinPath: (base, ...parts) => uri(path.posix.join(base.path, ...parts)) },
-    window: { registerCustomEditorProvider: (type, provider) => { providers.set(type, provider); return disposable(); } },
-    commands: { registerCommand: disposable },
+    window: { showErrorMessage: message => errors.push(message), registerCustomEditorProvider: (type, provider) => { providers.set(type, provider); return disposable(); } },
+    commands: { registerCommand: disposable, executeCommand: async (name, uri) => runs.push({name, uri:uri.toString()}) },
     workspace: {
-      isTrusted: trusted,
+      isTrusted: trusted, applyEdit,
       getConfiguration: section => {
         assert.equal(section, 'eventconductor');
         return { get: key => { assert.equal(key, 'agentCatalogueUrl'); return endpoint; } };
@@ -51,6 +55,14 @@ function extensionHost({ trusted = true, endpoint = 'http://127.0.0.1:18105/api/
         fetchAgentCatalogue: async (...args) => {
           fetched.push(args);
           return fetch ? fetch(...args) : [{ id: 'workflow-case-assessor', name: 'Case assessor' }];
+        },
+      };
+      if (name === "./execution") return {
+        registerWorkflowExecution() {}, executionMarkup:()=> '<section id="execution-dock" hidden></section>',
+        GraphExecutionController: class {
+          constructor(context,panel,document) { this.document=document; }
+          async open() { runs.push({name:'eventconductor.runWorkflow',uri:this.document.uri.toString()}); }
+          async message() {}
         },
       };
       throw new Error(`Unexpected dependency: ${name}`);
@@ -77,13 +89,13 @@ function extensionHost({ trusted = true, endpoint = 'http://127.0.0.1:18105/api/
     }, panel);
     return { webview, messages, receive: message => receive(message), dispose: () => dispose() };
   }
-  return { open, fetched, secretReads, authorization };
+  return { open, fetched, secretReads, authorization, runs, errors };
 }
 
 test('graph opts into the host bridge and uses only configured endpoint and SecretStorage auth', async () => {
   const host = extensionHost();
   const graph = host.open();
-  assert.match(graph.webview.html, /<eventconductor-workflow-graph no-expand host-agent-catalogue>/);
+  assert.match(graph.webview.html, /<eventconductor-workflow-graph no-expand host-agent-catalogue host-execution>/);
   await graph.receive({
     type: 'requestAgentCatalogue',
     url: 'https://attacker.invalid/collect',
@@ -193,7 +205,11 @@ function webviewBridge() {
       getElementById: () => ({ style: {} }),
       body: { classList: { contains: () => false } },
     },
-    window: { addEventListener: (name, handler) => windowListeners.set(name, handler) },
+    window: {
+      addEventListener: (name, handler) => windowListeners.set(name, handler),
+      ecCreateGraphProjection: require('../media/graph-state').createGraphProjection,
+      ecExecutionBridge: () => ({updateNotice(){}}),
+    },
     customElements: { whenDefined: name => { assert.equal(name, 'eventconductor-workflow-graph'); return Promise.resolve(); } },
     MutationObserver: class { observe() {} },
     setTimeout,
@@ -223,4 +239,34 @@ test('webview passes catalogue results and errors into the graph component', asy
   await Promise.resolve();
   assert.deepEqual(bridge.catalogues, [[entries, ''], [[], 'Catalogue unavailable']]);
   assert.deepEqual(bridge.messages, [{ type: 'ready' }]);
+});
+
+test('the graph run button targets its own document and ignores a URI sent by the webview',async()=>{
+  const host=extensionHost(); const graph=host.open();
+  await graph.receive({type:'runWorkflow',uri:'https://attacker.invalid/another.ec'});
+  assert.deepEqual(host.runs,[{name:'eventconductor.runWorkflow',uri:'/workflow.ec'}]);
+  assert.equal(host.secretReads.length,0);
+});
+
+test('forms, disposed graphs and untrusted workspaces cannot invoke workflow execution',async()=>{
+  const host=extensionHost({trusted:false}); const graph=host.open();
+  await graph.receive({type:'runWorkflow'}); assert.deepEqual(host.runs,[]); assert.match(host.errors[0],/Trust/);
+  const trusted=extensionHost(); const form=trusted.open('eventconductor.formEditor');
+  assert.doesNotMatch(form.webview.html,/host-execution/);
+  await form.receive({type:'runWorkflow'}); assert.deepEqual(trusted.runs,[]);
+  const closed=trusted.open(); closed.dispose(); await closed.receive({type:'runWorkflow'});
+  assert.deepEqual(trusted.runs,[]);
+});
+
+test('Run waits for preceding graph edits and refuses to execute when the document edit failed',async()=>{
+  let release;
+  const h=extensionHost({applyEdit:()=>new Promise(resolve=>{release=resolve;})}); const graph=h.open();
+  const edit=graph.receive({type:'edit',value:'{"name":"Edited","steps":[]}'});
+  const run=graph.receive({type:'runWorkflow'}); await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(h.runs.length,0); release(true); await edit; await run;
+  assert.equal(h.runs.length,1);
+  const failed=extensionHost({applyEdit:async()=>false}); const broken=failed.open();
+  await broken.receive({type:'edit',value:'{"name":"Edited","steps":[]}'});
+  await broken.receive({type:'runWorkflow'}); assert.equal(failed.runs.length,0);
+  assert.match(failed.errors.at(-1),/could not be applied/);
 });
