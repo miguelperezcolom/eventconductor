@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.36.0] - 2026-10-24
+
+The graph editor's Step Properties panel now covers every property of a step.
+
 ### Added
 - **Graph editor: the Step Properties panel covers every step property.**
   - Editable where a property is a scalar or a list, and a read-only summary ("Edit … in the YAML") where it is a structured block.
