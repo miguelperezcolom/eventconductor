@@ -159,7 +159,7 @@ EventConductor's architecture can be summarized in one sentence: **a hexagonal e
   </g>
 </svg>
 
-**The numbered flow:** ① an integration event (e.g. `ProcessCreationRequested`, `MessageReceived`, a worker report) arrives through the `upstream` topic or in-process; ② the engine advances its state machine and writes the new state **plus** the resulting domain events to the outbox table in one ACID transaction; ③ the outbox relay publishes pending events (publish-then-mark — at-least-once, never lost); ④ `TaskExecutionRequested` events reach workers via the `downstream` topic; ⑤ workers execute your business logic and report `TaskStatusChanged` back through `upstream` — and the loop continues until an `END` step completes the process.
+**The numbered flow:** ① an integration event (e.g. `ProcessCreationRequested`, `MessageReceived`, a worker report) arrives through the `upstream` topic or in-process; ② the engine advances its state machine and writes the new state **plus** the resulting domain events to the outbox table in one ACID transaction; ③ the outbox relay publishes pending events (publish-then-mark — at-least-once, never lost); ④ `TaskExecutionRequested` events reach workers via the `downstream` topic (or the step's own topic — the built-in steps' are served by the orchestrator itself, see [Built-in workers](#built-in-workers-actions-stay-out-of-the-core)); ⑤ workers execute your business logic and report `TaskStatusChanged` back through `upstream` — and the loop continues until an `END` step completes the process.
 
 ## The hexagon, mapped to packages
 
@@ -198,6 +198,51 @@ sequenceDiagram
 ```
 
 Duplicates are expected and absorbed by design: a second `ProcessCreationRequested` with the same business key creates nothing, a duplicate dispatch for a step already past `PENDING` is ignored, and a late worker report on a terminal step is discarded. Idempotency lives in the engine so your workers only need to be idempotent about their own side effects.
+
+## Built-in workers: actions stay out of the core
+
+The orchestration core decides the flow: what runs next, guards, `CHOICE`/`FORK`/`JOIN`, timers, waits,
+retries, compensation and incidents. It never performs a step's action itself. A step that does
+something in the outside world is a **task**, dispatched and answered with the same contract as an
+`ACTION` handled by your own worker. That includes calling an API, asking a model or publishing an
+event:
+
+| Step | Task | Topic (kafka mode) | Served by |
+|---|---|---|---|
+| `HTTP_CALL` | `http-call@1` | `http-calls` | `worker-http` |
+| `LLM_CALL` | `llm-call@1` | `llm-calls` | `worker-llm` |
+| `PUBLISH_EVENT` | `publish-event@1` | `event-publications` | `worker-events` |
+| `AGENT` | `run-agent@1` | `agent-calls` | the agent runtime (a separate deployment) |
+
+The engine renders the request when the step starts: templates over the process's state, and
+validation such as an unknown event destination, so a bad request fails the step at once. That task
+request rides the outbox with the step's state. The I/O happens in the worker, and so do the secrets
+it needs: HTTP credentials and model API keys never enter the core. Because these steps are tasks,
+they get what every worker step gets, with no code of their own in the engine: `timeout`, `retries`,
+incidents, cancellation, the attempt fence on late reports and per-topic rate limits. The engine
+reads which step types are built-in tasks, their task ids and their default topics from one registry
+(`BuiltInTasks`).
+
+The point of a built-in step is that **nobody writes or deploys a worker for it**, so the built-in
+workers ship with the engine:
+
+- **Embedded mode.** `worker-embedded` runs them in the application's process: `worker-events` comes
+  with it, `worker-http` and `worker-llm` are added alongside, or all of them at once with the
+  `io.mateu.workflow:builtin-workers` aggregator.
+- **Kafka mode.** The orchestrator image contains them. Its own pods consume `http-calls`, `llm-calls`
+  and `event-publications` (consumer group `orchestrator-builtin-workers`) and report on `upstream`
+  like any worker. The orchestrator image is one deployable with two parts: the orchestrator, and a
+  worker with the built-in tasks. The tasks still travel through Kafka rather than an in-process
+  shortcut, so durability, redelivery and sharing across replicas are those of every other task.
+  Scaling the orchestrator scales them too.
+- **Optional standalone workers.** To keep HTTP egress or model API keys out of the orchestrator's
+  pods, deploy `http-worker-standalone-app` / `llm-worker-standalone-app` and take their topics out
+  of the orchestrator's `BUILTIN_WORKER_TOPICS`. The Helm chart does this when `httpWorker` /
+  `llmWorker` is enabled. See [Deployment Modes](/guides/deployment-modes/).
+
+One event still leaves from the engine itself: the `publishEvent` of a user task's escalation. It is
+not a step, so it has no task to report back to, and the outbox relay sends it. It is the same
+CloudEvent record the publish-event worker sends.
 
 ## Distributed coordination without a coordinator
 
