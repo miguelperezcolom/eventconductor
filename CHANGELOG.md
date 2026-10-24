@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Graph editor: the Step Properties panel covers every step property.**
+  - Editable where a property is a scalar or a list, and a read-only summary ("Edit … in the YAML") where it is a structured block.
+  - A new Advanced section holds the run cap, the required scopes and roles, and any deprecated fields a definition still carries.
+  - Topic can be set on every step dispatched to a worker, PUBLISH_EVENT included.
+  - Node captions describe every step type. (#484)
+- **Graph editor: USER_TASK assignment and escalation, and sensitive outputs.**
+  - A USER_TASK's assignee, candidate users and groups, priority, due and follow-up dates can be edited in the panel; each value may be a `${...}` template.
+  - Its escalation shows as a read-only summary.
+  - Any step that writes variables can declare `outputVariables` and mark them `sensitiveOutputs` under Advanced. (#585)
+
 ## [2.35.0] - 2026-10-24
 
 The orchestration core no longer performs actions. HTTP_CALL, LLM_CALL and now PUBLISH_EVENT are tasks served by built-in workers, and those workers ship inside the orchestrator: a definition that calls an API, asks a model or publishes an event needs no worker deployment.
