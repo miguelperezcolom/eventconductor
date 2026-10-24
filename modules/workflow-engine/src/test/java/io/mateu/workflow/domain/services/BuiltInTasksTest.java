@@ -20,6 +20,7 @@ class BuiltInTasksTest {
         assertThat(BuiltInTasks.taskIdOf(step("{\"id\":\"s\",\"type\":\"HTTP_CALL\"}"))).isEqualTo("http-call@1");
         assertThat(BuiltInTasks.taskIdOf(step("{\"id\":\"s\",\"type\":\"LLM_CALL\"}"))).isEqualTo("llm-call@1");
         assertThat(BuiltInTasks.taskIdOf(step("{\"id\":\"s\",\"type\":\"AGENT\"}"))).isEqualTo("run-agent@1");
+        assertThat(BuiltInTasks.taskIdOf(step("{\"id\":\"s\",\"type\":\"PUBLISH_EVENT\"}"))).isEqualTo("publish-event@1");
     }
 
     @Test
@@ -52,7 +53,8 @@ class BuiltInTasksTest {
     @Test
     void theRoutingSetsCoverEveryBuiltInTask() {
         assertThat(BuiltInTasks.taskIds()).containsExactlyInAnyOrder(
-                "complete-form", "evaluate-rule", "http-call@1", "llm-call@1", "run-agent@1");
-        assertThat(BuiltInTasks.defaultTopics()).containsExactlyInAnyOrder("http-calls", "llm-calls", "agent-calls");
+                "complete-form", "evaluate-rule", "http-call@1", "llm-call@1", "run-agent@1", "publish-event@1");
+        assertThat(BuiltInTasks.defaultTopics()).containsExactlyInAnyOrder("http-calls", "llm-calls", "agent-calls",
+                "event-publications");
     }
 }

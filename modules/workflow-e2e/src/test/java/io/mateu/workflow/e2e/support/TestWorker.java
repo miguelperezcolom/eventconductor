@@ -45,8 +45,17 @@ public class TestWorker implements EmbeddedTaskExecutor {
     private final Map<String, AtomicInteger> invocations = new ConcurrentHashMap<>();
     private final List<TaskExecutionRequested> received = new CopyOnWriteArrayList<>();
 
+    /** Serves the built-in publish-event task of a step no test programmed: the real handler, as the platform ships it. */
+    private final io.mateu.workflow.worker.events.PublishEventHandler publishEvent;
+
     public TestWorker(UpdateStepExecutionUseCase updateStepExecution) {
+        this(updateStepExecution, null);
+    }
+
+    public TestWorker(UpdateStepExecutionUseCase updateStepExecution,
+                      io.mateu.workflow.worker.events.EventSink eventSink) {
         this.updateStepExecution = updateStepExecution;
+        this.publishEvent = eventSink == null ? null : new io.mateu.workflow.worker.events.PublishEventHandler(eventSink);
     }
 
     public void on(String stepId, Behavior behavior) {
@@ -96,6 +105,22 @@ public class TestWorker implements EmbeddedTaskExecutor {
         return (req, cb, invocation) -> { /* no callback */ };
     }
 
+    /** Behavior: the built-in publish-event task — sends the step's rendered event, then completes. */
+    private Behavior publishing() {
+        return (req, cb, invocation) -> {
+            var event = req.variables().stream().filter(variable -> "__event".equals(variable.name()))
+                    .map(io.mateu.workflow.dtos.Variable::value).findFirst().orElse(null);
+            try {
+                publishEvent.handle(new io.mateu.workflow.worker.events.PublishEventHandler.Input(
+                        event == null ? null : com.fasterxml.jackson.databind.node.TextNode.valueOf(event)), null);
+            } catch (Exception e) {
+                cb.fail(e.getMessage());
+                return;
+            }
+            cb.complete();
+        };
+    }
+
     public int invocationsOf(String stepId) {
         var counter = invocations.get(stepId);
         return counter == null ? 0 : counter.get();
@@ -109,7 +134,9 @@ public class TestWorker implements EmbeddedTaskExecutor {
     public void execute(TaskExecutionRequested request) {
         received.add(request);
         int invocation = invocations.computeIfAbsent(request.stepId(), k -> new AtomicInteger()).incrementAndGet();
-        var behavior = behaviors.getOrDefault(request.stepId(), succeed());
+        var behavior = behaviors.getOrDefault(request.stepId(),
+                publishEvent != null && request.taskId() != null && request.taskId().startsWith("publish-event@")
+                        ? publishing() : succeed());
         behavior.run(request, callbackFor(request), invocation);
     }
 

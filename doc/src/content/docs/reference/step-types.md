@@ -728,7 +728,7 @@ Publish a domain event from the process's state, without a worker. See [Publishi
 
 **Required:** `event.destination` (a logical name mapped to a topic by `workflow.events.destinations`), `event.type`. **Optional:** `event.key` (template; default the business key, else the process id), one of `event.payload` (structured template) / `event.payloadTemplate` (text) / `event.payloadVariables`, `event.format` (`binary` default, `structured`, `plain`).
 
-Written to the outbox with the step's completion — published if and only if the step completed; at-least-once, `id` = the step execution id. An unknown destination, a template that does not render or an oversized payload fails the step.
+The engine renders and checks the event when the step starts — an unknown destination, a template that does not render or an oversized payload fails the step at once — and dispatches it to the built-in `publish-event@1` task (`worker-events`; the event travels in task variable `__event`), whose request rides the outbox with the step's state. The task sends the event to its destination and completes the step: embedded, it runs in the engine's pod; in kafka mode it is on topic `event-publications`, served by the orchestrator itself (a step's `topic` overrides). At-least-once, `id` = the step execution id, stable across redeliveries; the step completes after the event was sent. Timeouts (`workflow.default-step-timeout-ms` too), retries and incidents work as for `ACTION`; the task fails with `EVENT_DESTINATION` (the destination has no topic in the worker's configuration — final), `EVENT_IO` (the broker refused it — retried) or `EVENT_REQUEST` (a malformed task — final).
 
 **Waiting for the answer: `awaitReply`.** With an `awaitReply` block the step is a request that waits for its reply — asynchronous request/response in one step, with no reply lost however fast it comes back:
 
@@ -752,7 +752,7 @@ Written to the outbox with the step's completion — published if and only if th
       variables: { price: "${data.price}" }
 ```
 
-`awaitReply` takes the fields of a [`WAIT_FOR_MESSAGE`](#wait_for_message) — `messageName` and `correlationExpression` (both required) and an optional `onEvent` — with the same meaning. Written on the step itself, outside `awaitReply`, `messageName` and `correlationExpression` are ignored (as they always were) and the import and the Maven plugin warn about them. The wait is armed in the transaction that writes the event to the outbox, so the event cannot leave before the step is waiting for its answer. The step stays `PENDING` after publishing and completes when the reply is correlated, its variables merged into the process. `timeout`, `deadline`, `retries` and `onTimeoutStepId` bound the whole exchange; a retry publishes the request again — as a new event, `id` = `<step execution id>-<attempt>` — and waits again. See [Asynchronous Request/Response](/guides/request-response/#b-ec-asks-and-waits).
+`awaitReply` takes the fields of a [`WAIT_FOR_MESSAGE`](#wait_for_message) — `messageName` and `correlationExpression` (both required) and an optional `onEvent` — with the same meaning. Written on the step itself, outside `awaitReply`, `messageName` and `correlationExpression` are ignored (as they always were) and the import and the Maven plugin warn about them. The wait is armed in the transaction that dispatches the task, so the event cannot leave before the step is waiting for its answer. The step stays `PENDING` after publishing (the worker's report leaves it waiting, as for an `HTTP_CALL`) and completes when the reply is correlated, its variables merged into the process. `timeout`, `deadline`, `retries` and `onTimeoutStepId` bound the whole exchange; a retry publishes the request again — as a new event, `id` = `<step execution id>-<attempt>` — and waits again. See [Asynchronous Request/Response](/guides/request-response/#b-ec-asks-and-waits).
 
 ---
 
@@ -768,7 +768,7 @@ Call an HTTP endpoint and map the response into variables, without writing a wor
 
 **Required:** `http` with exactly one of `connection` (+ optional `path`) and `url`. **Optional:** `method` (default `GET`), `query`, `headers`, `body` / `bodyTemplate`, `successStatus` (default 2xx), `output` (variable ← JEXL over `{status, headers, body}`), `auth` (a profile name, or inline with `${secret:NAME}` credentials only), `retryOn` (default `[5xx, io]` — a 4xx is not retried).
 
-Rendered by the engine and executed by the built-in `http-call@1` task (`worker-http`): embedded in the engine's pod, or on topic `http-calls` in kafka mode. Timeouts, retries, compensation and cancellation work as for `ACTION`.
+Rendered by the engine and executed by the built-in `http-call@1` task (`worker-http`): embedded in the engine's pod, or on topic `http-calls` in kafka mode — served by the orchestrator itself, or by the optional `http-worker-standalone-app`. Timeouts, retries, compensation and cancellation work as for `ACTION`.
 
 **Waiting for a callback: `awaitReply`.** When the HTTP response only acknowledges the request and the answer comes later — a webhook, a callback, an event — give the step an `awaitReply` (the fields of a [`WAIT_FOR_MESSAGE`](#wait_for_message), as on [`PUBLISH_EVENT`](#publish_event)):
 
@@ -808,7 +808,7 @@ Ask a language model a question built from the process's data and map its answer
 
 **Required:** `llm` with `connection` (a `workflow.llm.connections.<name>`), `prompt` (text template), and one of `output` / `outputVariable`. **Optional:** `model` (overrides the connection's), `system` (text template), `temperature` (0–2, sent only when set), `maxTokens`, `responseSchema` (JSON Schema — the answer is parsed and validated; an invalid one fails with `LLM_INVALID_OUTPUT`, retried), `output` (variable ← JEXL over `{text, json, usage, model, finishReason}`), `outputVariable` (the text, or the JSON document), `usageVariable` (`{model, inputTokens, outputTokens, totalTokens}`), `allowSensitiveVariables` (`true` to let `system`/`prompt` read the definition's [sensitive variables](/guides/sensitive-data-and-encryption/) — without it a prompt naming one is refused at load, and they are left out of the prompt's context). No key or `${secret:…}` in the block: keys are the connection's configuration.
 
-Rendered by the engine and executed by the built-in `llm-call@1` task (`worker-llm`, on Spring AI: Anthropic and OpenAI-compatible providers): embedded in the engine's pod, or on topic `llm-calls` in kafka mode. Timeouts, retries, compensation and cancellation work as for `ACTION`; a provider 4xx (bad request, bad key) is final, 429/5xx/timeouts are retried.
+Rendered by the engine and executed by the built-in `llm-call@1` task (`worker-llm`, on Spring AI: Anthropic and OpenAI-compatible providers): embedded in the engine's pod, or on topic `llm-calls` in kafka mode — served by the orchestrator itself, or by the optional `llm-worker-standalone-app`. Timeouts, retries, compensation and cancellation work as for `ACTION`; a provider 4xx (bad request, bad key) is final, 429/5xx/timeouts are retried.
 
 ---
 

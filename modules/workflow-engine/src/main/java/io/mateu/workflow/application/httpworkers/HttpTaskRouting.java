@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 /**
  * Which tasks are served over HTTP: those whose step topic is listed in
  * {@code workflow.workers.http.topics}, or — with {@code *} — every topic except the built-in tasks
- * (USER_TASK, RULE, HTTP_CALL, LLM_CALL, AGENT), whose own runtimes keep serving them unless their topic is
+ * (USER_TASK, RULE, HTTP_CALL, LLM_CALL, AGENT, PUBLISH_EVENT — see BuiltInTasks), whose own runtimes keep serving them unless their topic is
  * named explicitly. AGENT's {@code agent-calls} is the agent runtime's: an HTTP worker would have to echo the
  * invocation id, which the HTTP task protocol does not carry.
  */

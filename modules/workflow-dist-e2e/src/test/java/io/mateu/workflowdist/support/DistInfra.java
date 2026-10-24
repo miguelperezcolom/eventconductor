@@ -121,8 +121,12 @@ public final class DistInfra {
         props.put("spring.datasource.hikari.maximum-pool-size", tune("pool-size", "10"));
         props.put("spring.jpa.hibernate.ddl-auto", "update");
         props.put("spring.jpa.open-in-view", "false");
-        props.put("spring.cloud.function.definition", "consumeOutbox;consumeUpstream");
+        // The orchestrator serves its built-in tasks itself (worker-kafka + worker-http/worker-events on its
+        // classpath, as in apps/orchestrator-standalone-app): their topics are its worker binding's.
+        props.put("spring.cloud.function.definition", "consumeOutbox;consumeUpstream;consumeWorkerEvent");
         props.put("spring.cloud.stream.kafka.binder.brokers", kafka.getBootstrapServers());
+        props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination", "http-calls,event-publications");
+        props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group", "orchestrator-builtin-workers");
         props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.destination", "outbox");
         props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.group", "orchestrator-outbox");
         props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.consumer.concurrency", tune("consumer-concurrency", "3"));
@@ -148,8 +152,21 @@ public final class DistInfra {
         props.putAll(overrides);
         return new SpringApplicationBuilder(DistOrchestratorApp.class)
                 .web(WebApplicationType.NONE)
-                .properties(props)
-                .run();
+                .run(asArguments(props));
+    }
+
+    /**
+     * The context's properties as command-line arguments, which outrank every other property source.
+     * As {@code SpringApplicationBuilder.properties(...)} they would be default properties, which Boot
+     * keeps last of all — behind the binding defaults worker-kafka contributes (its task topic
+     * {@code downstream}, its group the application name), so those would win over what a test asks for.
+     * A key a test set as a system property is left out: those (Dist22, Dist26) must still win.
+     */
+    private static String[] asArguments(Map<String, Object> props) {
+        return props.entrySet().stream()
+                .filter(entry -> System.getProperty(entry.getKey()) == null)
+                .map(entry -> "--" + entry.getKey() + "=" + entry.getValue())
+                .toArray(String[]::new);
     }
 
     /** Boots (once) the shared Kafka worker context programmed through {@link WorkerStub}. */
@@ -186,8 +203,7 @@ public final class DistInfra {
         props.put("spring.cloud.stream.bindings.upstream.destination", "upstream");
         workerContext = new SpringApplicationBuilder(DistWorkerApp.class)
                 .web(WebApplicationType.NONE)
-                .properties(props)
-                .run();
+                .run(asArguments(props));
     }
 
     /**
@@ -238,8 +254,7 @@ public final class DistInfra {
         props.put("logging.level.io.mateu.workflow", "WARN");
         testWorkerContext = new SpringApplicationBuilder(DistTestWorkerApp.class)
                 .web(WebApplicationType.NONE)
-                .properties(props)
-                .run();
+                .run(asArguments(props));
     }
 
     /** Publishes a domain event onto the given topic exactly as an external system would. */

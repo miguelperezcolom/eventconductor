@@ -33,7 +33,7 @@ Two properties select the topology: `workflow.mode` (`embedded` | `kafka`, defau
 - [HTTP Calls](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/http-calls.md): HTTP_CALL, connections, auth profiles, host-bound credentials, secrets
 - [LLM Calls](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/llm-calls.md): LLM_CALL with Spring AI (Anthropic / OpenAI-compatible)
 - [Agents in Workflows](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/workflow-agents.md): the AGENT step — agents published in the IA catalogue, run by the IA runtime, durable invocations and review holds
-- [Publishing Events](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/publishing-events.md): PUBLISH_EVENT through the outbox, CloudEvents
+- [Publishing Events](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/publishing-events.md): PUBLISH_EVENT through the built-in publish-event task, CloudEvents
 - [Domain Event Triggers](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/domain-event-triggers.md): triggers, events.yaml, onEvent waits
 - [Webhooks](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/webhooks.md): the webhook gateway: GitHub / HMAC deliveries as CloudEvents
 - [Payload Templates](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/payload-templates.md): ${…} templates for HTTP, events, replies

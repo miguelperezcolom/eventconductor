@@ -29,6 +29,13 @@
              UpdateStepExecutionUseCase it calls back. Optional: in embedded mode the engine is
              already in the process, so we compile against it without forcing it transitively. The
              autoconfig is gated on UpdateStepExecutionUseCase being present. -->
+        <!-- PUBLISH_EVENT is a built-in task served next to the engine: whoever runs the embedded worker
+             gets it, as PUBLISH_EVENT needed nothing before it was a task. -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>worker-events</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
         <dependency>
             <groupId>io.mateu.workflow</groupId>
             <artifactId>workflow-engine</artifactId>

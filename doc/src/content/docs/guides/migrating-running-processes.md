@@ -147,7 +147,7 @@ booking:
   charge: charge-card
 ```
 
-A step without one fails the build (`-Deventconductor.migration.failOnError=false` only reports it). Instantaneous steps (START, END, FORK, JOIN, CHOICE, REPLY, SEND_MESSAGE, UNLOCK, a PUBLISH_EVENT that awaits nothing) and changed task contracts, forEach items, locks and fewer escalation levels are warnings. See the [Maven plugin reference](/reference/maven-plugin/#checking-a-migration-the-check-migration-goal).
+A step without one fails the build (`-Deventconductor.migration.failOnError=false` only reports it). Instantaneous steps (START, END, FORK, JOIN, CHOICE, REPLY, SEND_MESSAGE, UNLOCK) and changed task contracts, forEach items, locks and fewer escalation levels are warnings. See the [Maven plugin reference](/reference/maven-plugin/#checking-a-migration-the-check-migration-goal).
 
 ## Sensitive variables
 

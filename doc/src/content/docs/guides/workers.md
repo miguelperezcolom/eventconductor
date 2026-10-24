@@ -247,6 +247,8 @@ so an explicit value always wins.
 
 When running in embedded mode, register a single Spring bean of type `EmbeddedTaskExecutor`. All ACTION steps are routed to that bean regardless of the `topic` field in the workflow definition. The bean receives the full `TaskExecutionRequested` — use `request.stepId()` to branch between steps. Each branch calls `updateStepExecution` independently with its own output variables.
 
+The bean also receives the built-in tasks — `http-call@1`, `llm-call@1` and `publish-event@1` (every `PUBLISH_EVENT` step is one). An application with a hand-written `EmbeddedTaskExecutor` must serve `publish-event@1` itself, or its `PUBLISH_EVENT` steps never complete; with `worker-embedded` (or the `io.mateu.workflow:builtin-workers` aggregator) they are served for you, and your own workers are written as [task handlers](#generating-a-worker-from-a-task-contract) instead.
+
 Output variables produced by a step are automatically included in `request.variables()` for all subsequent steps, so later steps can read values written by earlier ones.
 
 ```java

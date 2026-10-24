@@ -172,9 +172,9 @@ steps:
     preconditionStepId: confirm
 ```
 
-Needs `io.mateu.workflow:worker-http` (embedded) or the `http-worker-standalone-app` (kafka, topic
-`http-calls`), plus `workflow.http.connections.payments.base-url` — see [security.md](security.md)
-for auth profiles, `${secret:NAME}` and host binding. Every retry sends the same `Idempotency-Key`.
+Needs `io.mateu.workflow:worker-http` or `builtin-workers` (embedded); in kafka mode the orchestrator serves
+topic `http-calls` itself (the `http-worker-standalone-app` is optional), plus
+`workflow.http.connections.payments.base-url` — see [security.md](security.md) for auth profiles, `${secret:NAME}` and host binding. Every retry sends the same `Idempotency-Key`.
 
 ## 4. Started by a domain event, publishing one back
 
@@ -403,7 +403,8 @@ steps:
 
 ## 8. Ask a model (LLM_CALL)
 
-One model call: needs `worker-llm` + a Spring AI provider; the key lives in `workflow.llm.connections.<name>`.
+One model call: embedded, needs `worker-llm` (or `builtin-workers`) + a Spring AI provider; kafka, the orchestrator
+serves `llm-calls` (the `llm-worker-standalone-app` is optional); the key lives in `workflow.llm.connections.<name>`.
 
 ```yaml
 - id: classify

@@ -127,9 +127,19 @@ spring:
           consumer:
             batch-mode: true
             concurrency: ${KAFKA_CONCURRENCY:3}
+        # The built-in workers' tasks (HTTP_CALL, LLM_CALL, PUBLISH_EVENT): this image serves them itself.
+        # Take a topic out to have a standalone worker (http-worker, llm-worker) serve it instead, and turn
+        # the built-in one off (workflow.http.enabled / workflow.llm.enabled / workflow.events.worker.enabled).
+        # A group of their own: its members all subscribe to the same topics, which a shared group with
+        # different subscriptions would not (see consumeOutbox-in-0).
         consumeWorkerEvent-in-0:
-          destination: downstream
-          group: worker-group
+          destination: ${BUILTIN_WORKER_TOPICS:http-calls,llm-calls,event-publications}
+          group: orchestrator-builtin-workers
+          consumer:
+            # A new group starts at the oldest retained task. When moving a topic a standalone worker used to
+            # serve onto this image, set latest for that rollout, or the retained tasks it already ran are run
+            # again.
+            start-offset: ${BUILTIN_WORKERS_START_OFFSET:earliest}
         upstream:
           destination: upstream
         downstream:
@@ -198,6 +208,10 @@ workflow:
     table: ${FLYWAY_TABLE:flyway_schema_history}
   mode: ${WORKFLOW_MODE:kafka}
   persistence: ${WORKFLOW_PERSISTENCE:jpa}
+  # The built-in workers are configured as the standalone ones are: HTTP_CALL under workflow.http
+  # (WORKFLOW_HTTP_ALLOWED_HOSTS, WORKFLOW_HTTP_CONNECTIONS_<NAME>_BASEURL, WORKFLOW_HTTP_SECRETS_<NAME>…),
+  # LLM_CALL under workflow.llm (WORKFLOW_LLM_CONNECTIONS_<NAME>_PROVIDER / _MODEL / _APIKEY…), PUBLISH_EVENT
+  # under workflow.events.destinations — the same map the engine checks the steps against.
   # Fallback timeout for ACTION and RULE steps that declare none. Off by default because the
   # right value depends on the slowest task your workers legitimately perform, and too low a
   # value turns healthy slow work into retries.

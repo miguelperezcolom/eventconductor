@@ -55,7 +55,11 @@ class Dist07KafkaDownAtStartupTest extends AbstractDistTest {
         orchestrator = DistInfra.startOrchestrator(RESILIENT_BINDER);
         long bootMs = System.currentTimeMillis() - t0;
         System.out.println("[chaos] orchestrator booted in " + bootMs + "ms with Kafka paused");
-        assertThat(bootMs).as("boot must not block ~120s on the missing broker").isLessThan(60_000);
+        // Each binding's provisioning gives up after default.api.timeout.ms (15s) with the broker gone,
+        // and the orchestrator has a third consumer binding now — its built-in workers' topics — so a
+        // boot under a dead broker takes about a minute. Still nothing like the ~120s per binding of
+        // an unbounded provisioning, which is what this guards against.
+        assertThat(bootMs).as("boot must not block ~120s on the missing broker").isLessThan(90_000);
 
         DistInfra.resumeKafka();
 

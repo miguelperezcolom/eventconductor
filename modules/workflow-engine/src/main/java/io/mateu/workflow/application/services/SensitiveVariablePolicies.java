@@ -38,7 +38,8 @@ import java.util.Map;
  * </ul>
  *
  * <p>Whenever a set is not empty it also covers the engine's own derived carriers — the rendered HTTP
- * request ({@code __http}), LLM request ({@code __llm}) and agent request ({@code __agent}) — since they embed
+ * request ({@code __http}), LLM request ({@code __llm}), agent request ({@code __agent}) and published event
+ * ({@code __event}) — since they embed
  * rendered values.
  */
 @Component
@@ -48,7 +49,8 @@ public class SensitiveVariablePolicies {
     /** Variables the engine derives from others, sensitive whenever anything is. */
     public static final List<String> DERIVED_CARRIERS = List.of(
             HttpRequestRenderer.REQUEST_VARIABLE, LlmRequestRenderer.REQUEST_VARIABLE,
-            io.mateu.workflow.domain.services.AgentRequestRenderer.REQUEST_VARIABLE);
+            io.mateu.workflow.domain.services.AgentRequestRenderer.REQUEST_VARIABLE,
+            io.mateu.workflow.domain.services.ExternalEventRenderer.REQUEST_VARIABLE);
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final int SNAPSHOT_CACHE_SIZE = 512;

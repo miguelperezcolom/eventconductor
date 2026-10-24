@@ -14,8 +14,9 @@ Events are serialized as JSON with a `type` property carrying the registered eve
 | `outbox` | Internal | Domain events relayed from the outbox table |
 | `upstream` | Inbound | Integration events from external services |
 | `downstream` | Outbound | Task execution requests sent to workers |
-| `http-calls` | Outbound | `HTTP_CALL` requests, served by `http-worker-standalone-app` (a step's `topic` overrides) |
-| `llm-calls` | Outbound | `LLM_CALL` prompts, served by `llm-worker-standalone-app` (a step's `topic` overrides) |
+| `http-calls` | Outbound | `HTTP_CALL` requests, served by the orchestrator's built-in workers, or optionally by `http-worker-standalone-app` (a step's `topic` overrides) |
+| `llm-calls` | Outbound | `LLM_CALL` prompts, served by the orchestrator's built-in workers, or optionally by `llm-worker-standalone-app` (a step's `topic` overrides) |
+| `event-publications` | Outbound | `PUBLISH_EVENT` tasks (`publish-event@1`), served by the orchestrator's built-in workers, which write the event to its destination topic (a step's `topic` overrides) |
 | `agent-calls` | Outbound | `AGENT` invocations (`run-agent@1`), served by the IA agent runtime; replies come back on `upstream` naming their `invocationId` |
 | `dead-letter` | Outbound | Events the engine can never process, parked unchanged for inspection and replay |
 | `process-index` | Internal | Process status changes for the standalone projector (`workflow.projection.mode=remote` only) |
@@ -168,13 +169,13 @@ Workers consume this topic, perform their work, and publish a `task-status-chang
 
 A USER_TASK's request carries its rendered assignment in the `__task` variable (JSON: `assignee`, `candidateUsers`, `candidateGroups`, `priority`, `dueDate`, `followUpDate`, `businessKey`). When one of its escalations fires, the engine sends a `human-task-escalation-requested` on the same topic the task went to — `{taskExecutionId, processId, stepId, level, action, reassignTo, escalateTo, at}` — which the forms engine applies to the task (once per level).
 
-## http-calls and llm-calls
+## http-calls, llm-calls and event-publications
 
-**Purpose:** The rendered requests of `HTTP_CALL` steps and the rendered prompts of `LLM_CALL` steps. They are the default topics for those steps; a step's `topic` sends its requests elsewhere.
+**Purpose:** The rendered requests of `HTTP_CALL` steps, the rendered prompts of `LLM_CALL` steps and the rendered events of `PUBLISH_EVENT` steps (task variable `__event`). They are the default topics for those steps (`workflow.http.topic`, `workflow.llm.topic`, `workflow.events.worker.topic` on the serving side); a step's `topic` sends its requests elsewhere.
 
 **Published by:** Orchestrator
 
-**Consumed by:** `http-worker-standalone-app` (`http-calls`, overridable with `HTTP_CALLS_TOPIC`) and `llm-worker-standalone-app` (`llm-calls`, overridable with `LLM_CALLS_TOPIC`), which report back on `upstream` like any worker.
+**Consumed by:** The orchestrator itself: `orchestrator-standalone-app` runs the built-in workers on binding `consumeWorkerEvent`, group `orchestrator-builtin-workers`, topics `BUILTIN_WORKER_TOPICS` (default `http-calls,llm-calls,event-publications`), starting at `BUILTIN_WORKERS_START_OFFSET` (default `earliest`). Optionally, `http-worker-standalone-app` (`http-calls`, overridable with `HTTP_CALLS_TOPIC`) and `llm-worker-standalone-app` (`llm-calls`, overridable with `LLM_CALLS_TOPIC`) serve theirs instead — take the topic out of `BUILTIN_WORKER_TOPICS` then, since two groups on one topic run every task twice, and set `latest` as the start offset for the rollout that moves a topic back onto the orchestrator, or its retained tasks run again. All of them report back on `upstream` like any worker.
 
 ## agent-calls
 
@@ -228,10 +229,10 @@ Up to and including 2.32.0, the engine's batch consumers ran with Spring Kafka's
 | Orchestrator upstream handler | `orchestrator-upstream` | `upstream` |
 | Orchestrator inbound domain events (`inbound-events-kafka`) | `eventconductor-inbound-events` (`workflow.events.consumer.group`) | the destination topics |
 | Projector (`projector-standalone-app`) | `process-index-projector` (`PROJECTION_GROUP`) | `process-index` |
-| HTTP worker (`http-worker-standalone-app`) | `http-worker` | `http-calls` |
-| LLM worker (`llm-worker-standalone-app`) | `llm-worker` | `llm-calls` |
+| Orchestrator built-in workers (`orchestrator-standalone-app`) | `orchestrator-builtin-workers` | `BUILTIN_WORKER_TOPICS` (default `http-calls`, `llm-calls`, `event-publications`) |
+| HTTP worker (`http-worker-standalone-app`, optional) | `http-worker` | `http-calls` |
+| LLM worker (`llm-worker-standalone-app`, optional) | `llm-worker` | `llm-calls` |
 | Workers (`worker-standalone-app`) | `worker-app-group` | `downstream` |
-| Worker embedded in `orchestrator-standalone-app` | `worker-group` | `downstream` |
 | Worker in an application of your own (`worker-kafka`) | `${spring.application.name:eventconductor-worker}` | `downstream` |
 | Forms engine (`forms-standalone-app`) | `forms-engine-group` | `downstream` |
 | Rule runtime (`rule-standalone-app`) | `rule-engine-group` | `downstream` |

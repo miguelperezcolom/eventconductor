@@ -58,10 +58,9 @@ SECURITY_PASSWORD=changeme docker compose -f apps/docker-compose.yml up -d
 |---|---|---|
 | postgres-db | 5432 | db `workflow` / `workflow` / `secret` |
 | redpanda (Kafka) | 9092 (host), 19092 (in network) | console on 8888 |
-| orchestrator | 8105 | `WORKFLOW_MODE=kafka`, `WORKFLOW_PERSISTENCE=jpa`; HTTP Basic `admin:$SECURITY_PASSWORD` |
+| orchestrator | 8105 | `WORKFLOW_MODE=kafka`, `WORKFLOW_PERSISTENCE=jpa`; HTTP Basic `admin:$SECURITY_PASSWORD`; also serves `HTTP_CALL` / `LLM_CALL` / `PUBLISH_EVENT` (built-in workers on `http-calls`, `llm-calls`, `event-publications`) |
 | forms | 8106 | forms engine + task inbox |
 | worker | 8107 | test worker (scenarios from a `TEST_CONFIG` variable; UI `/_worker`) |
-| http-worker | 8108 | serves `HTTP_CALL` (`http-calls` topic) |
 | webhook-gateway | 8109 | webhooks → CloudEvents |
 
 Load your definitions into the orchestrator: mount a directory and set `WORKFLOW_DEFINITIONS_DIRS`

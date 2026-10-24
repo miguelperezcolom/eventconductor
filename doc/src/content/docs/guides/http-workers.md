@@ -30,7 +30,7 @@ workflow:
   With JPA the queue is the `http_task` table (Flyway `V50`), shared by every node, so a worker may
   call any node of a cluster.
 - `topics` lists step topics. A step with no `topic` is on `downstream`. `*` serves every topic
-  *except* the built-in tasks (USER_TASK, RULE, HTTP_CALL, LLM_CALL), which keep their own
+  *except* the built-in tasks (USER_TASK, RULE, HTTP_CALL, LLM_CALL, PUBLISH_EVENT), which keep their own
   runtimes unless you name their topic explicitly.
 - Every other topic still goes to the embedded or Kafka workers.
 - With [sharding](/guides/sharding/), each shard has its own database and so its own queue: point

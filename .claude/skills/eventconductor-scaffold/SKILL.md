@@ -69,6 +69,7 @@ Add only what you use:
 | the REST API, admin UI or MCP (anything over HTTP) | `org.springframework.boot:spring-boot-starter-webmvc` (optional in workflow-engine) |
 | `USER_TASK` (forms, task inbox) | `io.mateu.workflow:forms-engine` |
 | `RULE` steps | `io.mateu.workflow:rule-engine` (catalog) and/or `rule-runtime` |
+| `HTTP_CALL` / `LLM_CALL` / `PUBLISH_EVENT` in-process (simplest) | `io.mateu.workflow:builtin-workers` (= worker-embedded + worker-events + worker-http + worker-llm; LLM_CALL still needs a Spring AI provider). `PUBLISH_EVENT` needs `worker-embedded` (which brings worker-events) or `builtin-workers`, or a hand-written `EmbeddedTaskExecutor` that serves `publish-event@1` |
 | `HTTP_CALL` in-process | `io.mateu.workflow:worker-http` + `worker-embedded` (then write ACTION workers as `TaskHandler`s, not a hand-written `EmbeddedTaskExecutor`, which would take the HTTP tasks too) |
 | `LLM_CALL` in-process | `io.mateu.workflow:worker-llm` + `worker-embedded` + `org.springframework.ai:spring-ai-anthropic` and/or `spring-ai-openai` (both optional in worker-llm) |
 | typed task handlers (`TaskHandler`, task contracts) in-process | `io.mateu.workflow:worker-embedded` |

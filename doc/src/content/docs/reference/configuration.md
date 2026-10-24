@@ -413,7 +413,7 @@ Serve the tasks of some topics to workers in any language that long-poll `/workf
 | Property | Default | Description |
 |---|---|---|
 | `workflow.workers.http.enabled` | `false` | Turns the transport (queue, endpoints, routing) on. |
-| `workflow.workers.http.topics` | `[]` | Step topics served over HTTP (`downstream` for steps that name none). `*` = every topic except the built-in tasks' (USER_TASK, RULE, HTTP_CALL, LLM_CALL), which naming their topic still routes. Other topics keep going to the embedded or Kafka workers. |
+| `workflow.workers.http.topics` | `[]` | Step topics served over HTTP (`downstream` for steps that name none). `*` = every topic except the built-in tasks' (USER_TASK, RULE, HTTP_CALL, LLM_CALL, PUBLISH_EVENT), which naming their topic still routes. Other topics keep going to the embedded or Kafka workers. |
 | `workflow.workers.http.api-keys.<name>` | — | Worker credentials sent as `X-Api-Key`; they open the worker API only. The engine's `workflow.message-api.api-key` (or Spring Security, or allow-anonymous) is accepted too. |
 | `workflow.workers.http.max-wait` | `PT30S` | The longest an activation may long-poll. |
 | `workflow.workers.http.default-lease` | `PT60S` | The lease of an activation (or heartbeat) that asks for none. |
@@ -448,6 +448,8 @@ With `workflow.persistence=jpa` the state is in `flow_control_key`, `flow_contro
 | `workflow.events.destinations.<name>.format` | `binary` | `binary` / `structured` CloudEvents, or `plain`; a step may override. |
 | `workflow.events.max-payload-bytes` | `262144` | Largest event payload; larger fails the step. |
 | `workflow.events.loopback` | `true` | Embedded mode: a `PUBLISH_EVENT` of this engine is also received by its own event triggers and `onEvent` waits. |
+| `workflow.events.worker.enabled` | `true` | In whatever runs `worker-events` (the orchestrator, `worker-embedded`): register the built-in `publish-event@1` task that sends a `PUBLISH_EVENT`'s event — to the destination's topic in kafka mode (from the `destinations` above), to the `ExternalEventPublisher` and the loopback in embedded mode. |
+| `workflow.events.worker.topic` | `event-publications` | The Kafka topic the built-in worker serves — where the engine dispatches the tasks of `PUBLISH_EVENT` steps that name no `topic`. |
 | `workflow.events.consumer.enabled` | `true` | Kafka mode, with `inbound-events-kafka` on the classpath: consume the topics of the destinations event triggers and `onEvent` waits name. |
 | `workflow.events.consumer.group` | `eventconductor-inbound-events` | Their consumer group — one per deployment, so each event is used by one pod. |
 | `workflow.events.consumer.bootstrap-servers` | — | Brokers; empty means `spring.cloud.stream.kafka.binder.brokers`, else `spring.kafka.bootstrap-servers`. |
@@ -494,6 +496,8 @@ The gateway reads the destinations' topics from the same `workflow.events.destin
 
 ### HTTP calls (`workflow.http.*`, in whatever runs `worker-http`)
 
+In kafka mode that is the orchestrator itself (`orchestrator-standalone-app` runs the built-in workers), or the optional `http-worker-standalone-app`; in embedded mode, the application with `worker-http` (or `builtin-workers`).
+
 | Property | Default | Description |
 |---|---|---|
 | `workflow.http.enabled` | `true` | Register the built-in `http-call@1` task. |
@@ -514,6 +518,8 @@ The gateway reads the destinations' topics from the same `workflow.events.destin
 | `workflow.http.max-response-bytes` | `1048576` | Largest response read; larger fails the step. |
 
 ### LLM calls (`workflow.llm.*`, in whatever runs `worker-llm`)
+
+In kafka mode that is the orchestrator itself, or the optional `llm-worker-standalone-app`; in embedded mode, the application with `worker-llm` (or `builtin-workers`).
 
 | Property | Default | Description |
 |---|---|---|
@@ -801,7 +807,9 @@ The standalone images are fully configured via environment variables. All variab
 | `KAFKA_BROKERS` | `localhost:9092` | `spring.cloud.stream.kafka.binder.brokers` |
 | `KAFKA_CONCURRENCY` | `3` | Consumer threads per pod on each consumer binding |
 | `KAFKA_MIN_PARTITIONS` | `6` | `spring.cloud.stream.kafka.binder.min-partition-count` |
-| `DEFAULT_STEP_TIMEOUT_MS` | `0` (off) | `workflow.default-step-timeout-ms` — fallback deadline for ACTION and RULE steps that declare none |
+| `BUILTIN_WORKER_TOPICS` | `http-calls,llm-calls,event-publications` | The topics the orchestrator's built-in workers (HTTP_CALL, LLM_CALL, PUBLISH_EVENT) consume, binding `consumeWorkerEvent`, group `orchestrator-builtin-workers`. Take a topic out when a standalone worker serves it, and turn the built-in one off (`WORKFLOW_HTTP_ENABLED` / `WORKFLOW_LLM_ENABLED` / `WORKFLOW_EVENTS_WORKER_ENABLED=false`) — two groups on one topic run every task twice |
+| `BUILTIN_WORKERS_START_OFFSET` | `earliest` | Where that group starts on a topic it has not consumed yet. Set `latest` for the rollout that moves a topic from a standalone worker onto the orchestrator, or the retained tasks are run again |
+| `DEFAULT_STEP_TIMEOUT_MS` | `0` (off) | `workflow.default-step-timeout-ms` — fallback deadline for ACTION, RULE, HTTP_CALL, LLM_CALL and PUBLISH_EVENT steps that declare none |
 | `STALLED_STEP_AFTER_MS` | `900000` | `workflow.stalled-step-after-ms` — how long a live step with no deadline may wait before `eventconductor.steps.stalled` counts it |
 | `SECURITY_ENABLED` | `true` | `eventconductor.security.enabled` |
 | `SECURITY_USER` | `admin` | `eventconductor.security.user` |

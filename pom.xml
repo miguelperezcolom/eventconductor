@@ -59,6 +59,8 @@
       <module>modules/definition-analysis</module>
       <module>modules/worker-http</module>
       <module>modules/worker-llm</module>
+      <module>modules/worker-events</module>
+      <module>modules/builtin-workers</module>
         <module>modules/webhook-gateway</module>
         <module>modules/inbound-events-kafka</module>
       <module>parents/task-module-parent</module>

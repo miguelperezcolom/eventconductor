@@ -159,8 +159,8 @@ public class StepOverProcessUseCase {
         // stands and recorded on it, in this same transaction, so the reply commits with the
         // transition that produced it.
         boolean replied = resolveReplySteps(result.getUpdatedProcess(), result.getStepsToSave());
-        // And any PUBLISH_EVENT: the event rides this transaction into the outbox with the step's
-        // completion — published if and only if the step completed.
+        // And any PUBLISH_EVENT: its event is rendered here and its publish-event task rides this
+        // transaction into the outbox — dispatched if and only if the step started.
         resolvePublishSteps(result.getUpdatedProcess(), result.getStepsToSave(), pendingBefore);
 
         // A CONTINUE_AS_NEW that completed this pass ended the process (as an END does): the next run of
@@ -417,15 +417,15 @@ public class StepOverProcessUseCase {
     }
 
     /**
-     * Renders and emits each PUBLISH_EVENT step that {@code start()} just moved to PENDING, then
-     * completes it — or fails it (so retries and compensation engage) when the destination is unknown
-     * or the payload cannot be rendered.
+     * Renders each PUBLISH_EVENT step that {@code start()} just moved to PENDING and dispatches it to the
+     * built-in publish-event task, which sends it and completes the step — or fails it here (so retries
+     * and compensation engage) when the destination is unknown or the payload cannot be rendered.
      */
     private void resolvePublishSteps(Process process, List<StepExecution> stepsToSave, java.util.Set<String> alreadyPending) {
         for (var stepExecution : stepsToSave) {
             if (!StepExecutionStatus.PENDING.equals(stepExecution.getStatus())
-                    // A PUBLISH_EVENT waiting for its reply stays PENDING across step-overs: it was
-                    // published when it started, and must not be published again on every later pass.
+                    // A PUBLISH_EVENT stays PENDING across step-overs until its worker (or its reply)
+                    // completes it: it was dispatched when it started, and must not be again on every pass.
                     || alreadyPending.contains(stepExecution.getId())) {
                 continue;
             }
@@ -441,16 +441,15 @@ public class StepOverProcessUseCase {
                     // of its own per attempt, or a responder deduplicating on it would drop the re-ask.
                     event = withEventId(event, stepExecution.id() + "-" + stepExecution.getAttemptCount());
                 }
-                stepExecution.publish(event);
-                stepExecution.logInfo("Event '" + event.eventType() + "' published to '" + event.destination()
-                        + "' with key '" + event.key() + "'.");
+                stepExecution.dispatchPublication(event);
+                stepExecution.logInfo("Event '" + event.eventType() + "' for '" + event.destination()
+                        + "' with key '" + event.key() + "' handed to the publish-event task.");
                 if (step.awaitsReply()) {
                     // Armed in start(), in this same unit of work: the reply completes the step
-                    // (CompleteMessageStepHandler), or its timeout routes or fails it.
+                    // (CompleteMessageStepHandler), or its timeout routes or fails it; the worker's own
+                    // report leaves it waiting (UpdateStepExecutionUseCase).
                     stepExecution.logInfo("Waiting for reply '" + step.awaitReply().messageName() + "'.");
-                    continue;
                 }
-                stepExecution.updateStatus(StepExecutionStatus.COMPLETED);
             } catch (IllegalArgumentException | io.mateu.workflow.template.Templates.TemplateException e) {
                 log.warn("PUBLISH_EVENT step {} of process {} failed: {}", step.id(), process.getId(), e.getMessage());
                 stepExecution.logError(e.getMessage());

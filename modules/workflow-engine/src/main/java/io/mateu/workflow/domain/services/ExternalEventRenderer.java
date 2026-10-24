@@ -23,6 +23,13 @@ import java.util.Set;
  */
 public final class ExternalEventRenderer {
 
+    /** The built-in task a PUBLISH_EVENT step is dispatched as: the publish-event worker sends the event. */
+    public static final String TASK_ID = "publish-event@1";
+    /** Where the publish-event tasks go when the step names no topic. */
+    public static final String DEFAULT_TOPIC = "event-publications";
+    /** The task variable the rendered event travels in, as JSON. */
+    public static final String REQUEST_VARIABLE = "__event";
+
     private static final Set<String> FORMATS = Set.of("binary", "structured", "plain");
     private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
 

@@ -1,0 +1,72 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.mateu.workflow</groupId>
+        <artifactId>eventconductor</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>worker-events</artifactId>
+    <packaging>jar</packaging>
+    <name>worker-events</name>
+
+    <!--
+      The built-in publish-event task behind PUBLISH_EVENT steps: the engine renders the event and
+      dispatches it like any task; this sends it to its destination. A TaskRegistration any worker
+      deployment picks up by having this on its classpath — inside the engine's pod (worker-embedded,
+      which brings it) or in a Kafka worker (worker-kafka, e.g. the orchestrator's own image).
+      In kafka mode it sends to the destination's topic; in embedded mode it hands the event to the
+      engine's delivery (the application's ExternalEventPublisher, then the loopback).
+    -->
+    <properties>
+        <jacoco.line.minimum>0.80</jacoco.line.minimum>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>worker-api</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>shared</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+        <!-- Kafka mode: the transport the destination topics are written with. A Kafka worker already has it. -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-stream</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <!-- Embedded mode: the engine's delivery of a published event. The engine's pod already has it. -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>workflow-engine</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

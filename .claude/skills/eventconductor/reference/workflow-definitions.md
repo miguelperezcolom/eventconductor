@@ -45,7 +45,7 @@ for autocomplete. The schema forbids unknown keys. Examples: [patterns.md](patte
 | `deadline` | waiting steps | moment by which to finish (`{date, offset, at, zone}` or a date template); retries don't extend it |
 | `compensable` + `compensationStepId` | worker steps | saga undo; compensation step has NO preconditions (`rollbackable` = old spelling) |
 | `priority` | ACTION, HTTP_CALL, LLM_CALL, RULE | 0–100, default 50 |
-| `topic` | worker steps | Kafka destination (default `downstream`; `http-calls`/`llm-calls` for built-ins); embedded ignores it |
+| `topic` | worker steps | Kafka destination (default `downstream`; `http-calls`/`llm-calls`/`event-publications` for built-ins); embedded ignores it |
 | `task` | ACTION | task contract `<id>` or `<id>@<version>` (`.ectask`) |
 | `formId`, `assignment`, `escalation` | USER_TASK | see below |
 | `ruleId` | RULE | rule from the rule catalog; outputs → variables |
@@ -85,10 +85,14 @@ for autocomplete. The schema forbids unknown keys. Examples: [patterns.md](patte
   `message-received`, MCP `sendMessage`, a `SEND_MESSAGE`, or `onEvent`). Unmatched messages are dropped,
   not buffered. May begin a flow (no preconditions).
 - **SEND_MESSAGE** — emit a message to another process; fire-and-forget; fails loud (ERROR) on bad config.
-- **PUBLISH_EVENT** — domain event through the outbox (published iff the step completes; CloudEvents on
-  Kafka; `ExternalEventPublisher` bean embedded; `workflow.events.destinations.<name>.topic` maps the name).
+- **PUBLISH_EVENT** — domain event, rendered and checked by the engine when the step starts, sent by the
+  built-in task `publish-event@1` (worker-events; topic `event-publications`, served by the orchestrator in
+  kafka mode, by `worker-embedded` embedded), which completes the step after sending — at-least-once, `ce_id`
+  stable, consumers dedupe. CloudEvents on Kafka; `ExternalEventPublisher` bean + loopback embedded;
+  `workflow.events.destinations.<name>.topic` maps the name. Retries/timeouts/incidents like any task.
 - **HTTP_CALL / LLM_CALL** — built-in tasks `http-call@1` (worker-http) and `llm-call@1`
-  (worker-llm). See [patterns.md](patterns.md) and [security.md](security.md).
+  (worker-llm); kafka: served by the orchestrator itself (standalone http/llm worker apps optional).
+  See [patterns.md](patterns.md) and [security.md](security.md).
 - **AGENT** — invoke an agent published in the IA catalogue (its prompt, model, MCP/RAG/peers and output schema
   are the catalogue's): task `run-agent@1` on `agent-calls`, one variable `__agent`, an `invocationId` every reply
   names. Result: exactly `outputVariable`, as JSON (`json:parse(x).field` in guards). An uncertain outcome (runtime
