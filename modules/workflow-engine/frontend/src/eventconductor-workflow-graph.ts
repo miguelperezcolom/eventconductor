@@ -124,6 +124,26 @@ interface WorkflowStep {
     repeat?: RepeatSpec;
     /** An explicit back-edge: run the section from `to` to this step again while `while` holds. */
     loopBack?: LoopBackSpec;
+    /** ACTION only: the task contract the step runs, `<id>` or `<id>@<version>`. */
+    task?: string;
+    /** WAIT_FOR_MESSAGE / SEND_MESSAGE: JEXL giving the correlation key. */
+    correlationExpression?: string;
+    /** SEND_MESSAGE only: the variables the message carries. */
+    messageVariables?: string[];
+    /** PROCESS only: the child's variables copied back into the parent. */
+    outputVariables?: string[];
+    /** LOCK / UNLOCK: the lock domain, and a JEXL expression giving the key locked. */
+    lockName?: string;
+    lockKey?: string;
+    /** REPLY only: the reply as a structured template. */
+    replyTemplate?: unknown;
+    /** Deprecated alias for `compensable`. */
+    rollbackable?: boolean;
+    /** Cap on successful runs within one process; 0 inherits the workflow's default. */
+    maxSuccessfulExecutions?: number;
+    /** Flow authorization: scopes / roles the caller must all hold for this step to run. */
+    requiredScopes?: string[];
+    requiredRoles?: string[];
 }
 
 /** The reply an HTTP_CALL or a PUBLISH_EVENT waits for — the fields of a WAIT_FOR_MESSAGE. */
@@ -219,6 +239,22 @@ function describeRepeat(r: RepeatSpec): string {
 /** "↺ while … · ≤N" for a loopBack. */
 function describeLoopBack(l: LoopBackSpec): string {
     return "↺ " + (l.while ? "while " + l.while : "loop") + (l.maxIterations ? " · ≤" + l.maxIterations : "");
+}
+
+/** Step types whose task is dispatched to a worker, and so may be routed to a topic of their own. */
+const WORKER_STEP_TYPES: ReadonlySet<StepType> = new Set<StepType>(["ACTION", "DYNAMIC", "USER_TASK", "RULE", "HTTP_CALL", "LLM_CALL", "PUBLISH_EVENT"]);
+
+/** "a, b , c" → ["a", "b", "c"], or undefined when empty — how list fields are typed in the panel. */
+function parseNameList(text: string): string[] | undefined {
+    const names = text.split(",").map(v => v.trim()).filter(v => v.length > 0);
+    return names.length ? names : undefined;
+}
+
+/** A structured template on one line, for a read-only summary. */
+function oneLine(value: unknown): string {
+    if (value === undefined || value === null) return "";
+    const text = typeof value === "string" ? value : JSON.stringify(value);
+    return text.length > 120 ? text.slice(0, 117) + "…" : text;
 }
 
 /** Where a domain event comes from and how it is read: a trigger's or a wait's `onEvent`. */
@@ -598,18 +634,23 @@ function paletteIcon(t: StepType) {
 /** Short caption shown above each node — the step's salient reference, modux-style. */
 function badgeOf(step: WorkflowStep): string {
     switch (step.type) {
-        case "ACTION": return step.topic ? "→ " + step.topic : "ACTION";
+        case "ACTION": return step.task ? "▶ " + step.task + (step.topic ? " → " + step.topic : "")
+            : step.topic ? "→ " + step.topic : "ACTION";
         case "USER_TASK": return "👤 " + (step.formId || "form");
         case "RULE": return "ƒ " + (step.ruleId || "rule");
         case "WAIT_FOR_MESSAGE": return step.onEvent ? "⚡ " + describeEventSource(step.onEvent)
             : "✉ " + (step.messageName || "message");
         case "SEND_MESSAGE": return "✉→ " + (step.messageName || "message");
         case "FORK": return "⑃ FORK";
-        case "JOIN": return "⨝ JOIN";
+        case "JOIN": return step.joinType === "XOR" ? "⨝ JOIN (XOR)" : "⨝ JOIN";
+        case "CHOICE": return "◇ CHOICE";
+        case "LOCK": return "🔒 " + lockLabel(step);
+        case "UNLOCK": return "🔓 " + lockLabel(step);
         case "PROCESS": return "⚙ " + (step.childWorkflowDefinitionId || "subprocess");
         case "DYNAMIC": return "⚡ " + (step.topic ? "→ " + step.topic : "DYNAMIC");
         case "REPLY": return "↩ " + (step.replyVariables && step.replyVariables.length
-            ? step.replyVariables.join(", ") : (step.replyExpression ? "expression" : "REPLY"));
+            ? step.replyVariables.join(", ") : step.replyExpression ? "expression"
+            : step.replyTemplate !== undefined && step.replyTemplate !== null ? "template" : "REPLY");
         case "PUBLISH_EVENT": return "📣 " + (step.event?.destination || "event")
             + (step.awaitReply ? " " + describeAwaitReply(step.awaitReply) : "");
         case "HTTP_CALL": return (step.http?.method || "GET") + " " + (step.http?.connection || step.http?.url || "http")
@@ -622,6 +663,12 @@ function badgeOf(step: WorkflowStep): string {
             : step.duration ? String(step.duration) : "TIMER");
         default: return step.type; // START, END
     }
+}
+
+/** "booking:bookingId" — the lock a LOCK/UNLOCK step names. */
+function lockLabel(step: WorkflowStep): string {
+    if (!step.lockName && !step.lockKey) return step.type;
+    return (step.lockName || "lock") + (step.lockKey ? ":" + step.lockKey : "");
 }
 
 // ── Edge routing (ported from modux) ───────────────────────────────────────────
@@ -3983,22 +4030,65 @@ export class MateuWorkflowElk extends LitElement {
                     <!-- Compensation is wired on the graph, not here: alt+drag from a compensable
                          step (ACTION / PROCESS / WAIT_FOR_MESSAGE / DYNAMIC) to the step that undoes
                          it; select the dashed line and press Delete to remove it. -->
-                    ${step.type === "ACTION" ? field("Topic", html`
-                        <input class="inp" placeholder="kafka.topic.name" ?readonly="${ro}"
+                    ${step.type === "ACTION" ? field("Task contract", html`
+                        <input class="inp" placeholder="reserve-room@2" ?readonly="${ro}"
+                               title="The task contract this step runs: <id> or <id>@<version>; a bare id is pinned on import"
+                               .value="${step.task ?? ""}"
+                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {task: (e.target as HTMLInputElement).value.trim() || undefined})}"/>`) : nothing}
+                    ${WORKER_STEP_TYPES.has(step.type) ? field("Topic", html`
+                        <input class="inp" ?readonly="${ro}"
+                               placeholder="${step.type === "HTTP_CALL" ? "http-calls (default)" : step.type === "LLM_CALL" ? "llm-calls (default)" : step.type === "PUBLISH_EVENT" ? "event-publications (default)" : step.task ? "the contract's topic" : "downstream (default)"}"
+                               title="The worker destination this step's task is dispatched to"
                                .value="${step.topic ?? ""}"
-                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {topic: (e.target as HTMLInputElement).value || undefined})}"/>`) : ""}
+                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {topic: (e.target as HTMLInputElement).value.trim() || undefined})}"/>`) : nothing}
                     ${step.type === "USER_TASK" ? field("Form ID", html`
                         <input class="inp" ?readonly="${ro}" .value="${step.formId ?? ""}"
                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {formId: (e.target as HTMLInputElement).value || undefined})}"/>`) : ""}
                     ${step.type === "RULE" ? field("Rule ID", html`
                         <input class="inp" ?readonly="${ro}" .value="${step.ruleId ?? ""}"
                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {ruleId: (e.target as HTMLInputElement).value || undefined})}"/>`) : ""}
-                    ${step.type === "WAIT_FOR_MESSAGE" || step.type === "SEND_MESSAGE" ? field("Message name", html`
-                        <input class="inp" ?readonly="${ro}" .value="${step.messageName ?? ""}"
-                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {messageName: (e.target as HTMLInputElement).value || undefined})}"/>`) : ""}
-                    ${step.type === "PROCESS" ? field("Child workflow ID", html`
-                        <input class="inp" ?readonly="${ro}" .value="${step.childWorkflowDefinitionId ?? ""}"
-                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {childWorkflowDefinitionId: (e.target as HTMLInputElement).value || undefined})}"/>`) : ""}
+                    ${step.type === "WAIT_FOR_MESSAGE" || step.type === "SEND_MESSAGE" ? html`
+                        ${field("Message name", html`
+                            <input class="inp" ?readonly="${ro}" .value="${step.messageName ?? ""}"
+                                   @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {messageName: (e.target as HTMLInputElement).value || undefined})}"/>`)}
+                        ${field("Correlation expression", html`
+                            <input class="inp" placeholder="businessKey" ?readonly="${ro}"
+                                   title="${step.type === "WAIT_FOR_MESSAGE"
+                                       ? "JEXL giving the key an incoming message must carry"
+                                       : "JEXL giving the key stamped on the outgoing message"}"
+                                   .value="${step.correlationExpression ?? ""}"
+                                   @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {correlationExpression: (e.target as HTMLInputElement).value.trim() || undefined})}"/>`)}
+                    ` : nothing}
+                    ${step.type === "WAIT_FOR_MESSAGE" && step.onEvent ? field("Event source", html`
+                        <input class="inp" readonly title="Edit the onEvent block in the YAML"
+                               .value="${describeEventWait(step.onEvent)}"/>`) : ""}
+                    ${step.type === "SEND_MESSAGE" ? field("Message variables", html`
+                        <input class="inp" placeholder="bookingId, status" ?readonly="${ro}"
+                               title="The process variables the message carries; none are sent implicitly"
+                               .value="${(step.messageVariables ?? []).join(", ")}"
+                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {messageVariables: parseNameList((e.target as HTMLInputElement).value)})}"/>`) : nothing}
+                    ${step.type === "PROCESS" ? html`
+                        ${field("Child workflow ID", html`
+                            <input class="inp" ?readonly="${ro}" .value="${step.childWorkflowDefinitionId ?? ""}"
+                                   @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {childWorkflowDefinitionId: (e.target as HTMLInputElement).value || undefined})}"/>`)}
+                        ${field("Output variables", html`
+                            <input class="inp" placeholder="total, invoiceId" ?readonly="${ro}"
+                                   title="The child's variables copied back into this process when it completes"
+                                   .value="${(step.outputVariables ?? []).join(", ")}"
+                                   @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {outputVariables: parseNameList((e.target as HTMLInputElement).value)})}"/>`)}
+                    ` : nothing}
+                    ${step.type === "LOCK" || step.type === "UNLOCK" ? html`
+                        ${field("Lock name", html`
+                            <input class="inp" placeholder="booking" ?readonly="${ro}"
+                                   title="The lock domain; with the key it names the lock"
+                                   .value="${step.lockName ?? ""}"
+                                   @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {lockName: (e.target as HTMLInputElement).value.trim() || undefined})}"/>`)}
+                        ${field("Lock key", html`
+                            <input class="inp" placeholder="bookingId" ?readonly="${ro}"
+                                   title="JEXL over the process variables giving the key locked (required)"
+                                   .value="${step.lockKey ?? ""}"
+                                   @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {lockKey: (e.target as HTMLInputElement).value.trim() || undefined})}"/>`)}
+                    ` : nothing}
                     ${step.type === "HTTP_CALL" ? field("HTTP", html`
                         <input class="inp" readonly title="Edit the http block in the YAML"
                                .value="${(step.http?.method || "GET") + " " + (step.http?.connection
@@ -4048,9 +4138,24 @@ export class MateuWorkflowElk extends LitElement {
                         <input class="inp" readonly title="Edit the llm block in the YAML"
                                .value="${(step.llm?.connection || "") + (step.llm?.model ? " · " + step.llm.model : "")
                                    + (step.llm?.responseSchema ? " → JSON" : "")}"/>`) : ""}
-                    ${step.type === "TIMER" && step.until ? field("Until", html`
-                        <input class="inp" readonly title="Edit the until block in the YAML"
-                               .value="${describeMoment(step.until)}"/>`) : ""}
+                    ${step.type === "TIMER" ? html`
+                        ${field("Duration", html`
+                            <input class="inp" placeholder="PT72H, P3D or milliseconds" ?readonly="${ro}"
+                                   title="How long to wait from the moment the step starts"
+                                   .value="${step.duration === undefined || step.duration === null || step.duration === 0 ? "" : String(step.duration)}"
+                                   @change="${ro ? nothing : (e: Event) => {
+                                       const text = (e.target as HTMLInputElement).value.trim();
+                                       this.updateStep(step.id, {duration: !text ? undefined : /^\d+$/.test(text) ? Number(text) : text});
+                                   }}"/>`)}
+                        ${field("Until variable", html`
+                            <input class="inp" placeholder="checkoutDate" ?readonly="${ro}"
+                                   title="A variable holding an ISO date or date-time; takes precedence over the duration"
+                                   .value="${step.untilVariable ?? ""}"
+                                   @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {untilVariable: (e.target as HTMLInputElement).value.trim() || undefined})}"/>`)}
+                        ${step.until ? field("Until", html`
+                            <input class="inp" readonly title="Edit the until block in the YAML"
+                                   .value="${describeMoment(step.until)}"/>`) : nothing}
+                    ` : nothing}
                     ${step.deadline ? field("Deadline", html`
                         <input class="inp" readonly title="Edit the deadline in the YAML"
                                .value="${describeMoment(step.deadline)}"/>`) : ""}
@@ -4060,9 +4165,6 @@ export class MateuWorkflowElk extends LitElement {
                     ${(step.type === "HTTP_CALL" || step.type === "PUBLISH_EVENT") && step.awaitReply ? field("Awaits reply", html`
                         <input class="inp" readonly title="Edit the awaitReply block in the YAML"
                                .value="${describeAwaitReplyFully(step.awaitReply)}"/>`) : ""}
-                    ${step.type === "WAIT_FOR_MESSAGE" && step.onEvent ? field("Event source", html`
-                        <input class="inp" readonly title="Edit the onEvent block in the YAML"
-                               .value="${describeEventWait(step.onEvent)}"/>`) : ""}
                     ${step.type === "START" && this.wf.triggers?.length ? field("Event triggers", html`
                         <textarea class="inp" rows="${Math.min(4, this.wf.triggers.length)}" readonly
                                   title="Edit the triggers of the definition in the YAML"
@@ -4082,15 +4184,15 @@ export class MateuWorkflowElk extends LitElement {
                     ${step.type === "REPLY" ? field("Reply variables", html`
                         <input class="inp" placeholder="bookingId, status" ?readonly="${ro}"
                                .value="${(step.replyVariables ?? []).join(", ")}"
-                               @change="${ro ? nothing : (e: Event) => {
-                                   const names = (e.target as HTMLInputElement).value.split(",")
-                                       .map(v => v.trim()).filter(v => v.length > 0);
-                                   this.updateStep(step.id, {replyVariables: names.length ? names : undefined});
-                               }}"/>`) : ""}
+                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {replyVariables: parseNameList((e.target as HTMLInputElement).value)})}"/>`) : ""}
                     ${step.type === "REPLY" ? field("Reply expression", html`
                         <input class="inp" placeholder="{'id': bookingId}" ?readonly="${ro}"
                                .value="${step.replyExpression ?? ""}"
                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {replyExpression: (e.target as HTMLInputElement).value || undefined})}"/>`) : ""}
+                    ${step.type === "REPLY" && step.replyTemplate !== undefined && step.replyTemplate !== null ? field("Reply template", html`
+                        <input class="inp" readonly title="Edit the replyTemplate in the YAML"
+                               .value="${oneLine(step.replyTemplate)}"/>`) : nothing}
+                    ${this.renderAdvancedFields(step, ro, field)}
                 </div>
             </div>
         `;
@@ -4208,6 +4310,50 @@ export class MateuWorkflowElk extends LitElement {
                     ` : nothing}
                 </div>` : nothing}
         `;
+    }
+
+    /**
+     * The fields every step type has but few steps set — run cap, flow authorization — and the
+     * deprecated ones, shown only when a definition still carries them. Folded away unless one is
+     * set, so the common fields stay at the top.
+     */
+    private renderAdvancedFields(step: WorkflowStep, ro: boolean, field: (label: string, body: unknown) => unknown) {
+        const hasLegacy = !!step.preconditionExpression || step.parallel === true || step.rollbackable !== undefined && step.rollbackable !== null;
+        const isSet = !!step.maxSuccessfulExecutions || !!step.requiredScopes?.length || !!step.requiredRoles?.length || hasLegacy;
+        return html`
+            <details class="advanced" ?open="${isSet}">
+                <summary class="field-label">Advanced${isSet ? " ●" : ""}</summary>
+                <div class="advanced-body">
+                    ${field("Max successful executions", html`
+                        <input class="inp" type="number" min="0" ?readonly="${ro}" placeholder="0 — the workflow's default"
+                               title="Cap on how many times this step may succeed within one process (a runaway-loop backstop); 0 inherits the workflow's default"
+                               .value="${step.maxSuccessfulExecutions ? String(step.maxSuccessfulExecutions) : ""}"
+                               @change="${ro ? nothing : (e: Event) => {
+                                   const n = Number((e.target as HTMLInputElement).value);
+                                   this.updateStep(step.id, {maxSuccessfulExecutions: n > 0 ? n : undefined});
+                               }}"/>`)}
+                    ${field("Required scopes", html`
+                        <input class="inp" placeholder="bookings:write" ?readonly="${ro}"
+                               title="Flow authorization: scopes the caller must all hold for this step to run"
+                               .value="${(step.requiredScopes ?? []).join(", ")}"
+                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {requiredScopes: parseNameList((e.target as HTMLInputElement).value)})}"/>`)}
+                    ${field("Required roles", html`
+                        <input class="inp" placeholder="supervisor" ?readonly="${ro}"
+                               title="Flow authorization: roles the caller must all hold for this step to run"
+                               .value="${(step.requiredRoles ?? []).join(", ")}"
+                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {requiredRoles: parseNameList((e.target as HTMLInputElement).value)})}"/>`)}
+                    ${step.preconditionExpression ? field("Step condition (legacy)", html`
+                        <input class="inp" readonly
+                               title="The older step-wide condition, folded into every incoming link as a DISCARD guard. Edit it in the YAML — or prefer a condition on each connection."
+                               .value="${step.preconditionExpression}"/>`) : nothing}
+                    ${step.rollbackable !== undefined && step.rollbackable !== null ? field("Rollbackable (deprecated)", html`
+                        <input class="inp" readonly title="Deprecated alias for compensable. Edit it in the YAML."
+                               .value="${String(step.rollbackable)}"/>`) : nothing}
+                    ${step.parallel === true ? field("Parallel (deprecated)", html`
+                        <input class="inp" readonly title="Ignored by the engine: parallelism is FORK/JOIN and preconditions. Edit it in the YAML."
+                               .value="true — ignored"/>`) : nothing}
+                </div>
+            </details>`;
     }
 
     // ── Styles ────────────────────────────────────────────────────────────────
@@ -4762,6 +4908,9 @@ export class MateuWorkflowElk extends LitElement {
         .inp:focus {border-color: var(--ec-primary);}
         textarea.inp {resize: vertical;}
         input[readonly].inp {background: var(--ec-hover); color: var(--ec-text-faint);}
+        .advanced {border-top: 1px solid var(--ec-border); padding-top: .5rem;}
+        .advanced > summary {cursor: pointer; user-select: none;}
+        .advanced-body {display: flex; flex-direction: column; gap: .6rem; margin-top: .5rem;}
 
         /* precondition checklist */
         .checklist {
