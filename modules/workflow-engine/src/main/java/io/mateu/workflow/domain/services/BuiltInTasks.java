@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 
 /**
  * The tasks the platform serves itself: the step types whose work is a task like any worker's
- * (USER_TASK, RULE, HTTP_CALL, LLM_CALL, AGENT), with the task id the engine gives them and the topic
+ * (USER_TASK, RULE, HTTP_CALL, LLM_CALL, AGENT, PUBLISH_EVENT), with the task id the engine gives them and the topic
  * they go to when the step names none. The orchestration knows a step becomes a task; which task,
  * and where it goes, is read here rather than decided type by type across the engine.
  */
@@ -36,6 +36,8 @@ public final class BuiltInTasks {
         TASKS.put(StepType.HTTP_CALL, new Task(HttpRequestRenderer.TASK_ID, HttpRequestRenderer.DEFAULT_TOPIC, false));
         TASKS.put(StepType.LLM_CALL, new Task(LlmRequestRenderer.TASK_ID, LlmRequestRenderer.DEFAULT_TOPIC, false));
         TASKS.put(StepType.AGENT, new Task(AgentRequestRenderer.TASK_ID, AgentRequestRenderer.TOPIC, true));
+        // The engine renders the event; the built-in publish-event worker sends it to its destination.
+        TASKS.put(StepType.PUBLISH_EVENT, new Task(ExternalEventRenderer.TASK_ID, ExternalEventRenderer.DEFAULT_TOPIC, false));
     }
 
     private BuiltInTasks() {

@@ -210,6 +210,41 @@
             <version>1.0-SNAPSHOT</version>
         </dependency>
         -->
+        <!-- The built-in workers: the orchestrator serves HTTP_CALL, LLM_CALL and PUBLISH_EVENT itself, over
+             the same Kafka task contract as any worker (BUILTIN_WORKER_TOPICS). Turn one off with
+             workflow.http.enabled / workflow.llm.enabled / workflow.events.worker.enabled = false and take
+             its topic out of BUILTIN_WORKER_TOPICS to have a standalone worker serve it instead. -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>worker-kafka</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>worker-http</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>worker-llm</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <!-- LLM_CALL's providers, optional in worker-llm: the same ones llm-worker-standalone-app ships. -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-anthropic</artifactId>
+            <version>2.0.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-openai</artifactId>
+            <version>2.0.1</version>
+        </dependency>
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>worker-events</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
         <!--
         <dependency>
             <groupId>io.mateu.workflow</groupId>

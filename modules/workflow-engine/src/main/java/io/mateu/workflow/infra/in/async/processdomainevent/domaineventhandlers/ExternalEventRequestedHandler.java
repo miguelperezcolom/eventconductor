@@ -1,28 +1,25 @@
 package io.mateu.workflow.infra.in.async.processdomainevent.domaineventhandlers;
 
-import io.mateu.workflow.application.out.ExternalEventPublisher;
 import io.mateu.workflow.ddd.DomainEventHandler;
 import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.dtos.events.integration.ExternalEventRequested;
+import io.mateu.workflow.infra.out.events.PublishedEventDelivery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 /**
- * Embedded mode: a PUBLISH_EVENT's event, relayed off the outbox, handed to the application's
- * {@link ExternalEventPublisher} — and, unless {@code workflow.events.loopback=false}, received by
- * this engine's own event triggers and {@code onEvent} waits. Absent in kafka mode, where the relay sends it straight to the
- * destination's topic and it never comes back to a handler.
+ * Embedded mode: an event the engine itself publishes — a user task escalation's — relayed off the
+ * outbox and delivered ({@link PublishedEventDelivery}: the application's publisher, then the loopback).
+ * A PUBLISH_EVENT step's event does not come here: it is a task of the built-in publish-event worker.
+ * Absent in kafka mode, where the relay sends it straight to the destination's topic.
  */
 @Service
 @ConditionalOnProperty(name = "workflow.mode", havingValue = "embedded", matchIfMissing = true)
 @RequiredArgsConstructor
 public class ExternalEventRequestedHandler implements DomainEventHandler<ExternalEventRequested> {
 
-    private final ExternalEventPublisher externalEventPublisher;
-    /** Lazily: the inbound service reaches the engine's doors, which reach this handler. */
-    private final org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.services.InboundEventService> inboundEventService;
-    private final io.mateu.workflow.infra.config.EventDestinationsProperties eventDestinationsProperties;
+    private final PublishedEventDelivery publishedEventDelivery;
 
     @Override
     public Class<? extends DomainEvent> eventClass() {
@@ -31,12 +28,6 @@ public class ExternalEventRequestedHandler implements DomainEventHandler<Externa
 
     @Override
     public void handle(ExternalEventRequested event) {
-        externalEventPublisher.publish(event);
-        // Loopback: what this engine publishes can start or wake one of its own workflows, as it would
-        // through Kafka. After the publish, so the application sees its event whatever happens here;
-        // a failure here retries the whole event, and the receipts keep the second pass from acting twice.
-        if (eventDestinationsProperties.isLoopback()) {
-            inboundEventService.getObject().receive(io.mateu.workflow.domain.services.InboundEvents.fromPublished(event));
-        }
+        publishedEventDelivery.deliver(event);
     }
 }

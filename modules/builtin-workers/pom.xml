@@ -1,0 +1,43 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.mateu.workflow</groupId>
+        <artifactId>eventconductor</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>builtin-workers</artifactId>
+    <packaging>pom</packaging>
+    <name>builtin-workers</name>
+
+    <!--
+      Every built-in worker, served next to an embedded engine: one dependency beside workflow-engine and
+      HTTP_CALL, LLM_CALL and PUBLISH_EVENT steps need no worker of the application's own. The engine
+      itself depends on none of them — it dispatches their tasks like any other; these serve them.
+      (The orchestrator image ships the same workers over Kafka.)
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>worker-embedded</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>worker-events</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>worker-http</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>worker-llm</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
+</project>

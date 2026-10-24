@@ -75,5 +75,5 @@ Selected fields — `Process`: `id`, `workflowDefinitionId`, `workflowDefinition
 `upstream` (in: `ProcessCreationRequested`, `TaskStatusChanged`, `MessageReceived` as
 `{"type":"message-received","messageName":"…","correlationKey":"…","variables":[{"name":"k","value":"v"}]}`,
 operations commands), `downstream` (out: `TaskExecutionRequested`, cancellations; or the step's
-`topic`), `outbox` (internal), `http-calls`, `llm-calls`, `agent-calls` (AGENT → IA runtime), `dead-letter`, `human-tasks`. Canonical:
+`topic`), `outbox` (internal), `http-calls`, `llm-calls`, `event-publications` (PUBLISH_EVENT; these three served by the orchestrator's built-in workers), `agent-calls` (AGENT → IA runtime), `dead-letter`, `human-tasks`. Canonical:
 `doc/src/content/docs/reference/kafka-topics.md`.

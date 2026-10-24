@@ -1,0 +1,17 @@
+{
+  "id": "dist-builtin-workers",
+  "name": "Distributed: the orchestrator serves its built-in tasks",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "quote", "type": "HTTP_CALL", "name": "Quote", "preconditionStepId": "start",
+      "http": {
+        "connection": "pricing", "method": "GET", "path": "/quotes/${orderId}",
+        "output": { "price": "body.price" }
+      } },
+    { "id": "announce", "type": "PUBLISH_EVENT", "name": "Order priced", "preconditionStepId": "quote",
+      "event": { "destination": "priced", "type": "com.acme.order.priced", "key": "${orderId}",
+                 "payload": { "orderId": "${orderId}", "price": "${price * 1}" } } },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "announce" }
+  ]
+}

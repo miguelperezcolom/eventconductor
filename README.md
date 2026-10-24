@@ -356,6 +356,8 @@ eventconductor/
 │   ├── worker-codegen/        Generates worker project skeletons from task contracts
 │   ├── worker-http/           Built-in http-call task (HTTP_CALL steps)
 │   ├── worker-llm/            Built-in llm-call task (LLM_CALL steps, Spring AI)
+│   ├── worker-events/         Built-in publish-event task (PUBLISH_EVENT steps)
+│   ├── builtin-workers/       One dependency for every built-in step (worker-embedded + -events + -http + -llm)
 │   ├── workflow-maven-plugin/ Build-time validator for workflow/form/rule definitions
 │   ├── workflow-e2e/          End-to-end test suite (embedded + JPA/H2 modes)
 │   ├── workflow-test/         Test kit for users' definitions: @EventConductorTest, mocks, time skipping
@@ -365,13 +367,13 @@ eventconductor/
 │   ├── sample-worker/         Hello-world worker example
 │   └── test-worker/           Scenario-driven worker for testing workflows
 ├── apps/                      Runnable standalone apps + docker-compose.yml
-│   ├── orchestrator-standalone-app/  Workflow engine (UI, REST, MCP)
+│   ├── orchestrator-standalone-app/  Workflow engine (UI, REST, MCP) + built-in workers (HTTP_CALL, LLM_CALL, PUBLISH_EVENT)
 │   ├── projector-standalone-app/     Standalone CQRS projector for the fleet-wide process index
 │   ├── forms-standalone-app/  Forms engine
 │   ├── rule-standalone-app/   Rule catalog (REST + gRPC + UI + MCP)
 │   ├── worker-standalone-app/ Test worker (scenario playback + UI)
-│   ├── http-worker-standalone-app/   Kafka worker serving HTTP_CALL steps
-│   ├── llm-worker-standalone-app/    Kafka worker serving LLM_CALL steps
+│   ├── http-worker-standalone-app/   Optional Kafka worker serving HTTP_CALL steps apart from the orchestrator
+│   ├── llm-worker-standalone-app/    Optional Kafka worker serving LLM_CALL steps apart from the orchestrator
 │   ├── webhook-gateway-standalone-app/  Webhook gateway (signatures → CloudEvents → topic or engine)
 │   └── dev-app/               All engines in one JVM for development
 ├── parents/                   Maven parents for generated workers
@@ -500,8 +502,9 @@ public class MyApplication {
 | `outbox` | internal | Domain events relayed from the outbox table |
 | `upstream` | inbound | Integration events from external services (process creation, timeouts) |
 | `downstream` | outbound | Task execution requests sent to workers |
-| `http-calls` | outbound | `HTTP_CALL` requests, served by `http-worker-standalone-app` |
-| `llm-calls` | outbound | `LLM_CALL` prompts, served by `llm-worker-standalone-app` |
+| `http-calls` | outbound | `HTTP_CALL` requests, served by the orchestrator's built-in workers (or the optional `http-worker-standalone-app`) |
+| `llm-calls` | outbound | `LLM_CALL` prompts, served by the orchestrator's built-in workers (or the optional `llm-worker-standalone-app`) |
+| `event-publications` | outbound | `PUBLISH_EVENT` tasks, served by the orchestrator's built-in workers, which write the event to its destination topic |
 | `agent-calls` | outbound | `AGENT` invocations (`run-agent@1`), served by the IA agent runtime |
 | `dead-letter` | outbound | Events the engine can never process, parked for inspection and replay |
 
@@ -639,7 +642,7 @@ because nothing would ever start it.
 | `LOCK` | Acquires a named per-key lock (FIFO), serializing processes or critical sections on the same key | `lockKey` |
 | `UNLOCK` | Releases a lock taken by a `LOCK` step, admitting the next waiter | `lockKey` |
 | `REPLY` | Records the process's reply for a synchronous caller (no worker; the flow carries on) | — |
-| `PUBLISH_EVENT` | Publishes a domain event (CloudEvent) from the process's state, via the outbox | `event` |
+| `PUBLISH_EVENT` | Publishes a domain event (CloudEvent) from the process's state (built-in `publish-event` task) | `event` |
 | `HTTP_CALL` | Calls an HTTP endpoint and maps the response into variables (built-in `http-call` task) | `http` |
 | `LLM_CALL` | Asks a language model and maps its answer into variables (built-in `llm-call` task) | `llm` |
 | `AGENT` | Invokes an agent published in the IA catalogue (its prompt, model, tools and output schema are the catalogue's), run by the IA agent runtime; durable invocations, review holds ([guide](doc/src/content/docs/guides/workflow-agents.md)) | `agent` |

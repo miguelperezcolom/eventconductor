@@ -897,9 +897,10 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
                     .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
                     .toList(), dispatchCount));
         } else if (StepType.PUBLISH_EVENT.equals(step.type())) {
-            // No worker: the step-over renders the event, writes it to the outbox with this step's
-            // completion (published if and only if the step completed), and completes it — or, with an
-            // awaitReply, leaves it waiting for the reply, armed here before the event is even rendered.
+            // The step-over renders the event (it holds the destinations this aggregate cannot reach) and
+            // dispatches it to the built-in publish-event task (dispatchPublication), in this same unit of
+            // work; the worker sends it and completes the step — or, with an awaitReply, the reply does,
+            // its wait armed here before the event is even rendered.
             send(new TaskLogEmitted(id, MessageType.Info, "PUBLISH_EVENT step " + step.name() + " reached."));
             if (step.awaitsReply() && !armReplyWait(step, process)) {
                 return this;
@@ -964,6 +965,23 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         send(new TaskLogEmitted(id, MessageType.Info, "Waiting for a permit of the rate limit of topic '"
                 + topic() + "' before the task is dispatched."));
         return this;
+    }
+
+    /**
+     * Dispatches a PUBLISH_EVENT's rendered event to the built-in publish-event task, which sends it to
+     * its destination and reports back like any worker. The event travels as a task variable, so a
+     * redelivered or re-dispatched task sends the same event, with the same id.
+     */
+    public void dispatchPublication(io.mateu.workflow.dtos.events.integration.ExternalEventRequested event) {
+        var request = io.mateu.workflow.domain.services.ExternalEventRenderer.REQUEST_VARIABLE;
+        var taskVariables = new ArrayList<>(variables == null ? List.<Variable>of() : variables.stream()
+                .filter(variable -> !request.equals(variable.name())).toList());
+        taskVariables.add(new Variable(request, toJson(event)));
+        this.variables = taskVariables;
+        send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId,
+                io.mateu.workflow.domain.services.ExternalEventRenderer.TASK_ID, taskVariables.stream()
+                .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
+                .toList(), dispatchCount));
     }
 
     /** Queues an event for the outside world on this step, to be written to the outbox with it. */

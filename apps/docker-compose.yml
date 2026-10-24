@@ -76,6 +76,11 @@ services:
       # The admin login (user admin). A local-only default: override it with SECURITY_PASSWORD.
       # Left blank, the app would generate one it does not show, and nobody could log in.
       SECURITY_PASSWORD: ${SECURITY_PASSWORD:-changeme}
+      # The orchestrator serves HTTP_CALL, LLM_CALL and PUBLISH_EVENT itself (its built-in workers), so
+      # those steps need no worker container. Connections, auth profiles and secrets are deployment
+      # configuration (WORKFLOW_HTTP_CONNECTIONS_<NAME>_BASEURL=..., see the configuration reference);
+      # absolute URLs may only target the hosts listed here.
+      WORKFLOW_HTTP_ALLOWED_HOSTS: ""
     ports:
       - "8105:8080"
     depends_on:
@@ -134,27 +139,6 @@ services:
     depends_on:
       postgres-db:
         condition: service_healthy
-      redpanda:
-        condition: service_healthy
-    networks:
-      - backend
-
-  # ── HTTP worker ───────────────────────────────────────────────────────────────
-  # Serves HTTP_CALL steps from the http-calls topic. Connections, auth profiles and secrets are
-  # deployment configuration (WORKFLOW_HTTP_CONNECTIONS_<NAME>_BASEURL=..., see the configuration
-  # reference); absolute URLs may only target the hosts in WORKFLOW_HTTP_ALLOWED_HOSTS.
-  http-worker:
-    image: miguelperezcolom/http-worker-standalone-app:latest
-    container_name: http-worker
-    restart: on-failure
-    environment:
-      SERVER_PORT: 8080
-      KAFKA_BROKERS: redpanda:19092
-      HTTP_CALLS_TOPIC: http-calls
-      WORKFLOW_HTTP_ALLOWED_HOSTS: ""
-    ports:
-      - "8108:8080"
-    depends_on:
       redpanda:
         condition: service_healthy
     networks:

@@ -222,7 +222,8 @@ public final class MigrationRules {
         if (type == null || INSTANT_TYPES.contains(type)) {
             return false;
         }
-        return !"PUBLISH_EVENT".equals(type) || step.get("awaitReply") != null;
+        // A PUBLISH_EVENT waits for its publish-event worker (and, with an awaitReply, for the reply).
+        return true;
     }
 
     // ── Plan ─────────────────────────────────────────────────────────────────────────────────────

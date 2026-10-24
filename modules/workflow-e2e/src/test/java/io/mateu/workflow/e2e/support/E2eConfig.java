@@ -15,8 +15,10 @@ import org.springframework.context.annotation.Bean;
 public class E2eConfig {
 
     @Bean
-    public TestWorker testWorker(UpdateStepExecutionUseCase updateStepExecution) {
-        return new TestWorker(updateStepExecution);
+    public TestWorker testWorker(UpdateStepExecutionUseCase updateStepExecution,
+                                 org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.infra.out.events.PublishedEventDelivery> delivery) {
+        // Lazily: the engine's delivery reaches the engine's doors, which reach this worker.
+        return new TestWorker(updateStepExecution, (event, trace) -> delivery.getObject().deliver(event));
     }
 
     /**

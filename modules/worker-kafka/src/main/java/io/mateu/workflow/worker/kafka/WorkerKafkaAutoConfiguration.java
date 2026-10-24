@@ -92,8 +92,12 @@ public class WorkerKafkaAutoConfiguration {
      *
      * <p>Messages rather than bare payloads so the record's W3C trace headers — which the engine
      * puts on every task — reach the dispatcher, and the handler runs in the engine's trace.
+     *
+     * <p>Backs off for an application's own {@code consumeWorkerEvent}, like every other bean here: a
+     * service that hand-wires its consumer keeps it, with the SDK's dispatcher available to it.
      */
     @Bean
+    @ConditionalOnMissingBean(name = "consumeWorkerEvent")
     public Consumer<Message<DomainEvent>> consumeWorkerEvent(TaskDispatcher dispatcher,
                                                              CancelledTasks cancelledTasks) {
         return message -> route(dispatcher, cancelledTasks, message.getPayload(),

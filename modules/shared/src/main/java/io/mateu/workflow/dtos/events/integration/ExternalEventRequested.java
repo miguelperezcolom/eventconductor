@@ -3,10 +3,11 @@ package io.mateu.workflow.dtos.events.integration;
 import io.mateu.workflow.ddd.DomainEvent;
 
 /**
- * A domain event a {@code PUBLISH_EVENT} step emits for the outside world, written to the outbox in
- * the transaction that completes the step — so it is published if and only if the step completed —
- * and relayed from there: to the destination's topic in kafka mode, to the application's
- * {@code ExternalEventPublisher} in embedded mode.
+ * An event for the outside world. A {@code PUBLISH_EVENT} step's is rendered by the engine when the step
+ * starts and carried by its built-in {@code publish-event} task, whose worker sends it; a user task
+ * escalation's is written to the outbox with the escalation and relayed by the engine. Either way it
+ * goes to the destination's topic in kafka mode, to the application's {@code ExternalEventPublisher} in
+ * embedded mode.
  *
  * @param eventId              stable across relay retries and redeliveries (the step execution id):
  *                             consumers deduplicate on it

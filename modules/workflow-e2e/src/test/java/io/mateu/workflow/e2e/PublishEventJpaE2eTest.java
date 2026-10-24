@@ -12,7 +12,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
-/** PUBLISH_EVENT on the durable path: the event rides the outbox with the step's completion and is relayed once. */
+/**
+ * PUBLISH_EVENT on the durable path: its publish-event task rides the outbox with the step's start, the
+ * built-in worker sends the event, and it is published once.
+ */
 class PublishEventJpaE2eTest extends AbstractJpaE2eTest {
 
     @Autowired PublishedEvents published;
@@ -26,9 +29,13 @@ class PublishEventJpaE2eTest extends AbstractJpaE2eTest {
 
         var processId = process("pub-jpa-1").getId();
         await().atMost(TIMEOUT).untilAsserted(() -> assertThat(published.forProcess(processId)).hasSize(1));
+        var announce = step("pub-jpa-1", "announce").id();
         assertThat(outboxMessages().stream()
-                .filter(row -> row.getMessageType().endsWith("ExternalEventRequested")))
+                .filter(row -> row.getMessageType().endsWith("TaskExecutionRequested"))
+                .filter(row -> row.getPayload().contains(announce)))
                 .singleElement()
                 .satisfies(row -> assertThat(row.getStatus()).isEqualTo(OutboxMessageStatus.Sent.name()));
+        // The step's event is the worker's to send, not the relay's.
+        assertThat(outboxMessages()).noneMatch(row -> row.getMessageType().endsWith("ExternalEventRequested"));
     }
 }

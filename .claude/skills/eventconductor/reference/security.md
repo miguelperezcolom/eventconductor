@@ -45,6 +45,9 @@ Production embedded: add Spring Security (any `SecurityFilterChain` bean), or an
 
 ## HTTP_CALL credentials (worker-http)
 
+Set these wherever `worker-http` runs: in kafka mode the orchestrator itself (or the optional
+`http-worker-standalone-app`), in embedded mode the application.
+
 - Connections: `workflow.http.connections.<name>.{base-url, auth, connect-timeout, read-timeout, headers.*, idempotency-header}`.
 - Auth profiles: `workflow.http.auth.<name>.type` = `none|basic|bearer|api-key|oauth2-client-credentials`,
   fields `username, password, token, header, value, in (header|query), token-uri, client-id, client-secret, scope, hosts`.

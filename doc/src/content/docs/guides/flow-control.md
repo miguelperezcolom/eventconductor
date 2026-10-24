@@ -113,7 +113,7 @@ workflow:
 
 At most `permits` tasks of the topic are dispatched per `period` — to Kafka, to the [HTTP worker
 queue](/guides/http-workers/) and to the embedded worker alike: the limit sits where every dispatch passes. The
-topic is the step's `topic` (`downstream` for a step that names none; `http-calls`, `llm-calls` for the
+topic is the step's `topic` (`downstream` for a step that names none; `http-calls`, `llm-calls`, `event-publications` for the
 built-in tasks).
 
 Over the limit the task **waits**: its step stays `PENDING`, its log says so, and its timeout clock does not

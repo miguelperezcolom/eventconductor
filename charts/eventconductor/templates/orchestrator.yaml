@@ -45,6 +45,11 @@ spec:
           imagePullPolicy: {{ .Values.orchestrator.imagePullPolicy }}
           ports:
             - containerPort: {{ .Values.orchestrator.port }}
+          {{- if .Values.orchestrator.builtinWorkers.existingSecret }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.orchestrator.builtinWorkers.existingSecret }}
+          {{- end }}
           env:
             - name: SERVER_PORT
               value: {{ .Values.orchestrator.port | quote }}
@@ -95,6 +100,22 @@ spec:
             {{- end }}
             - name: SPRING_PROFILES_ACTIVE
               value: prod
+            # The built-in workers' topics: each task the orchestrator serves itself, unless its standalone
+            # worker is deployed — then that worker serves it and the orchestrator's own is off.
+            {{- $topics := list }}
+            {{- if not .Values.httpWorker.enabled }}{{- $topics = append $topics "http-calls" }}{{- end }}
+            {{- if not .Values.llmWorker.enabled }}{{- $topics = append $topics "llm-calls" }}{{- end }}
+            {{- $topics = append $topics "event-publications" }}
+            - name: BUILTIN_WORKER_TOPICS
+              value: {{ join "," $topics | quote }}
+            - name: BUILTIN_WORKERS_START_OFFSET
+              value: {{ .Values.orchestrator.builtinWorkers.startOffset | quote }}
+            - name: WORKFLOW_HTTP_ENABLED
+              value: {{ not .Values.httpWorker.enabled | quote }}
+            - name: WORKFLOW_LLM_ENABLED
+              value: {{ not .Values.llmWorker.enabled | quote }}
+            - name: WORKFLOW_HTTP_ALLOWED_HOSTS
+              value: {{ .Values.orchestrator.builtinWorkers.httpAllowedHosts | quote }}
             {{- range $k, $v := .Values.orchestrator.extraEnv }}
             - name: {{ $k }}
               value: {{ $v | quote }}

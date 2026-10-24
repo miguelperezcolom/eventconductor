@@ -318,7 +318,10 @@ the same rules over the REST API (`rules.source=rest`), which is behind the app'
 | `orchestrator.replicas` | `2` | Orchestrator pod count |
 | `orchestrator.dbPoolSize` | `16` | Connections per pod. Must cover both consumer bindings, the relay, the scanner and the UI |
 | `orchestrator.consumerConcurrency` | `3` | Consumer threads per pod, per binding |
-| `orchestrator.extraEnv` | `{}` | Extra environment, injected verbatim (tracing endpoints, git import, …) |
+| `orchestrator.extraEnv` | `{}` | Extra environment, injected verbatim (tracing endpoints, git import, HTTP/LLM connections, event destinations, …) |
+| `orchestrator.builtinWorkers.httpAllowedHosts` | `""` | Hosts the orchestrator's built-in HTTP_CALL worker may reach (`WORKFLOW_HTTP_ALLOWED_HOSTS`); empty = any host the SSRF guard lets through. Set it in production |
+| `orchestrator.builtinWorkers.existingSecret` | `""` | Secret loaded into the orchestrator's environment (`envFrom`): `WORKFLOW_HTTP_SECRETS_<NAME>` for `${secret:NAME}`, `WORKFLOW_LLM_CONNECTIONS_<NAME>_APIKEY` |
+| `orchestrator.builtinWorkers.startOffset` | `earliest` | Where the built-in workers' group starts on a new topic (`BUILTIN_WORKERS_START_OFFSET`); `latest` for the rollout that moves a topic from a standalone worker onto the orchestrator |
 | `forms.replicas` / `rules.replicas` | `2` | Pod counts |
 | `*.image` / `*.imageTag` | see values | Image; the tag defaults to the chart's `appVersion` |
 | `*.flywayTable` | per app | Migration history table for that app's engine. The three apps share one database and must not share one history table |
@@ -329,6 +332,11 @@ the same rules over the REST API (`rules.source=rest`), which is behind the app'
 
 ### Optional components: workers and webhook gateway
 
+The orchestrator serves `HTTP_CALL`, `LLM_CALL` and `PUBLISH_EVENT` itself — its built-in workers
+consume `http-calls`, `llm-calls` and `event-publications` (group `orchestrator-builtin-workers`) and
+are configured through `orchestrator.builtinWorkers` and `orchestrator.extraEnv` — so those steps
+need no worker deployment.
+
 Since chart 0.2.0 four more applications can be switched on. Each runs as non-root with a
 read-only root filesystem and all capabilities dropped, is probed on `/actuator/health/liveness`
 and `/readiness`, waits for Redpanda before starting, and gets a NetworkPolicy when
@@ -337,8 +345,8 @@ and `/readiness`, waits for Redpanda before starting, and gets a NetworkPolicy w
 | Component | Values key | Reads | Service | Secrets it may need |
 |---|---|---|---|---|
 | Test worker (`worker-standalone-app`) | `worker` | `downstream` | `worker:8108` (its UI) | none (DB credentials come from the chart's PostgreSQL Secret) |
-| HTTP worker (`http-worker-standalone-app`) | `httpWorker` | `http-calls` | — | `WORKFLOW_HTTP_SECRETS_<NAME>` for `${secret:NAME}` |
-| LLM worker (`llm-worker-standalone-app`) | `llmWorker` | `llm-calls` | — | `ANTHROPIC_API_KEY`, `LOCAL_LLM_API_KEY`, `WORKFLOW_LLM_CONNECTIONS_<NAME>_APIKEY` |
+| HTTP worker (`http-worker-standalone-app`), optional | `httpWorker` | `http-calls` | — | `WORKFLOW_HTTP_SECRETS_<NAME>` for `${secret:NAME}` |
+| LLM worker (`llm-worker-standalone-app`), optional | `llmWorker` | `llm-calls` | — | `ANTHROPIC_API_KEY`, `LOCAL_LLM_API_KEY`, `WORKFLOW_LLM_CONNECTIONS_<NAME>_APIKEY` |
 | Webhook gateway (`webhook-gateway-standalone-app`) | `webhookGateway` | — (receives `POST /webhooks/<name>`) | `webhook-gateway:8109` | `WORKFLOW_WEBHOOKS_ENDPOINTS_<NAME>_SECRET`; `ENGINE_API_KEY` with `transport: rest` |
 
 The chart never takes a credential as a value. Put them in a Secret of your own and name it in
@@ -359,7 +367,14 @@ helm upgrade ec charts/eventconductor --reuse-values \
 - **Test worker.** A simulator for tests and demos, not a production worker. `worker.persistence`
   is `jpa` (its two tables in the chart's PostgreSQL, created by itself; add `worker.dbPoolSize` to
   your `postgres.maxConnections` budget) or `memory` (no database, nothing survives a restart).
-- **HTTP worker.** Set `httpWorker.allowedHosts` in production. Only names listed under
+- **HTTP and LLM workers.** Optional: deploy one to keep that egress and its secrets or API keys
+  out of the orchestrator's pods. With `httpWorker.enabled` / `llmWorker.enabled` the chart takes
+  that topic out of the orchestrator's `BUILTIN_WORKER_TOPICS` and switches its own off
+  (`WORKFLOW_HTTP_ENABLED=false` / `WORKFLOW_LLM_ENABLED=false`), so a task never runs in both. Set
+  `orchestrator.builtinWorkers.startOffset=latest` for the upgrade that turns one off again, or the
+  tasks retained on its topic are run again by the orchestrator.
+- **HTTP worker.** Set `httpWorker.allowedHosts` in production (`orchestrator.builtinWorkers.httpAllowedHosts`
+  when the orchestrator serves HTTP_CALL). Only names listed under
   `workflow.http.secrets` resolve (see [HTTP calls](/guides/http-calls/)): a key
   `WORKFLOW_HTTP_SECRETS_PARTNER_TOKEN` in the Secret is what `${secret:PARTNER_TOKEN}` reaches.
 - **Webhook gateway.** `transport: kafka` (the default) publishes on the destination's topic, which

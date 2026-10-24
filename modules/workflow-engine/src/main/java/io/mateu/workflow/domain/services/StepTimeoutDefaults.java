@@ -52,7 +52,8 @@ public final class StepTimeoutDefaults {
     private static boolean needsDefault(Step step) {
         return step.timeout() <= 0
                 && (StepType.ACTION.equals(step.type()) || StepType.RULE.equals(step.type())
-                    || StepType.HTTP_CALL.equals(step.type()) || StepType.LLM_CALL.equals(step.type()));
+                    || StepType.HTTP_CALL.equals(step.type()) || StepType.LLM_CALL.equals(step.type())
+                    || StepType.PUBLISH_EVENT.equals(step.type()));
     }
 
     /**

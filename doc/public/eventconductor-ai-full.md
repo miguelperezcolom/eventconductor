@@ -32,7 +32,8 @@ or BOM: a project is a Spring Boot app with these dependencies.
 | `org.springframework.boot:spring-boot-starter-webmvc` | to serve the REST API, admin UI or MCP (optional in workflow-engine) |
 | `forms-engine` | `USER_TASK` steps (forms, task inbox) |
 | `rule-engine` / `rule-runtime` | `RULE` steps |
-| `worker-embedded` | typed `TaskHandler`s in the engine's JVM (needed for the built-in tasks below when embedded) |
+| `worker-embedded` | typed `TaskHandler`s in the engine's JVM (needed for the built-in tasks below when embedded; brings `worker-events`, which serves `PUBLISH_EVENT`) |
+| `builtin-workers` | every built-in step in one dependency: `worker-embedded` + `worker-events` + `worker-http` + `worker-llm` (LLM_CALL still needs a Spring AI provider) |
 | `worker-http` | `HTTP_CALL` in-process (+ `worker-embedded`) |
 | `worker-llm` + `spring-ai-anthropic` / `spring-ai-openai` | `LLM_CALL` in-process (+ `worker-embedded`) |
 | `worker-kafka` | a worker service over Kafka |
@@ -41,7 +42,11 @@ or BOM: a project is a Spring Boot app with these dependencies.
 
 Prebuilt images (Docker Hub `miguelperezcolom/*`): `orchestrator-standalone-app`, `forms-standalone-app`,
 `worker-standalone-app` (test worker), `http-worker-standalone-app`, `llm-worker-standalone-app`,
-`rule-standalone-app`, `webhook-gateway-standalone-app`, `projector-standalone-app`.
+`rule-standalone-app`, `webhook-gateway-standalone-app`, `projector-standalone-app`. The orchestrator image
+serves `HTTP_CALL`, `LLM_CALL` and `PUBLISH_EVENT` itself (built-in workers on `http-calls`, `llm-calls`,
+`event-publications`, group `orchestrator-builtin-workers`, topics `BUILTIN_WORKER_TOPICS`, start offset
+`BUILTIN_WORKERS_START_OFFSET`); the http/llm worker images are optional, to isolate egress and its
+secrets — never run one on a topic the orchestrator also serves (every task would run twice).
 
 ---
 
@@ -383,7 +388,7 @@ No worker. Records the process's reply — `replyVariables` (a JSON object of th
   "event": { "destination": "bookings", "type": "com.acme.booking.confirmed", "key": "${bookingId}",
              "payload": { "bookingId": "${bookingId}", "total": "${total * 1}" } } }
 ```
-No worker. The event (payload from a structured `payload` template, a text `payloadTemplate` or `payloadVariables`; key defaults to the business key, else the process id) is written to the outbox with the step's completion — published if and only if the step completed; at-least-once, `id` = the step execution id. Kafka: to the topic of `workflow.events.destinations.<destination>.topic` as a CloudEvent (binary: `ce_*` headers; or structured / plain). Embedded: `ExternalEventPublisher` (default Spring `ExternalEventPublished`). A definition never names a topic.
+No worker to write. The engine renders and checks the event when the step starts (payload from a structured `payload` template, a text `payloadTemplate` or `payloadVariables`; key defaults to the business key, else the process id; an unknown destination, a template error or an oversized payload fails the step at once) and dispatches it to the built-in task `publish-event@1` (library `worker-events`; event in task variable `__event`; topic `event-publications` in kafka mode, served by the orchestrator; a step's `topic` overrides), its request riding the outbox with the step's state. The worker sends the event and completes the step — after sending; at-least-once, `id` = the step execution id, stable across redeliveries. Retries, timeouts (`workflow.default-step-timeout-ms` too) and incidents as for any task; failure codes `EVENT_DESTINATION` (final), `EVENT_IO` (retried), `EVENT_REQUEST` (final). Kafka: to the topic of `workflow.events.destinations.<destination>.topic` as a CloudEvent (binary: `ce_*` headers; or structured / plain). Embedded: `ExternalEventPublisher` (default Spring `ExternalEventPublished`), then the loopback. A definition never names a topic. A hand-written `EmbeddedTaskExecutor` must serve `publish-event@1`, or PUBLISH_EVENT steps stay PENDING.
 
 **`awaitReply: {messageName, correlationExpression, onEvent?}`** (HTTP_CALL and PUBLISH_EVENT, since 2.28.0) makes the request step wait for its reply — asynchronous request/response in one step: the wait is armed in the transaction that sends the request, so a fast reply is never lost (a `WAIT_FOR_MESSAGE` placed *after* the request can lose it); the step completes when the reply is correlated; `timeout`/`deadline`/`retries`/`onTimeoutStepId` bound the whole exchange, a retry re-sends and re-arms (a retried PUBLISH_EVENT gets id `<step execution id>-<attempt>`). HTTP_CALL: a 2xx before the reply is recorded (`output` mapped) and the step keeps waiting; a reply before the response completes the step and the late response is ignored; a failed request fails the step as usual.
 
@@ -393,7 +398,7 @@ No worker. The event (payload from a structured `payload` template, a text `payl
   "http": { "connection": "payments", "method": "POST", "path": "/charges/${bookingId}",
             "body": { "amount": "${amount * 1}" }, "output": { "chargeId": "body.id" } } }
 ```
-The engine renders the request (templates in url/path, query, headers, body) and dispatches the built-in task `http-call@1` (library `worker-http`: embedded in the engine's pod, or topic `http-calls` served by `http-worker-standalone-app`). `successStatus` (default 2xx) completes and maps `output` (JEXL over `{status, headers, body}`) into variables; otherwise `HTTP_<status>` / `HTTP_IO`, retried only if `retryOn` (default `[5xx, io]`) covers it — a 4xx is final and compensation runs. `Idempotency-Key` = step execution id. Auth: named profile (`workflow.http.auth.<name>`) or inline with `${secret:NAME}` credentials only; absolute URLs subject to `workflow.http.allowed-hosts` and never internal addresses. Credentials are bound to hosts: a named profile reaches an absolute URL only when its host is in the profile's `hosts` (or `allowed-hosts` is set), else only through a connection; inline `${secret:…}` credentials reach an absolute URL only when `allowed-hosts` is set; otherwise `HTTP_FORBIDDEN_AUTH` (`workflow.http.credentials-to-any-host=true` lifts it).
+The engine renders the request (templates in url/path, query, headers, body) and dispatches the built-in task `http-call@1` (library `worker-http`: embedded in the engine's pod, or topic `http-calls` served by the orchestrator itself — optionally by `http-worker-standalone-app` instead). `successStatus` (default 2xx) completes and maps `output` (JEXL over `{status, headers, body}`) into variables; otherwise `HTTP_<status>` / `HTTP_IO`, retried only if `retryOn` (default `[5xx, io]`) covers it — a 4xx is final and compensation runs. `Idempotency-Key` = step execution id. Auth: named profile (`workflow.http.auth.<name>`) or inline with `${secret:NAME}` credentials only; absolute URLs subject to `workflow.http.allowed-hosts` and never internal addresses. Credentials are bound to hosts: a named profile reaches an absolute URL only when its host is in the profile's `hosts` (or `allowed-hosts` is set), else only through a connection; inline `${secret:…}` credentials reach an absolute URL only when `allowed-hosts` is set; otherwise `HTTP_FORBIDDEN_AUTH` (`workflow.http.credentials-to-any-host=true` lifts it).
 
 ### LLM_CALL — ask a language model
 ```json
@@ -402,7 +407,7 @@ The engine renders the request (templates in url/path, query, headers, body) and
            "responseSchema": { "type": "object", "required": ["category"] },
            "output": { "category": "json.category" }, "usageVariable": "triageUsage" } }
 ```
-The engine renders `system` and `prompt` (text templates) and dispatches the built-in task `llm-call@1` (library `worker-llm` on Spring AI, with `spring-ai-anthropic` and/or `spring-ai-openai`: embedded in the engine's pod, or topic `llm-calls` served by `llm-worker-standalone-app`). Connections are configuration: `workflow.llm.connections.<name>` = `provider` (`anthropic` | `openai`), `model`, `api-key`, `base-url`, `temperature`, `max-tokens` (4096), `timeout` (PT60S), `structured-output` (`prompt` | `native`). A step may override `model`, `temperature`, `maxTokens`. With `responseSchema` the answer must be one JSON document valid against it (`LLM_INVALID_OUTPUT` otherwise, retried). Answer → `outputVariable` (text / JSON) and `output` (JEXL over `{text, json, usage, model, finishReason}`); token usage → `usageVariable`. Provider 4xx → `LLM_<status>`, final; 408/409/429/5xx and `LLM_IO` retried. Metrics: `eventconductor.llm.call{workflow,step,connection,model,outcome}`, `eventconductor.llm.tokens{workflow,step,connection,model,type}`.
+The engine renders `system` and `prompt` (text templates) and dispatches the built-in task `llm-call@1` (library `worker-llm` on Spring AI, with `spring-ai-anthropic` and/or `spring-ai-openai`: embedded in the engine's pod, or topic `llm-calls` served by the orchestrator itself — optionally by `llm-worker-standalone-app` instead). Connections are configuration: `workflow.llm.connections.<name>` = `provider` (`anthropic` | `openai`), `model`, `api-key`, `base-url`, `temperature`, `max-tokens` (4096), `timeout` (PT60S), `structured-output` (`prompt` | `native`). A step may override `model`, `temperature`, `maxTokens`. With `responseSchema` the answer must be one JSON document valid against it (`LLM_INVALID_OUTPUT` otherwise, retried). Answer → `outputVariable` (text / JSON) and `output` (JEXL over `{text, json, usage, model, finishReason}`); token usage → `usageVariable`. Provider 4xx → `LLM_<status>`, final; 408/409/429/5xx and `LLM_IO` retried. Metrics: `eventconductor.llm.call{workflow,step,connection,model,outcome}`, `eventconductor.llm.tokens{workflow,step,connection,model,type}`.
 
 ### AGENT — run an agent published in the IA catalogue
 ```json
@@ -678,7 +683,7 @@ no `task`, its step id) run by `worker-embedded` or `worker-kafka`; a Kafka cons
 
 ### Embedded worker (mode: embedded)
 
-Register ONE `EmbeddedTaskExecutor` bean; branch on `stepId` (the `topic` is ignored in embedded mode). A hand-written executor replaces `worker-embedded`'s, so it would also receive the built-in `HTTP_CALL`/`LLM_CALL` tasks — when you use those embedded, write your workers as `TaskHandler`s instead.
+Register ONE `EmbeddedTaskExecutor` bean; branch on `stepId` (the `topic` is ignored in embedded mode). A hand-written executor replaces `worker-embedded`'s, so it would also receive the built-in `HTTP_CALL`/`LLM_CALL`/`PUBLISH_EVENT` tasks (a PUBLISH_EVENT it does not serve stays PENDING) — when you use those embedded, write your workers as `TaskHandler`s instead.
 
 Mind the two `Variable` records: `UpdateStepExecutionCommand` takes `io.mateu.workflow.domain.aggregates.Variable`, while the events (`TaskExecutionRequested`, `TaskStatusChanged`, `ProcessCreationRequested`) use `io.mateu.workflow.dtos.Variable` — import the right one per use.
 
@@ -882,7 +887,7 @@ Workers may only report `RUNNING`, `COMPLETED`, `ERROR`.
 | `upstream` | into the orchestrator | `ProcessCreationRequested`, `TaskStatusChanged`, `MessageReceived` (`{"type":"message-received","messageName":"...","correlationKey":"...","variables":[{"name":"...","value":"..."}]}`) |
 | `downstream` | orchestrator → workers | `TaskExecutionRequested` (per ACTION step `topic`) |
 | `outbox` | internal | orchestrator outbox relay |
-| `http-calls` / `llm-calls` | orchestrator → built-in workers | `HTTP_CALL` / `LLM_CALL` tasks |
+| `http-calls` / `llm-calls` / `event-publications` | orchestrator → built-in workers (in the orchestrator) | `HTTP_CALL` / `LLM_CALL` / `PUBLISH_EVENT` tasks |
 | `agent-calls` | orchestrator → IA agent runtime | `AGENT` invocations (`run-agent@1`, `invocationId`); replies on `upstream` |
 | `dead-letter` | out | records parked as permanently unprocessable |
 | `human-tasks` | forms engine → out | task lifecycle CloudEvents `io.eventconductor.task.*` |

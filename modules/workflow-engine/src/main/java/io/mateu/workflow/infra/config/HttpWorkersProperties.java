@@ -36,7 +36,8 @@ public class HttpWorkersProperties {
 
     /**
      * The step topics served over HTTP ({@code downstream} is the topic of a step that names none).
-     * {@code *} routes every topic except the built-in tasks' (USER_TASK, RULE, HTTP_CALL, LLM_CALL),
+     * {@code *} routes every topic except the built-in tasks' (USER_TASK, RULE, HTTP_CALL, LLM_CALL, AGENT,
+     * PUBLISH_EVENT),
      * which naming their topic explicitly still routes. Every other topic keeps going to the embedded
      * or Kafka workers.
      */

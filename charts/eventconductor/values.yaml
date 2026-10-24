@@ -95,6 +95,22 @@ orchestrator:
   # Extra environment variables injected verbatim (e.g. git-import config via Spring
   # relaxed binding: WORKFLOW_GITIMPORT_REPOSITORIES_0_URL / _0_BRANCH).
   extraEnv: {}
+  # The built-in workers: the orchestrator serves the HTTP_CALL, LLM_CALL and PUBLISH_EVENT tasks itself,
+  # so a definition using them needs no worker deployment. A task whose standalone worker is enabled
+  # (httpWorker / llmWorker below) is left to that worker, and the orchestrator's own is switched off —
+  # use them to keep egress and its secrets out of the orchestrator's pods.
+  builtinWorkers:
+    # Comma-separated hosts HTTP_CALL may reach. Empty means any host the SSRF guard lets through;
+    # set it in production.
+    httpAllowedHosts: ""
+    # Name of an existing Secret loaded into the orchestrator's environment: the values HTTP_CALL's
+    # ${secret:NAME} may reach (WORKFLOW_HTTP_SECRETS_<NAME>) and the LLM API keys
+    # (WORKFLOW_LLM_CONNECTIONS_<NAME>_APIKEY). Connections and destinations go in orchestrator.extraEnv.
+    existingSecret: ""
+    # Where the built-in workers' consumer group starts the first time it meets a topic. Set latest for the
+    # rollout that moves a topic from a standalone worker onto the orchestrator, or the tasks retained on it
+    # are run again.
+    startOffset: earliest
   security:
     enabled: true
     user: admin
@@ -244,8 +260,9 @@ worker:
     enabled: false
     minAvailable: 1
 
-# The HTTP worker (http-worker-standalone-app): executes the requests of HTTP_CALL steps, read from
-# the `http-calls` topic. Connections and auth profiles go in extraEnv; the values a definition's
+# The HTTP worker (http-worker-standalone-app), optional: the orchestrator serves HTTP_CALL itself
+# (orchestrator.builtinWorkers). Enable this to move HTTP egress and its secrets out of the orchestrator's
+# pods; the orchestrator then leaves the `http-calls` topic to it. Connections and auth profiles go in extraEnv; the values a definition's
 # ${secret:NAME} may reach go in existingSecret under keys WORKFLOW_HTTP_SECRETS_<NAME> — only what
 # is listed under workflow.http.secrets resolves (see the HTTP calls guide).
 httpWorker:
@@ -272,8 +289,9 @@ httpWorker:
     enabled: false
     minAvailable: 1
 
-# The LLM worker (llm-worker-standalone-app): executes the prompts of LLM_CALL steps, read from the
-# `llm-calls` topic. API keys go in existingSecret (ANTHROPIC_API_KEY, LOCAL_LLM_API_KEY,
+# The LLM worker (llm-worker-standalone-app), optional: the orchestrator serves LLM_CALL itself
+# (orchestrator.builtinWorkers). Enable this to keep model egress and its API keys apart; the orchestrator
+# then leaves the `llm-calls` topic to it. API keys go in existingSecret (ANTHROPIC_API_KEY, LOCAL_LLM_API_KEY,
 # WORKFLOW_LLM_CONNECTIONS_<NAME>_APIKEY); models, base URLs and extra connections in extraEnv
 # (CLAUDE_MODEL, LOCAL_LLM_BASE_URL, WORKFLOW_LLM_CONNECTIONS_<NAME>_PROVIDER, …).
 llmWorker:

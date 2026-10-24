@@ -363,7 +363,7 @@ class MigrationRulesTest {
         assertThat(problems).anySatisfy(p -> assertThat(p.toString()).startsWith("ERROR [c]"));
         assertThat(problems).anySatisfy(p -> assertThat(p.toString()).startsWith("ERROR [ask]"));
         assertThat(problems).anySatisfy(p -> assertThat(p.toString()).startsWith("WARNING [fork]"));
-        assertThat(problems).anySatisfy(p -> assertThat(p.toString()).startsWith("WARNING [pub]"));
+        assertThat(problems).anySatisfy(p -> assertThat(p.toString()).startsWith("ERROR [pub]"));
         assertThat(problems).anySatisfy(p -> assertThat(p.message()).contains("'a' → 'a': the task contract changed"));
     }
 

@@ -30,8 +30,9 @@ Spring Boot 4.1, Java 21. Full reference: `eventconductor-ai-full.md`. Examples 
 ```
 Add only what you use: `spring-boot-starter-webmvc` (serve REST/UI/MCP — optional in the engine),
 `forms-engine` (USER_TASK), `rule-engine`/`rule-runtime` (RULE), `worker-embedded` (typed `TaskHandler`s
-in-process), `worker-http` + `worker-embedded` (HTTP_CALL in-process), `worker-llm` + `worker-embedded` +
-`spring-ai-anthropic`/`spring-ai-openai` (LLM_CALL), `inbound-events-kafka` (kafka mode with
+in-process; also serves PUBLISH_EVENT), `worker-http` + `worker-embedded` (HTTP_CALL in-process), `worker-llm` +
+`worker-embedded` + `spring-ai-anthropic`/`spring-ai-openai` (LLM_CALL) — or `builtin-workers` (all built-in
+steps in one dependency; LLM_CALL still needs a provider), `inbound-events-kafka` (kafka mode with
 triggers/`onEvent`), `flyway-core` (jpa).
 
 ```java
@@ -60,7 +61,9 @@ and `cron.yaml` there hold triggers/schedules). Loop: `mvn eventconductor:valida
 Flyway migrations target PostgreSQL and H2. Standalone images: `orchestrator-standalone-app`,
 `forms-standalone-app`, `worker-standalone-app`, `http-worker-standalone-app`, `llm-worker-standalone-app`,
 `rule-standalone-app`, `webhook-gateway-standalone-app` (`apps/docker-compose.yml`: orchestrator on 8105,
-HTTP Basic `admin:$SECURITY_PASSWORD`).
+HTTP Basic `admin:$SECURITY_PASSWORD`). The orchestrator serves HTTP_CALL, LLM_CALL and PUBLISH_EVENT itself
+(built-in workers, group `orchestrator-builtin-workers`, `BUILTIN_WORKER_TOPICS`); the http/llm worker images
+are optional, to keep egress and its secrets out of the orchestrator.
 
 ---
 
@@ -140,8 +143,8 @@ steps:
 | `TIMER` | exactly one of `duration`, `untilVariable`, `until` |
 | `WAIT_FOR_MESSAGE` | `messageName` + `correlationExpression` (`businessKey` for the key); `onEvent: {destination, type, correlationKey, filter, variables}`; unmatched messages are dropped, not buffered |
 | `SEND_MESSAGE` | emit a message (`messageVariables`); fire-and-forget |
-| `PUBLISH_EVENT` | domain event via the outbox; destination mapped by `workflow.events.destinations.<name>.topic`; CloudEvents on Kafka |
-| `HTTP_CALL` | built-in `http-call@1` (worker-http; topic `http-calls`); `output` = JEXL over `{status, headers, body}`; default `retryOn: [5xx, io]` (4xx final); same `Idempotency-Key` on retries |
+| `PUBLISH_EVENT` | domain event, rendered by the engine, sent by built-in `publish-event@1` (worker-events; topic `event-publications`), which completes the step after sending; at-least-once, stable `ce_id`; destination mapped by `workflow.events.destinations.<name>.topic`; CloudEvents on Kafka |
+| `HTTP_CALL` | built-in `http-call@1` (worker-http; topic `http-calls`, served by the orchestrator in kafka mode); `output` = JEXL over `{status, headers, body}`; default `retryOn: [5xx, io]` (4xx final); same `Idempotency-Key` on retries |
 | `LLM_CALL` | built-in `llm-call@1` (worker-llm; `llm-calls`); `responseSchema` validated (`LLM_INVALID_OUTPUT`); `output` over `{text, json, usage, model}` |
 | `AGENT` | invoke an agent published in the IA catalogue (`ref` checked at import; prompt, model, tools, output schema are the catalogue's): task `run-agent@1` on `agent-calls`, variable `__agent`, `invocationId` on every reply; `retries: 0`, timeout 5 min; result = exactly `outputVariable` (JSON, `json:parse(x).f`); uncertain outcome → `REVIEW_REQUIRED` + process `PAUSED` until reconciled; `forEach` = one invocation per item |
 | `PROCESS` | child with ALL parent variables, key `parent:<stepExecutionId>`; `outputVariables` come back |
