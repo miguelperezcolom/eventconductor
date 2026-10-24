@@ -106,6 +106,12 @@ interface WorkflowStep {
     llm?: { connection?: string; model?: string; responseSchema?: unknown };
     /** Worker steps only: 0–100, higher first; absent means the default, 50. */
     priority?: number;
+    /** USER_TASK only: who the task is for and how urgent it is, rendered from the process. */
+    assignment?: TaskAssignment;
+    /** USER_TASK only: what happens while the task stays open, in the order the entries fire. */
+    escalation?: EscalationLevel[];
+    /** Whether this step's outputVariables are sensitive (encrypted, masked). */
+    sensitiveOutputs?: boolean;
     /** CONTINUE_AS_NEW only: the version the next run starts from and the variables it carries. */
     continueAsNew?: ContinueAsNewSpec;
     /** TIMER only: wait a duration, until a variable's date, or until a moment. */
@@ -239,6 +245,49 @@ function describeRepeat(r: RepeatSpec): string {
 /** "↺ while … · ≤N" for a loopBack. */
 function describeLoopBack(l: LoopBackSpec): string {
     return "↺ " + (l.while ? "while " + l.while : "loop") + (l.maxIterations ? " · ≤" + l.maxIterations : "");
+}
+
+/** A USER_TASK's assignment: an assignee, candidates (a list, or one template giving one), priority and dates. */
+interface TaskAssignment {
+    assignee?: string;
+    candidateUsers?: string[] | string;
+    candidateGroups?: string[] | string;
+    priority?: number | string;
+    dueDate?: string;
+    followUpDate?: string;
+}
+
+/** One escalation entry of a USER_TASK. */
+interface EscalationLevel {
+    after?: string;
+    action?: "reassign" | "notify" | "escalateTo";
+    to?: {assignee?: string; candidateUsers?: string[] | string; candidateGroups?: string[] | string};
+    escalateTo?: string;
+}
+
+/** A candidate list as the panel types it: "a, b", or the one template that gives the list. */
+function candidatesText(value: string[] | string | undefined): string {
+    return value === undefined ? "" : Array.isArray(value) ? value.join(", ") : value;
+}
+
+/** Back from the panel: a single ${...} template stays one template, anything else is a comma list. */
+function parseCandidates(text: string): string[] | string | undefined {
+    const trimmed = text.trim();
+    if (trimmed === "") return undefined;
+    if (trimmed.startsWith("${") && trimmed.endsWith("}") && !trimmed.includes(",")) return trimmed;
+    return parseNameList(trimmed);
+}
+
+/** "PT48H reassign → ops · P3D escalate → manual-review" — a USER_TASK's escalation, in firing order. */
+function describeEscalation(levels: EscalationLevel[]): string {
+    return levels.map(level => {
+        const action = level.action ?? (level.escalateTo ? "escalateTo" : level.to ? "reassign" : "notify");
+        const target = action === "escalateTo" ? " → " + (level.escalateTo || "?")
+            : action === "reassign" ? " → " + (level.to?.assignee || candidatesText(level.to?.candidateGroups)
+                || candidatesText(level.to?.candidateUsers) || "?")
+            : "";
+        return (level.after || "?") + " " + (action === "escalateTo" ? "escalate" : action) + target;
+    }).join(" · ");
 }
 
 /** Step types whose task is dispatched to a worker, and so may be routed to a topic of their own. */
@@ -4044,6 +4093,7 @@ export class MateuWorkflowElk extends LitElement {
                     ${step.type === "USER_TASK" ? field("Form ID", html`
                         <input class="inp" ?readonly="${ro}" .value="${step.formId ?? ""}"
                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {formId: (e.target as HTMLInputElement).value || undefined})}"/>`) : ""}
+                    ${step.type === "USER_TASK" ? this.renderAssignmentFields(step, ro, field) : nothing}
                     ${step.type === "RULE" ? field("Rule ID", html`
                         <input class="inp" ?readonly="${ro}" .value="${step.ruleId ?? ""}"
                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {ruleId: (e.target as HTMLInputElement).value || undefined})}"/>`) : ""}
@@ -4313,13 +4363,57 @@ export class MateuWorkflowElk extends LitElement {
     }
 
     /**
+     * A USER_TASK's assignment, field by field — every value may be a template over the process — and
+     * its escalation, read-only. An assignment whose fields are all cleared is dropped from the step.
+     */
+    private renderAssignmentFields(step: WorkflowStep, ro: boolean, field: (label: string, body: unknown) => unknown) {
+        const a = step.assignment ?? {};
+        const set = (patch: Partial<TaskAssignment>) => {
+            const next: TaskAssignment = {...a, ...patch};
+            (Object.keys(next) as (keyof TaskAssignment)[]).forEach(k => {
+                if (next[k] === undefined || next[k] === "") delete next[k];
+            });
+            this.updateStep(step.id, {assignment: Object.keys(next).length ? next : undefined});
+        };
+        const text = (key: "assignee" | "dueDate" | "followUpDate", placeholder: string, title: string) => html`
+            <input class="inp" placeholder="${placeholder}" ?readonly="${ro}" title="${title}" data-assignment="${key}"
+                   .value="${a[key] ?? ""}"
+                   @change="${ro ? nothing : (e: Event) => set({[key]: (e.target as HTMLInputElement).value.trim() || undefined})}"/>`;
+        const candidates = (key: "candidateUsers" | "candidateGroups", placeholder: string, title: string) => html`
+            <input class="inp" placeholder="${placeholder}" ?readonly="${ro}" title="${title}" data-assignment="${key}"
+                   .value="${candidatesText(a[key])}"
+                   @change="${ro ? nothing : (e: Event) => set({[key]: parseCandidates((e.target as HTMLInputElement).value)})}"/>`;
+        return html`
+            ${field("Assignee", text("assignee", "${owner}", "The user the task is assigned to: a name or a ${...} template; empty is unassigned"))}
+            ${field("Candidate users", candidates("candidateUsers", "alice, bob", "Users who may claim the task: names or templates, or one template giving a list"))}
+            ${field("Candidate groups", candidates("candidateGroups", "approvers", "Groups (the caller's roles) whose members may claim the task"))}
+            ${field("Task priority", html`
+                <input class="inp" placeholder="50" ?readonly="${ro}" data-assignment="priority"
+                       title="0-100, higher is more urgent (default 50), or a \${...} template giving one"
+                       .value="${a.priority === undefined ? "" : String(a.priority)}"
+                       @change="${ro ? nothing : (e: Event) => {
+                           const raw = (e.target as HTMLInputElement).value.trim();
+                           set({priority: raw === "" ? undefined : /^\d+$/.test(raw) ? Number(raw) : raw});
+                       }}"/>`)}
+            ${field("Due", text("dueDate", "P3D", "When the task is due: a duration from its creation, a date or date-time, or a template"))}
+            ${field("Follow up", text("followUpDate", "P1D", "When someone should look at the task again, in the same forms as Due"))}
+            ${step.escalation?.length ? field("Escalation", html`
+                <input class="inp" readonly title="Edit the escalation list in the YAML"
+                       .value="${describeEscalation(step.escalation)}"/>`) : nothing}`;
+    }
+
+    /**
      * The fields every step type has but few steps set — run cap, flow authorization — and the
      * deprecated ones, shown only when a definition still carries them. Folded away unless one is
      * set, so the common fields stay at the top.
      */
     private renderAdvancedFields(step: WorkflowStep, ro: boolean, field: (label: string, body: unknown) => unknown) {
         const hasLegacy = !!step.preconditionExpression || step.parallel === true || step.rollbackable !== undefined && step.rollbackable !== null;
-        const isSet = !!step.maxSuccessfulExecutions || !!step.requiredScopes?.length || !!step.requiredRoles?.length || hasLegacy;
+        // A PROCESS shows its output variables with the child's fields; any other step may declare them
+        // here, to mark them sensitive.
+        const outputsHere = step.type !== "PROCESS" && !["START", "END", "FORK", "JOIN", "CHOICE"].includes(step.type);
+        const isSet = !!step.maxSuccessfulExecutions || !!step.requiredScopes?.length || !!step.requiredRoles?.length
+            || step.sensitiveOutputs === true || outputsHere && !!step.outputVariables?.length || hasLegacy;
         return html`
             <details class="advanced" ?open="${isSet}">
                 <summary class="field-label">Advanced${isSet ? " ●" : ""}</summary>
@@ -4342,6 +4436,16 @@ export class MateuWorkflowElk extends LitElement {
                                title="Flow authorization: roles the caller must all hold for this step to run"
                                .value="${(step.requiredRoles ?? []).join(", ")}"
                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {requiredRoles: parseNameList((e.target as HTMLInputElement).value)})}"/>`)}
+                    ${outputsHere ? field("Output variables", html`
+                        <input class="inp" placeholder="pan, cvv" ?readonly="${ro}" data-output-variables="${step.id}"
+                               title="The variables this step writes, named so that Sensitive outputs can protect them"
+                               .value="${(step.outputVariables ?? []).join(", ")}"
+                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {outputVariables: parseNameList((e.target as HTMLInputElement).value)})}"/>`) : nothing}
+                    ${outputsHere || step.type === "PROCESS" ? field("Sensitive outputs", html`
+                        <input type="checkbox" ?disabled="${ro}" data-sensitive-outputs="${step.id}"
+                               title="This step's output variables are sensitive: encrypted at rest and in transit, masked in the console, REST and MCP (needs output variables)"
+                               ?checked="${step.sensitiveOutputs === true}"
+                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {sensitiveOutputs: (e.target as HTMLInputElement).checked || undefined})}"/>`) : nothing}
                     ${step.preconditionExpression ? field("Step condition (legacy)", html`
                         <input class="inp" readonly
                                title="The older step-wide condition, folded into every incoming link as a DISCARD guard. Edit it in the YAML — or prefer a condition on each connection."
