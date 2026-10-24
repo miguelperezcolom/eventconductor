@@ -7,25 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.35.0] - 2026-10-24
+
 The orchestration core no longer performs actions. HTTP_CALL, LLM_CALL and now PUBLISH_EVENT are tasks served by built-in workers, and those workers ship inside the orchestrator: a definition that calls an API, asks a model or publishes an event needs no worker deployment.
 
 ### Upgrading
-- **Applications with a hand-written `EmbeddedTaskExecutor`** (instead of `worker-embedded`) must now serve `publish-event@1` too, for example by adding `worker-events` and dispatching through the worker SDK. Otherwise their PUBLISH_EVENT steps stay PENDING. Applications that run `worker-embedded`, or the test kit, need nothing: `worker-embedded` brings `worker-events`.
-- **Kafka deployments that already run `http-worker-standalone-app` / `llm-worker-standalone-app`**: with the Helm chart, nothing to do, because an enabled `httpWorker` / `llmWorker` takes its topic out of the orchestrator's. Elsewhere, keep only one consumer per topic. Either remove the topic from the orchestrator's `BUILTIN_WORKER_TOPICS` and set `workflow.http.enabled=false` / `workflow.llm.enabled=false` on it, or retire the standalone worker. To move a topic onto the orchestrator, roll out once with `BUILTIN_WORKERS_START_OFFSET=latest`, or the tasks still retained on the topic run again.
-- New topic **`event-publications`**: auto-created where `auto-create-topics` is on, otherwise provision it.
+- **Applications with a hand-written `EmbeddedTaskExecutor`** (instead of `worker-embedded`) must now serve `publish-event@1` too, for example by adding `worker-events` and dispatching through the worker SDK. Otherwise their PUBLISH_EVENT steps stay PENDING. Applications that run `worker-embedded`, or the test kit, need nothing: `worker-embedded` brings `worker-events`. (#582)
+- **Kafka deployments that already run `http-worker-standalone-app` / `llm-worker-standalone-app`**: with the Helm chart, nothing to do, because an enabled `httpWorker` / `llmWorker` takes its topic out of the orchestrator's. Elsewhere, keep only one consumer per topic. Either remove the topic from the orchestrator's `BUILTIN_WORKER_TOPICS` and set `workflow.http.enabled=false` / `workflow.llm.enabled=false` on it, or retire the standalone worker. To move a topic onto the orchestrator, roll out once with `BUILTIN_WORKERS_START_OFFSET=latest`, or the tasks still retained on the topic run again. (#582)
+- New topic **`event-publications`**: auto-created where `auto-create-topics` is on, otherwise provision it. (#582)
 
 ### Added
-- **`worker-events`** module, with the built-in `publish-event@1` task behind PUBLISH_EVENT steps. In Kafka mode it sends the CloudEvent to the destination's topic (`workflow.events.destinations`). In embedded mode it hands the event to the application's `ExternalEventPublisher`, then the loopback. `workflow.events.worker.enabled` / `.topic` (default `event-publications`).
-- **Built-in workers in the orchestrator image**: `orchestrator-standalone-app` serves `http-calls`, `llm-calls` and `event-publications` itself (consumer group `orchestrator-builtin-workers`, `BUILTIN_WORKER_TOPICS`, `BUILTIN_WORKERS_START_OFFSET`), configured under `workflow.http.*` / `workflow.llm.*` like the standalone workers. Helm: `orchestrator.builtinWorkers.{httpAllowedHosts, existingSecret, startOffset}`.
-- **`builtin-workers`** (pom): `worker-embedded` + `worker-events` + `worker-http` + `worker-llm`, one dependency next to an embedded engine.
+- **`worker-events`** module, with the built-in `publish-event@1` task behind PUBLISH_EVENT steps. In Kafka mode it sends the CloudEvent to the destination's topic (`workflow.events.destinations`). In embedded mode it hands the event to the application's `ExternalEventPublisher`, then the loopback. `workflow.events.worker.enabled` / `.topic` (default `event-publications`). (#582)
+- **Built-in workers in the orchestrator image**: `orchestrator-standalone-app` serves `http-calls`, `llm-calls` and `event-publications` itself (consumer group `orchestrator-builtin-workers`, `BUILTIN_WORKER_TOPICS`, `BUILTIN_WORKERS_START_OFFSET`), configured under `workflow.http.*` / `workflow.llm.*` like the standalone workers. Helm: `orchestrator.builtinWorkers.{httpAllowedHosts, existingSecret, startOffset}`. (#582)
+- **`builtin-workers`** (pom): `worker-embedded` + `worker-events` + `worker-http` + `worker-llm`, one dependency next to an embedded engine. (#582)
 
 ### Changed
-- **PUBLISH_EVENT is a task.** The engine still renders and validates the event when the step starts; a bad destination or template still fails the step at once. It now dispatches `publish-event@1` through the outbox, and the worker sends the event and completes the step. Delivery stays at-least-once, with the same stable `ce_id`. The step now completes after the send, with the retries, timeouts and incidents of any worker step, and `workflow.default-step-timeout-ms` applies to it. USER_TASK escalation events are still relayed by the engine.
-- `http-worker-standalone-app` and `llm-worker-standalone-app` are optional: use them to keep egress and its secrets out of the orchestrator's pods. `apps/docker-compose.yml` no longer starts an `http-worker`.
-- `__event`, the rendered event a publish-event task carries, is sealed like `__http` / `__llm` / `__agent` when the process has sensitive variables. The worker sends the event with the task's W3C trace headers, as the relay did.
-- `eventconductor:check-migration`: a PUBLISH_EVENT step is no longer counted as instantaneous. A process can wait in it, so a step without a counterpart in the target is an error, not a warning.
-- The engine reads every built-in step type's task id and default topic from one registry (`BuiltInTasks`) instead of branching per type.
-- `worker-kafka`'s `consumeWorkerEvent` backs off for an application's own bean of that name.
+- **PUBLISH_EVENT is a task.** The engine still renders and validates the event when the step starts; a bad destination or template still fails the step at once. It now dispatches `publish-event@1` through the outbox, and the worker sends the event and completes the step. Delivery stays at-least-once, with the same stable `ce_id`. The step now completes after the send, with the retries, timeouts and incidents of any worker step, and `workflow.default-step-timeout-ms` applies to it. USER_TASK escalation events are still relayed by the engine. (#582)
+- `http-worker-standalone-app` and `llm-worker-standalone-app` are optional: use them to keep egress and its secrets out of the orchestrator's pods. `apps/docker-compose.yml` no longer starts an `http-worker`. (#582)
+- `__event`, the rendered event a publish-event task carries, is sealed like `__http` / `__llm` / `__agent` when the process has sensitive variables. The worker sends the event with the task's W3C trace headers, as the relay did. (#582)
+- `eventconductor:check-migration`: a PUBLISH_EVENT step is no longer counted as instantaneous. A process can wait in it, so a step without a counterpart in the target is an error, not a warning. (#582)
+- The engine reads every built-in step type's task id and default topic from one registry (`BuiltInTasks`) instead of branching per type. (#581)
+- `worker-kafka`'s `consumeWorkerEvent` backs off for an application's own bean of that name. (#582)
 
 ## [2.34.0] - 2026-10-20
 
