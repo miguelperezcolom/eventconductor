@@ -1,7 +1,8 @@
 # Plan: action steps as built-in workers, shipped inside the orchestrator
 
-> Status: **DECISIONS RESOLVED (2026-10-24)**, implementation not started. One PR per phase;
-> each phase compiles and tests green on its own.
+> Status: **IMPLEMENTED (2026-10-24)**. Phase 1 is #581. Phases 2–6 are one PR: PUBLISH_EVENT as a task
+> and the orchestrator serving it could not be split, because the distributed suite needs both. See §7
+> for where the implementation departs from this plan.
 
 ## 1. Goal
 
@@ -164,3 +165,25 @@ packaging does not change here.
 - AGENT: bring an agent runtime into the repo as `worker-agent` and ship it in the orchestrator, or
   keep it external.
 - Whether `rule-runtime` should also move into the orchestrator executable (it is the same argument).
+
+## 7. As implemented
+
+- **§6 resolved:** the topic is `event-publications`. AGENT stays external (only its task id and topic are
+  in the registry). `rule-runtime` is not moved.
+- **No `BuiltInWorkersBindingDefaults`.** The orchestrator image declares its worker binding in
+  `application.yaml`: `consumeWorkerEvent-in-0.destination: ${BUILTIN_WORKER_TOPICS:http-calls,llm-calls,event-publications}`,
+  group `orchestrator-builtin-workers`, and `start-offset: ${BUILTIN_WORKERS_START_OFFSET:earliest}`
+  (set `latest` for the rollout that moves a topic off a standalone worker). The switches are the
+  modules' own properties: `workflow.http.enabled`, `workflow.llm.enabled` and the new
+  `workflow.events.worker.enabled`. The Helm chart sets all of them from `httpWorker.enabled` /
+  `llmWorker.enabled`.
+- **The engine keeps one event-sending path:** a USER_TASK escalation's `publishEvent` is not a step and
+  has no task to report back to, so the outbox relay still sends it. Its CloudEvent record now comes
+  from `shared` (`CloudEventMessages`), the same code the worker uses. The embedded delivery
+  (publisher, then loopback) is `PublishedEventDelivery`, used by both paths.
+- **`worker-embedded` depends on `worker-events`**, so embedded applications keep PUBLISH_EVENT
+  without adding anything. The test kit serves it with the real handler.
+- **`worker-kafka`'s `consumeWorkerEvent` backs off** for an application's own bean of that name, so it
+  can share a classpath with hand-wired consumers (the distributed suite's workers).
+- `dev-app` is left alone: it predates the current Kafka bindings.
+
