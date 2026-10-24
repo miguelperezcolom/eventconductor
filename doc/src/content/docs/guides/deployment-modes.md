@@ -370,9 +370,10 @@ helm upgrade ec charts/eventconductor --reuse-values \
 - **HTTP and LLM workers.** Optional: deploy one to keep that egress and its secrets or API keys
   out of the orchestrator's pods. With `httpWorker.enabled` / `llmWorker.enabled` the chart takes
   that topic out of the orchestrator's `BUILTIN_WORKER_TOPICS` and switches its own off
-  (`WORKFLOW_HTTP_ENABLED=false` / `WORKFLOW_LLM_ENABLED=false`), so a task never runs in both. Set
-  `orchestrator.builtinWorkers.startOffset=latest` for the upgrade that turns one off again, or the
-  tasks retained on its topic are run again by the orchestrator.
+  (`WORKFLOW_HTTP_ENABLED=false` / `WORKFLOW_LLM_ENABLED=false`), so a task never runs in both. When you
+  later retire a standalone worker and hand its topic back to the orchestrator, set
+  `orchestrator.builtinWorkers.startOffset=latest` for that upgrade, or the orchestrator runs the
+  tasks still retained on the topic again.
 - **HTTP worker.** Set `httpWorker.allowedHosts` in production (`orchestrator.builtinWorkers.httpAllowedHosts`
   when the orchestrator serves HTTP_CALL). Only names listed under
   `workflow.http.secrets` resolve (see [HTTP calls](/guides/http-calls/)): a key
