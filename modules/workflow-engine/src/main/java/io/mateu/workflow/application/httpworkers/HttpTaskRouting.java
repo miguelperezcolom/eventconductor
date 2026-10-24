@@ -1,8 +1,7 @@
 package io.mateu.workflow.application.httpworkers;
 
 import io.mateu.workflow.application.out.DownstreamEventPublisher;
-import io.mateu.workflow.domain.services.HttpRequestRenderer;
-import io.mateu.workflow.domain.services.LlmRequestRenderer;
+import io.mateu.workflow.domain.services.BuiltInTasks;
 
 import java.util.Collection;
 import java.util.List;
@@ -21,13 +20,10 @@ public final class HttpTaskRouting {
     public static final String ALL = "*";
 
     /** The task ids the engine itself gives the built-in step types. */
-    static final Set<String> BUILT_IN_TASK_IDS = Set.of("complete-form", "evaluate-rule",
-            HttpRequestRenderer.TASK_ID, LlmRequestRenderer.TASK_ID,
-            io.mateu.workflow.domain.services.AgentRequestRenderer.TASK_ID);
+    static final Set<String> BUILT_IN_TASK_IDS = BuiltInTasks.taskIds();
 
     /** The default topics of the built-in tasks that have one of their own. */
-    static final Set<String> BUILT_IN_TOPICS = Set.of(HttpRequestRenderer.DEFAULT_TOPIC,
-            LlmRequestRenderer.DEFAULT_TOPIC, io.mateu.workflow.domain.services.AgentRequestRenderer.TOPIC);
+    static final Set<String> BUILT_IN_TOPICS = BuiltInTasks.defaultTopics();
 
     private final Set<String> explicit;
     private final boolean all;
