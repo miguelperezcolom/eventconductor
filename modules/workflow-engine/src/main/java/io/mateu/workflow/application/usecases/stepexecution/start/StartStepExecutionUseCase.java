@@ -6,7 +6,6 @@ import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
-import io.mateu.workflow.domain.aggregates.StepType;
 import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
 import lombok.RequiredArgsConstructor;
@@ -112,27 +111,9 @@ public class StartStepExecutionUseCase {
         stepExecution = stepExecution.withStartedAt(EngineClock.now());
         stepExecutionRepository.save(stepExecution);
 
-        var taskId = "";
+        // The built-in task's id, or an ACTION's pinned task contract — the same one start() dispatched.
         var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
-        if (StepType.USER_TASK.equals(step.type())) {
-            taskId = "complete-form";
-        }
-        if (StepType.RULE.equals(step.type())) {
-            taskId = "evaluate-rule";
-        }
-        if (StepType.HTTP_CALL.equals(step.type())) {
-            taskId = io.mateu.workflow.domain.services.HttpRequestRenderer.TASK_ID;
-        }
-        if (StepType.AGENT.equals(step.type())) taskId = "run-agent@1";
-        if (StepType.LLM_CALL.equals(step.type())) {
-            taskId = io.mateu.workflow.domain.services.LlmRequestRenderer.TASK_ID;
-        }
-        // An ACTION that references a task contract dispatches its pinned `<id>@<version>` as the
-        // taskId, so a worker resolves its handler by contract rather than by stepId. Pinned at
-        // import; empty for an ACTION with no contract, unchanged from before task contracts.
-        if (StepType.ACTION.equals(step.type()) && step.task() != null && !step.task().isBlank()) {
-            taskId = step.task();
-        }
+        var taskId = io.mateu.workflow.domain.services.BuiltInTasks.taskIdOf(step);
         downstreamEventPublisher.publish(new TaskExecutionRequested(
                 stepExecution.id(),
                 stepExecution.getProcessId(),

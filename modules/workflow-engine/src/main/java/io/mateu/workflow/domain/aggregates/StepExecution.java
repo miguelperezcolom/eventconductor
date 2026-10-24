@@ -452,17 +452,8 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      */
     public String topic() {
         try {
-            var step = pojoFromJson(stepJson, Step.class);
-            if (StepType.AGENT.equals(step.type())) return io.mateu.workflow.domain.services.AgentRequestRenderer.TOPIC;
-            if (StepType.HTTP_CALL.equals(step.type()) && (step.topic() == null || step.topic().isBlank())) {
-                // HTTP egress on a topic of its own, so it can be scaled and network-policed apart.
-                return io.mateu.workflow.domain.services.HttpRequestRenderer.DEFAULT_TOPIC;
-            }
-            if (StepType.LLM_CALL.equals(step.type()) && (step.topic() == null || step.topic().isBlank())) {
-                // Model egress (and its API keys) on a topic of its own, like HTTP_CALL's.
-                return io.mateu.workflow.domain.services.LlmRequestRenderer.DEFAULT_TOPIC;
-            }
-            return step.topic();
+            // A built-in task's default topic (http-calls, llm-calls, agent-calls) when the step names none.
+            return io.mateu.workflow.domain.services.BuiltInTasks.topicOf(pojoFromJson(stepJson, Step.class));
         } catch (RuntimeException e) {
             return null;
         }
@@ -695,7 +686,8 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
                         + (assignment.candidateGroups().isEmpty() ? "" : ", candidate groups " + assignment.candidateGroups())
                         + "."));
             }
-            send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, "complete-form", taskVariables.stream()
+            send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId,
+                    io.mateu.workflow.domain.services.BuiltInTasks.taskIdOf(StepType.USER_TASK), taskVariables.stream()
                     .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
                     .toList(), dispatchCount));
         } else if (StepType.WAIT_FOR_MESSAGE.equals(step.type())) {
@@ -820,7 +812,8 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             var taskVariables = new ArrayList<>(variables);
             taskVariables.add(new Variable("ruleId", step.ruleId()));
             this.variables = taskVariables;
-            send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, "evaluate-rule", taskVariables.stream()
+            send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId,
+                    io.mateu.workflow.domain.services.BuiltInTasks.taskIdOf(StepType.RULE), taskVariables.stream()
                     .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
                     .toList(), dispatchCount));
         } else if (StepType.LOCK.equals(step.type()) || StepType.UNLOCK.equals(step.type())) {
@@ -853,9 +846,10 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
                     payload.put("requestDigest", java.util.HexFormat.of().formatHex(digest));
                     agentRequest = toJson(payload);
                 }
-                this.variables = List.of(new Variable("__agent", agentRequest));
+                this.variables = List.of(new Variable(io.mateu.workflow.domain.services.AgentRequestRenderer.REQUEST_VARIABLE, agentRequest));
                 send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId,
-                        "run-agent@1", List.of(new io.mateu.workflow.dtos.Variable("__agent", agentRequest)), dispatchCount, step.priority(), invocationId));
+                        io.mateu.workflow.domain.services.AgentRequestRenderer.TASK_ID,
+                        List.of(new io.mateu.workflow.dtos.Variable(io.mateu.workflow.domain.services.AgentRequestRenderer.REQUEST_VARIABLE, agentRequest)), dispatchCount, step.priority(), invocationId));
             } catch (Exception e) {
                 send(new TaskLogEmitted(id, MessageType.Error, "Agent request could not be rendered: " + e.getMessage()));
                 updateStatus(StepExecutionStatus.ERROR, true);
@@ -925,7 +919,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             // resolve its handler by contract rather than by stepId. Empty when no contract is
             // referenced, which is what every ACTION sent before task contracts existed, and what
             // the runtime falls back to stepId for.
-            var taskId = step.task() != null && !step.task().isBlank() ? step.task() : "";
+            var taskId = io.mateu.workflow.domain.services.BuiltInTasks.taskIdOf(step);
             send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, taskId, variables.stream()
                     .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
                     .toList(), dispatchCount));
