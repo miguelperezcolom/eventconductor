@@ -56,6 +56,7 @@ modes** (embedded + memory, embedded + jpa, kafka + jpa).
 | `eventconductor.outbox.pending` | Gauge | — | Outbox messages waiting to be relayed (only with `workflow.persistence=jpa`; the in-memory mode has no outbox). Rises during a broker outage and must return to zero |
 | `eventconductor.steps.stalled` | Gauge | — | ACTION and RULE steps with **no deadline** that have been waiting on a worker longer than `workflow.stalled-step-after-ms`. The one gauge to alert on — see below |
 | `eventconductor.processes.stalled` | Gauge | — | `RUNNING` processes with no step left to run and no deadline anywhere, older than `workflow.stalled-process-after-ms` (scanned every `workflow.stalled-process-scan-interval-ms`; the ids are logged at WARN). Usually guards that leave nothing eligible after the last completed step |
+| `eventconductor.incidents.open` | Gauge | `workflowDefinitionId` | Processes stopped on an incident right now (status `ERROR`), waiting for an operator — the backlog the [incidents view](/guides/operating-running-processes/#incidents) shows. Counted every `workflow.incidents.gauge-interval-ms`; a definition whose incidents were all resolved reads 0 rather than disappearing. Cluster-wide: alert on `max()` across replicas — see below |
 | `eventconductor.process.concurrent.writes.rejected` | Counter | — | Writes refused by optimistic locking because another writer had the process. Events are keyed by process, but a process's step events (`outbox`) and its workers' replies (`upstream`) arrive on different topics and so on different consumers, so a burst of replies — a parallel `forEach` — produces some. Each one is redelivered (see below) |
 | `eventconductor.events.redelivered` | Counter | `topic`, `cause` | Kafka records redelivered by the engine consumers' error handler after a retryable failure (`cause` is the innermost exception's simple class name). A steady trickle under contention is the design working; a rate that keeps climbing on one topic is a failure that is not clearing and is holding its partition — the WARN log line `has failed N times and is still being retried` names the record |
 | `eventconductor.events.dead.lettered` | Counter | `source` | Events parked on the dead-letter destination as unprocessable |
@@ -94,6 +95,22 @@ The number is **cluster-wide and reported by every pod**: it counts rows in a sh
 than one pod's share of the work. Alert on `max()` across replicas, not `sum()`, which multiplies
 it by the replica count. It reads zero in `workflow.persistence=memory`, which keeps no such
 table — there it means "not measured", not "nothing stalled".
+
+**Watch an integration with `eventconductor.incidents.open`.** `eventconductor.process.errored` counts
+failures as they happen; this gauge says how many are still waiting for someone, so it is what a
+dashboard graphs and what an alert can hold on until the backlog is cleared — retried from the
+incidents view or with a batch operation. Like the stalled gauges it counts shared rows, so every
+pod reports the same figure: `max()` across replicas, never `sum()`.
+
+For a process that turns a domain event into a call to another system — where the data must not
+be lost — these four alerts cover the ways it goes wrong:
+
+| Alert | On | Means |
+|---|---|---|
+| Unreadable events | `eventconductor.events.dead.lettered` increases | An event could not even be read and was parked on the dead-letter destination |
+| Open incidents | `max(eventconductor.incidents.open{workflowDefinitionId="…"}) > 0` | Processes stopped with their retries exhausted — retry them once the cause is fixed |
+| Degraded destination | rate of `eventconductor.step.retries{trigger="auto"}` well above normal | The called system is failing; incidents follow when the retries run out |
+| Silent producer | rate of `eventconductor.events.received` well below normal for the destination | Nothing is arriving. No engine sees an event that was never published: only this alert does |
 
 #### Synchronous invocation
 

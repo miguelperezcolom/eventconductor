@@ -284,6 +284,15 @@ public class ProcessDBRepository implements ProcessRepository {
         return processEntityRepository.countByStatus(status.name());
     }
 
+    @Override
+    public java.util.Map<String, Long> countByDefinitionWithStatus(ProcessStatus status) {
+        var counts = new java.util.TreeMap<String, Long>();
+        for (var row : processEntityRepository.countGroupedByDefinitionWithStatus(status.name())) {
+            counts.put(String.valueOf(row.getKey()), row.getCount());
+        }
+        return counts;
+    }
+
     /**
      * Six {@code GROUP BY}s instead of every process in the window.
      *

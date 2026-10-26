@@ -39,6 +39,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
 
     public static final String STALLED_STEPS = "eventconductor.steps.stalled";
     public static final String STALLED_PROCESSES = "eventconductor.processes.stalled";
+    public static final String OPEN_INCIDENTS = "eventconductor.incidents.open";
     public static final String PROCESSES_RUNNING = "eventconductor.process.running";
     public static final String OUTBOX_PENDING = "eventconductor.outbox.pending";
     /** Event triggers that can fire, by {@code origin} (definition, events_file). */
@@ -82,6 +83,9 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     private volatile boolean stalledGaugeRegistered;
     private final java.util.concurrent.atomic.AtomicLong stalledProcesses = new java.util.concurrent.atomic.AtomicLong();
     private volatile boolean stalledProcessGaugeRegistered;
+    private volatile io.micrometer.core.instrument.MultiGauge openIncidents;
+    /** Every definition tag ever reported, so one whose incidents were all resolved reads 0 instead of vanishing. */
+    private final java.util.Set<String> openIncidentDefinitions = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private final java.util.function.Supplier<MeterRegistry> registrySupplier;
     private volatile MeterRegistry resolvedRegistry;
@@ -382,6 +386,31 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
                 stalledProcessGaugeRegistered = true;
             }
         }
+    }
+
+    /**
+     * One series per definition, rewritten on every observation. Definitions seen before and absent now
+     * are written as 0, so a resolved backlog shows as a drop to zero rather than a gap.
+     */
+    @Override
+    public synchronized void openIncidentsObserved(java.util.Map<String, Long> processesByDefinition) {
+        var registry = registry();
+        if (registry == null) return;
+        if (openIncidents == null) {
+            openIncidents = io.micrometer.core.instrument.MultiGauge.builder(OPEN_INCIDENTS)
+                    .description("Processes stopped on an incident (status ERROR), waiting for an operator")
+                    .register(registry);
+        }
+        // Test runs fold into one series, as on every other meter here.
+        var byTag = new java.util.HashMap<String, Long>();
+        processesByDefinition.forEach((definition, count) -> byTag.merge(definitionTag(definition), count, Long::sum));
+        openIncidentDefinitions.addAll(byTag.keySet());
+        var rows = openIncidentDefinitions.stream()
+                .map(tag -> io.micrometer.core.instrument.MultiGauge.Row.of(
+                        io.micrometer.core.instrument.Tags.of(TAG_WORKFLOW_DEFINITION_ID, tag),
+                        byTag.getOrDefault(tag, 0L)))
+                .toList();
+        openIncidents.register(new java.util.ArrayList<>(rows), true);
     }
 
     private void processFinished(String counterName, String description, String outcome,

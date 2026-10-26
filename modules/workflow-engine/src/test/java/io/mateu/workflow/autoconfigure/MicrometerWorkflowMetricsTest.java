@@ -39,6 +39,25 @@ class MicrometerWorkflowMetricsTest {
     }
 
     @Test
+    void openIncidentsAreAGaugePerDefinitionThatDropsToZeroInsteadOfVanishing() {
+        var testRun = io.mateu.workflow.domain.aggregates.TestRunIds.of("orders", java.util.UUID.randomUUID().toString());
+        metrics.openIncidentsObserved(java.util.Map.of("orders", 3L, "refunds", 1L, testRun, 2L));
+        assertThat(openIncidents("orders")).isEqualTo(3);
+        assertThat(openIncidents("refunds")).isEqualTo(1);
+        assertThat(openIncidents("vscode-test-run")).isEqualTo(2);
+
+        metrics.openIncidentsObserved(java.util.Map.of("orders", 1L));
+        assertThat(openIncidents("orders")).isEqualTo(1);
+        assertThat(openIncidents("refunds")).as("resolved, still a series").isZero();
+        assertThat(openIncidents("vscode-test-run")).isZero();
+    }
+
+    private double openIncidents(String definition) {
+        return registry.get(MicrometerWorkflowMetrics.OPEN_INCIDENTS)
+                .tag(MicrometerWorkflowMetrics.TAG_WORKFLOW_DEFINITION_ID, definition).gauge().value();
+    }
+
+    @Test
     void aPublishedIdThatOnlyLooksLikeATestRunKeepsItsOwnTag() {
         metrics.processStarted("vscode-integration");
         assertThat(registry.get(MicrometerWorkflowMetrics.PROCESSES_STARTED)
