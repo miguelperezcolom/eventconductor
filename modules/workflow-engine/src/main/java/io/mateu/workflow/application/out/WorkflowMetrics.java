@@ -107,6 +107,17 @@ public interface WorkflowMetrics {
     default void stalledProcessesObserved(long count) {}
 
     /**
+     * The processes stopped on an incident right now (status ERROR, waiting for an operator), per
+     * workflow definition id — the backlog the incidents view shows, as a figure a dashboard can graph
+     * and an alert can watch, where {@link #processErrored} only counts failures as they happen.
+     *
+     * <p>Each call is the whole picture: a definition missing from it has none (its series reads 0, it
+     * does not disappear). Cluster-wide, like the stalled figures: every pod reports the same number
+     * because they count rows in a shared table. Alert on the maximum across replicas, never the sum.
+     */
+    default void openIncidentsObserved(java.util.Map<String, Long> processesByDefinition) {}
+
+    /**
      * How long a message sat in the outbox between being committed and being claimed by a relay.
      *
      * <p>The engine's throughput is (processes advancing at once) ÷ (latency per step), and both

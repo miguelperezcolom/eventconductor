@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`eventconductor.incidents.open` gauge.** How many processes are stopped on an incident right now, per definition — the backlog of the incidents view, for dashboards and alerts.
+  - `eventconductor.process.errored` only counts failures as they happen.
+  - Counted every `workflow.incidents.gauge-interval-ms` (60 s by default; `0` turns it off).
+  - The observability reference now suggests four alerts for an event-driven integration.
+
 ## [2.36.0] - 2026-10-24
 
 The graph editor's Step Properties panel now covers every property of a step.

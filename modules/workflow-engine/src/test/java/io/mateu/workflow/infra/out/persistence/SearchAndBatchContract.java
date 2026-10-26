@@ -105,6 +105,19 @@ abstract class SearchAndBatchContract {
     }
 
     @Test
+    void theProcessesInOneStatusAreCountedPerDefinition() {
+        process("p1", "orders", "ERROR", T0);
+        process("p2", "orders", "ERROR", T0.plusMinutes(1));
+        process("p3", "orders", "RUNNING", T0.plusMinutes(2));
+        process("p4", "refunds", "ERROR", T0.plusMinutes(3));
+        process("p5", "billing", "COMPLETED", T0.plusMinutes(4));
+
+        assertThat(processes.countByDefinitionWithStatus(ProcessStatus.ERROR))
+                .isEqualTo(java.util.Map.of("orders", 2L, "refunds", 1L));
+        assertThat(processes.countByDefinitionWithStatus(ProcessStatus.CANCELLED)).isEmpty();
+    }
+
+    @Test
     void theListingIsNarrowedByEveryKindOfCondition() {
         process("p1", "orders", "RUNNING", T0);
         process("p2", "orders", "ERROR", T0.plusMinutes(1));

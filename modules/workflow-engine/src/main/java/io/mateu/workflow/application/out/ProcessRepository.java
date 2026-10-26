@@ -84,6 +84,20 @@ public interface ProcessRepository extends CrudStore<Process> {
     }
 
     /**
+     * How many processes are in this status, per workflow definition id; definitions with none are
+     * absent. The JPA store answers it with one grouped count over {@code idx_process_status}.
+     */
+    default java.util.Map<String, Long> countByDefinitionWithStatus(ProcessStatus status) {
+        var counts = new java.util.TreeMap<String, Long>();
+        for (var process : findAll()) {
+            if (status.equals(process.getStatus())) {
+                counts.merge(String.valueOf(process.getWorkflowDefinitionId()), 1L, Long::sum);
+            }
+        }
+        return counts;
+    }
+
+    /**
      * One page of the process listing, newest first. Filtering, ordering and paging all belong to
      * the store: a listing that pages in memory has to load every process first, and the write-side
      * process row carries the workflow definition JSON with it.

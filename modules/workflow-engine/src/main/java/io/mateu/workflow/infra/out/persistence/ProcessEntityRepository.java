@@ -46,6 +46,10 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
     @Query("select p.workflowDefinitionId as key, count(p) as count from ProcessEntity p group by p.workflowDefinitionId")
     List<CountByKey> countGroupedByDefinition();
 
+    /** Process counts in one status, grouped by workflow definition id — one row per definition that has any. */
+    @Query("select p.workflowDefinitionId as key, count(p) as count from ProcessEntity p where p.status = :status group by p.workflowDefinitionId")
+    List<CountByKey> countGroupedByDefinitionWithStatus(@Param("status") String status);
+
     /**
      * Process counts for one definition, grouped by the definition version they ran with and their
      * status — the raw material for per-version stats (total / running / completed). The version is
