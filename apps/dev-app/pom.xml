@@ -31,7 +31,7 @@
              Boot 4.1.1's BOM; 3.1.6 fixes it. Drop when Boot's BOM catches up. -->
         <jackson-bom.version>3.1.7</jackson-bom.version>
         <java.version>21</java.version>
-        <spring-ai.version>2.0.1</spring-ai.version>
+        <spring-ai.version>2.0.2</spring-ai.version>
         <maven.deploy.skip>true</maven.deploy.skip>
     </properties>
     <dependencyManagement>
