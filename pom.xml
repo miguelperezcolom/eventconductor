@@ -296,7 +296,7 @@
         <plugin>
             <groupId>org.jacoco</groupId>
             <artifactId>jacoco-maven-plugin</artifactId>
-            <version>0.8.13</version>
+            <version>0.8.16</version>
             <configuration>
                 <excludes>
                     <!-- What is left out, and why. The list used to be long enough to hide most of
