@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.38.0] - 2026-11-08
+
+Debounce gets a ceiling, what happened to one flow-control key can be looked up, and Mateu moves to 3.0-beta.52.
+
 ### Added
 - **`startPolicy.maxWait`.** A ceiling on a debounce: however often a key keeps changing, its start waits at most this long after the first one. Equal to `debounce`, the window is fixed and counted from the first start.
 - **Following a flow-control key.** Receipts record the rendered key: `GET /workflow/api/events/received?flowKey=`, `listReceivedEvents` and a filter on **Received events** list what happened to one key (migration V59).
@@ -15,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **A flow-control key that could not be released stopped every other key's release**, since the pass stopped at the first failure and always began with the oldest.
 - **With `memory` persistence, a failed release lost the waiting start.** The store now undoes a failed key as the database does.
+
+### Changed
+- **Mateu 3.0-beta.52**, on the engine, apps and testbenches (from 3.0-alpha.411). `demo/shell` stays on 3.0-beta.51, since its sign-in uses `@KeycloakSecured`, which beta.52 removes. (#613)
+- **The Forms and Rules consoles no longer redirect the browser to a Keycloak host of their own.** Their `@KeycloakSecured` named a host that was not the deployment's and is gone with the annotation. Access is enforced by each app's `SecurityConfig`, or by whatever sits in front of it. (#613)
 
 ### Documentation
 - The flow-control guide said a crash could lose a start. With `jpa` and a broker it cannot: it stays waiting, or is sent twice and collapses. It also gains a recipe for keeping an entity's changes without losing any.
