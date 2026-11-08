@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.38.1] - 2026-11-09
+
+The Docker images of 2.38.0 were never published: the release's image scan stopped them. Use this version.
+
+### Security
+- **`snappy-java` 1.1.10.9**, for CVE-2026-108106 and CVE-2026-93451 (high, denial of service on malformed compressed input). It arrives through `kafka-clients`.
+- **`guava` 33.7.2** in the rules app, for CVE-2026-102554 (high).
+
 ## [2.38.0] - 2026-11-08
 
 Debounce gets a ceiling, what happened to one flow-control key can be looked up, and Mateu moves to 3.0-beta.52.
