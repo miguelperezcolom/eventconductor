@@ -362,7 +362,15 @@ public class EventTriggerService {
 
     /** The most recent receipts first: what each received event did. */
     public List<EventReceipt> received(int limit, String workflowId) {
-        return receipts.recent(limit <= 0 ? 100 : Math.min(limit, 1000), workflowId == null || workflowId.isBlank() ? null : workflowId);
+        return received(limit, workflowId, null);
+    }
+
+    /** {@link #received(int, String)}, only the receipts of one flow-control key when {@code flowKey} is not blank. */
+    public List<EventReceipt> received(int limit, String workflowId, String flowKey) {
+        var max = limit <= 0 ? 100 : Math.min(limit, 1000);
+        var workflow = workflowId == null || workflowId.isBlank() ? null : workflowId;
+        return flowKey == null || flowKey.isBlank() ? receipts.recent(max, workflow)
+                : receipts.recentOfFlowKey(max, workflow, flowKey);
     }
 
     /**

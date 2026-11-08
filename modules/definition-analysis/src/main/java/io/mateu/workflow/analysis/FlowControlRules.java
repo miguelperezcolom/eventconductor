@@ -20,6 +20,7 @@ import java.util.regex.Pattern;
  * startPolicy:
  *   key: "${data.customerId}"                              # optional text template
  *   debounce: PT30S                                        # optional positive duration
+ *   maxWait: PT5M                                          # optional, with debounce: never held longer than this
  *   throttle: { limit: 10, period: PT1M, onLimit: queue }  # optional; onLimit queue (default) | drop
  *   singleton: skip                                        # optional; skip | replace
  * </pre>
@@ -27,7 +28,7 @@ import java.util.regex.Pattern;
 public final class FlowControlRules {
 
     /** The fields of a {@code startPolicy}. */
-    public static final Set<String> START_POLICY_FIELDS = Set.of("key", "debounce", "throttle", "singleton");
+    public static final Set<String> START_POLICY_FIELDS = Set.of("key", "debounce", "maxWait", "throttle", "singleton");
 
     /** The fields of a {@code throttle}. */
     public static final Set<String> THROTTLE_FIELDS = Set.of("limit", "period", "onLimit");
@@ -97,6 +98,7 @@ public final class FlowControlRules {
                 violations.add(prefix + "debounce: " + problem);
             }
         }
+        maxWaitViolations(map.get("maxWait"), debounce, prefix, violations);
         var throttle = map.get("throttle");
         if (throttle != null) {
             throttleViolations(throttle, prefix + "throttle", violations);
@@ -109,6 +111,23 @@ public final class FlowControlRules {
             violations.add(prefix + "a startPolicy needs at least one of debounce, throttle or singleton");
         }
         return violations;
+    }
+
+    /** A ceiling on a debounce: it needs one, and cannot be shorter than the quiet period it caps. */
+    private static void maxWaitViolations(Object maxWait, Object debounce, String prefix, List<String> violations) {
+        if (maxWait == null) {
+            return;
+        }
+        var problem = durationProblem(maxWait);
+        if (problem != null) {
+            violations.add(prefix + "maxWait: " + problem);
+            return;
+        }
+        if (debounce == null) {
+            violations.add(prefix + "maxWait caps a debounce, so it needs one");
+        } else if (durationProblem(debounce) == null && duration(maxWait).compareTo(duration(debounce)) < 0) {
+            violations.add(prefix + "maxWait (" + maxWait + ") cannot be shorter than debounce (" + debounce + ")");
+        }
     }
 
     private static void throttleViolations(Object throttle, String where, List<String> violations) {

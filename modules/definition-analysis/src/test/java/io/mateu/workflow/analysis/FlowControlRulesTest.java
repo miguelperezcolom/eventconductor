@@ -151,4 +151,16 @@ class FlowControlRulesTest {
         assertThat(FlowControlRules.triggerKeyViolations("${(", mapped, sensitive, "t")).isEmpty();
         assertThat(FlowControlRules.triggerKeyViolations("${data.card}", Map.of("cardNumber", "${(" ), sensitive, "t")).isEmpty();
     }
+
+    @Test
+    void maxWaitCapsADebounceAndCannotBeShorterThanIt() {
+        assertThat(FlowControlRules.startPolicyViolations(Map.of("debounce", "PT10S", "maxWait", "PT10S"), null)).isEmpty();
+        assertThat(FlowControlRules.startPolicyViolations(Map.of("debounce", "PT10S", "maxWait", "PT5M"), null)).isEmpty();
+        assertThat(FlowControlRules.startPolicyViolations(Map.of("debounce", "PT1M", "maxWait", "PT10S"), "p"))
+                .singleElement().asString().contains("cannot be shorter than debounce");
+        assertThat(FlowControlRules.startPolicyViolations(Map.of("singleton", "skip", "maxWait", "PT10S"), "p"))
+                .singleElement().asString().contains("needs one");
+        assertThat(FlowControlRules.startPolicyViolations(Map.of("debounce", "PT10S", "maxWait", "soon"), "p"))
+                .singleElement().asString().contains("maxWait: 'soon' is not an ISO-8601 duration");
+    }
 }

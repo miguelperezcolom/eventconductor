@@ -49,10 +49,11 @@ public class ReceivedEvents extends FilteredAutoCrud<ReceivedEventFilters, Recei
     public ListingData<ReceivedEventRow> fetchRows(String searchText, ReceivedEventFilters filters, Pageable pageable,
                                                    HttpRequest httpRequest) {
         var needle = searchText == null || searchText.isBlank() ? null : searchText.toLowerCase(Locale.ROOT);
-        var rows = eventTriggerService.received(LIMIT, filters == null ? null : filters.workflowId()).stream()
+        var rows = eventTriggerService.received(LIMIT, filters == null ? null : filters.workflowId(),
+                        filters == null ? null : filters.flowKey()).stream()
                 .filter(r -> filters == null || filters.outcome() == null || filters.outcome() == r.outcome())
                 .filter(r -> needle == null || Stream.of(r.eventType(), r.eventId(), r.eventSource(), r.receiver(),
-                                r.businessKey(), r.correlationKey(), r.destination())
+                                r.businessKey(), r.correlationKey(), r.flowKey(), r.destination())
                         .anyMatch(s -> s != null && s.toLowerCase(Locale.ROOT).contains(needle)))
                 .map(ReceivedEventRow::of)
                 .toList();

@@ -13,7 +13,7 @@ import java.util.Map;
 /**
  * Per-key flow control of the starts of a definition — on the definition (REST, MCP, console, sync
  * invocation, and the triggers that declare none) or on one trigger. Carried in the file as
- * {@code startPolicy: { key, debounce, throttle: { limit, period, onLimit }, singleton }}; validated by
+ * {@code startPolicy: { key, debounce, maxWait, throttle: { limit, period, onLimit }, singleton }}; validated by
  * {@link FlowControlRules} (engine and Maven plugin alike). See FLOW-CONTROL-PLAN.md §2.
  *
  * @param key       text template rendering the key the policy counts by — over the event for a trigger's
@@ -22,15 +22,24 @@ import java.util.Map;
  * @param debounce  ISO-8601 duration: start once, with the last start's data, after this much quiet
  * @param throttle  at most {@code limit} starts per {@code period} per key; over it queue or drop
  * @param singleton {@code skip} or {@code replace} while a start of the key is still running
+ * @param maxWait   ISO-8601 duration: a debounce never holds a start longer than this after its first start,
+ *                  however often the key keeps changing; equal to {@code debounce}, the window is a fixed one
+ *                  counted from the first start. Null: no ceiling
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder({"key", "debounce", "throttle", "singleton"})
-public record StartPolicy(String key, String debounce, Throttle throttle, String singleton) {
+@JsonPropertyOrder({"key", "debounce", "maxWait", "throttle", "singleton"})
+public record StartPolicy(String key, String debounce, Throttle throttle, String singleton, String maxWait) {
 
     public StartPolicy {
         key = key == null || key.isBlank() ? null : key;
         debounce = debounce == null || debounce.isBlank() ? null : debounce.trim();
         singleton = singleton == null || singleton.isBlank() ? null : singleton.trim();
+        maxWait = maxWait == null || maxWait.isBlank() ? null : maxWait.trim();
+    }
+
+    /** A policy with no ceiling on its debounce. */
+    public StartPolicy(String key, String debounce, Throttle throttle, String singleton) {
+        this(key, debounce, throttle, singleton, null);
     }
 
     /** {@code throttle: { limit, period, onLimit }}. */
@@ -59,6 +68,11 @@ public record StartPolicy(String key, String debounce, Throttle throttle, String
     }
 
     @JsonIgnore
+    public Duration maxWaitDuration() {
+        return maxWait == null ? null : FlowControlRules.duration(maxWait);
+    }
+
+    @JsonIgnore
     public Singleton singletonMode() {
         return singleton == null ? null : Singleton.valueOf(singleton.toUpperCase(java.util.Locale.ROOT));
     }
@@ -68,6 +82,7 @@ public record StartPolicy(String key, String debounce, Throttle throttle, String
         var map = new LinkedHashMap<String, Object>();
         if (key != null) map.put("key", key);
         if (debounce != null) map.put("debounce", debounce);
+        if (maxWait != null) map.put("maxWait", maxWait);
         if (throttle != null) {
             var t = new LinkedHashMap<String, Object>();
             if (throttle.limit() != null) t.put("limit", throttle.limit());

@@ -105,7 +105,10 @@ class FlowControlServiceTest {
         assertThat(service.releaseDue()).isEqualTo(1);
         assertThat(routed).singleElement().satisfies(creation -> {
             assertThat(creation.businessKey()).isEqualTo("bk-2");
-            assertThat(creation.variables()).extracting(io.mateu.workflow.dtos.Variable::value).containsExactly("2");
+            assertThat(creation.variables()).extracting(io.mateu.workflow.dtos.Variable::name, io.mateu.workflow.dtos.Variable::value)
+                    .containsExactlyInAnyOrder(org.assertj.core.groups.Tuple.tuple("n", "2"),
+                            org.assertj.core.groups.Tuple.tuple(FlowStart.FOLDED_STARTS_VARIABLE, "2"),
+                            org.assertj.core.groups.Tuple.tuple(FlowStart.FIRST_START_AT_VARIABLE, "2026-10-19T10:00"));
         });
         assertThat(store.pending(FlowControlStore.Kind.DEBOUNCE)).isZero();
         assertThat(started).isEmpty();
@@ -221,5 +224,59 @@ class FlowControlServiceTest {
         assertThat(FlowControlService.keyId("start:wf", "a")).hasSize(64).isNotEqualTo(FlowControlService.keyId("start:wf", "b"));
         assertThat(FlowControlService.Outcome.REPLACED.started()).isTrue();
         assertThat(FlowControlService.Outcome.SKIPPED.started()).isFalse();
+    }
+
+    @Test
+    void maxWaitStopsAKeyThatKeepsChangingFromPostponingItsStartForever() {
+        var policy = new StartPolicy("${k}", "PT30S", null, null, "PT1M");
+        admit(start(policy, "a", "bk-1", Map.of()));
+        at(T0.plusSeconds(25));
+        admit(start(policy, "a", "bk-2", Map.of()));
+        at(T0.plusSeconds(50));
+        var capped = admit(start(policy, "a", "bk-3", Map.of()));
+        assertThat(capped.dueAt()).isEqualTo(java.time.LocalDateTime.ofInstant(T0.plusSeconds(60), ZoneOffset.UTC));
+
+        at(T0.plusSeconds(59));
+        assertThat(service.releaseDue()).isZero();
+        at(T0.plusSeconds(60));
+        assertThat(service.releaseDue()).isEqualTo(1);
+        assertThat(routed).extracting(ProcessCreationRequested::businessKey).containsExactly("bk-3");
+    }
+
+    @Test
+    void maxWaitEqualToTheDebounceIsAFixedWindowFromTheFirstStart() {
+        var policy = new StartPolicy("${k}", "PT10S", null, null, "PT10S");
+        admit(start(policy, "a", "bk-1", Map.of()));
+        at(T0.plusSeconds(9));
+        var second = admit(start(policy, "a", "bk-2", Map.of()));
+        assertThat(second.dueAt()).isEqualTo(java.time.LocalDateTime.ofInstant(T0.plusSeconds(10), ZoneOffset.UTC));
+    }
+
+    @Test
+    void aStartThatCannotGoOutStaysWaitingAndDoesNotHoldTheOtherKeysBack() {
+        var policy = new StartPolicy("${k}", "PT10S", null, null);
+        admit(start(policy, "bad", "bk-bad", Map.of()));
+        at(T0.plusSeconds(1));
+        admit(start(policy, "good", "bk-good", Map.of()));
+        doThrow(new IllegalStateException("refused")).doAnswer(inv -> routed.add(inv.getArgument(0))).when(router).route(any());
+
+        at(T0.plusSeconds(11));
+        assertThat(service.releaseDue()).isEqualTo(1);
+        assertThat(routed).extracting(ProcessCreationRequested::businessKey).containsExactly("bk-good");
+        assertThat(store.pending(FlowControlStore.Kind.DEBOUNCE)).isEqualTo(1);
+
+        assertThat(service.releaseDue()).isEqualTo(1);
+        assertThat(routed).extracting(ProcessCreationRequested::businessKey).containsExactly("bk-good", "bk-bad");
+        assertThat(store.pending(FlowControlStore.Kind.DEBOUNCE)).isZero();
+    }
+
+    @Test
+    void aVariableTheStartAlreadyHasIsNotOverwrittenByWhatTheDebounceTellsIt() {
+        var policy = new StartPolicy("${k}", "PT10S", null, null);
+        admit(start(policy, "a", "bk-1", Map.of(FlowStart.FOLDED_STARTS_VARIABLE, "mine")));
+        at(T0.plusSeconds(10));
+        service.releaseDue();
+        assertThat(routed.getFirst().variables()).filteredOn(v -> FlowStart.FOLDED_STARTS_VARIABLE.equals(v.name()))
+                .singleElement().satisfies(v -> assertThat(v.value()).isEqualTo("mine"));
     }
 }

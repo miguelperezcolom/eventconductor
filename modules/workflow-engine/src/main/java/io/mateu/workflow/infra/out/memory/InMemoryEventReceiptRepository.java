@@ -38,6 +38,16 @@ public class InMemoryEventReceiptRepository implements EventReceiptRepository {
     }
 
     @Override
+    public List<EventReceipt> recentOfFlowKey(int limit, String workflowId, String flowKey) {
+        return receipts.values().stream()
+                .filter(r -> flowKey.equals(r.flowKey()))
+                .filter(r -> workflowId == null || workflowId.equals(r.workflowId()))
+                .sorted(Comparator.comparing(EventReceipt::receivedAt).reversed())
+                .limit(Math.max(0, limit))
+                .toList();
+    }
+
+    @Override
     public int purgeReceivedBefore(Instant cutoff) {
         int before = receipts.size();
         receipts.values().removeIf(r -> r.receivedAt().isBefore(cutoff));

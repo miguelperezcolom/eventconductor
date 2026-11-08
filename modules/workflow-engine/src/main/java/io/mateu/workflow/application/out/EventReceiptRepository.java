@@ -21,6 +21,9 @@ public interface EventReceiptRepository {
     /** The most recent receipts first, at most {@code limit}; only one workflow's when it is not null. */
     List<EventReceipt> recent(int limit, String workflowId);
 
+    /** The receipts of one flow-control key, most recent first, at most {@code limit}; only one workflow's when it is not null. */
+    List<EventReceipt> recentOfFlowKey(int limit, String workflowId, String flowKey);
+
     /** Deletes the receipts received before {@code cutoff}; returns how many. */
     int purgeReceivedBefore(Instant cutoff);
 }
