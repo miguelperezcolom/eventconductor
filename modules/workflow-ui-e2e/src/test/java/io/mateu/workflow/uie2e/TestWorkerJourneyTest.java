@@ -110,8 +110,11 @@ class TestWorkerJourneyTest extends AbstractUiE2eTest {
 
         worker.goToTaskOverrides();
 
-        org.assertj.core.api.Assertions.assertThat(worker.listedColumns())
-                .containsExactly("name", "workflowDefinitionId", "stepId", "taskId", "enabled");
+        // Polled: the grid of the page it came from is still in the DOM for a moment, and the new
+        // one is rebuilt once its data arrives, so a single read can catch either.
+        var expected = List.of("name", "workflowDefinitionId", "stepId", "taskId", "enabled");
+        awaitUntil(java.time.Duration.ofSeconds(15), () -> expected.equals(worker.listedColumns()));
+        org.assertj.core.api.Assertions.assertThat(worker.listedColumns()).containsExactlyElementsOf(expected);
     }
 
     @Test

@@ -22,7 +22,8 @@ class ScheduleJourneyTest extends AbstractUiE2eTest {
         page.getByRole(AriaRole.MENUITEM, new Page.GetByRoleOptions().setName("Schedules")).click();
         page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("New")).first().click();
 
-        page.getByLabel("Id").first().fill("ui-nightly");
+        // The textbox, not the label: a sortable column of the listing it came from is labelled "Sort by Id".
+        page.getByRole(AriaRole.TEXTBOX, new Page.GetByRoleOptions().setName("Id")).first().fill("ui-nightly");
         var workflow = page.getByLabel("Workflow").first();
         workflow.click();
         workflow.fill("UI Greeting");

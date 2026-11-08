@@ -91,7 +91,7 @@ public class TestWorkerUi {
                   const walk = (root, depth) => {
                     if (depth > 14 || !root) return;
                     for (const el of root.querySelectorAll('*')) {
-                      if (el.tagName.toLowerCase().startsWith('vaadin-grid-column')) {
+                      if (/^vaadin-grid-(sort-)?column$/.test(el.tagName.toLowerCase())) {
                         const path = el.getAttribute('path');
                         if (path) out.push(path);
                       }
@@ -111,7 +111,7 @@ public class TestWorkerUi {
               const walk = (root, depth) => {
                 if (depth > 14 || !root) return;
                 for (const el of root.querySelectorAll('*')) {
-                  if (el.tagName.toLowerCase().startsWith('vaadin-grid-column')) {
+                  if (/^vaadin-grid-(sort-)?column$/.test(el.tagName.toLowerCase())) {
                     const path = el.getAttribute('path');
                     if (path) out.push(path);
                   }
