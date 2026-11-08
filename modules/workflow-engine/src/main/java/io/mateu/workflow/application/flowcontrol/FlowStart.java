@@ -27,6 +27,11 @@ public record FlowStart(String scope, String flowKey, String workflowId, String 
     public static final String TRIGGER = "trigger";
     public static final String START = "start";
 
+    /** Variable of a process started by a debounce: how many starts were folded into it. */
+    public static final String FOLDED_STARTS_VARIABLE = "flowControlFoldedStarts";
+    /** Variable of a process started by a debounce: when the first of them arrived (ISO-8601). */
+    public static final String FIRST_START_AT_VARIABLE = "flowControlFirstStartAt";
+
     public FlowStart {
         flowKey = flowKey == null ? "" : flowKey;
         variables = variables == null ? Map.of() : java.util.Collections.unmodifiableMap(new LinkedHashMap<>(variables));
@@ -45,6 +50,14 @@ public record FlowStart(String scope, String flowKey, String workflowId, String 
     /** The same start, past its debounce. */
     public FlowStart asDebounced() {
         return new FlowStart(scope, flowKey, workflowId, businessKey, variables, caller, door, triggerId, policy, true);
+    }
+
+    /** The same start, telling its process what the debounce folded into it. A variable it already has is kept. */
+    public FlowStart withFoldedStarts(int folded, java.time.LocalDateTime firstStartAt) {
+        var told = new LinkedHashMap<>(variables);
+        told.putIfAbsent(FOLDED_STARTS_VARIABLE, String.valueOf(folded));
+        told.putIfAbsent(FIRST_START_AT_VARIABLE, String.valueOf(firstStartAt));
+        return new FlowStart(scope, flowKey, workflowId, businessKey, told, caller, door, triggerId, policy, debounced);
     }
 
     /** The same start under another business key (a deferred start that had none gets one). */

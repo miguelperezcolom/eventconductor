@@ -12,5 +12,6 @@ public record ReceivedEventFilters(
         @MainFilter @Label("Workflow")
         @Lookup(search = WorkflowDefinitionIdOptionsSupplier.class, label = WorkflowDefinitionIdLabelSupplier.class)
         String workflowId,
-        @MainFilter @Label("Outcome") EventReceipt.Outcome outcome) {
+        @MainFilter @Label("Outcome") EventReceipt.Outcome outcome,
+        @MainFilter @Label("Flow-control key") String flowKey) {
 }

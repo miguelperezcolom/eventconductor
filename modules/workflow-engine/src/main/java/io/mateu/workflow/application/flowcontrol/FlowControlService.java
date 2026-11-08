@@ -77,6 +77,9 @@ public class FlowControlService {
     /** A synchronous caller cannot wait for a later start: nothing is debounced or queued for it. */
     public enum Mode { DEFAULT, IMMEDIATE_ONLY }
 
+    /** How long a release pass that has seen a failure may go on. */
+    static final Duration FAILING_PASS_BUDGET = Duration.ofSeconds(5);
+
     private final FlowControlStore store;
     private final ProcessRepository processes;
     private final ObjectProvider<CancelProcessUseCase> cancelProcessUseCase;
@@ -129,12 +132,16 @@ public class FlowControlService {
     }
 
     private Decision debounce(FlowControlStore.KeyTx tx, FlowStart start, LocalDateTime now) {
-        var dueAt = now.plus(start.policy().debounceDuration());
         var existing = tx.debounce();
+        var firstAt = existing.map(FlowControlStore.Pending::enqueuedAt).orElse(now);
+        var dueAt = now.plus(start.policy().debounceDuration());
+        var maxWait = start.policy().maxWaitDuration();
+        if (maxWait != null && dueAt.isAfter(firstAt.plus(maxWait))) {
+            dueAt = firstAt.plus(maxWait);
+        }
         var id = tx.state().keyId();
         var pending = new FlowControlStore.Pending(id, id, FlowControlStore.Kind.DEBOUNCE, start.workflowId(),
-                write(start), dueAt, existing.map(FlowControlStore.Pending::enqueuedAt).orElse(now),
-                existing.map(p -> p.absorbed() + 1).orElse(1));
+                write(start), dueAt, firstAt, existing.map(p -> p.absorbed() + 1).orElse(1));
         tx.savePending(pending);
         return new Decision(Outcome.DEBOUNCED, null, start.businessKey(), dueAt,
                 "debounced until " + dueAt + " (" + pending.absorbed() + " start(s) folded into one; the last one's data wins)");
@@ -246,11 +253,29 @@ public class FlowControlService {
 
     // ── releasing ────────────────────────────────────────────────────────────────────────────────
 
-    /** Starts what is due: debounces whose quiet period ended, queued starts whose window has room. */
+    /**
+     * Starts what is due: debounces whose quiet period ended, queued starts whose window has room.
+     *
+     * <p>A key that cannot be released stays waiting ({@link FlowControlStore#withKey} undoes it) and does not
+     * hold the others back: {@code dueKeys} answers oldest first, so a key failing every time would otherwise
+     * stop every release for good. Sends block on the broker's answer, so a pass that has seen a failure stops
+     * once it has run for {@link #FAILING_PASS_BUDGET}: during an outage every key would wait out its timeout.
+     */
     public int releaseDue() {
         int released = 0;
+        var startedAt = System.nanoTime();
+        var failed = false;
         for (var keyId : store.dueKeys(EngineClock.now(), 500)) {
-            released += store.withKey(keyId, null, null, tx -> release(tx, EngineClock.now()));
+            if (failed && System.nanoTime() - startedAt > FAILING_PASS_BUDGET.toNanos()) {
+                log.warn("Stopping this release pass early: starts are failing to go out; the rest stay waiting");
+                break;
+            }
+            try {
+                released += store.withKey(keyId, null, null, tx -> release(tx, EngineClock.now()));
+            } catch (RuntimeException e) {
+                failed = true;
+                log.warn("Could not release the waiting start(s) of flow-control key {}; they stay waiting", keyId, e);
+            }
         }
         return released;
     }
@@ -265,7 +290,8 @@ public class FlowControlService {
         var debounce = tx.debounce();
         if (debounce.isPresent() && !debounce.get().dueAt().isAfter(now)) {
             tx.deletePending(debounce.get().id());
-            var start = read(debounce.get().requestJson()).asDebounced();
+            var start = read(debounce.get().requestJson()).asDebounced()
+                    .withFoldedStarts(debounce.get().absorbed(), debounce.get().enqueuedAt());
             var decision = admitNow(tx, start, this::route, now, false, true);
             record(start, decision, debounce.get().absorbed());
             released++;

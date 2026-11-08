@@ -277,7 +277,7 @@ public class InboundEventService {
                 event.destination(), definition.id(), trigger.id(), decision.detail());
         var receipt = receipt(receiver, receiver, EventReceipt.Kind.TRIGGER, event, outcome, definition.id(), trigger.id(),
                 decision.businessKey() != null ? decision.businessKey() : businessKey, null, null,
-                (flowKey.isEmpty() ? "" : "key '" + flowKey + "': ") + decision.detail());
+                (flowKey.isEmpty() ? "" : "key '" + flowKey + "': ") + decision.detail()).withFlowKey(flowKey);
         receipts.save(receipt);
         acted.add(receipt);
     }
@@ -376,7 +376,7 @@ public class InboundEventService {
                                         String businessKey, String messageName, String correlationKey, String detail) {
         return new EventReceipt(InboundEvents.receiptKey(keyReceiver, event), receiver, kind, event.destination(),
                 event.type(), event.source(), event.id(), outcome, workflowId, triggerId, businessKey, messageName,
-                correlationKey, detail, EngineClock.instant());
+                correlationKey, detail, null, EngineClock.instant());
     }
 
     private static List<Variable> toVariables(Map<String, String> variables) {

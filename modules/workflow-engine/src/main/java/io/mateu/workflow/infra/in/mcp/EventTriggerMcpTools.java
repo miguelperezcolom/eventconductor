@@ -128,11 +128,12 @@ public class EventTriggerMcpTools implements McpTools, McpSystemContext {
 
     @Tool(description = "The latest received domain events and what each did, newest first: destination, type, id,"
             + " source, receiver (trigger:<workflow>/<trigger> or wait:<message>/<key>), outcome (STARTED a process with"
-            + " businessKey, DELIVERED as a message, or ERROR with detail). Optionally one workflow's.")
+            + " businessKey, DELIVERED as a message, or ERROR with detail). Optionally one workflow's, or one flow-control key's.")
     public List<EventReceipt> listReceivedEvents(
             @ToolParam(required = false, description = "Only this workflow definition id; empty for all") String workflowId,
+            @ToolParam(required = false, description = "Only the events of this startPolicy key (the rendered key, e.g. a reservation id); empty for all") String flowKey,
             @ToolParam(required = false, description = "How many, default 50") Integer limit) {
-        return eventTriggerService.received(limit == null ? 50 : limit, workflowId);
+        return eventTriggerService.received(limit == null ? 50 : limit, workflowId, flowKey);
     }
 
     @Tool(description = "Inject a domain event (a CloudEvent) on a destination, as if it had arrived on its topic: it"

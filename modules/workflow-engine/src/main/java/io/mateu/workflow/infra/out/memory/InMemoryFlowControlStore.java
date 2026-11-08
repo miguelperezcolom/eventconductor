@@ -28,45 +28,58 @@ public class InMemoryFlowControlStore implements FlowControlStore {
         var lock = locks.computeIfAbsent(keyId, k -> new ReentrantLock());
         lock.lock();
         try {
-            states.computeIfAbsent(keyId, k -> new KeyState(keyId, scope, flowKey, null, 0, null, null, null));
-            return action.apply(new KeyTx() {
-                @Override
-                public KeyState state() {
-                    return states.get(keyId);
-                }
-
-                @Override
-                public void saveState(KeyState state) {
-                    states.put(keyId, state);
-                }
-
-                @Override
-                public Optional<Pending> debounce() {
-                    return pending.values().stream()
-                            .filter(p -> keyId.equals(p.keyId()) && p.kind() == Kind.DEBOUNCE).findFirst();
-                }
-
-                @Override
-                public List<Pending> queued() {
-                    return pending.values().stream()
-                            .filter(p -> keyId.equals(p.keyId()) && p.kind() == Kind.THROTTLE)
-                            .sorted(Comparator.comparing(Pending::id))
-                            .toList();
-                }
-
-                @Override
-                public void savePending(Pending p) {
-                    pending.put(p.id(), p);
-                }
-
-                @Override
-                public void deletePending(String id) {
-                    pending.remove(id);
-                }
-            });
+            var stateBefore = states.computeIfAbsent(keyId, k -> new KeyState(keyId, scope, flowKey, null, 0, null, null, null));
+            var pendingBefore = pending.values().stream().filter(p -> keyId.equals(p.keyId())).toList();
+            try {
+                return action.apply(tx(keyId));
+            } catch (RuntimeException e) {
+                // What the database's rollback does for the JDBC store.
+                states.put(keyId, stateBefore);
+                pending.values().removeIf(p -> keyId.equals(p.keyId()));
+                pendingBefore.forEach(p -> pending.put(p.id(), p));
+                throw e;
+            }
         } finally {
             lock.unlock();
         }
+    }
+
+    private KeyTx tx(String keyId) {
+        return new KeyTx() {
+            @Override
+            public KeyState state() {
+                return states.get(keyId);
+            }
+
+            @Override
+            public void saveState(KeyState state) {
+                states.put(keyId, state);
+            }
+
+            @Override
+            public Optional<Pending> debounce() {
+                return pending.values().stream()
+                        .filter(p -> keyId.equals(p.keyId()) && p.kind() == Kind.DEBOUNCE).findFirst();
+            }
+
+            @Override
+            public List<Pending> queued() {
+                return pending.values().stream()
+                        .filter(p -> keyId.equals(p.keyId()) && p.kind() == Kind.THROTTLE)
+                        .sorted(Comparator.comparing(Pending::id))
+                        .toList();
+            }
+
+            @Override
+            public void savePending(Pending p) {
+                pending.put(p.id(), p);
+            }
+
+            @Override
+            public void deletePending(String id) {
+                pending.remove(id);
+            }
+        };
     }
 
     @Override

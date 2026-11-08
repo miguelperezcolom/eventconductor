@@ -280,6 +280,11 @@ paths:
         schema:
           type: string
       - in: query
+        name: flowKey
+        required: false
+        schema:
+          type: string
+      - in: query
         name: limit
         required: false
         schema:
@@ -2557,6 +2562,8 @@ components:
           type: string
         eventType:
           type: string
+        flowKey:
+          type: string
         kind:
           type: string
           enum:
@@ -3262,6 +3269,8 @@ components:
         debounce:
           type: string
         key:
+          type: string
+        maxWait:
           type: string
         singleton:
           type: string

@@ -117,7 +117,7 @@ class EventTriggerMcpToolsTest {
                 "e-1", "pms", null, null).duplicates()).containsExactly("trigger:onboarding/on-created");
         verify(ingressRouter, times(1)).route(any(ProcessCreationRequested.class));
 
-        assertThat(tools.listReceivedEvents("onboarding", null)).extracting(EventReceipt::outcome)
+        assertThat(tools.listReceivedEvents("onboarding", null, null)).extracting(EventReceipt::outcome)
                 .containsExactly(EventReceipt.Outcome.STARTED);
     }
 
@@ -195,7 +195,7 @@ class EventTriggerMcpToolsTest {
     @Test
     void theReceivedEventsDefaultTo50() {
         var service = mock(EventTriggerService.class);
-        new EventTriggerMcpTools(service, mock(InboundEventService.class)).listReceivedEvents(null, null);
-        verify(service).received(50, null);
+        new EventTriggerMcpTools(service, mock(InboundEventService.class)).listReceivedEvents(null, null, null);
+        verify(service).received(50, null, null);
     }
 }

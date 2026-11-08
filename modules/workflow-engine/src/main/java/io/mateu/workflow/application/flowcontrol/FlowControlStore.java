@@ -15,7 +15,10 @@ import java.util.function.Function;
  */
 public interface FlowControlStore {
 
-    /** Runs {@code action} holding {@code keyId} exclusively; creates the key's state on first use. */
+    /**
+     * Runs {@code action} holding {@code keyId} exclusively; creates the key's state on first use. All or
+     * nothing: when {@code action} throws, the key's state and waiting starts are as they were.
+     */
     <T> T withKey(String keyId, String scope, String flowKey, Function<KeyTx, T> action);
 
     /** Keys with a pending start due at or before {@code now}, at most {@code max}. */

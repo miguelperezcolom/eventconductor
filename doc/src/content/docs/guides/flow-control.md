@@ -29,6 +29,7 @@ triggers:
     startPolicy:
       key: "${data.customerId}"                               # template; absent = one key for the trigger
       debounce: PT30S                                         # start once, with the LAST event, after 30 s of quiet
+      maxWait: PT5M                                           # …but never wait more than 5 min from the first event
       throttle: { limit: 10, period: PT1M, onLimit: queue }   # queue (default) | drop
       singleton: skip                                         # skip | replace
 ```
@@ -37,6 +38,7 @@ triggers:
 |---|---|
 | `key` | A text template rendered for every start; the policy counts per rendered key. A trigger's own policy renders it over the **event** (`data`, `subject`, `key`… — the same context as its filter); a definition's policy over the start's **variables**, plus `businessKey` and `workflowId`. Absent: the whole scope is one key. A key that does not render, or renders blank, refuses the start (an `ERROR` receipt, a 400) — it is never silently shared. |
 | `debounce` | ISO-8601 duration. The first start for a key opens a window; every further start in it **replaces** the pending one (its data and business key win) and pushes the window to now + debounce. When the window closes, the last start goes on. |
+| `maxWait` | ISO-8601 duration, with `debounce` and not shorter than it. However often the key keeps changing, the start waits at most this long after the first start of the window. Absent: a key that never goes quiet is postponed for as long as it changes. Equal to `debounce` (`debounce: PT10S`, `maxWait: PT10S`), the window is fixed and counted from the first start. |
 | `throttle` | `{limit, period, onLimit}`: at most `limit` starts per key per fixed window of `period` (opened by the first start). Over it, `queue` (default) keeps the start FIFO and releases it when a window has room; `drop` discards it. A new start never overtakes queued ones. |
 | `singleton` | `skip`: while the last process the policy started for the key is still running, a new start is skipped. `replace`: the running one is cancelled (as an operator cancel: compensation runs) and the new one starts. |
 
@@ -74,7 +76,9 @@ A receipt is written for every one of them, so a redelivered event that was debo
 skipped is a duplicate like any other. A held-back REST start without a business key gets one
 (`<workflow>-flow-<uuid>`) — the `businessKey` of the 202 is the key the process will have. With a debounce, the
 process starts with the **last** start's data and business key: earlier callers' 202s name keys that never
-come to exist.
+come to exist. A process started by a debounce also gets two variables, `flowControlFoldedStarts` (how many
+starts were folded into it) and `flowControlFirstStartAt` (when the first arrived); a variable of that name the
+start already has is kept.
 
 A definition that is invocable synchronously (`syncInvocation`) cannot declare a definition-level `debounce`:
 its caller waits for a process that would start later with somebody else's data. Put the debounce on a
@@ -94,13 +98,44 @@ trigger instead.
   as running.
 
 Guaranteed: no start is admitted past a throttle's limit in its window; one pending debounce per key; FIFO among
-queued starts; one decision at a time per key. Not guaranteed: a crash between admitting and creating loses that
-start (it is never doubled); a singleton is judged against the *last process started through the policy* — a
+queued starts; one decision at a time per key. With `jpa` and a broker, a start is sent synchronously inside the
+transaction that removes it from the wait: a refused send or a crash leaves it waiting, and it is never lost. A
+crash right after the send sends it again, and the second one collapses on its business key while the first holds
+it. A key whose start cannot go out stays waiting and does not hold the others back. Not guaranteed: with `memory`
+persistence, a restart loses what was waiting; a singleton is judged against the *last process started through the policy* — a
 process started some other way for the same key is not counted; in a sharded fleet, keys are counted per shard
 database.
 
 Metric: `eventconductor.flow.starts{workflowDefinitionId, scope, outcome}` — `started`, `debounced`,
 `throttled`, `dropped`, `skipped`, `replaced`, and `released` for a waiting start leaving its wait.
+
+### Keeping an entity's changes without losing any
+
+To turn a stream of changes to an entity (a CDC topic, say) into one run per burst, each reading the entity's
+current state, a start that arrives while a run is in flight must still produce a later run — it may carry a change
+that run has already read past. So:
+
+```yaml
+# the trigger
+businessKey: "publish-reservation-${data.after.ID}-${id}"   # a different key per start
+variables: { reservationId: "${data.after.ID}" }
+startPolicy: { key: "${data.after.ID}", debounce: PT10S, maxWait: PT10S }   # no singleton
+# the definition
+processLock: { name: reservation, key: reservationId }      # runs of one entity go one at a time, in order
+```
+
+- **`singleton: skip` loses changes**: a debounce released while a run is in flight is discarded. `replace` loses
+  none but cancels the run in flight.
+- **A business key per entity loses changes**: under `unique` a later start collapses into the first run for good,
+  and under `allowAfterFinished` into a run still in flight. Use a key per start, and a
+  [search attribute](/guides/searching-and-bulk-operations/) to find the runs of an entity.
+
+### Following a key
+
+`GET /workflow/api/events/received?flowKey=<key>` (optional `workflowId`, `limit`), the MCP tool
+`listReceivedEvents` and the **Flow-control key** filter of **Workflow → Received events** list every event a
+policy counted under a key and what it did. Receipts live for `workflow.events.receipts.retention` (7 days): raise
+it to follow a key for longer. The key is searched by its first 255 characters.
 
 ## Worker rate limits
 

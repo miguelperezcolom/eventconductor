@@ -15,11 +15,19 @@ import java.time.Instant;
  * @param messageName    WAIT: the message the event became
  * @param correlationKey WAIT: the key it carried
  * @param detail         ERROR: why; otherwise a short note, may be null
+ * @param flowKey        TRIGGER under a startPolicy: the rendered key it counted by; null otherwise
  */
 public record EventReceipt(String receiptKey, String receiver, Kind kind, String destination, String eventType,
                            String eventSource, String eventId, Outcome outcome, String workflowId, String triggerId,
                            String businessKey, String messageName, String correlationKey, String detail,
-                           Instant receivedAt) {
+                           String flowKey, Instant receivedAt) {
+
+    /** The same receipt, recording the flow-control key it counted by. */
+    public EventReceipt withFlowKey(String newFlowKey) {
+        return new EventReceipt(receiptKey, receiver, kind, destination, eventType, eventSource, eventId, outcome,
+                workflowId, triggerId, businessKey, messageName, correlationKey, detail,
+                newFlowKey == null || newFlowKey.isBlank() ? null : newFlowKey, receivedAt);
+    }
 
     /** A trigger of a definition, or the message a waiting step turns the event into. */
     public enum Kind { TRIGGER, WAIT }

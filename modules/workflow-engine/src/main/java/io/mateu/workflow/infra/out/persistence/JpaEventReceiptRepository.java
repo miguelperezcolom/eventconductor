@@ -20,6 +20,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class JpaEventReceiptRepository implements EventReceiptRepository {
 
+    /** As long as the indexed column: a longer key is kept, and searched, by its first characters. */
+    private static final int FLOW_KEY_LENGTH = 255;
+
     final InboundEventReceiptEntityRepository repository;
 
     @Override
@@ -39,7 +42,7 @@ public class JpaEventReceiptRepository implements EventReceiptRepository {
                     cut(receipt.eventSource(), 1024), cut(receipt.eventId(), 512), receipt.outcome().name(),
                     cut(receipt.workflowId(), 255), cut(receipt.triggerId(), 160), cut(receipt.businessKey(), 1024),
                     cut(receipt.messageName(), 255), cut(receipt.correlationKey(), 1024), cut(receipt.detail(), 2000),
-                    LocalDateTime.ofInstant(receipt.receivedAt(), ZoneOffset.UTC)));
+                    cut(receipt.flowKey(), FLOW_KEY_LENGTH), LocalDateTime.ofInstant(receipt.receivedAt(), ZoneOffset.UTC)));
         } catch (DataIntegrityViolationException alreadyThere) {
             // Another pod (or a concurrent duplicate) recorded it first: the receipt exists, which is all
             // this was for.
@@ -56,6 +59,16 @@ public class JpaEventReceiptRepository implements EventReceiptRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<EventReceipt> recentOfFlowKey(int limit, String workflowId, String flowKey) {
+        var page = PageRequest.of(0, Math.max(1, limit));
+        var key = cut(flowKey, FLOW_KEY_LENGTH);
+        var rows = workflowId == null ? repository.findByFlowKeyOrderByReceivedAtDesc(key, page)
+                : repository.findByWorkflowIdAndFlowKeyOrderByReceivedAtDesc(workflowId, key, page);
+        return rows.stream().map(JpaEventReceiptRepository::toReceipt).toList();
+    }
+
+    @Override
     @Transactional
     public int purgeReceivedBefore(Instant cutoff) {
         return repository.deleteReceivedBefore(LocalDateTime.ofInstant(cutoff, ZoneOffset.UTC));
@@ -66,7 +79,7 @@ public class JpaEventReceiptRepository implements EventReceiptRepository {
                 row.getDestination(), row.getEventType(), row.getEventSource(), row.getEventId(),
                 EventReceipt.Outcome.valueOf(row.getOutcome()), row.getWorkflowId(), row.getTriggerId(),
                 row.getBusinessKey(), row.getMessageName(), row.getCorrelationKey(), row.getDetail(),
-                row.getReceivedAt().toInstant(ZoneOffset.UTC));
+                row.getFlowKey(), row.getReceivedAt().toInstant(ZoneOffset.UTC));
     }
 
     private static String cut(String text, int max) {

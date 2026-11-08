@@ -20,7 +20,7 @@ for autocomplete. The schema forbids unknown keys. Examples: [patterns.md](patte
 | `triggers` | `[{id?, destination, type, filter?, businessKey?, variables?, startPolicy?}]` domain events that start an instance (or `events.yaml` with `workflow:` per entry) |
 | `syncInvocation` | `{enabled, onFailure: REPLY_IMMEDIATELY\|REPLY_AFTER_COMPENSATION, onLockBusy: WAIT\|FAIL, defaultDeadlineMs}` — needs a reachable `REPLY` |
 | `updates` | `[{name, description?, accepts (JSON Schema), acceptedWhile: [stepIds], validate: [{expression, message}], set: {var: JEXL}, completes: <WAIT_FOR_MESSAGE id>, reply \| replyTemplate, sensitive: [fields], allowSensitiveVariables?}]` |
-| `startPolicy` | `{key?, debounce?, throttle?: {limit, period, onLimit: queue\|drop}, singleton?: skip\|replace}` for REST starts and sync invocations (triggers may have their own); no definition-level `debounce` with `syncInvocation` |
+| `startPolicy` | `{key?, debounce?, maxWait?, throttle?: {limit, period, onLimit: queue\|drop}, singleton?: skip\|replace}` for REST starts and sync invocations (triggers may have their own); no definition-level `debounce` with `syncInvocation` |
 | `businessKeyPolicy` | `unique` (default) \| `allowAfterFinished` \| `allowAfterFailed` \| `terminateRunning` |
 | `processLock` | `{name?, key}` — serialize whole instances by a JEXL key |
 | `retention` | `P30D` \| `{completed, cancelled, error, compensated, compensationFailed: <duration>\|forever}` |

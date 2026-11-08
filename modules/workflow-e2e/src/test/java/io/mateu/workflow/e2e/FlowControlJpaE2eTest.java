@@ -35,6 +35,7 @@ class FlowControlJpaE2eTest extends AbstractJpaE2eTest {
 
     @Autowired InboundEventService inbound;
     @Autowired JdbcTemplate jdbc;
+    @Autowired io.mateu.workflow.application.services.EventTriggerService triggers;
 
     private InboundEventService.Result send(String destination, String type, String data) {
         return inbound.receive(new InboundEvent(destination, UUID.randomUUID().toString(), "e2e", type, null, null, null,
@@ -54,6 +55,11 @@ class FlowControlJpaE2eTest extends AbstractJpaE2eTest {
         assertThat(processOpt("reindex-S1-1")).isEmpty();
         assertThat(processOpt("reindex-S1-2")).isEmpty();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flow_control_pending", Integer.class)).isZero();
+        assertThat(process("reindex-S1-3").getVariables()).extracting("name", "value")
+                .contains(org.assertj.core.groups.Tuple.tuple("flowControlFoldedStarts", "3"));
+        assertThat(triggers.received(50, "flow-debounce-trigger", "S1")).hasSize(3)
+                .allSatisfy(r -> assertThat(r.flowKey()).isEqualTo("S1"));
+        assertThat(triggers.received(50, "flow-debounce-trigger", "S2")).isEmpty();
     }
 
     @Test

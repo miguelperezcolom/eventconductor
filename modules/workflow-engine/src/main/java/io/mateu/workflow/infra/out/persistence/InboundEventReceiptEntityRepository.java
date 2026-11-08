@@ -14,6 +14,10 @@ public interface InboundEventReceiptEntityRepository extends JpaRepository<Inbou
 
     List<InboundEventReceiptEntity> findByWorkflowIdOrderByReceivedAtDesc(String workflowId, Pageable pageable);
 
+    List<InboundEventReceiptEntity> findByFlowKeyOrderByReceivedAtDesc(String flowKey, Pageable pageable);
+
+    List<InboundEventReceiptEntity> findByWorkflowIdAndFlowKeyOrderByReceivedAtDesc(String workflowId, String flowKey, Pageable pageable);
+
     @Modifying
     @Query("delete from InboundEventReceiptEntity r where r.receivedAt < :cutoff")
     int deleteReceivedBefore(LocalDateTime cutoff);

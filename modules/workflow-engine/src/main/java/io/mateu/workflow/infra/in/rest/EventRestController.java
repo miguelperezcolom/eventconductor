@@ -38,7 +38,7 @@ import java.util.NoSuchElementException;
  *
  * <pre>
  *   POST /workflow/api/events/{destination}?key=      a structured CloudEvent; 200 with what it did
- *   GET  /workflow/api/events/received?workflowId=&amp;limit=   the latest receipts, newest first
+ *   GET  /workflow/api/events/received?workflowId=&amp;flowKey=&amp;limit=   the latest receipts, newest first
  *   GET  /workflow/api/triggers?workflowId=&amp;q=          every trigger
  *   GET  /workflow/api/triggers/{workflowId}/{triggerId}
  *   POST /workflow/api/triggers/{workflowId}/{triggerId}/pause
@@ -92,9 +92,10 @@ public class EventRestController {
     @GetMapping("/events/received")
     public List<EventReceipt> received(@RequestHeader(value = "X-Api-Key", required = false) String apiKey,
                                        @RequestParam(value = "workflowId", required = false) String workflowId,
+                                       @RequestParam(value = "flowKey", required = false) String flowKey,
                                        @RequestParam(value = "limit", required = false, defaultValue = "100") int limit) {
         verifyApiKey(apiKey);
-        return eventTriggerService.received(limit, workflowId);
+        return eventTriggerService.received(limit, workflowId, flowKey);
     }
 
     @GetMapping("/triggers")

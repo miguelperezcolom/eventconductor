@@ -199,6 +199,9 @@ class EventRestControllerMvcTest {
         mvc.perform(get("/workflow/api/events/received").param("workflowId", "onboarding").param("limit", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1));
+        mvc.perform(get("/workflow/api/events/received").param("flowKey", "no-such-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
         mvc.perform(get("/workflow/api/events/received").param("workflowId", "someone-else"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));

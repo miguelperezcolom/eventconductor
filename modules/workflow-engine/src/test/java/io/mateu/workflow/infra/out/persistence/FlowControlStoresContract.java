@@ -164,4 +164,18 @@ abstract class FlowControlStoresContract {
         jdbc.update("INSERT INTO process_entity (id, business_key, status, workflow_definition_id, created) VALUES (?, ?, ?, ?, ?)",
                 id, businessKey, "RUNNING", "wf", Timestamp.valueOf(T0));
     }
+
+    @Test
+    void whatAKeyDidIsUndoneWhenTheActionFails() {
+        var waiting = new FlowControlStore.Pending("p1", "k9", FlowControlStore.Kind.DEBOUNCE, "wf", "{}", T0, T0, 1);
+        flow.withKey("k9", "start:wf", "a", tx -> {
+            tx.savePending(waiting);
+            return null;
+        });
+        assertThatThrownBy(() -> flow.withKey("k9", "start:wf", "a", tx -> {
+            tx.deletePending("p1");
+            throw new IllegalStateException("the broker refused it");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(flow.pending(FlowControlStore.Kind.DEBOUNCE)).isEqualTo(1);
+    }
 }

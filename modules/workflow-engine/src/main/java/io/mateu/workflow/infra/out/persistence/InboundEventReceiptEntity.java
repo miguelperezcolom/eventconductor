@@ -21,7 +21,8 @@ import java.time.LocalDateTime;
 @Table(name = "inbound_event_receipt",
         indexes = {
                 @Index(name = "idx_inbound_event_receipt_received_at", columnList = "received_at"),
-                @Index(name = "idx_inbound_event_receipt_workflow_received", columnList = "workflow_id, received_at")
+                @Index(name = "idx_inbound_event_receipt_workflow_received", columnList = "workflow_id, received_at"),
+                @Index(name = "idx_inbound_event_receipt_flow_key_received", columnList = "flow_key, received_at")
         })
 @Getter
 @Setter
@@ -71,6 +72,9 @@ public class InboundEventReceiptEntity {
 
     @Column(name = "detail", length = 2000)
     private String detail;
+
+    @Column(name = "flow_key", length = 255)
+    private String flowKey;
 
     /** In UTC, as a plain TIMESTAMP like the engine's other columns. */
     @Column(name = "received_at", nullable = false)

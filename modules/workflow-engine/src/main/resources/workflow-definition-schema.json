@@ -2243,6 +2243,11 @@
           "pattern": "^P(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$",
           "description": "ISO-8601 duration: the first start of a key opens a quiet period; each further start replaces the waiting one (the last one's data and business key win) and pushes the period back. When it ends, the last start goes on (singleton, throttle). Not allowed on a definition invocable synchronously."
         },
+        "maxWait": {
+          "type": "string",
+          "pattern": "^P(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$",
+          "description": "ISO-8601 duration, with debounce and not shorter than it: the longest a start waits after the key's first start, however often the key keeps changing. Equal to debounce, the window is fixed and counted from the first start."
+        },
         "throttle": {
           "type": [
             "object",

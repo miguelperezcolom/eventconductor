@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`startPolicy.maxWait`.** A ceiling on a debounce: however often a key keeps changing, its start waits at most this long after the first one. Equal to `debounce`, the window is fixed and counted from the first start.
+- **Following a flow-control key.** Receipts record the rendered key: `GET /workflow/api/events/received?flowKey=`, `listReceivedEvents` and a filter on **Received events** list what happened to one key (migration V59).
+- **What a debounce folded, on the process.** A process started by a debounce gets `flowControlFoldedStarts` and `flowControlFirstStartAt`.
+
+### Fixed
+- **A flow-control key that could not be released stopped every other key's release**, since the pass stopped at the first failure and always began with the oldest.
+- **With `memory` persistence, a failed release lost the waiting start.** The store now undoes a failed key as the database does.
+
+### Documentation
+- The flow-control guide said a crash could lose a start. With `jpa` and a broker it cannot: it stays waiting, or is sent twice and collapses. It also gains a recipe for keeping an entity's changes without losing any.
+
 ## [2.37.0] - 2026-10-26
 
 A gauge of the open incidents, so an integration can be watched and alerted on from a dashboard.

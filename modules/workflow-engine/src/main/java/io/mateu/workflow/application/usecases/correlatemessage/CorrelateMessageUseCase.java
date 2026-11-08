@@ -98,7 +98,7 @@ public class CorrelateMessageUseCase {
             var origin = command.origin();
             eventReceiptRepository.save(new EventReceipt(receiptKey, receiver, EventReceipt.Kind.WAIT,
                     origin.destination(), origin.type(), origin.source(), origin.id(), EventReceipt.Outcome.DELIVERED,
-                    takenBy.get(), null, null, command.messageName(), command.correlationKey(), null, EngineClock.instant()));
+                    takenBy.get(), null, null, command.messageName(), command.correlationKey(), null, null, EngineClock.instant()));
         }
     }
 
