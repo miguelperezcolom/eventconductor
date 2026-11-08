@@ -1,6 +1,6 @@
 package io.mateu.workflow.infra.in.ui.pages;
 
-import io.mateu.core.infra.JwtExtractor;
+import io.mateu.workflow.infra.in.ui.security.SignedInUser;
 import io.mateu.uidl.StyleConstants;
 import io.mateu.uidl.annotations.Action;
 import io.mateu.uidl.data.*;
@@ -156,7 +156,7 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
 
         var execution = formExecutionRepository.findById(_taskId).orElseThrow();
         var form = formRepository.findById(execution.formId()).orElseThrow();
-        var username = JwtExtractor.getUsername(httpRequest).orElse(null);
+        var username = SignedInUser.name(httpRequest).orElse(null);
         // A task that names who it is for is shown to them (and to task admins) only: the same rule
         // the lists apply, here because a task's link travels.
         if (!io.mateu.workflow.application.services.TaskVisibility.canSee(execution, taskCallers.forUser(username))) {
@@ -259,7 +259,7 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
     public Object handleAction(String actionId, HttpRequest httpRequest) {
         if ("complete".equals(actionId)) {
             var execution = formExecutionRepository.findById(_taskId).orElseThrow();
-            var username = JwtExtractor.getUsername(httpRequest).orElse(null);
+            var username = SignedInUser.name(httpRequest).orElse(null);
             // Done by whoever claimed it, and only by them — the button is disabled for anyone else,
             // and this is what makes that more than a hint. The same rule as Tasks v2.
             if (!isOpen(execution) || username == null || !username.equals(execution.userId())) {
@@ -279,7 +279,7 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
         if ("claim".equals(actionId)) {
             // The caller, not a name: this used to write "miguel" into every task it claimed, and
             // Complete — enabled for the task's assignee — was then nobody's to press.
-            var username = JwtExtractor.getUsername(httpRequest).orElseThrow(
+            var username = SignedInUser.name(httpRequest).orElseThrow(
                     () -> new IllegalStateException("Claiming a task needs a signed-in user"));
             try {
                 // Offered to this person, its form allowing them, and nobody holding it: claiming
@@ -291,7 +291,7 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
             }
         }
         if ("release".equals(actionId)) {
-            var username = JwtExtractor.getUsername(httpRequest).orElse(null);
+            var username = SignedInUser.name(httpRequest).orElse(null);
             // Handed back by whoever holds it (or a task admin): releasing does not take work away
             // from somebody else, any more than claiming does.
             try {

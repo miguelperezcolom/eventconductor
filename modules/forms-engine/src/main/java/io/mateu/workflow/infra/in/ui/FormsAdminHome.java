@@ -17,9 +17,7 @@ import io.mateu.uidl.data.FieldStereotype;
  * which is the same one. Here it separates designing a form from answering one, which are done by
  * different people even in a deployment that has only one console.
  *
- * <p>No {@code @KeycloakSecured}: {@code FormsHome} carries one naming a host that is not this
- * deployment's, and copying it would bake a second wrong issuer into a second bootstrap page. The
- * engine authenticates nothing of its own in either case; whatever sits in front of it does.
+ * <p>The engine authenticates nothing of its own; whatever sits in front of it does.
  */
 @UI("/_forms-admin")
 @FavIcon("/images/riu.svg")

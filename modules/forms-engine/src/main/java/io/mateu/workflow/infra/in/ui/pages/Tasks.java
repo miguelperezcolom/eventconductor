@@ -1,6 +1,6 @@
 package io.mateu.workflow.infra.in.ui.pages;
 
-import io.mateu.core.infra.JwtExtractor;
+import io.mateu.workflow.infra.in.ui.security.SignedInUser;
 import io.mateu.core.infra.declarative.orchestrators.crud.Crud;
 import io.mateu.uidl.annotations.Toolbar;
 import io.mateu.uidl.annotations.Trigger;
@@ -59,7 +59,7 @@ public class Tasks extends Crud<TaskRow, TaskRow, TaskRow, TaskFilters, TaskRow,
     public ListingData<TaskRow> search(SearchRequest searchRequest, HttpRequest httpRequest) {
         var pageable = searchRequest.pageable();
         var filters = searchRequest.filters() instanceof TaskFilters f ? f : null;
-        var caller = taskCallers.forUser(JwtExtractor.getUsername(httpRequest).orElse(null));
+        var caller = taskCallers.forUser(SignedInUser.name(httpRequest).orElse(null));
         var query = new TaskQuery(
                 filters == null || filters.scope() == null ? TaskQuery.Scope.ALL : filters.scope().scope(),
                 null,
@@ -181,7 +181,7 @@ public class Tasks extends Crud<TaskRow, TaskRow, TaskRow, TaskFilters, TaskRow,
         if (selectedRows.isEmpty()) {
             return;
         }
-        var caller = taskCallers.forUser(JwtExtractor.getUsername(httpRequest).orElseThrow());
+        var caller = taskCallers.forUser(SignedInUser.name(httpRequest).orElseThrow());
         var claimed = 0;
         for (var row : selectedRows) {
             try {

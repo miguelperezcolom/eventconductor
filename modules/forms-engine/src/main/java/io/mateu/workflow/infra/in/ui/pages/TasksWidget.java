@@ -1,6 +1,6 @@
 package io.mateu.workflow.infra.in.ui.pages;
 
-import io.mateu.core.infra.JwtExtractor;
+import io.mateu.workflow.infra.in.ui.security.SignedInUser;
 import io.mateu.uidl.RouteConstants;
 import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.Div;
@@ -40,7 +40,7 @@ public class TasksWidget implements Hydratable, ComponentTreeSupplier {
         // The badge is a listing with one number in it, so it counts what the inbox would list for
         // this person — what the tasks name and what their forms require: counting tasks they may not
         // work on would tell them the work exists, which is most of what hiding it was for.
-        var caller = taskCallers.forUser(JwtExtractor.getUsername(httpRequest).orElse(null));
+        var caller = taskCallers.forUser(SignedInUser.name(httpRequest).orElse(null));
         var tasks = taskInbox.count(io.mateu.workflow.domain.TaskQuery.open(), caller);
         var overdue = taskInbox.count(new io.mateu.workflow.domain.TaskQuery(io.mateu.workflow.domain.TaskQuery.Scope.ALL,
                 null, null, Boolean.TRUE, null, null, null, null, null, 0, 1), caller);

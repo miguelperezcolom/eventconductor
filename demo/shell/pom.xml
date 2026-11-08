@@ -27,6 +27,7 @@
         <url/>
     </scm>
     <properties>
+        <!-- Held back: ShellHome signs in through @KeycloakSecured, which 3.0-beta.52 removes. -->
         <mateu.version>3.0-beta.51</mateu.version>
         <java.version>21</java.version>
     </properties>

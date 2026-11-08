@@ -1,7 +1,6 @@
 package io.mateu.workflow.infra.in.ui;
 
 import io.mateu.uidl.annotations.FavIcon;
-import io.mateu.uidl.annotations.KeycloakSecured;
 import io.mateu.uidl.annotations.Logo;
 import io.mateu.uidl.annotations.Menu;
 import io.mateu.uidl.annotations.PageTitle;
@@ -11,7 +10,6 @@ import io.mateu.uidl.annotations.UI;
 import io.mateu.uidl.data.FieldStereotype;
 
 @UI("/_rules")
-@KeycloakSecured(url = "https://lemur-11.cloud-iam.com/auth", realm = "mateu", clientId = "demo")
 @FavIcon("/images/riu.svg")
 @PageTitle("Rules")
 @Logo("/images/riu.svg")
