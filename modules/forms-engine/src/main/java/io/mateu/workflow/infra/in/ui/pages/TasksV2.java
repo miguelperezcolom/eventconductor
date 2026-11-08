@@ -1,6 +1,6 @@
 package io.mateu.workflow.infra.in.ui.pages;
 
-import io.mateu.core.infra.JwtExtractor;
+import io.mateu.workflow.infra.in.ui.security.SignedInUser;
 import io.mateu.uidl.annotations.Title;
 import io.mateu.uidl.data.Button;
 import io.mateu.uidl.data.DeclaredRestSource;
@@ -92,7 +92,7 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
      * completed, newest first, filling the page.
      */
     private List<FormExecution> tasks(HttpRequest httpRequest) {
-        var caller = taskCallers.forUser(JwtExtractor.getUsername(httpRequest).orElse(null));
+        var caller = taskCallers.forUser(SignedInUser.name(httpRequest).orElse(null));
         var open = taskInbox.search(TaskQuery.open().withPage(0, MAX_TASKS), caller).items();
         var tasks = new ArrayList<>(open);
         if (tasks.size() < MAX_TASKS && caller.known()) {
@@ -137,7 +137,7 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
 
     @Override
     public Component component(HttpRequest httpRequest) {
-        var username = JwtExtractor.getUsername(httpRequest).orElse(null);
+        var username = SignedInUser.name(httpRequest).orElse(null);
         var formCache = new HashMap<String, Optional<Form>>();
         List<Component> rows = new ArrayList<>();
         for (var task : tasks(httpRequest)) {
@@ -330,7 +330,7 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
     }
 
     private void claim(String taskId, HttpRequest httpRequest) {
-        var username = JwtExtractor.getUsername(httpRequest).orElseThrow();
+        var username = SignedInUser.name(httpRequest).orElseThrow();
         // Claiming is taking the work, so it is gated like doing it — by what the task names and by
         // what its form requires (ClaimTaskUseCase). The listing above already hides what this person
         // may not touch; this is what makes that hiding irrelevant to security.
@@ -342,7 +342,7 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
     }
 
     private void complete(String taskId, HttpRequest httpRequest) {
-        var username = JwtExtractor.getUsername(httpRequest).orElseThrow();
+        var username = SignedInUser.name(httpRequest).orElseThrow();
         Map<String, Object> state = httpRequest.getComponentState(Map.class);
         var prefix = taskId + SEPARATOR;
         var values = state.entrySet().stream()
