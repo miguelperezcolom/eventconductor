@@ -780,7 +780,7 @@ The standalone apps protect their HTTP endpoints (UI, REST, actuator) with basic
 
 | Property | Env variable | Default | Description |
 |---|---|---|---|
-| `eventconductor.security.enabled` | `SECURITY_ENABLED` | `true` | Master switch for HTTP security |
+| `eventconductor.security.enabled` | `SECURITY_ENABLED` | `true` | Master switch for HTTP security. `false` permits every request, the startup log warns that the consoles are open: only for an isolated deployment or behind a gateway that authenticates |
 | `eventconductor.security.user` | `SECURITY_USER` | `admin` | Username |
 | `eventconductor.security.password` | `SECURITY_PASSWORD` | *(blank)* | Password. If left blank, a random password is generated at startup and — since 2.28.0 — **not** shown, so nobody can log in: set it |
 

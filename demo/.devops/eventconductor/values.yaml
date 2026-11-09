@@ -2,6 +2,11 @@
 # Deploy:  helm upgrade --install ec charts/eventconductor -n eventconductor --create-namespace -f values-hetzner.yaml
 # Karpenter (CloudFleet) autoscales to fit the Pending pods. Web exposed via the
 # nginx-certbot reverse proxy at https://ec.mateu.io (cross-namespace to orchestrator).
+#
+# WARNING before raising imageTag: every app below has security.enabled: false, so its HTTP
+# endpoints permit every request. From Mateu 3.0-beta.52 on (EventConductor 2.38.0) the Forms and
+# Rules consoles no longer redirect the browser to Keycloak, so nothing in the apps stands in the
+# way. Set security.enabled: true (ec-admin holds the password) or authenticate at the proxy first.
 
 # Pin amd64: the nodepool can also provision arm64, but the published images are amd64-only.
 nodeSelector:

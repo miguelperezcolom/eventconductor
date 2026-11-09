@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`SECURITY_ENABLED=false` no longer starts up saying the application is protected.** The standalone apps' filter chain permits every request under that setting, but it counted as protection, so the startup line read "Protected by the application's Spring Security", at INFO. It is now a warning that says the consoles, and the REST API when no api key is set, are open. Who gets in does not change.
+
 ## [2.38.1] - 2026-11-09
 
 The Docker images of 2.38.0 were never published: the release's image scan stopped them. Use this version.

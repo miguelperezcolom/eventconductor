@@ -75,12 +75,19 @@ class EngineApiAccessTest {
     }
 
     private static java.util.List<String> startupLog(MessageApiProperties properties, StaticListableBeanFactory beans) {
+        return startupLog(properties, beans, true);
+    }
+
+    private static java.util.List<String> startupLog(MessageApiProperties properties, StaticListableBeanFactory beans,
+                                                     boolean securityEnabled) {
         var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(EngineApiAccess.class);
         var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
         appender.start();
         logger.addAppender(appender);
         try {
-            new EngineApiAccess(properties, beans, FakeFilterChain.class.getName()).afterSingletonsInstantiated();
+            var access = new EngineApiAccess(properties, beans, FakeFilterChain.class.getName());
+            access.securityEnabled = securityEnabled;
+            access.afterSingletonsInstantiated();
         } finally {
             logger.detachAppender(appender);
         }
@@ -91,6 +98,28 @@ class EngineApiAccessTest {
         var beans = new StaticListableBeanFactory();
         beans.addBean("messages", mock(MessageRestController.class));
         return beans;
+    }
+
+    /** SECURITY_ENABLED=false leaves a filter chain that permits everything: that is open, not protected. */
+    @Test
+    void atStartupAFilterChainThatPermitsEverythingIsReportedAsOpen() {
+        var beans = withControllers();
+        beans.addBean("chain", new FakeFilterChain() { });
+
+        assertThat(startupLog(properties(null, false, false), beans, false)).singleElement().asString()
+                .startsWith("WARN").contains("is OPEN", "eventconductor.security.enabled is false", "Consoles — OPEN")
+                .doesNotContain("Protected", "protected by");
+        assertThat(startupLog(properties("k3y", false, false), beans, false)).singleElement().asString()
+                .as("the key still guards the API, not the consoles").startsWith("WARN")
+                .contains("X-Api-Key", "Consoles — OPEN");
+
+        var noApi = new StaticListableBeanFactory();
+        noApi.addBean("chain", new FakeFilterChain() { });
+        assertThat(startupLog(properties(null, false, false), noApi, false)).singleElement().asString()
+                .startsWith("WARN").contains("Consoles — OPEN");
+
+        assertThat(startupLog(properties(null, false, false), withControllers(), false)).singleElement().asString()
+                .as("no filter chain: the switch changes nothing").startsWith("WARN").contains("refuses every request");
     }
 
     /** At startup the engine says, in one line, how the API and the consoles are protected and what changes it. */

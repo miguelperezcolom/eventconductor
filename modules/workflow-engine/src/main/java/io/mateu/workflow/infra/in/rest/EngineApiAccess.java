@@ -5,6 +5,7 @@ import io.mateu.workflow.security.console.ConsoleAccess;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.http.HttpStatus;
@@ -50,6 +51,10 @@ public class EngineApiAccess implements SmartInitializingSingleton {
 
     private final String securityFilterChainType;
 
+    /** False in a standalone app with SECURITY_ENABLED=false: its filter chain permits every request. */
+    @Value("${" + ConsoleAccess.SECURITY_ENABLED + ":true}")
+    boolean securityEnabled = true;
+
     @Autowired
     public EngineApiAccess(MessageApiProperties apiProperties, ListableBeanFactory beans) {
         this(apiProperties, beans, SECURITY_FILTER_CHAIN);
@@ -66,13 +71,19 @@ public class EngineApiAccess implements SmartInitializingSingleton {
         apiProperties.setSecuredByFilterChain(hasFilterChain(beans, securityFilterChainType));
         boolean chain = apiProperties.isSecuredByFilterChain();
         boolean anonymous = apiProperties.isAllowAnonymous();
-        var consoles = CONSOLES_PREFIX + ConsoleAccess.status(chain, anonymous);
+        boolean permitsAll = chain && !securityEnabled;
+        var consoles = CONSOLES_PREFIX + ConsoleAccess.status(chain, anonymous, !securityEnabled);
         boolean open = !chain && anonymous;
         if (!engineApiPresent(beans)) {
-            logAt(chain, "EventConductor access." + consoles);
+            logAt(chain && !permitsAll, "EventConductor access." + consoles);
         } else if (hasKey(apiProperties)) {
-            logAt(chain, "The engine's REST API (/workflow/api/**) requires the X-Api-Key header to"
+            logAt(chain && !permitsAll, "The engine's REST API (/workflow/api/**) requires the X-Api-Key header to"
                     + " match workflow.message-api.api-key." + consoles);
+        } else if (permitsAll) {
+            log.warn("The engine's REST API (/workflow/api/**: processes, messages, events, schedules, sync invocations) is OPEN:"
+                    + " " + ConsoleAccess.SECURITY_ENABLED + " is false and no api-key is set, so the application's"
+                    + " filter chain lets every request through and anyone who can reach this port can start"
+                    + " processes, send messages and create schedules." + consoles);
         } else if (chain) {
             log.info("The engine's REST API (/workflow/api/**) is protected by the application's Spring Security;"
                     + " no workflow.message-api.api-key is required." + consoles);
