@@ -190,10 +190,14 @@ class ConsoleAccessInterceptorTest {
 
     @Test
     void theStatusSaysWhatIsProtectedAndHow() {
-        assertThat(ConsoleAccess.status(true, false)).startsWith("Protected by the application's Spring Security");
-        assertThat(ConsoleAccess.status(false, true)).startsWith("OPEN").contains(ConsoleAccess.ALLOW_ANONYMOUS);
-        assertThat(ConsoleAccess.status(false, false)).startsWith("Refused (403)")
+        assertThat(ConsoleAccess.status(true, false, false)).startsWith("Protected by the application's Spring Security");
+        assertThat(ConsoleAccess.status(false, true, false)).startsWith("OPEN").contains(ConsoleAccess.ALLOW_ANONYMOUS);
+        assertThat(ConsoleAccess.status(false, false, false)).startsWith("Refused (403)")
                 .contains("Spring Security", ConsoleAccess.UI_ENABLED + "=false", "MCP", "GET /rules");
+        assertThat(ConsoleAccess.status(true, false, true)).as("a filter chain that permits everything protects nothing")
+                .startsWith("OPEN").contains(ConsoleAccess.SECURITY_ENABLED + " is false").doesNotContain("Protected");
+        assertThat(ConsoleAccess.status(false, false, true)).as("without a filter chain the switch means nothing")
+                .startsWith("Refused (403)");
         assertThat(access(true, null).isSecuredByFilterChain()).isTrue();
         assertThat(ConsoleAccess.hasFilterChain(new StaticListableBeanFactory(), ConsoleAccess.SECURITY_FILTER_CHAIN))
                 .as("Spring Security not on the classpath").isFalse();

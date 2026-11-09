@@ -23,7 +23,9 @@ import org.springframework.util.ClassUtils;
  *       true. Since 2.28.0 — before, such an application answered anybody who could reach the port.</li>
  * </ul>
  *
- * <p>Any filter chain counts, including one that permits everything — the same as for the API.
+ * <p>Any filter chain counts, including one that permits everything — the same as for the API. The
+ * standalone apps install one of those under {@code eventconductor.security.enabled=false}: the
+ * request still comes in, but the startup line says the consoles are open rather than protected.
  */
 public class ConsoleAccess implements SmartInitializingSingleton {
 
@@ -31,6 +33,8 @@ public class ConsoleAccess implements SmartInitializingSingleton {
 
     public static final String ALLOW_ANONYMOUS = "workflow.message-api.allow-anonymous";
     public static final String UI_ENABLED = "workflow.ui.enabled";
+    /** The standalone apps' switch: false makes their filter chain permit every request. */
+    public static final String SECURITY_ENABLED = "eventconductor.security.enabled";
     public static final String SECURITY_FILTER_CHAIN = "org.springframework.security.web.SecurityFilterChain";
     /** The engine's own check, which states this rule in its startup line when it is present. */
     static final String ENGINE_API_ACCESS = "io.mateu.workflow.infra.in.rest.EngineApiAccess";
@@ -69,8 +73,9 @@ public class ConsoleAccess implements SmartInitializingSingleton {
         if (hasBeanOfType(beans, ENGINE_API_ACCESS)) {
             return; // the engine states both rules in one line
         }
-        var status = status(securedByFilterChain, allowAnonymous());
-        if (securedByFilterChain) {
+        boolean securityOff = !environment.getProperty(SECURITY_ENABLED, Boolean.class, true);
+        var status = status(securedByFilterChain, allowAnonymous(), securityOff);
+        if (securedByFilterChain && !securityOff) {
             log.info(status);
         } else {
             log.warn(status);
@@ -121,7 +126,12 @@ public class ConsoleAccess implements SmartInitializingSingleton {
     }
 
     /** One sentence on how the consoles are protected, for a startup log line. */
-    public static String status(boolean securedByFilterChain, boolean allowAnonymous) {
+    public static String status(boolean securedByFilterChain, boolean allowAnonymous, boolean securityOff) {
+        if (securedByFilterChain && securityOff) {
+            return "OPEN to anyone who can reach this port, because " + SECURITY_ENABLED + " is false and the"
+                    + " application's filter chain lets every request through: " + CONSOLES
+                    + ". Only for an isolated deployment or behind a gateway that authenticates.";
+        }
         if (securedByFilterChain) {
             return "Protected by the application's Spring Security: " + CONSOLES + ".";
         }
