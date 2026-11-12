@@ -163,7 +163,7 @@
         <dependency>
             <groupId>com.networknt</groupId>
             <artifactId>json-schema-validator</artifactId>
-            <version>3.0.8</version>
+            <version>3.0.9</version>
         </dependency>
         <!-- OpenAPI for the engine's REST API (/workflow/api/**). Optional in workflow-engine: an
              application that wants /v3/api-docs adds it and sets workflow.api.openapi.enabled=true.
