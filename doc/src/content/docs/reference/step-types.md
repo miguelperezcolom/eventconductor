@@ -451,9 +451,17 @@ Semantics:
   **re-attaches** to it and does not start a second one.
 
 Cancellation propagates from parent to child: when the parent `PROCESS` step ends `CANCELLED`,
-`ERROR` or `TIMEOUT` (retries exhausted), a still-running child process is cancelled too — and
+`ERROR` or `TIMEOUT` (retries exhausted), a still-running child process is stopped too — and
 the cascade continues to grandchildren. While retries remain, the child is left running: a
 retried `PROCESS` step re-attaches to the same child through the deterministic business key.
+
+How it stops depends on why: when the parent is **undoing work** — it is rolling back, its
+`forEach` failed fast, or an `XOR` join's `compensateLosers` / an `END`'s `compensateAbandoned`
+abandoned the branch — the child is **rolled back** (its completed compensable steps compensated, it
+ends `COMPENSATED`), and the parent's rollback waits for it. Otherwise — an operator's cancel among
+them — it is cancelled, undoing nothing. A child that already **completed** is undone by the parent
+step's `compensationStepId` instead, never both. See
+[A child process cut short](/guides/retries-timeouts-compensation/#a-child-process-cut-short).
 
 ### Inline body {#inline-body}
 

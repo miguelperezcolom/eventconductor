@@ -200,11 +200,13 @@ public class StepOverProcessUseCase {
                     downstreamEventPublisher.publish(new TaskCancellationRequested(stepExecution.getId(), stepExecution.getInvocationId()),
                             stepExecution.topic());
                 }
-                // END-transition and implicit-completion cancellations (and start-time errors)
-                // flow through here — a PROCESS step ending CANCELLED/ERROR must take its
-                // still-running child down with it.
-                cancelChildProcessService.stepReachedTerminalStatus(stepExecution);
             });
+            // END-transition and implicit-completion cancellations (and start-time errors) flow
+            // through here — a PROCESS step ending CANCELLED/ERROR must take its still-running child
+            // down with it. Once every step of the pass is saved: whether the child is rolled back
+            // or only cancelled is read off the parent's state (an END with compensateAbandoned that
+            // completed in this very pass, a sibling iteration that failed), which must be complete.
+            outcome.getStepsToSave().forEach(cancelChildProcessService::stepReachedTerminalStatus);
         });
 
         // The UNLOCK steps above are persisted now; wake whoever they handed the lock to.
@@ -222,7 +224,7 @@ public class StepOverProcessUseCase {
         // run or in flight is still changing what its locks protect, so it keeps them until the
         // rollback ends (COMPENSATED or COMPENSATION_FAILED, which this same check then releases).
         if (endsHoldingNothing(result.getUpdatedProcess().getStatus())
-                && !rollingBack(result.getUpdatedProcess().getStatus(), stepExecutions)) {
+                && !rollingBack(result.getUpdatedProcess(), stepExecutions)) {
             releaseLocksOf(process.getId());
         }
 
@@ -488,11 +490,11 @@ public class StepOverProcessUseCase {
     }
 
     /** A failed process whose saga rollback has a compensation still to run or in flight. */
-    private boolean rollingBack(ProcessStatus status, List<StepExecution> stepExecutions) {
-        if (status != ProcessStatus.ERROR) {
+    private boolean rollingBack(io.mateu.workflow.domain.aggregates.Process process, List<StepExecution> stepExecutions) {
+        if (process.getStatus() != ProcessStatus.ERROR) {
             return false;
         }
-        var outcome = compensationService.decide(stepExecutions).outcome();
+        var outcome = compensationService.decide(process, stepExecutions).outcome();
         return outcome == CompensationService.Outcome.RUN || outcome == CompensationService.Outcome.RUN_AGAIN
                 || outcome == CompensationService.Outcome.WAITING;
     }

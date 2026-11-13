@@ -36,7 +36,7 @@ class EngineReplyPolicyTest {
     }
 
     private void decision(CompensationService.Outcome outcome) {
-        when(compensation.decide(any())).thenReturn(new CompensationService.Decision(outcome, null));
+        when(compensation.decide(any(io.mateu.workflow.domain.aggregates.Process.class), any())).thenReturn(new CompensationService.Decision(outcome, null));
     }
 
     @Test

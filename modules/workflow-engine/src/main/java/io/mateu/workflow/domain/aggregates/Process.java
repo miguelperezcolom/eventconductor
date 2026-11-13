@@ -121,6 +121,36 @@ public class Process extends AggregateRoot implements Identifiable {
     @Hidden
     private String testRunRequestDigest;
 
+    /**
+     * Set when the engine rolls this process back from outside: its parent cancelled the PROCESS step
+     * that started it while it was still running (the parent is rolling back, its forEach failed fast,
+     * or the flow abandoned the branch with {@code compensateLosers}/{@code compensateAbandoned}). The
+     * process is then failed without a step of its own having failed: what it has in flight is
+     * cancelled and its completed compensable steps are undone, as for any saga rollback. Null for
+     * every other process — including one an operator cancels, which is not rolled back.
+     */
+    @Hidden
+    private String rollbackReason;
+
+    /** Source compatibility for processes created before engine-requested rollbacks. */
+    public Process(String id, String name, String workflowDefinitionId, int workflowDefinitionVersion,
+                   String workflowDefinitionJson, String businessKey, List<Variable> variables,
+                   ProcessStatus status, int completionPercentage, LocalDateTime created,
+                   LocalDateTime started, LocalDateTime finished, LocalDateTime pausedAt,
+                   String parentStepExecutionId, Integer version, ProcessReply reply,
+                   String continuedFromProcessId, String continuedAsProcessId, boolean businessKeyReleased,
+                   String initiatingActor, boolean testRun, String testRunRequestDigest) {
+        this(id, name, workflowDefinitionId, workflowDefinitionVersion, workflowDefinitionJson, businessKey,
+                variables, status, completionPercentage, created, started, finished, pausedAt,
+                parentStepExecutionId, version, reply, continuedFromProcessId, continuedAsProcessId,
+                businessKeyReleased, initiatingActor, testRun, testRunRequestDigest, null);
+    }
+
+    /** Whether the engine asked this process to roll back (see {@link #rollbackReason}). */
+    public boolean isRollbackRequested() {
+        return rollbackReason != null;
+    }
+
     /** Source compatibility for processes created before IDE test runs. */
     public Process(String id, String name, String workflowDefinitionId, int workflowDefinitionVersion,
                    String workflowDefinitionJson, String businessKey, List<Variable> variables,

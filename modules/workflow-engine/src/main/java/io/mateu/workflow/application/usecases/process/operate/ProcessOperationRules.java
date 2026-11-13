@@ -291,7 +291,7 @@ public class ProcessOperationRules {
         if (!ProcessStatus.ERROR.equals(process.getStatus())) {
             return false;
         }
-        var outcome = compensationService.decide(steps).outcome();
+        var outcome = compensationService.decide(process, steps).outcome();
         return outcome == CompensationService.Outcome.RUN || outcome == CompensationService.Outcome.RUN_AGAIN
                 || outcome == CompensationService.Outcome.WAITING;
     }

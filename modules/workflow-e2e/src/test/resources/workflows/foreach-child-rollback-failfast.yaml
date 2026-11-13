@@ -1,0 +1,27 @@
+id: foreach-child-rollback-failfast
+name: Hold and confirm every room, inline body (failFast)
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: book-rooms
+    type: PROCESS
+    name: Book one room
+    preconditionStepId: start
+    outputVariables: [bookingId]
+    compensable: true
+    compensationStepId: cancel-booking
+    forEach:
+      items: rooms
+      as: room
+      output: bookings
+      outputElement: bookingId
+      onIterationFailure: failFast
+    steps:
+      - { id: start, type: START, name: Start }
+      - { id: hold, type: ACTION, name: Hold the room, topic: work, preconditionStepId: start, compensable: true, compensationStepId: release-hold }
+      - { id: confirm, type: ACTION, name: Confirm the room, topic: work, preconditionStepId: hold }
+      - { id: end, type: END, name: End, preconditionStepId: confirm }
+      - { id: release-hold, type: ACTION, name: Release the hold, topic: work }
+  - { id: notify, type: ACTION, name: Notify, topic: work, preconditionStepId: book-rooms }
+  - { id: cancel-booking, type: ACTION, name: Cancel a booking, topic: work }
+  - { id: end, type: END, name: End, preconditionStepId: notify }

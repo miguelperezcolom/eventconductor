@@ -1,0 +1,18 @@
+id: fork-child-end-abandoned
+name: A quick answer ends the process; the room branch it cuts short is undone
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: fork, type: FORK, name: Fork, preconditionStepId: start }
+  - id: room
+    type: PROCESS
+    name: Book a room
+    preconditionStepId: fork
+    childWorkflowDefinitionId: room-child-two-steps
+    compensable: true
+    compensationStepId: cancel-booking
+  - { id: room-done, type: ACTION, name: Room booked, topic: work, preconditionStepId: room }
+  - { id: quick, type: ACTION, name: Quick answer, topic: work, preconditionStepId: fork }
+  - { id: end, type: END, name: End, preconditionStepId: quick, compensateAbandoned: true }
+  - { id: end-room, type: END, name: End after the room, preconditionStepId: room-done }
+  - { id: cancel-booking, type: ACTION, name: Cancel a booking, topic: work }

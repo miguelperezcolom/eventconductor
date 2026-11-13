@@ -135,7 +135,7 @@ class CancelProcessUseCaseTest {
 
         // The hook receives the step already CANCELLED so it can cascade into a child
         // process if the step is a PROCESS step.
-        verify(cancelChildProcessService).stepReachedTerminalStatus(
+        verify(cancelChildProcessService).stepCancelledWithItsProcess(
                 argThat(step -> step.getStatus() == StepExecutionStatus.CANCELLED && "se-1".equals(step.id())));
     }
 
@@ -149,7 +149,7 @@ class CancelProcessUseCaseTest {
 
         useCase.handle(new CancelProcessCommand("p-1"));
 
-        verify(cancelChildProcessService, never()).stepReachedTerminalStatus(any());
+        verify(cancelChildProcessService, never()).stepCancelledWithItsProcess(any());
     }
 
     @Test
@@ -249,8 +249,8 @@ class CancelProcessUseCaseTest {
 
         useCase.handle(new CancelProcessCommand("p-1"));
 
-        verify(cancelChildProcessService).stepReachedTerminalStatus(cancelledChildStep);
-        verify(cancelChildProcessService, never()).stepReachedTerminalStatus(completed);
+        verify(cancelChildProcessService).stepCancelledWithItsProcess(cancelledChildStep);
+        verify(cancelChildProcessService, never()).stepCancelledWithItsProcess(completed);
         verify(notifyParentStepService).processReachedTerminalStatus(process);
         // Nothing of the cancel itself is done twice: no writes, no metric, no second trace.
         verify(processRepository, never()).save(any());
@@ -306,7 +306,7 @@ class CancelProcessUseCaseTest {
         doAnswer(invocation -> {
             assertThat(lockHeld).as("child cascade outside the lock").isFalse();
             return null;
-        }).when(cancelChildProcessService).stepReachedTerminalStatus(any());
+        }).when(cancelChildProcessService).stepCancelledWithItsProcess(any());
         doAnswer(invocation -> {
             assertThat(lockHeld).as("parent notification outside the lock").isFalse();
             return null;
@@ -314,7 +314,7 @@ class CancelProcessUseCaseTest {
 
         useCase.handle(new CancelProcessCommand("p-1"));
 
-        verify(cancelChildProcessService).stepReachedTerminalStatus(any());
+        verify(cancelChildProcessService).stepCancelledWithItsProcess(any());
         verify(notifyParentStepService).processReachedTerminalStatus(any());
     }
 

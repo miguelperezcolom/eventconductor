@@ -1,0 +1,9 @@
+id: room-child-two-steps
+name: Hold a room, then confirm it
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: hold, type: ACTION, name: Hold the room, topic: work, preconditionStepId: start, compensable: true, compensationStepId: release-hold }
+  - { id: confirm, type: ACTION, name: Confirm the room, topic: work, preconditionStepId: hold }
+  - { id: end, type: END, name: End, preconditionStepId: confirm }
+  - { id: release-hold, type: ACTION, name: Release the hold, topic: work }

@@ -1031,6 +1031,17 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     }
 
     /**
+     * Announces this execution's current status again, unchanged, so the process is looked at once
+     * more by the handler of status changes — which derives everything from persisted state, so an
+     * extra look is harmless. Used to wake a parent whose saga rollback waits on a child that has just
+     * finished rolling back.
+     */
+    public void announceStatusAgain() {
+        send(new StepExecutionStatusChanged(id, TaskStatus.valueOf(status.name()), List.of(), processId,
+                failureNonRetryable, invocationId));
+    }
+
+    /**
      * @param nonRetryable the failure was declared final by the worker: the engine does not spend
      *                     the step's retries on it
      */

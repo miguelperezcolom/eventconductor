@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A step on a parallel branch whose work finished after the engine cancelled it was never compensated either.** The same race outside a forEach: the rollback, once done, cancels what is still running on the other branches, and an `END` cancels the branches it cuts short. A worker that had already booked, or a child process that had already completed, reported `COMPLETED` afterwards and the report was dropped.
   - That late `COMPLETED` is now kept (with what it reported, on the run) when the step declares a compensation, and undone: by the rollback in a failed process (a new pass if it had already finished), and by a *cleanup* compensation in one that completed. Late answers for steps without a compensation, or for a process an operator cancelled, are still ignored.
 
+- **A child process the engine cut short was cancelled, not undone.** When a `PROCESS` step's child was still running and the engine cancelled the step — the parent rolling back, a `forEach` over `PROCESS` failing fast, an `XOR` join with `compensateLosers` or an `END` with `compensateAbandoned` abandoning the branch — the child was only cancelled (or, during a rollback, left running until the rollback ended). Whatever it had already done (a room held, not yet confirmed) stayed in the target system.
+  - Such a child is now **rolled back**: its in-flight work is cancelled, its completed compensable steps are compensated newest first (including steps that complete after being cancelled), and it ends `COMPENSATED` — or `COMPENSATION_FAILED` — also when it had nothing to undo. Its own running children follow, recursively.
+  - The parent's rollback **waits** for those children: it ends `COMPENSATED` once they have, `COMPENSATION_FAILED` if one could not finish undoing. A rolling-back parent now stops a running child as soon as its rollback starts, rather than at its end.
+  - Undone once: a child still running undoes its own steps (the parent's `PROCESS` step stays `CANCELLED`, so its `compensationStepId` does not run); a child that already completed is undone by that `compensationStepId`, and left alone.
+  - Unchanged: an operator's cancel (console, REST, MCP) cancels the children without rolling anything back; an `END` without `compensateAbandoned`, a `forEach` completing early, or a parent that failed with nothing to compensate cancel the child as before.
+  - The process records why it was rolled back from outside (`rollbackReason`, migration V61).
+
 ## [2.38.1] - 2026-11-09
 
 The Docker images of 2.38.0 were never published: the release's image scan stopped them. Use this version.

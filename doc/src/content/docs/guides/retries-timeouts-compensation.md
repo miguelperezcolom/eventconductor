@@ -235,6 +235,29 @@ A late answer for a step without a compensation is still ignored, and so is one 
 operator cancelled: cancelling a process is not a rollback. Workers should still be idempotent, and a
 compensation must tolerate undoing work that completed late.
 
+### A child process cut short
+
+A `PROCESS` step whose child is still running when the engine cancels the step leaves that child
+half done: it may have held the room and not yet confirmed it. What happens to the child depends on
+why the step was cancelled.
+
+| The parent step was cancelled because… | The child |
+|---|---|
+| the parent is **rolling back** (a step failed and there is something to compensate), a `forEach` over `PROCESS` **failed fast**, an `XOR` join with `compensateLosers` abandoned its branch, or an `END` with `compensateAbandoned` cut its branch | is **rolled back**: what it has in flight is cancelled and its completed compensable steps are compensated, newest first. It ends `COMPENSATED` (`COMPENSATION_FAILED` if a compensation fails), also when it had nothing to undo. Its own children still running are rolled back the same way. |
+| an **operator cancelled** the parent, an `END` without `compensateAbandoned` cut its branch, a `forEach` completed early (`completion: any` or a condition), or the parent failed with nothing to compensate | is **cancelled**, as before — nothing is undone. |
+
+A child is undone **once, by one side**:
+
+- **Child already `COMPLETED`** → the parent's compensation of its `PROCESS` step (`compensationStepId`)
+  undoes it, as for any completed step — even when the completion is reported after the step was
+  cancelled ([above](#a-cancelled-step-whose-work-completes-anyway)). The child itself is left alone.
+- **Child still running** → the child undoes its own steps. The parent's `PROCESS` step stays
+  `CANCELLED`, so its `compensationStepId` does not run.
+
+A parent that is rolling back waits for the children it rolled back: it ends `COMPENSATED` only once
+they have, and `COMPENSATION_FAILED` if one of them could not finish undoing. Cancelling a process
+from the console, REST or MCP is still not a rollback, for it or for its children.
+
 ### Branches the flow abandons
 
 Two things end a branch without failing the process: another branch reaching `END`, and an `XOR`
