@@ -12,6 +12,12 @@
 - **Cycles** — rejected; use `repeat` (one step) or `loopBack` (a section).
 - **Non-idempotent compensations** — a step cancelled mid-flight whose work completes later is
   compensated, possibly without the id its create returned: compensate by a business key, accept 404.
+- **Expecting cancel to undo** — an operator cancel (REST/console/CANCEL batch) only cancels, children
+  included; nothing is compensated. Only when the *engine* cuts a running child short (parent rollback,
+  `failFast` forEach, `compensateLosers`/`compensateAbandoned`) does the child roll itself back.
+- **Double undo of a sub-process** — a child cut short undoes its own steps; the parent's
+  `compensationStepId` runs only for a child that had already completed. Don't also undo the child's
+  work in the parent's compensation for the cut-short case.
 - **`compensateLosers` / `compensateAbandoned` elsewhere** — only on an XOR `JOIN` / an `END`;
   refused on any other step.
 - **AND-JOIN after a CHOICE or guarded branch** — the branches not taken never complete, the JOIN never

@@ -19,7 +19,7 @@ Package `io.mateu.workflow.application.usecases.process.*` — each `handle(comm
 
 | Use case | Command | Effect |
 |---|---|---|
-| `cancel.CancelProcessUseCase` | `CancelProcessCommand(processId)` | steps and process → `CANCELLED`; children cascade |
+| `cancel.CancelProcessUseCase` | `CancelProcessCommand(processId)` | steps and process → `CANCELLED`; children cascade (cancelled, never rolled back) |
 | `retry.RetryProcessUseCase` | `RetryProcessCommand(processId)` | rerun the failed steps of an `ERROR`/`CANCELLED` process |
 | `restart.RestartProcessUseCase` | `RestartProcessCommand(processId)` | rerun from the top with the original variables |
 | `pause.PauseProcessUseCase` / `resume.ResumeProcessUseCase` | `PauseProcessCommand` / `ResumeProcessCommand` | hold the frontier; in-flight work still lands; clocks freeze |
