@@ -1,0 +1,25 @@
+id: foreach-room-inline-compensateall
+name: Book every room, inline body (compensateAll)
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: book-rooms
+    type: PROCESS
+    name: Book one room
+    preconditionStepId: start
+    outputVariables: [bookingId]
+    compensable: true
+    compensationStepId: cancel-booking
+    forEach:
+      items: rooms
+      as: room
+      output: bookings
+      outputElement: bookingId
+      onIterationFailure: compensateAll
+    steps:
+      - { id: start, type: START, name: Start }
+      - { id: book, type: ACTION, name: Book, topic: work, preconditionStepId: start }
+      - { id: end, type: END, name: End, preconditionStepId: book }
+  - { id: notify, type: ACTION, name: Notify, topic: work, preconditionStepId: book-rooms }
+  - { id: cancel-booking, type: ACTION, name: Cancel a booking, topic: work }
+  - { id: end, type: END, name: End, preconditionStepId: notify }

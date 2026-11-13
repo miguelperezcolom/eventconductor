@@ -216,4 +216,103 @@ class ForEachLateCompletionE2eTest extends AbstractE2eTest {
                 assertThat(process("late-5").getStatus()).isEqualTo(ProcessStatus.COMPENSATED));
         assertThat(iterations("late-5", "book-rooms").get(1).getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
     }
+
+    /** Books every room through an inline-body child; returns the callbacks in room order. */
+    private List<TestWorker.WorkerCallback> bookThreeRooms(String definitionId, String businessKey,
+                                                           List<String> cancelled) {
+        var books = new CopyOnWriteArrayList<TestWorker.WorkerCallback>();
+        var rooms = new ArrayList<String>();
+        worker.on("book", (req, cb, n) -> {
+            synchronized (rooms) {
+                rooms.add(var(req, "room"));
+                books.add(cb);
+            }
+        });
+        worker.on("cancel-booking", (req, cb, n) -> {
+            cancelled.add(var(req, "room") + "/" + var(req, "bookingId"));
+            cb.complete();
+        });
+        createProcess(definitionId, businessKey,
+                new io.mateu.workflow.dtos.Variable("rooms", "[\"101\",\"102\",\"103\"]"));
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> assertThat(books).hasSize(3));
+        synchronized (rooms) {
+            return List.of("101", "102", "103").stream().map(r -> books.get(rooms.indexOf(r))).toList();
+        }
+    }
+
+    private List<StepExecution> compensationRuns(String businessKey) {
+        return steps(businessKey).stream().filter(s -> "cancel-booking".equals(s.getStepId()) && s.isContainer()).toList();
+    }
+
+    @Test
+    void anInlineBodyChildThatCompletedForAnIterationTheParentCancelledIsCompensated() {
+        var cancelled = new CopyOnWriteArrayList<String>();
+        var books = bookThreeRooms("foreach-room-inline-failfast", "late-inline-1", cancelled);
+        books.get(0).complete(List.of(TestWorker.var("bookingId", "B-101")));
+        books.get(2).fail("no availability");
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(process("late-inline-1").getStatus()).isEqualTo(ProcessStatus.COMPENSATED));
+        assertThat(cancelled).containsExactly("101/B-101");
+        var cancelledIteration = iterations("late-inline-1", "book-rooms").get(1);
+        assertThat(cancelledIteration.getStatus()).isEqualTo(StepExecutionStatus.CANCELLED);
+
+        // The inline body's child (definition foreach-room-inline-failfast.book-rooms) had already
+        // completed when its iteration was cancelled; its report reaches the parent only now.
+        var child = ChildProcesses.of(processRepository, cancelledIteration.getId()).get(0);
+        assertThat(child.getWorkflowDefinitionId()).isEqualTo("foreach-room-inline-failfast.book-rooms");
+        var completedChild = child.withStatus(ProcessStatus.COMPLETED)
+                .withVariables(List.of(new io.mateu.workflow.domain.aggregates.Variable("bookingId", "B-102")));
+        processRepository.save(completedChild);
+        notifyParentStepService.processReachedTerminalStatus(completedChild);
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(cancelled).containsExactly("101/B-101", "102/B-102"));
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(process("late-inline-1").getStatus()).isEqualTo(ProcessStatus.COMPENSATED));
+        assertThat(iterations("late-inline-1", "book-rooms").get(1).getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
+        // Two passes: the first undid 101; the second only what it left, 102.
+        var runs = compensationRuns("late-inline-1");
+        assertThat(runs).hasSizeGreaterThanOrEqualTo(2);
+        assertThat(runs).allSatisfy(r -> assertThat(r.getScopeJson()).contains("\"units\""));
+    }
+
+    @Test
+    void compensateAllOnAnInlineBodyWaitsForEveryRoomThenUndoesTheCompletedOnesRecordingTheirUnits() {
+        var cancelled = new CopyOnWriteArrayList<String>();
+        var books = bookThreeRooms("foreach-room-inline-compensateall", "late-inline-2", cancelled);
+        books.get(1).fail("no availability");
+        // Nothing is cancelled: the other rooms run on to the end.
+        books.get(0).complete(List.of(TestWorker.var("bookingId", "B-101")));
+        books.get(2).complete(List.of(TestWorker.var("bookingId", "B-103")));
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(process("late-inline-2").getStatus()).isEqualTo(ProcessStatus.COMPENSATED));
+        assertThat(cancelled).containsExactlyInAnyOrder("101/B-101", "103/B-103");
+        assertThat(iterations("late-inline-2", "book-rooms")).extracting(StepExecution::getStatus)
+                .doesNotContain(StepExecutionStatus.CANCELLED);
+        var runs = compensationRuns("late-inline-2");
+        assertThat(runs).hasSize(1);
+        var completedIds = iterations("late-inline-2", "book-rooms").stream()
+                .filter(i -> i.getStatus() == StepExecutionStatus.COMPLETED).map(StepExecution::getId).toList();
+        assertThat(completedIds).hasSize(2);
+        assertThat(runs.get(0).getScopeJson()).contains(completedIds.get(0)).contains(completedIds.get(1));
+        assertThat(worker.invocationsOf("notify")).isZero();
+    }
+
+    @Test
+    void continueOnAnInlineBodyCompensatesNothingAndGoesOn() {
+        var cancelled = new CopyOnWriteArrayList<String>();
+        worker.on("notify", (req, cb, n) -> cb.complete());
+        var books = bookThreeRooms("foreach-room-inline-continue", "late-inline-3", cancelled);
+        books.get(1).fail("no availability");
+        books.get(0).complete(List.of(TestWorker.var("bookingId", "B-101")));
+        books.get(2).complete(List.of(TestWorker.var("bookingId", "B-103")));
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(process("late-inline-3").getStatus()).isEqualTo(ProcessStatus.COMPLETED));
+        assertThat(cancelled).isEmpty();
+        assertThat(compensationRuns("late-inline-3")).isEmpty();
+        assertThat(worker.invocationsOf("notify")).isEqualTo(1);
+    }
 }
