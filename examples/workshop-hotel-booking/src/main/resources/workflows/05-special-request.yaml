@@ -1,0 +1,51 @@
+# Module 5 — a language model in the process: understand the guest's special request, then draft
+# the confirmation email.
+id: special-request
+name: Handle the guest's special request
+steps:
+  - id: start
+    type: START
+    name: Booking received
+
+  - id: classify-request
+    type: LLM_CALL
+    name: Understand the special request
+    preconditionStepId: start
+    timeout: PT60S
+    retries: 2
+    llm:
+      connection: assistant                # workflow.llm.connections.assistant
+      system: "You read hotel guests' special requests and classify them for the front desk."
+      prompt: "Guest ${guest} wrote: ${specialRequest}"
+      responseSchema:                      # the answer must be JSON valid against this
+        type: object
+        required: [category, needsStaff, summary]
+        properties:
+          category: { type: string, enum: [accessibility, family, arrival, other] }
+          needsStaff: { type: boolean }
+          summary: { type: string }
+      output:
+        requestCategory: "json.category"
+        needsStaff: "json.needsStaff"
+      usageVariable: classifyUsage
+
+  - id: draft-confirmation
+    type: LLM_CALL
+    name: Draft the confirmation email
+    preconditionStepId: classify-request
+    llm:
+      connection: assistant
+      prompt: |
+        Write a short, warm confirmation email to ${guest}.
+        Their special request (${requestCategory}) is being prepared.
+      outputVariable: confirmationEmail
+
+  - id: notify-guest
+    type: ACTION
+    name: Send it to the guest
+    preconditionStepId: draft-confirmation
+
+  - id: done
+    type: END
+    name: Done
+    preconditionStepId: notify-guest

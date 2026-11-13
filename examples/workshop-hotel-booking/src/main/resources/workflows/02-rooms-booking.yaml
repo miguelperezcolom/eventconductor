@@ -1,0 +1,46 @@
+# Module 2 — one booking per room: a forEach over the rooms, each room a small flow of its own.
+id: rooms-booking
+name: Book every room
+steps:
+  - id: start
+    type: START
+    name: Booking received
+
+  - id: register-booking
+    type: ACTION
+    name: Register the booking
+    preconditionStepId: start
+
+  - id: rooms
+    type: PROCESS
+    name: Book every room
+    preconditionStepId: register-booking
+    outputVariables: [roomBookingId]       # what each room hands back
+    forEach:
+      items: rooms                         # a JSON array variable
+      as: room                             # each branch sees its room as `room`
+      label: "'Room ' + room.number"       # how each branch is named in the console
+      output: roomBookings                 # collected, in room order
+      outputElement: roomBookingId
+    steps:                                 # the branch, written in line
+      - id: start
+        type: START
+        name: Start
+      - id: create-room-booking
+        type: ACTION
+        name: Book the room
+        preconditionStepId: start
+      - id: end
+        type: END
+        name: End
+        preconditionStepId: create-room-booking
+
+  - id: notify-guest
+    type: ACTION
+    name: Tell the guest
+    preconditionStepId: rooms
+
+  - id: done
+    type: END
+    name: Done
+    preconditionStepId: notify-guest

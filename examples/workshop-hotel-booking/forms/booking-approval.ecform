@@ -1,0 +1,13 @@
+id: booking-approval
+name: Booking approval
+description: A manager approves (or rejects) a large booking before any room is booked.
+fields:
+  - id: approved
+    label: Approve this booking
+    dataType: bool
+    stereotype: checkbox
+    required: true
+  - id: comment
+    label: Comment
+    dataType: string
+    stereotype: textarea

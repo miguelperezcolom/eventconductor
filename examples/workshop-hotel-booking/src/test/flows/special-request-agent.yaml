@@ -1,0 +1,26 @@
+# Test-only (module 5): an AGENT step. AGENT invokes an agent published in the IA catalogue, which
+# the workshop app does not run — so it is exercised here, where the test kit plays the catalogue
+# and the agent runtime.
+id: special-request-agent
+name: Let an agent handle the special request
+steps:
+  - id: start
+    type: START
+    name: Booking received
+  - id: prepare-request
+    type: AGENT
+    name: Prepare the special request
+    preconditionStepId: start
+    timeout: PT5M
+    retries: 0
+    agent:
+      ref: front-desk-assistant
+      taskPrompt: "Prepare what the front desk needs for this request: ${specialRequest}"
+      input:
+        guest: "${guest}"
+        request: "${specialRequest}"
+      outputVariable: preparation
+  - id: done
+    type: END
+    name: Done
+    preconditionStepId: prepare-request

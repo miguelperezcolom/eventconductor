@@ -1,0 +1,40 @@
+# Test-only variant of module 3: the same flow with onIterationFailure: continue — every room is
+# tried, the step completes anyway, and roomBookings says how each room went.
+id: rooms-booking-tolerant
+name: Book every room (best effort)
+steps:
+  - id: start
+    type: START
+    name: Booking received
+  - id: rooms
+    type: PROCESS
+    name: Book every room
+    preconditionStepId: start
+    compensable: true
+    compensationStepId: cancel-room-booking
+    outputVariables: [roomBookingId]
+    forEach:
+      items: rooms
+      as: room
+      onIterationFailure: continue
+      output: roomBookings
+      outputElement: roomBookingId
+    steps:
+      - id: start
+        type: START
+        name: Start
+      - id: create-room-booking
+        type: ACTION
+        name: Book the room
+        preconditionStepId: start
+      - id: end
+        type: END
+        name: End
+        preconditionStepId: create-room-booking
+  - id: done
+    type: END
+    name: Done
+    preconditionStepId: rooms
+  - id: cancel-room-booking
+    type: ACTION
+    name: Cancel the room

@@ -66,6 +66,35 @@ export default defineConfig({
 					],
 				},
 				{
+					label: 'Workshop',
+					items: [
+						{ label: 'Overview', slug: 'workshop' },
+						{ label: '0 · Setup', slug: 'workshop/00-setup' },
+						{ label: '1 · A first flow', slug: 'workshop/01-first-flow' },
+						{ label: '2 · One booking per room', slug: 'workshop/02-one-booking-per-room' },
+						{ label: '3 · When things fail', slug: 'workshop/03-when-things-fail' },
+						{ label: '4 · Calling the hotel', slug: 'workshop/04-calling-the-hotel' },
+						{ label: '5 · Calling an AI', slug: 'workshop/05-calling-an-ai' },
+						{ label: '6 · A person in the loop', slug: 'workshop/06-a-person-in-the-loop' },
+						{ label: '7 · Operating', slug: 'workshop/07-operating' },
+						{ label: '8 · Debugging a workflow', slug: 'workshop/08-debugging' },
+						{
+							label: '9 · Testing, automated',
+							items: [
+								{ label: 'Overview', slug: 'workshop/testing' },
+								{ label: 'a · The happy path', slug: 'workshop/testing/happy-path' },
+								{ label: 'b · When things fail', slug: 'workshop/testing/failure-paths' },
+								{ label: 'c · Time', slug: 'workshop/testing/time' },
+								{ label: 'd · Simulated integrations', slug: 'workshop/testing/integrations' },
+								{ label: 'e · The real handlers', slug: 'workshop/testing/real-handlers' },
+								{ label: 'f · Automate it', slug: 'workshop/testing/automate' },
+								{ label: 'g · Debugging a failing test', slug: 'workshop/testing/debugging-a-failing-test' },
+							],
+						},
+						{ label: '10 · Changing without redeploying', slug: 'workshop/10-changing-without-redeploying' },
+					],
+				},
+				{
 					label: 'Workflow Engine',
 					items: [
 						{ label: 'Workflow Definitions', slug: 'guides/workflow-definitions' },
