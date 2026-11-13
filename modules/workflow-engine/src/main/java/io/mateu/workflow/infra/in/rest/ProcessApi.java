@@ -153,6 +153,9 @@ public final class ProcessApi {
                     + " container); null for every other execution.") String parentExecutionId,
             @Schema(description = "For a forEach iteration, its 0-based position in the list; null otherwise.")
             Integer itemIndex,
+            @Schema(description = "For a forEach iteration, what the forEach's label made of its item (\"Hab. 101\");"
+                    + " null without one, and for every other execution.")
+            String itemLabel,
             @Schema(description = "The loop pass this execution belongs to: 0 for a step's first run, one more"
                     + " each time a repeat or loopBack runs it again.") int iteration,
             @Schema(description = "True when a later pass of a loop replaced this execution (or a restart"
@@ -165,7 +168,7 @@ public final class ProcessApi {
                     step.getWorkerId(), step.getAttemptCount(), format(step.getStartedAt()),
                     format(step.getFinishedAt()), format(step.getDeadlineAt()), step.getAwaitingMessageName(),
                     step.getAwaitingCorrelationKey(), step.getParentExecutionId(), step.getItemIndex(),
-                    step.getIteration(), step.isSuperseded(), AgentInvocationView.of(step));
+                    step.getItemLabel(), step.getIteration(), step.isSuperseded(), AgentInvocationView.of(step));
         }
     }
 

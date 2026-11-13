@@ -93,11 +93,12 @@ public final class ProcessGraphProjection {
 
     /**
      * How a step's row reads in the Steps tab: its id, and for a loop's later pass or a forEach
-     * iteration which one it is — "reserve · item 2", "poll · run 3".
+     * iteration which one it is — "reserve · Hab. 101" (its forEach label) or "reserve · item 2", "poll · run 3".
      */
     public static String rowName(StepExecution se) {
         if (se.isIteration()) {
-            return se.getStepId() + " · item " + (se.getItemIndex() == null ? "?" : se.getItemIndex())
+            return se.getStepId() + " · " + (se.getItemLabel() != null && !se.getItemLabel().isBlank() ? se.getItemLabel()
+                    : "item " + (se.getItemIndex() == null ? "?" : se.getItemIndex()))
                     + (se.getIteration() > 0 ? " (run " + (se.getIteration() + 1) + ")" : "");
         }
         if (se.getIteration() > 0) {

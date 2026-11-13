@@ -125,7 +125,8 @@ steps:
 | caller waits over HTTP | `syncInvocation.enabled` + `REPLY` |
 | change a running process, get an answer | definition `updates` (+ update-with-start) |
 | once per list item / poll / rework | `forEach` / `repeat` / `loopBack` (`maxIterations` required) |
-| sub-process | `PROCESS` `childWorkflowDefinitionId`, `outputVariables` |
+| sub-process | `PROCESS` `childWorkflowDefinitionId` or inline `steps:`, `outputVariables` |
+| several steps per list item (dynamic fork) | `PROCESS` + `forEach` + inline `steps:` (child def `<workflow>.<step>`) |
 | one-at-a-time per entity | `LOCK`/`UNLOCK` or `processLock` |
 | decision table | `RULE` `ruleId` |
 | debounce/throttle/singleton starts | `startPolicy` (definition or trigger) |
@@ -147,7 +148,7 @@ steps:
 | `HTTP_CALL` | built-in `http-call@1` (worker-http; topic `http-calls`, served by the orchestrator in kafka mode); `output` = JEXL over `{status, headers, body}`; default `retryOn: [5xx, io]` (4xx final); same `Idempotency-Key` on retries |
 | `LLM_CALL` | built-in `llm-call@1` (worker-llm; `llm-calls`); `responseSchema` validated (`LLM_INVALID_OUTPUT`); `output` over `{text, json, usage, model}` |
 | `AGENT` | invoke an agent published in the IA catalogue (`ref` checked at import; prompt, model, tools, output schema are the catalogue's): task `run-agent@1` on `agent-calls`, variable `__agent`, `invocationId` on every reply; `retries: 0`, timeout 5 min; result = exactly `outputVariable` (JSON, `json:parse(x).f`); uncertain outcome → `REVIEW_REQUIRED` + process `PAUSED` until reconciled; `forEach` = one invocation per item |
-| `PROCESS` | child with ALL parent variables, key `parent:<stepExecutionId>`; `outputVariables` come back |
+| `PROCESS` | child with ALL parent variables, key `parent:<stepExecutionId>`; `outputVariables` come back; the child is `childWorkflowDefinitionId` or the inline `steps:` (definition `<workflow>.<step>`, versioned with the parent, not startable alone) |
 | `FORK` / `JOIN` / `CHOICE` | gateways (see above); CHOICE picks the longest satisfied guard first, latches |
 | `LOCK` / `UNLOCK` | `lockName`, `lockKey` (JEXL); waiters park `WAITING_ON_LOCK`, FIFO |
 | `REPLY` | answer a sync caller: `replyVariables` \| `replyExpression` \| `replyTemplate`; at most one per run |
@@ -304,6 +305,7 @@ class BookingSagaTest {
 - A step without `name`, two STARTs, a step with no way in, a cycle → refused. AND-JOIN after a CHOICE never fires.
 - Business keys are unique across workflows: put the workflow in trigger keys. Reuse needs `businessKeyPolicy`.
 - forEach outputs are not on the process (read `output`); `maxIterations` required on `repeat`/`loopBack`.
+- `forEach.onIterationFailure`: `failFast` (default) | `continue` (step completes; `output` elements `{status, value|error}`) | `compensateAll` (wait all; any failure → fail + compensate all completed; needs `completion: all`).
 - Kafka consumers (main after 2.33.0) redeliver retryable failures with unlimited back-off
   (`workflow.consumer.retry.*`); records are never discarded, only parked on `dead-letter` when defective.
 - 2.27: secrets from `workflow.http.secrets`, API refuses anonymous. 2.28: consoles refuse anonymous,

@@ -102,7 +102,15 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
     public record StepSummary(
             String id, String stepId, String status, String workerId, String startedAt,
             int iteration, boolean superseded, String parentExecutionId, Integer itemIndex,
-            String agentInvocationId, String agentHoldReason) {
+            String agentInvocationId, String agentHoldReason, String itemLabel) {
+
+        /** The shape before forEach labels: an iteration named by its index alone. */
+        public StepSummary(String id, String stepId, String status, String workerId, String startedAt,
+                           int iteration, boolean superseded, String parentExecutionId, Integer itemIndex,
+                           String agentInvocationId, String agentHoldReason) {
+            this(id, stepId, status, workerId, startedAt, iteration, superseded, parentExecutionId, itemIndex,
+                    agentInvocationId, agentHoldReason, null);
+        }
 
         public StepSummary(String id, String stepId, String status, String workerId, String startedAt) {
             this(id, stepId, status, workerId, startedAt, 0, false, null, null);
@@ -209,7 +217,7 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
                         s.getWorkerId(),
                         s.getStartedAt() != null ? s.getStartedAt().toString() : null,
                         s.getIteration(), s.isSuperseded(), s.getParentExecutionId(), s.getItemIndex(),
-                        s.getInvocationId(), s.getAgentHoldReason()))
+                        s.getInvocationId(), s.getAgentHoldReason(), s.getItemLabel()))
                 .toList();
         // A sensitive variable's value reads as the mask: revealing it is revealProcessVariable, audited.
         var vars = io.mateu.workflow.application.services.SensitiveVariableMasking.variables(process).stream()

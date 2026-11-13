@@ -50,6 +50,7 @@ features: `updates`, `startPolicy`, `businessKeyPolicy`, `CONTINUE_AS_NEW`, `pri
 | caller waits for the answer over HTTP | `syncInvocation.enabled` + a `REPLY` step |
 | change a running process with validation and an answer | definition `updates` (+ update-with-start) |
 | same step once per list item | `forEach` (parallel/sequential, `output`) |
+| several steps once per list item (dynamic fork) | `PROCESS` with `forEach` + inline `steps:`; `forEach.onIterationFailure` (failFast/continue/compensateAll) |
 | poll until a condition | `repeat: {until, maxIterations, delay}` |
 | redo a section (rework loop) | `loopBack: {to, while, maxIterations}` — never a precondition cycle |
 | reusable sub-process | `PROCESS` (`childWorkflowDefinitionId`, `outputVariables`) |

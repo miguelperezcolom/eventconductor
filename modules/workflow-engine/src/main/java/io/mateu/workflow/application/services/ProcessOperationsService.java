@@ -709,6 +709,13 @@ public class ProcessOperationsService {
             return;
         }
         var definition = workflowDefinitionRepository.findById(definitionId).orElse(null);
+        // A child of a PROCESS step's inline body runs `<workflow>.<step>`, which no repository holds:
+        // it is judged by the workflow it is written in, whose requirements it inherits.
+        var owner = definitionId;
+        while (definition == null && owner.contains(io.mateu.workflow.domain.services.EmbeddedProcessDefinitions.SEPARATOR)) {
+            owner = owner.substring(0, owner.lastIndexOf(io.mateu.workflow.domain.services.EmbeddedProcessDefinitions.SEPARATOR));
+            definition = workflowDefinitionRepository.findById(owner).orElse(null);
+        }
         if (definition == null) {
             return;
         }

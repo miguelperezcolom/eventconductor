@@ -223,7 +223,8 @@ public class WorkflowOrchestrationService {
                     iteration.supersede(null);
                     pass.save(iteration);
                     pass.create(StepExecution.iterationOf(container, iteration.getStepJson(),
-                            iteration.getItemIndex() == null ? 0 : iteration.getItemIndex(), iteration.scope()));
+                            iteration.getItemIndex() == null ? 0 : iteration.getItemIndex(), iteration.scope(),
+                            iteration.getItemLabel()));
                 }
             }
             container.beginIterations(pass.process, total, container.compensatedStepId());
@@ -256,8 +257,9 @@ public class WorkflowOrchestrationService {
             return;
         }
         for (int i = 0; i < items.size(); i++) {
-            pass.create(StepExecution.iterationOf(container, container.getStepJson(), i,
-                    MultiInstance.scopeFor(forEach, items.get(i), i)));
+            var scope = MultiInstance.scopeFor(forEach, items.get(i), i);
+            pass.create(StepExecution.iterationOf(container, container.getStepJson(), i, scope,
+                    labelOf(container, forEach, pass.process, scope, i)));
         }
     }
 
@@ -291,10 +293,14 @@ public class WorkflowOrchestrationService {
             pass.save(container);
             return;
         }
-        var failedIteration = iterations.stream()
+        var failedIterations = iterations.stream()
                 .filter(i -> i.getStatus() == StepExecutionStatus.ERROR || i.getStatus() == StepExecutionStatus.TIMEOUT)
-                .findFirst().orElse(null);
-        if (failedIteration != null) {
+                .toList();
+        var failedIteration = failedIterations.isEmpty() ? null : failedIterations.getFirst();
+        // onIterationFailure: failFast (the default, and always for a compensation) fails the container
+        // with the first failure; continue and compensateAll let the other iterations run to their end.
+        boolean waitsForEveryIteration = !compensation && forEach.waitsForEveryIteration();
+        if (failedIteration != null && !waitsForEveryIteration) {
             cancelIterations(iterations, pass);
             container.failIterations(failedIteration.getStatus(), "Iteration " + failedIteration.getItemIndex()
                     + " of step " + container.getStepId() + " ended " + failedIteration.getStatus()
@@ -304,13 +310,33 @@ public class WorkflowOrchestrationService {
         }
         int completed = (int) iterations.stream().filter(i -> i.getStatus() == StepExecutionStatus.COMPLETED).count();
         int active = (int) iterations.stream().filter(i -> i.getStatus().keepsTheProcessInFlight()).count();
+        // Waiting for every iteration, one an operator cancelled has ended too — without it the container
+        // would wait for it forever — and it counts as failed: it did not do its work.
+        int failed = failedIterations.size() + (waitsForEveryIteration ? (int) iterations.stream()
+                .filter(i -> i.getStatus() == StepExecutionStatus.CANCELLED).count() : 0);
+        if (waitsForEveryIteration && failed > 0 && completed + failed == total) {
+            // Every iteration has ended, some of them failed.
+            if (ForEach.COMPENSATE_ALL.equals(forEach.failurePolicy())) {
+                container.failIterations(failedIteration == null ? StepExecutionStatus.ERROR : failedIteration.getStatus(), failed + " of " + total + " iterations of step "
+                        + container.getStepId() + " failed or were cancelled"
+                        + (failedIteration == null ? "" : " (first failure: iteration " + failedIteration.getItemIndex() + ")")
+                        + "; onIterationFailure compensateAll: the step fails and the " + completed
+                        + " completed ones are compensated.");
+                pass.save(container);
+            } else {
+                completeContainer(container, forEach, iterations, total, pass, "forEach on step "
+                        + container.getStepId() + " completed: " + completed + " of " + total
+                        + " iterations completed, " + failed + " failed (onIterationFailure continue).");
+            }
+            return;
+        }
         String why = null;
         if (completed == total) {
             why = "forEach on step " + container.getStepId() + " completed: all " + total + " iterations.";
         } else if (completed > 0 && forEach.completesOnAny()) {
             why = "forEach on step " + container.getStepId() + " completed with its first completed iteration (completion: any).";
         } else if (completed > 0 && forEach.completionCondition() != null
-                && MultiInstance.conditionHolds(forEach, pass.process, iterations, total, completed, active)) {
+                && MultiInstance.conditionHolds(forEach, pass.process, iterations, total, completed, active, failed)) {
             why = "forEach on step " + container.getStepId() + " completed after " + completed + " of " + total
                     + " iterations: '" + forEach.completionCondition() + "' holds.";
         }
@@ -329,6 +355,18 @@ public class WorkflowOrchestrationService {
                 pass.save(iteration);
                 inFlight++;
             }
+        }
+    }
+
+    /** The iteration's {@code label}, or null — a label that will not evaluate is logged on the container, never fatal. */
+    private static String labelOf(StepExecution container, ForEach forEach, Process process,
+                                  Map<String, String> scope, int index) {
+        try {
+            return MultiInstance.label(forEach, process, scope);
+        } catch (RuntimeException e) {
+            container.logInfo("forEach on step " + container.getStepId() + ": the label of iteration " + index
+                    + " ('" + forEach.label() + "') could not be evaluated, so it has none: " + e.getMessage());
+            return null;
         }
     }
 

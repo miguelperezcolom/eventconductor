@@ -1,0 +1,24 @@
+id: rooms-labelled
+name: Reserve every room, each iteration named by its room
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: reserve
+    type: ACTION
+    name: Reserve a room
+    topic: reserve-labelled
+    preconditionStepId: start
+    forEach:
+      items: rooms
+      as: room
+      label: "'Hab. ' + room.number"
+  - id: broken
+    type: ACTION
+    name: A label that cannot be evaluated
+    topic: reserve-labelled
+    preconditionStepId: reserve
+    forEach:
+      items: rooms
+      as: room
+      label: "room.number.substring(99)"
+  - { id: end, type: END, name: End, preconditionStepId: broken }

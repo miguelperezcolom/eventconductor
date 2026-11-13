@@ -239,6 +239,58 @@ class SpecValidatorTest {
     }
 
     @Test
+    void anInlineProcessBodyIsValidatedAsAWorkflowOfItsOwn() throws Exception {
+        var valid = new YAMLMapper().readTree("""
+                id: booking
+                name: Booking
+                steps:
+                  - { id: start, type: START, name: Start }
+                  - id: rooms
+                    type: PROCESS
+                    name: Book one room
+                    preconditionStepId: start
+                    forEach: { items: rooms, as: room, output: ids, outputElement: roomBookingId, onIterationFailure: continue }
+                    outputVariables: [roomBookingId]
+                    steps:
+                      - { id: start, type: START, name: Start }
+                      - { id: create, type: ACTION, name: Create, topic: create-booking, preconditionStepId: start }
+                      - { id: end, type: END, name: End, preconditionStepId: create }
+                  - { id: end, type: END, name: End, preconditionStepId: rooms }
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, valid)).isEmpty();
+
+        var invalid = new YAMLMapper().readTree("""
+                id: booking
+                name: Booking
+                steps:
+                  - { id: start, type: START, name: Start }
+                  - id: rooms
+                    type: PROCESS
+                    name: Book one room
+                    preconditionStepId: start
+                    forEach: { items: rooms, onIterationFailure: compensateAll, completion: any }
+                    steps:
+                      - { id: start, type: START, name: Start }
+                      - { id: orphan, type: ACTION, name: Orphan, topic: t }
+                      - { id: next, type: ACTION, name: Next, topic: t, preconditionStepId: missing }
+                  - id: both
+                    type: PROCESS
+                    name: Both
+                    preconditionStepId: rooms
+                    childWorkflowDefinitionId: other
+                    steps:
+                      - { id: start, type: START, name: Start }
+                  - { id: neither, type: PROCESS, name: Neither, preconditionStepId: both }
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, invalid))
+                .anySatisfy(v -> assertThat(v).startsWith("booking.rooms: ").contains("Step 'orphan' has no preconditions"))
+                .anySatisfy(v -> assertThat(v).startsWith("booking.rooms: ").contains("unknown precondition step 'missing'"))
+                .anySatisfy(v -> assertThat(v).contains("which completion 'any' would cut short"))
+                .anySatisfy(v -> assertThat(v).contains("declares both a childWorkflowDefinitionId and inline steps"))
+                .anySatisfy(v -> assertThat(v).contains("must define a childWorkflowDefinitionId or inline steps"));
+    }
+
+    @Test
     void loopsAndForEachAreValidatedWithTheEnginesRules() throws Exception {
         var valid = new YAMLMapper().readTree("""
                 name: Loops

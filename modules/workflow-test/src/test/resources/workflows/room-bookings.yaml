@@ -1,0 +1,25 @@
+id: room-bookings
+name: Book every room of a reservation in the target system
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  # A dynamic fork: one child process per room, each running the inline body below.
+  - id: rooms
+    type: PROCESS
+    name: Book one room
+    preconditionStepId: start
+    compensable: true
+    compensationStepId: cancelRoom
+    outputVariables: [roomBookingId]
+    forEach:
+      items: rooms
+      as: room
+      output: roomBookings
+      outputElement: roomBookingId
+    steps:
+      - { id: start, type: START, name: Start }
+      - { id: create, type: ACTION, name: Create the room booking, topic: create-booking, preconditionStepId: start }
+      - { id: confirm, type: ACTION, name: Confirm it, topic: confirm-booking, preconditionStepId: create }
+      - { id: end, type: END, name: End, preconditionStepId: confirm }
+  - { id: cancelRoom, type: ACTION, name: Cancel a room booking, topic: cancel-booking }
+  - { id: end, type: END, name: End, preconditionStepId: rooms }

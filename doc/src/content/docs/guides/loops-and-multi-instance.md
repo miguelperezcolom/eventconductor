@@ -37,6 +37,8 @@ retries, timeouts, cancellation and compensation work exactly as they do for any
     output: reservations           # collected into this variable, in item order
     outputElement: reservationId   # what each iteration contributes; default: all it reported
     completion: all                # all (default) | any | a JEXL condition
+    onIterationFailure: failFast   # failFast (default) | continue | compensateAll
+    label: "'Hab. ' + room"        # names each iteration in the console: "reserve-room · Hab. 101"
 ```
 
 `forEach` is allowed on **ACTION, USER_TASK, PROCESS, HTTP_CALL, LLM_CALL, RULE and AGENT** steps. An AGENT runs one
@@ -59,18 +61,60 @@ JSON array with **one element per item, in item order** — `null` for an iterat
 complete. Each element is `outputElement` evaluated over what that iteration reported (plus `as` and
 `indexAs`), or, without one, an object of everything it reported.
 
+**Labels.** Without one, an iteration is "item 2" in the console. `label` is a JEXL expression that
+names it instead — evaluated **once**, when the iteration is created, over the process variables with
+`as` and `indexAs` laid over them (the item as structure: `"'Hab. ' + room.number"`). The result is
+kept on the iteration (cut to 80 characters), shown in the Steps tab — `reserve-room · Hab. 101` —
+and returned as `itemLabel` by the REST API and MCP. A label that gives nothing, or fails to evaluate,
+leaves the iteration without one and is logged on the step; it never fails the iteration. It is made
+from the item, so in a process with sensitive variables it is stored encrypted, like the item.
+
 **Completion.**
 
 - `all` — the step completes when every iteration has.
 - `any` — the first completed iteration completes the step; the others are cancelled.
 - a JEXL condition — checked after each completed iteration, over the process variables, the
   `output` gathered so far (under its own name) and `completedIterations`, `totalIterations`,
-  `activeIterations`. When it holds the step completes and the rest are cancelled:
+  `activeIterations`, `failedIterations`. When it holds the step completes and the rest are cancelled:
   `completion: "completedIterations >= 2"`.
 
-**Failure.** Each iteration has the step's own `retries`. One that fails for good (or times out
-for good) fails the step: the iterations not yet started are cancelled, the ones at a worker are sent
-a cancellation, and the step ends ERROR (TIMEOUT for a timeout, so `onTimeoutStepId` routes it).
+**Failure.** Each iteration has the step's own `retries`. What an iteration that fails for good (or
+times out for good) does to the others is the forEach's `onIterationFailure`:
+
+| `onIterationFailure` | While iterations are still running | Once every iteration has ended |
+|---|---|---|
+| `failFast` (default) | The first failure fails the step at once: the iterations not yet started are cancelled, the ones at a worker are sent a cancellation, and the step ends ERROR (TIMEOUT for a timeout, so `onTimeoutStepId` routes it). The saga compensates the completed ones. | — |
+| `continue` | A failure stops nothing; the rest run on (sequential ones too). | The step **completes**, whatever failed. `output` tells the items apart (below). |
+| `compensateAll` | A failure stops nothing; the rest run on. | If any failed, the step fails and the saga compensates **every** completed iteration; if none did, the step completes as usual. |
+
+Absent means `failFast` — how forEach always behaved.
+
+Under `continue`, each element of `output` says how its item ended, and `outputElement` (or, without
+one, everything the iteration reported) moves under `value`:
+
+```json
+[
+  {"status": "COMPLETED", "value": "R1"},
+  {"status": "FAILED", "error": "ERROR"},
+  {"status": "COMPLETED", "value": "R3"}
+]
+```
+
+`status` is `COMPLETED`, `FAILED` (`error` is `ERROR` or `TIMEOUT`), `CANCELLED` (by an operator, or
+because a `completion` ended the forEach first) or `NOT_RUN`. Under `failFast` and `compensateAll`,
+`output` keeps its plain shape. The failure's message is in the iteration's log, not in `output`.
+
+How it combines with the rest:
+
+- `completion: any` or a condition ends the forEach early and cancels what is still running. With
+  `continue` that is fine — the failures before it are tolerated, and the condition can read
+  `failedIterations`; if every iteration fails, nothing ever completes it and `continue` completes
+  the step with every element `FAILED`. With `compensateAll` it makes no sense — the decision needs
+  every iteration to have ended — and the definition is refused.
+- `mode: sequential` and `maxConcurrency` keep working: under `continue` and `compensateAll` the
+  next item starts after a failure as it would after a success.
+- A compensation never tolerates a failure: compensating iterations always fail fast.
+
 Retrying the failed step from the UI (or `RetryStepExecution` on any of its iterations) re-runs
 **only the failed and cancelled iterations**, each with a fresh retry budget; the completed ones stand.
 
@@ -104,6 +148,38 @@ than `workflow.foreach.max-items` (default 1000) fails the step at start.
 **Timeouts and cancellation.** `timeout` and `deadline` apply to each iteration. Cancelling the
 process cancels every iteration in flight; an END reached on another branch cancels the forEach and
 its iterations.
+
+### A dynamic fork: forEach over an inline PROCESS
+
+When each item needs **several steps** — create the booking, then confirm it — put the forEach on a
+PROCESS step and write those steps **in line**, under `steps:`. Each item runs the body in a child
+process of its own: N branches, one per item, each with its own variables, joined when the forEach
+completes.
+
+```yaml
+- id: rooms
+  type: PROCESS
+  name: Book one room
+  preconditionStepId: start
+  compensable: true
+  compensationStepId: cancelRoom          # once per completed room
+  outputVariables: [roomBookingId]        # what each branch hands back
+  forEach:
+    items: rooms
+    as: room
+    output: roomBookings
+    outputElement: roomBookingId
+    onIterationFailure: compensateAll      # all rooms or none
+  steps:                                   # the branch, in line
+    - { id: start, type: START, name: Start }
+    - { id: create, type: ACTION, name: Create the booking, topic: create-booking, preconditionStepId: start }
+    - { id: confirm, type: ACTION, name: Confirm it, topic: confirm-booking, preconditionStepId: create }
+    - { id: end, type: END, name: End, preconditionStepId: confirm }
+```
+
+It is exactly a PROCESS step with a child workflow, written where it is used — see
+[PROCESS with an inline body](/reference/step-types/#inline-body). A branch never writes the parent's
+variables while it runs: what it reports reaches the parent through `outputVariables` and `output`.
 
 ## repeat — one step until a condition
 

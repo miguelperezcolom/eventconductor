@@ -1157,14 +1157,27 @@ public record WorkflowDefinition(
                                 + " would ever start it.");
             }
             if (StepType.PROCESS.equals(step.type())) {
-                if (step.childWorkflowDefinitionId() == null || step.childWorkflowDefinitionId().isBlank()) {
+                boolean named = step.childWorkflowDefinitionId() != null && !step.childWorkflowDefinitionId().isBlank();
+                boolean inline = io.mateu.workflow.domain.services.EmbeddedProcessDefinitions.hasInlineBody(step);
+                if (named && inline) {
                     throw new IllegalStateException(
-                            "Process step '" + step.id() + "' must define a childWorkflowDefinitionId.");
+                            "Process step '" + step.id() + "' declares both a childWorkflowDefinitionId and inline"
+                                    + " steps; it must declare one.");
                 }
-                if (step.childWorkflowDefinitionId().equals(id)) {
+                if (!named && !inline) {
+                    throw new IllegalStateException(
+                            "Process step '" + step.id() + "' must define a childWorkflowDefinitionId or inline steps.");
+                }
+                if (named && step.childWorkflowDefinitionId().equals(id)) {
                     throw new IllegalStateException(
                             "Process step '" + step.id() + "' cannot start this workflow itself as its child.");
                 }
+                if (inline) {
+                    checkInlineBody(step);
+                }
+            } else if (io.mateu.workflow.domain.services.EmbeddedProcessDefinitions.hasInlineBody(step)) {
+                throw new IllegalStateException("Step '" + step.id() + "' declares inline steps, which only a"
+                        + " PROCESS step has.");
             }
             if (StepType.TIMER.equals(step.type())) {
                 int sources = (step.duration() > 0 ? 1 : 0)
@@ -1401,6 +1414,22 @@ public record WorkflowDefinition(
         };
     }
 
+    /**
+     * A PROCESS step's inline body is a workflow of its own, held to every rule a definition is — its
+     * problems reported with where they are, {@code <workflow>.<step>: …}, nested bodies compounding.
+     */
+    private void checkInlineBody(Step step) {
+        var body = io.mateu.workflow.domain.services.EmbeddedProcessDefinitions.of(this, step);
+        try {
+            body.checkInvariants();
+        } catch (IllegalStateException e) {
+            var message = e.getMessage() == null ? "" : e.getMessage();
+            // A nested body already says where it is; only the outermost location is added.
+            throw new IllegalStateException(message.startsWith(body.id() + ".") || message.startsWith(body.id() + ":")
+                    ? message : body.id() + ": " + message, e);
+        }
+    }
+
     /** A moment that breaks its rules — or whose templates do not parse — is a definition error. */
     static void requireValidMoment(Moment moment, String where, boolean allowIfPast) {
         var problems = new java.util.ArrayList<>(io.mateu.workflow.analysis.MomentRules.problems(moment.asMap(), where, allowIfPast));
@@ -1472,6 +1501,7 @@ public record WorkflowDefinition(
             var where = "Step '" + step.id() + "'";
             if (step.forEach() != null) {
                 problems.addAll(io.mateu.workflow.template.Templates.expressionProblems(step.forEach().items(), where + " forEach.items"));
+                problems.addAll(io.mateu.workflow.template.Templates.expressionProblems(step.forEach().label(), where + " forEach.label"));
                 problems.addAll(io.mateu.workflow.template.Templates.expressionProblems(step.forEach().outputElement(), where + " forEach.outputElement"));
                 problems.addAll(io.mateu.workflow.template.Templates.expressionProblems(step.forEach().completionCondition(), where + " forEach.completion"));
             }

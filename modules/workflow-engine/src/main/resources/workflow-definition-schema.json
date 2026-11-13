@@ -967,7 +967,18 @@
             "string",
             "null"
           ],
-          "description": "ID of the child workflow definition to start as a sub-process. Required for PROCESS steps."
+          "description": "ID of the child workflow definition to start as a sub-process. PROCESS steps declare this or inline steps, not both."
+        },
+        "steps": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "description": "PROCESS only: the child workflow written in line — the same steps a definition has — instead of naming one with childWorkflowDefinitionId. Each run of the step (each item under a forEach) starts a child process of it, with the id <workflow id>.<step id>.",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/Step"
+          }
         },
         "outputVariables": {
           "type": [
@@ -1455,7 +1466,7 @@
             "object",
             "null"
           ],
-          "description": "ACTION, USER_TASK, PROCESS, HTTP_CALL, LLM_CALL and RULE only: multi-instance — run this step once per element of a list. Each iteration is its own task (own id, retries, timeout, compensation) and sees the process variables with `as` and `indexAs` laid over them; nothing it reports is written to the process — `output` collects it. One iteration failing for good fails the step. See the 'Loops and multi-instance' guide.",
+          "description": "ACTION, USER_TASK, PROCESS, HTTP_CALL, LLM_CALL and RULE only: multi-instance — run this step once per element of a list. Each iteration is its own task (own id, retries, timeout, compensation) and sees the process variables with `as` and `indexAs` laid over them; nothing it reports is written to the process — `output` collects it. One iteration failing for good fails the step, unless onIterationFailure says otherwise. See the 'Loops and multi-instance' guide.",
           "additionalProperties": false,
           "required": [
             "items"
@@ -1519,8 +1530,29 @@
                 "string",
                 "null"
               ],
-              "description": "all (default): every iteration completes. any: the first completed iteration completes the step and cancels the rest. Anything else is a JEXL condition, checked after each completed iteration over the process variables, the output gathered so far and completedIterations/totalIterations/activeIterations.",
+              "description": "all (default): every iteration completes. any: the first completed iteration completes the step and cancels the rest. Anything else is a JEXL condition, checked after each completed iteration over the process variables, the output gathered so far and completedIterations/totalIterations/activeIterations/failedIterations.",
               "default": "all"
+            },
+            "onIterationFailure": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "failFast",
+                "continue",
+                "compensateAll",
+                null
+              ],
+              "description": "What an iteration that fails for good does. failFast (default): the step fails at once, what has not finished is cancelled and the completed iterations are compensated. continue: the other iterations go on; once all have ended the step COMPLETES, and each element of `output` is {status: COMPLETED, value} | {status: FAILED, error: ERROR|TIMEOUT} | {status: CANCELLED} | {status: NOT_RUN}. compensateAll: the other iterations go on; once all have ended, the step fails (and every completed iteration is compensated) if any failed, and completes as usual if none did — it needs completion all.",
+              "default": "failFast"
+            },
+            "label": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "JEXL over the process variables with `as`/`indexAs` laid over them, evaluated once per iteration when it is created, naming it in the console and the API (\"'Hab. ' + room.number\" → Hab. 101 instead of item 2); cut to 80 characters. Absent, giving nothing, or failing to evaluate: no label (logged, never a failed iteration)."
             }
           }
         },
@@ -1943,8 +1975,49 @@
             ]
           },
           "then": {
-            "required": [
-              "childWorkflowDefinitionId"
+            "oneOf": [
+              {
+                "required": [
+                  "childWorkflowDefinitionId"
+                ],
+                "properties": {
+                  "childWorkflowDefinitionId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "not": {
+                  "required": [
+                    "steps"
+                  ],
+                  "properties": {
+                    "steps": {
+                      "type": "array"
+                    }
+                  }
+                }
+              },
+              {
+                "required": [
+                  "steps"
+                ],
+                "properties": {
+                  "steps": {
+                    "type": "array",
+                    "minItems": 1
+                  }
+                },
+                "not": {
+                  "required": [
+                    "childWorkflowDefinitionId"
+                  ],
+                  "properties": {
+                    "childWorkflowDefinitionId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
             ]
           }
         },

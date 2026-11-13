@@ -79,7 +79,9 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 entity.getParentExecutionId(),
                 entity.getItemIndex(),
                 protection().openBlob(entity.getScopeJson()),
-                protection().openBlob(entity.getOutputJson())
+                protection().openBlob(entity.getOutputJson()),
+                // A label is made from the item, which may be sensitive: sealed like the scope.
+                protection().openBlob(entity.getItemLabel())
         );
     }
 
@@ -120,6 +122,7 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
         entity.setItemIndex(stepExecution.getItemIndex());
         entity.setScopeJson(protection().sealBlob(stepExecution.getScopeJson(), sensitive));
         entity.setOutputJson(protection().sealBlob(stepExecution.getOutputJson(), sensitive));
+        entity.setItemLabel(protection().sealBlob(stepExecution.getItemLabel(), sensitive));
         stepExecutionEntityRepository.save(entity);
 
         // Captured here, at the one moment the event and the context that produced it are both

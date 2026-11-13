@@ -14,6 +14,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -127,7 +128,7 @@ public class WorkflowDefinitionValidator {
      */
     public static void requirePublishedAgents(WorkflowDefinition definition,
                                               io.mateu.workflow.application.out.WorkflowAgentCatalogue agentCatalogue) {
-        if (definition.steps() != null) definition.steps().stream()
+        if (definition.steps() != null) allSteps(definition.steps()).stream()
                 .filter(step -> step != null && step.type() == io.mateu.workflow.domain.aggregates.StepType.AGENT)
                 .forEach(step -> {
                     if (agentCatalogue == null) throw new WorkflowDefinitionValidationException("Workflow agent catalogue is not configured");
@@ -135,6 +136,20 @@ public class WorkflowDefinitionValidator {
                     catch (RuntimeException failure) { throw new WorkflowDefinitionValidationException(
                             "Invalid AGENT step '" + step.id() + "': " + failure.getMessage(), failure); }
                 });
+    }
+
+    /** {@code steps} and, depth first, the steps of every PROCESS step's inline body among them. */
+    static List<io.mateu.workflow.domain.aggregates.Step> allSteps(List<io.mateu.workflow.domain.aggregates.Step> steps) {
+        var all = new java.util.ArrayList<io.mateu.workflow.domain.aggregates.Step>();
+        if (steps != null) {
+            for (var step : steps) {
+                all.add(step);
+                if (step != null) {
+                    all.addAll(allSteps(step.steps()));
+                }
+            }
+        }
+        return all;
     }
 
     public void validate(WorkflowDefinition definition) {

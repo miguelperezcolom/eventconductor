@@ -219,6 +219,26 @@ public class StepExecutionEntity {
     @Column(columnDefinition = "TEXT")
     String outputJson;
 
+    /** forEach iteration: what the forEach's label made of its item (V60), sealed like the scope; null without one. */
+    @Column(columnDefinition = "TEXT")
+    String itemLabel;
+
+    /** Source compatibility for the constructor shape before {@code itemLabel}. */
+    public StepExecutionEntity(String id, String processId, String workflowDefinitionId, String stepId,
+            String stepJson, String stepType, String variables, String status, String workerId, long order,
+            LocalDateTime startedAt, LocalDateTime finishedAt, int attemptCount, LocalDateTime deadlineAt,
+            String awaitingMessageName, String awaitingCorrelationKey, String lockName, String lockKey,
+            Integer version, String injectedByStepExecutionId, String invocationId, String agentRequest,
+            String agentHoldReason, Long lastAgentStateSequence, boolean failureNonRetryable,
+            Integer dispatchCount, Integer iteration, Boolean superseded, String loopDecision,
+            String parentExecutionId, Integer itemIndex, String scopeJson, String outputJson) {
+        this(id, processId, workflowDefinitionId, stepId, stepJson, stepType, variables, status, workerId,
+                order, startedAt, finishedAt, attemptCount, deadlineAt, awaitingMessageName,
+                awaitingCorrelationKey, lockName, lockKey, version, injectedByStepExecutionId, invocationId,
+                agentRequest, agentHoldReason, lastAgentStateSequence, failureNonRetryable, dispatchCount,
+                iteration, superseded, loopDecision, parentExecutionId, itemIndex, scopeJson, outputJson, null);
+    }
+
     /**
      * Backward-compatible constructor for the callers that predate the lock columns (the write-side
      * mapping in {@code StepExecutionDBRepository}). They arrive null; only lock steps set them,

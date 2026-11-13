@@ -32,7 +32,9 @@ public class MessageClassifier {
 
     /** Rebuild the classification from the current definitions. Called after each import. */
     public void rebuild() {
-        byMessageName = classify(workflowDefinitionRepository.findAll());
+        // A step waiting inside a PROCESS step's inline body waits as any other does.
+        byMessageName = classify(io.mateu.workflow.domain.services.EmbeddedProcessDefinitions
+                .withEmbedded(workflowDefinitionRepository.findAll()));
         built = true;
     }
 

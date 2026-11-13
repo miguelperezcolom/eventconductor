@@ -55,6 +55,7 @@ for autocomplete. The schema forbids unknown keys. Examples: [patterns.md](patte
 | `messageVariables` | SEND_MESSAGE | variables the message carries (absent = none) |
 | `awaitReply` | HTTP_CALL, PUBLISH_EVENT | `{messageName, correlationExpression, onEvent?}` — wait for the reply in the same step |
 | `childWorkflowDefinitionId`, `outputVariables`, `sensitiveOutputs` | PROCESS | child definition; variables copied back (absent = none) |
+| `steps` | PROCESS | the child workflow **in line** (same syntax as a definition's steps), instead of `childWorkflowDefinitionId` — exactly one of the two. Runs as child definition `<workflow>.<step>`, versioned with the parent, not startable on its own |
 | `joinType` | JOIN | `AND` (default) \| `XOR` |
 | `lockName`, `lockKey` | LOCK/UNLOCK | JEXL key |
 | `replyVariables` \| `replyExpression` \| `replyTemplate` | REPLY | at most one |
@@ -63,7 +64,7 @@ for autocomplete. The schema forbids unknown keys. Examples: [patterns.md](patte
 | `agent` | AGENT | `{ref, taskPrompt?, input?, outputVariable, mcp?, rag?, peers?, allowSensitiveVariables?}` — `ref` must be published in the IA catalogue (checked at import); `retries: 0`; default `timeout` 5 min |
 | `llm` | LLM_CALL | `{connection, model?, system?, prompt, temperature?, maxTokens?, responseSchema?, output? \| outputVariable?, usageVariable?, allowSensitiveVariables?}` |
 | `continueAsNew` | CONTINUE_AS_NEW | `{version?: same\|latest, variables?: [names] \| {name: template}}` |
-| `forEach` | ACTION, USER_TASK, PROCESS, HTTP_CALL, LLM_CALL, RULE, AGENT | `{items, as?, indexAs?, mode?: parallel\|sequential, maxConcurrency?, output?, outputElement?, completion?: all\|any\|JEXL}` |
+| `forEach` | ACTION, USER_TASK, PROCESS, HTTP_CALL, LLM_CALL, RULE, AGENT | `{items, as?, indexAs?, mode?: parallel\|sequential, maxConcurrency?, output?, outputElement?, completion?: all\|any\|JEXL, onIterationFailure?: failFast\|continue\|compensateAll, label?: JEXL naming each iteration}` — `continue`: step completes, `output` elements become `{status, value\|error}`; `compensateAll`: wait for all, any failure fails the step and compensates every completed one (needs `completion: all`) |
 | `repeat` | same as forEach | `{until, maxIterations, delay?}` |
 | `loopBack` | all but START/END/REPLY | `{to, while?, maxIterations, delay?}` |
 | `maxSuccessfulExecutions` | all | cap enforced when a loop would run the step again |

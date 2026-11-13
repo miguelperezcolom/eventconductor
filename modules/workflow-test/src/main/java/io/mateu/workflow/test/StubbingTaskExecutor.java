@@ -282,6 +282,11 @@ final class StubbingTaskExecutor implements EmbeddedTaskExecutor {
     private String topicOf(TaskExecutionRequested request) {
         try {
             return definitions.findById(request.workflowDefinitionId())
+                    // A step of a PROCESS step's inline body: its definition is built from the parent's.
+                    .or(() -> io.mateu.workflow.domain.services.EmbeddedProcessDefinitions
+                            .withEmbedded(definitions.findAll()).stream()
+                            .filter(definition -> request.workflowDefinitionId().equals(definition.id()))
+                            .findFirst())
                     .flatMap(definition -> definition.steps() == null ? java.util.Optional.empty()
                             : definition.steps().stream().filter(step -> request.stepId().equals(step.id())).findFirst())
                     .map(step -> step.topic())

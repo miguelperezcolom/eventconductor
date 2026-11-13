@@ -515,13 +515,23 @@ public class SpecValidator {
                         + " WAIT_FOR_MESSAGE or another step's compensation — nothing would ever"
                         + " start it.");
             }
+            JsonNode inlineBody = step.get("steps");
+            boolean inline = inlineBody != null && inlineBody.isArray() && !inlineBody.isEmpty();
             if ("PROCESS".equals(type)) {
                 String childWorkflowDefinitionId = text(step, "childWorkflowDefinitionId");
-                if (!isSet(childWorkflowDefinitionId)) {
-                    violations.add("Process step '" + id + "' must define a childWorkflowDefinitionId.");
-                } else if (childWorkflowDefinitionId.equals(workflowId)) {
+                if (isSet(childWorkflowDefinitionId) && inline) {
+                    violations.add("Process step '" + id + "' declares both a childWorkflowDefinitionId and inline"
+                            + " steps; it must declare one.");
+                } else if (!isSet(childWorkflowDefinitionId) && !inline) {
+                    violations.add("Process step '" + id + "' must define a childWorkflowDefinitionId or inline steps.");
+                } else if (isSet(childWorkflowDefinitionId) && childWorkflowDefinitionId.equals(workflowId)) {
                     violations.add("Process step '" + id + "' cannot start this workflow itself as its child.");
                 }
+                if (inline) {
+                    addInlineBodySemantics(workflowId, id, inlineBody, violations);
+                }
+            } else if (inline) {
+                violations.add("Step '" + id + "' declares inline steps, which only a PROCESS step has.");
             }
             String precExpr = text(step, "preconditionExpression");
             if (isSet(precExpr)) {
@@ -630,6 +640,7 @@ public class SpecValidator {
             if (forEach != null && forEach.isObject()) {
                 checkJexl(text(forEach, "items"), "step '" + id + "' forEach.items", violations);
                 checkJexl(text(forEach, "outputElement"), "step '" + id + "' forEach.outputElement", violations);
+                checkJexl(text(forEach, "label"), "step '" + id + "' forEach.label", violations);
                 String completion = text(forEach, "completion");
                 if (isSet(completion) && !"all".equalsIgnoreCase(completion.trim()) && !"any".equalsIgnoreCase(completion.trim())) {
                     checkJexl(completion, "step '" + id + "' forEach.completion", violations);
@@ -671,6 +682,24 @@ public class SpecValidator {
         if (violations.size() == violationsBeforeCycles) {
             violations.addAll(loopAnalysis(wf).errors());
             violations.addAll(replyAnalysis(wf).errors());
+        }
+    }
+
+    /**
+     * A PROCESS step's inline body is a workflow of its own (the engine runs it as
+     * {@code <workflow>.<step>}), held to every rule a definition is; each of its problems is reported
+     * with where it is, {@code <workflow>.<step>: …}, nested bodies compounding.
+     */
+    private void addInlineBodySemantics(String workflowId, String stepId, JsonNode body, List<String> violations) {
+        String bodyId = workflowId + "." + stepId;
+        var child = TEMPLATE_READER.createObjectNode();
+        child.put("id", bodyId);
+        child.set("steps", body);
+        var inner = new ArrayList<String>();
+        addWorkflowSemantics(child, inner);
+        for (String problem : inner) {
+            violations.add(problem.startsWith(bodyId + ".") || problem.startsWith(bodyId + ":")
+                    ? problem : bodyId + ": " + problem);
         }
     }
 

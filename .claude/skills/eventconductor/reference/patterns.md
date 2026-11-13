@@ -372,6 +372,32 @@ steps:
 Each iteration is its own task (own retries/timeout); the worker sees `room` and `index`. Iteration
 outputs are NOT merged into the process — read `reservations`. Limit: `workflow.foreach.max-items` (1000).
 
+One failed room fails the step at once (`onIterationFailure: failFast`, the default). `continue` lets
+the others finish and completes the step, with `output` elements `{status: COMPLETED, value}` /
+`{status: FAILED, error}`; `compensateAll` lets them finish and then, if any failed, fails the step
+and compensates every completed one (it needs `completion: all`).
+
+### 6b. Several steps per item: forEach over an inline PROCESS (dynamic fork)
+
+```yaml
+  - id: rooms
+    type: PROCESS
+    name: Book one room
+    preconditionStepId: start
+    compensable: true
+    compensationStepId: cancelRoom
+    outputVariables: [roomBookingId]       # what each branch hands back
+    forEach: { items: rooms, as: room, output: roomBookings, outputElement: roomBookingId, onIterationFailure: compensateAll }
+    steps:                                 # the branch, in line — instead of childWorkflowDefinitionId
+      - { id: start, type: START, name: Start }
+      - { id: create, type: ACTION, name: Create, topic: create-booking, preconditionStepId: start }
+      - { id: confirm, type: ACTION, name: Confirm, topic: confirm-booking, preconditionStepId: create }
+      - { id: end, type: END, name: End, preconditionStepId: confirm }
+```
+
+One child process per room, of definition `<workflow>.rooms` (versioned with the parent, not
+startable on its own). Branch variables never touch the parent until `outputVariables`/`output`.
+
 ## 7. Poll until done (repeat)
 
 ```yaml

@@ -284,8 +284,27 @@ public final class LoopRules {
         if (set(string(forEach.get("outputElement"))) && !set(output)) {
             problems.add(where + " outputElement needs output: the variable the elements are collected into.");
         }
+        var onFailure = string(forEach.get("onIterationFailure"));
+        if (set(onFailure)) {
+            var policy = ON_ITERATION_FAILURE.stream().filter(p -> p.equalsIgnoreCase(onFailure.trim())).findFirst().orElse(null);
+            var completion = string(forEach.get("completion"));
+            boolean completesEarly = set(completion) && !"all".equalsIgnoreCase(completion.trim());
+            if (policy == null) {
+                problems.add(where + " onIterationFailure '" + onFailure + "' is not one of "
+                        + String.join(", ", ON_ITERATION_FAILURE) + ".");
+            } else if ("compensateAll".equals(policy) && completesEarly) {
+                // compensateAll decides once every iteration has ended; a completion that ends the forEach
+                // early cancels the ones still running, so there would be nothing left to decide on.
+                problems.add(where + " onIterationFailure compensateAll waits for every iteration, which completion '"
+                        + completion.trim() + "' would cut short; use completion all (the default), or onIterationFailure"
+                        + " continue or failFast.");
+            }
+        }
         return problems;
     }
+
+    /** The values of a forEach's {@code onIterationFailure}; absent means failFast. */
+    public static final List<String> ON_ITERATION_FAILURE = List.of("failFast", "continue", "compensateAll");
 
     private static List<String> repeatProblems(Node node, String where) {
         var problems = new ArrayList<String>();

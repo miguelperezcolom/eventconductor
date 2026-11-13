@@ -349,10 +349,21 @@ public record Step(
         @HiddenInList
         @Hidden("state['type'] != 'END'")
         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-        Boolean compensateAbandoned
+        Boolean compensateAbandoned,
+        /**
+         * PROCESS only: the child workflow written in line — the same steps a definition has — as the
+         * alternative to naming one with {@code childWorkflowDefinitionId} (a step declares exactly one
+         * of the two). Each run of the step, each item under a {@code forEach}, starts a child process
+         * of it, exactly as it would of a named child; see
+         * {@link io.mateu.workflow.domain.services.EmbeddedProcessDefinitions}. Left out of the JSON when
+         * absent, so a step without one hashes into a definition version as before.
+         */
+        @Hidden
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
+        List<Step> steps
 ) implements Identifiable {
 
-    /** The shape this record had before {@code compensateLosers}/{@code compensateAbandoned}, so every caller of the full constructor keeps compiling. */
+    /** The shape this record had before {@code compensateLosers}/{@code compensateAbandoned} and inline PROCESS bodies, so every caller of the full constructor keeps compiling. */
     public Step(String id, String workflowDefinitionId, StepType type, String name, String description,
                 String preconditionStepId, List<String> preconditionStepIds, List<Precondition> preconditions,
                 String preconditionExpression, boolean parallel, String topic, String formId, String ruleId,
@@ -374,7 +385,7 @@ public record Step(
                 onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
                 lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, event, http, until, deadline,
                 llm, onEvent, awaitReply, forEach, repeat, loopBack, assignment, escalation, sensitiveOutputs,
-                priority, continueAsNew, agent, null, null);
+                priority, continueAsNew, agent, null, null, null);
     }
 
     /** Whether this is an XOR JOIN that abandons, and cleans up after, the branches it does not go on with. */
@@ -408,7 +419,7 @@ public record Step(
                 onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
                 lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, event, http, until, deadline,
                 llm, onEvent, awaitReply, forEach, repeat, loopBack, assignment, escalation, sensitiveOutputs,
-                priority, continueAsNew, null, null, null);
+                priority, continueAsNew, null, null, null, null);
     }
 
     public Step {
@@ -418,6 +429,7 @@ public record Step(
         if (Boolean.FALSE.equals(compensateAbandoned)) compensateAbandoned = null;
         requiredScopes = requiredScopes == null ? List.of() : List.copyOf(requiredScopes);
         requiredRoles = requiredRoles == null ? List.of() : List.copyOf(requiredRoles);
+        steps = steps == null || steps.isEmpty() ? null : java.util.Collections.unmodifiableList(new java.util.ArrayList<>(steps));
     }
 
     /** The shape this record had before {@code awaitReply}, so every caller of the full constructor keeps compiling. */

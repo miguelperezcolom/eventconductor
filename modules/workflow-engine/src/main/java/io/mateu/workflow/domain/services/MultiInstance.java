@@ -166,16 +166,82 @@ public final class MultiInstance {
         }
     }
 
-    /** The {@code output} array, one element per iteration in index order, as JSON. */
+    /**
+     * What {@code forEach.label} makes of one item: evaluated over the process variables with the item's
+     * scope laid over them (structured, as templates see it), as text, cut to {@link ForEach#MAX_LABEL_LENGTH}.
+     * Null without a label, or when it gives nothing.
+     *
+     * @throws RuntimeException when the expression cannot be evaluated — the caller logs it and goes on
+     *                          without a label: a label never fails an iteration
+     */
+    public static String label(ForEach forEach, Process process, Map<String, String> scope) {
+        if (forEach.label() == null || forEach.label().isBlank()) {
+            return null;
+        }
+        var context = new HashMap<String, Object>();
+        process.getVariables().forEach(variable -> context.put(variable.name(), structured(variable.value())));
+        context.put("businessKey", process.getBusinessKey());
+        context.putAll(typed(scope));
+        var value = evaluate(forEach.label(), context).value();
+        if (value == null) {
+            return null;
+        }
+        var text = value instanceof String string ? string : asVariableValue(value);
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        text = text.strip();
+        return text.length() <= ForEach.MAX_LABEL_LENGTH ? text
+                : text.substring(0, ForEach.MAX_LABEL_LENGTH - 1) + "…";
+    }
+
+    /**
+     * One iteration's element of {@code output} under {@code onIterationFailure: continue}, where the items
+     * that failed are worth as much to what follows as the ones that did not — an object saying how it
+     * ended:
+     * <ul>
+     *   <li>{@code {"status": "COMPLETED", "value": <its element>}} — the element {@link #element} gives;</li>
+     *   <li>{@code {"status": "FAILED", "error": "ERROR" | "TIMEOUT"}} — it failed for good, or timed out;</li>
+     *   <li>{@code {"status": "CANCELLED"}} — it was cancelled (by an operator, or because a {@code completion}
+     *       of {@code any} or a condition ended the forEach before it finished);</li>
+     *   <li>{@code {"status": "NOT_RUN"}} — it never ran (an iteration not yet materialised).</li>
+     * </ul>
+     */
+    public static Object elementWithStatus(ForEach forEach, StepExecution iteration) {
+        var result = new LinkedHashMap<String, Object>();
+        if (iteration == null) {
+            result.put("status", "NOT_RUN");
+            return result;
+        }
+        switch (iteration.getStatus()) {
+            case COMPLETED -> {
+                result.put("status", "COMPLETED");
+                result.put("value", element(forEach, iteration));
+            }
+            case ERROR, TIMEOUT -> {
+                result.put("status", "FAILED");
+                result.put("error", iteration.getStatus().name());
+            }
+            case CANCELLED -> result.put("status", "CANCELLED");
+            default -> result.put("status", "NOT_RUN");
+        }
+        return result;
+    }
+
+    /**
+     * The {@code output} array, one element per iteration in index order, as JSON: each iteration's
+     * {@link #element}, or under {@code onIterationFailure: continue} its {@link #elementWithStatus}.
+     */
     public static String output(ForEach forEach, List<StepExecution> iterations, int total) {
+        boolean withStatus = ForEach.CONTINUE.equals(forEach.failurePolicy());
         var elements = new ArrayList<Object>();
         for (int i = 0; i < total; i++) {
-            elements.add(null);
+            elements.add(withStatus ? elementWithStatus(forEach, null) : null);
         }
         for (var iteration : iterations) {
             var index = iteration.getItemIndex();
             if (index != null && index >= 0 && index < total) {
-                elements.set(index, element(forEach, iteration));
+                elements.set(index, withStatus ? elementWithStatus(forEach, iteration) : element(forEach, iteration));
             }
         }
         try {
@@ -188,10 +254,12 @@ public final class MultiInstance {
     /**
      * Whether a {@code completion} condition holds: evaluated over the process variables, the
      * {@code output} gathered so far (under its own name, when declared), and the counts
-     * {@code completedIterations}, {@code totalIterations} and {@code activeIterations}.
+     * {@code completedIterations}, {@code totalIterations}, {@code activeIterations} and
+     * {@code failedIterations} (only ever above zero under an {@code onIterationFailure} that lets the others
+     * go on).
      */
     public static boolean conditionHolds(ForEach forEach, Process process, List<StepExecution> iterations,
-                                         int total, int completed, int active) {
+                                         int total, int completed, int active, int failed) {
         var context = new HashMap<String, Object>();
         process.getVariables().forEach(variable -> context.put(variable.name(), variable.value()));
         if (forEach.hasOutput()) {
@@ -200,6 +268,7 @@ public final class MultiInstance {
         context.put("completedIterations", completed);
         context.put("totalIterations", total);
         context.put("activeIterations", active);
+        context.put("failedIterations", failed);
         context.put("businessKey", process.getBusinessKey());
         try {
             var value = evaluate(forEach.completionCondition(), context).value();

@@ -30,17 +30,24 @@ public class TaskReferenceResolver {
         if (definition == null || definition.steps() == null || definition.steps().isEmpty()) {
             return definition;
         }
-        boolean anyTask = definition.steps().stream()
-                .anyMatch(step -> StepType.ACTION.equals(step.type())
-                        && step.task() != null && !step.task().isBlank());
-        if (!anyTask) {
+        if (!anyTask(definition.steps())) {
             return definition; // nothing references a contract — no lookups, no change
         }
         var resolved = definition.steps().stream().map(step -> resolveStep(definition, step)).toList();
         return definition.withSteps(resolved);
     }
 
-    private Step resolveStep(WorkflowDefinition definition, Step step) {
+    /** Whether any of {@code steps} — those of a PROCESS step's inline body included — references a task. */
+    private static boolean anyTask(java.util.List<Step> steps) {
+        return steps != null && steps.stream().anyMatch(step -> step != null
+                && (StepType.ACTION.equals(step.type()) && step.task() != null && !step.task().isBlank()
+                || anyTask(step.steps())));
+    }
+
+    private Step resolveStep(WorkflowDefinition definition, Step original) {
+        // An inline body's tasks are pinned as the definition loads, as its own steps' are.
+        final Step step = original.steps() == null || original.steps().isEmpty() ? original
+                : original.withSteps(original.steps().stream().map(inner -> resolveStep(definition, inner)).toList());
         if (!StepType.ACTION.equals(step.type()) || step.task() == null || step.task().isBlank()) {
             return step;
         }
