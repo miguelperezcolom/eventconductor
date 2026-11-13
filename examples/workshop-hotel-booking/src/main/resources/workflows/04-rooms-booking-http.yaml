@@ -1,0 +1,51 @@
+# Module 4 — the rooms are booked in the hotel's own system, over HTTP, without writing a worker.
+id: rooms-booking-http
+name: Book every room at the hotel
+steps:
+  - id: start
+    type: START
+    name: Booking received
+
+  - id: rooms
+    type: HTTP_CALL
+    name: Book every room at the hotel
+    preconditionStepId: start
+    compensable: true
+    compensationStepId: cancel-room          # undoes each room that was booked
+    retries: 3
+    timeout: PT15S
+    forEach:                                 # one call per room, each with its own retries
+      items: rooms
+      as: room
+      label: "'Room ' + room.number"
+      onIterationFailure: compensateAll
+      output: roomBookings
+      outputElement: roomBookingId
+    http:
+      connection: hotel                      # base URL and credentials live in configuration
+      method: POST
+      path: /bookings
+      headers:
+        # The same key on every attempt — and on a retry from a step, a restart, or the same
+        # booking sent twice — so the hotel books each room once.
+        Idempotency-Key: "${businessKey}-${room.number}"
+      body:
+        externalRef: "${businessKey}-${room.number}"
+        number: "${room.number}"
+        type: "${room.type}"
+      output:
+        roomBookingId: "body.id"
+  - id: done
+    type: END
+    name: Done
+    preconditionStepId: rooms
+
+  - id: cancel-room                          # the compensation, also over HTTP
+    type: HTTP_CALL
+    name: Cancel the room at the hotel
+    retries: 5
+    http:
+      connection: hotel
+      method: DELETE
+      path: "/bookings/by-ref/${businessKey}-${room.number}"
+      successStatus: [200, 204, 404]         # already gone is fine: cancelling is idempotent too

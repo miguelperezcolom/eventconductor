@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The project of the hands-on workshop (doc/src/content/docs/workshop/): a hotel booking with
+  several rooms, grown one module at a time. It is the state at the end of the workshop.
+
+  One application holds everything, so the workshop is one command:
+    - the engine, embedded, with JPA on an in-memory H2 (the console needs JPA);
+    - the console (the Mateu UI) and the MCP server;
+    - the built-in workers, for HTTP_CALL and LLM_CALL;
+    - the task handlers (the hotel's "workers"), plain Spring beans;
+    - a fake hotel API and a fake OpenAI-compatible model under /fake/**, so nothing leaves the laptop.
+
+  Inside this repository it builds against the engine you installed from source
+  (`mvn -Djacoco.skip=true -DskipTests install` at the root). In a project of your own, set
+  eventconductor.version to the latest release on Maven Central.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.0</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.example</groupId>
+    <artifactId>workshop-hotel-booking</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <name>workshop-hotel-booking</name>
+
+    <properties>
+        <java.version>21</java.version>
+        <eventconductor.version>1.0-SNAPSHOT</eventconductor.version>
+        <mateu.version>3.0-beta.63</mateu.version>
+        <spring-ai.version>2.0.2</spring-ai.version>
+    </properties>
+
+    <dependencies>
+        <!-- The engine -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>workflow-engine</artifactId>
+            <version>${eventconductor.version}</version>
+        </dependency>
+        <!-- HTTP_CALL, LLM_CALL and PUBLISH_EVENT in-process, and the task-handler runtime -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>builtin-workers</artifactId>
+            <version>${eventconductor.version}</version>
+            <type>pom</type>
+        </dependency>
+        <!-- USER_TASK: in a full deployment the forms engine serves the approval form and the task
+             inbox. It is left out of this single-app workshop: with an embedded engine,
+             forms-engine fails to start (it needs a Spring Cloud Stream StreamBridge that embedded
+             mode switches off). The workshop completes the approval from the console instead. -->
+        <!-- LLM_CALL provider: OpenAI or any OpenAI-compatible server (here, the fake one) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-openai</artifactId>
+            <version>${spring-ai.version}</version>
+        </dependency>
+        <!-- MCP: let an AI assistant operate the engine -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+            <version>${spring-ai.version}</version>
+        </dependency>
+
+        <!-- HTTP: the REST API, the console, the fakes -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
+        </dependency>
+        <!-- The console (Mateu) -->
+        <dependency>
+            <groupId>io.mateu</groupId>
+            <artifactId>mateu-mvc</artifactId>
+            <version>${mateu.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.mateu</groupId>
+            <artifactId>mateu-vaadin</artifactId>
+            <version>${mateu.version}</version>
+        </dependency>
+        <!-- Persistence: JPA on an in-memory H2 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Tests: JUnit 5, Spring test, AssertJ and the EventConductor test kit -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>workflow-test</artifactId>
+            <version>${eventconductor.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <!-- Mateu's annotation processor builds the console's UI classes -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>io.mateu</groupId>
+                            <artifactId>mateu-annotation-processor-mvc</artifactId>
+                            <version>${mateu.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <!-- Validates every workflow under src/main/resources/workflows at build time:
+                 schema, dangling references, unreachable steps, expressions. `mvn verify` fails
+                 on a broken definition; `mvn eventconductor:validate` runs it alone. -->
+            <plugin>
+                <groupId>io.mateu.workflow</groupId>
+                <artifactId>workflow-maven-plugin</artifactId>
+                <version>${eventconductor.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>validate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

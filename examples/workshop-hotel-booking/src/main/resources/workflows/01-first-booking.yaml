@@ -1,0 +1,17 @@
+# Module 1 — the smallest useful process: receive a booking, register it, done.
+id: first-booking
+name: First booking
+steps:
+  - id: start
+    type: START
+    name: Booking received
+
+  - id: register-booking          # served by the `register-booking` task handler
+    type: ACTION
+    name: Register the booking
+    preconditionStepId: start
+
+  - id: done
+    type: END
+    name: Done
+    preconditionStepId: register-booking

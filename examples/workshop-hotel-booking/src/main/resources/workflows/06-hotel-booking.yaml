@@ -1,0 +1,80 @@
+# Module 6 — the whole booking: a manager approves large bookings, then the rooms are booked at
+# the hotel (all or none) and the guest is told.
+id: hotel-booking
+name: Hotel booking
+steps:
+  - id: start
+    type: START
+    name: Booking received
+
+  - id: approve
+    type: USER_TASK
+    name: Manager approval
+    preconditionStepId: start
+    formId: booking-approval
+    assignment:
+      candidateGroups: [front-desk-managers]
+    escalation:
+      - after: P1D                           # still open after a day: say so
+        action: notify
+    timeout: P3D                             # nobody decided in three days: the step times out
+
+  - id: decision
+    type: CHOICE
+    name: Approved?
+    preconditionStepId: approve
+
+  - id: rooms
+    type: HTTP_CALL
+    name: Book every room at the hotel
+    preconditions:
+      - stepId: decision
+        expression: "approved == 'true'"
+    compensable: true
+    compensationStepId: cancel-room
+    retries: 3
+    timeout: PT15S
+    forEach:
+      items: rooms
+      as: room
+      label: "'Room ' + room.number"
+      onIterationFailure: compensateAll
+      output: roomBookings
+      outputElement: roomBookingId
+    http:
+      connection: hotel
+      method: POST
+      path: /bookings
+      headers:
+        Idempotency-Key: "${businessKey}-${room.number}"
+      body:
+        externalRef: "${businessKey}-${room.number}"
+        number: "${room.number}"
+        type: "${room.type}"
+      output:
+        roomBookingId: "body.id"
+
+  - id: notify-guest
+    type: ACTION
+    name: Tell the guest
+    preconditionStepId: rooms
+
+  - id: done
+    type: END
+    name: Booked
+    preconditionStepId: notify-guest
+
+  - id: rejected
+    type: END
+    name: Rejected
+    preconditionStepId: decision            # unguarded: the CHOICE's default branch
+
+  - id: cancel-room
+    type: HTTP_CALL
+    name: Cancel the room at the hotel
+    retries: 5
+    http:
+      connection: hotel
+      method: DELETE
+      path: "/bookings/by-ref/${businessKey}-${room.number}"
+      successStatus: [200, 204, 404]
