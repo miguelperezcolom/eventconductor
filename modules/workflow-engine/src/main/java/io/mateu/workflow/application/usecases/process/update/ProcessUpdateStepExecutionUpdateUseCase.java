@@ -64,6 +64,12 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
         boolean anyLive = false;
         boolean anyFailed = false;
         for (StepExecution execution : executions) {
+            if (execution.isCleanupCompensation() && !execution.getStatus().keepsTheProcessInFlight()) {
+                // A cleanup of an abandoned branch (see StepExecution#markCleanup) runs beside the flow:
+                // while it runs it keeps the process in flight like any step, but how it ended — done,
+                // or failed and left as an incident — says nothing about the process.
+                continue;
+            }
             switch (execution.getStatus()) {
                 case COMPLETED -> completed++;
                 // AWAITING_RETRY is a step waiting out its backoff before running again: the process

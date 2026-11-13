@@ -1403,6 +1403,20 @@
           "minimum": 0,
           "default": 0
         },
+        "compensateLosers": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "XOR JOIN only: true abandons the branches the join did not go on with — their waiting or running steps are cancelled and their completed compensable steps compensated, newest first, as a cleanup beside the flow. Absent/false: the other branches run on."
+        },
+        "compensateAbandoned": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "END only: true also compensates, as a cleanup, the compensable steps that completed on the branches this END cuts short. Absent/false: only work that completed after the END cancelled it is compensated."
+        },
         "joinType": {
           "type": [
             "string",

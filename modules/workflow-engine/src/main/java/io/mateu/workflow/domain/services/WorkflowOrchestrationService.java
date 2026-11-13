@@ -558,6 +558,10 @@ public class WorkflowOrchestrationService {
     }
 
     private boolean isBlockingError(StepExecution stepExecution, Map<String, Step> cache) {
+        if (stepExecution.isCleanupCompensation()) {
+            // A failed cleanup of an abandoned branch is an incident, not a failure of the flow.
+            return false;
+        }
         if (StepExecutionStatus.ERROR.equals(stepExecution.getStatus())) {
             return true;
         }
@@ -884,9 +888,12 @@ public class WorkflowOrchestrationService {
                         .withFinishedAt(now))
                 .forEach(stepsToSave::add);
 
-        // Cancel all remaining uncompleted steps
+        // Cancel all remaining uncompleted steps — but not a cleanup compensation of an abandoned
+        // branch: it undoes work already done, and must finish whatever ends the flow (see
+        // AbandonedBranchService).
         stepExecutions.stream()
                 .filter(execution -> !endSteps.contains(execution))
+                .filter(execution -> !execution.isCleanupCompensation())
                 .filter(execution -> List.of(StepExecutionStatus.PENDING,
                                 StepExecutionStatus.CREATED,
                                 StepExecutionStatus.RUNNING,

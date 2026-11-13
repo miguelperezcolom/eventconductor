@@ -886,6 +886,22 @@ public record WorkflowDefinition(
      * in its prompt without {@code llm.allowSensitiveVariables: true}, and no AGENT may put one in its
      * taskPrompt or input without {@code agent.allowSensitiveVariables: true}.
      */
+    /** {@code compensateLosers} only on an XOR join, {@code compensateAbandoned} only on an END. */
+    private void checkBranchCleanup() {
+        if (steps == null) return;
+        var violations = new java.util.ArrayList<String>();
+        for (var step : steps) {
+            if (step == null) continue;
+            violations.addAll(io.mateu.workflow.analysis.BranchCleanupRules.stepViolations(
+                    step.type() == null ? null : step.type().name(),
+                    step.joinType() == null ? null : step.joinType().name(),
+                    step.compensateLosers(), step.compensateAbandoned(), "step '" + step.id() + "'"));
+        }
+        if (!violations.isEmpty()) {
+            throw new IllegalStateException(String.join(" ", violations));
+        }
+    }
+
     private void checkSensitiveVariables() {
         var violations = new java.util.ArrayList<>(
                 io.mateu.workflow.analysis.SensitiveVariableRules.violations(sensitiveVariables, "sensitiveVariables"));
@@ -1102,6 +1118,7 @@ public record WorkflowDefinition(
         checkSearchAttributes();
         checkUpdates();
         checkSensitiveVariables();
+        checkBranchCleanup();
         if (steps == null) return;
         // Reachability below is judged against these: a compensation is declared on the step it
         // undoes and started by the rollback pipeline, so it needs no way in of its own.

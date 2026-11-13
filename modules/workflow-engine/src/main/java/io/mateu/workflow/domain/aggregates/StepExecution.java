@@ -1206,16 +1206,44 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     }
 
     /**
-     * Records the answer of a worker — or of a child process — that completed this iteration after the
-     * engine had already cancelled it (a forEach that failed fast, or stopped because the process
-     * failed). The cancellation raced with the work and lost: the unit of work exists, so it is kept as
-     * a completed run — with what it reported — for the saga to compensate, instead of being dropped
-     * and left behind in the system it was done in.
+     * Marks a compensation run over several units as a <b>cleanup</b>: it undoes the completed work of
+     * a branch the flow abandoned — the losing branch of an XOR join, or a branch cut short because
+     * another one reached END — in a process that has not failed. Not a saga rollback: it neither moves
+     * the process status nor triggers one, and when it fails it is an incident to look at (it shows in
+     * the Errors tab), not a failure of the process.
+     *
+     * @param reason what abandoned the branch, e.g. {@code xor:<joinStepId>} or {@code end:<endStepId>}
+     */
+    public void markCleanup(String reason) {
+        var scope = new java.util.LinkedHashMap<String, String>(scope());
+        scope.put("cleanup", reason);
+        this.scopeJson = io.mateu.workflow.domain.services.MultiInstance.toJson(scope);
+        send(new TaskLogEmitted(id, MessageType.Info, "Cleanup compensation of step " + compensatedStepId()
+                + " (" + reason + "): undoing the completed work of an abandoned branch."));
+    }
+
+    /** Whether this is a cleanup compensation run (see {@link #markCleanup(String)}). */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public boolean isCleanupCompensation() {
+        return parentExecutionId == null && scopeJson != null && scope().containsKey("cleanup");
+    }
+
+    /**
+     * Records the answer of a worker — or of a child process — that completed this run after the engine
+     * had already cancelled it: a forEach iteration (its forEach failed fast, or stopped because the
+     * process failed), or a step on a parallel branch of a process whose rollback cancelled it. The
+     * cancellation raced with the work and lost: the unit of work exists, so it is kept as a completed
+     * run — with what it reported — for the saga to compensate, instead of being dropped and left
+     * behind in the system it was done in.
+     *
+     * <p>What it reported goes to the run's own output, never to the process variables: the process
+     * has failed and its variables describe that; the compensation that undoes this run sees the
+     * output laid over them (as an iteration's compensation always has).
      */
     public void completeAfterCancellation(List<Variable> reported) {
         recordOutput(reported);
-        send(new TaskLogEmitted(id, MessageType.Info, "Iteration " + itemIndex + " of step " + stepId
-                + " completed after it had been cancelled: kept as a completed run, so the saga compensates it."));
+        send(new TaskLogEmitted(id, MessageType.Info, (isIteration() ? "Iteration " + itemIndex + " of step " : "Step ")
+                + stepId + " completed after it had been cancelled: kept as a completed run, so the saga compensates it."));
         updateStatus(StepExecutionStatus.COMPLETED);
     }
 

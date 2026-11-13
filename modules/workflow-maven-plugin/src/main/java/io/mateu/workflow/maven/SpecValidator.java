@@ -235,6 +235,23 @@ public class SpecValidator {
      * no search attribute over one, no LLM prompt reading one without llm.allowSensitiveVariables. Whether
      * the engine has an encryption key is configuration, judged when it loads the definition.
      */
+    /** compensateLosers only on an XOR join, compensateAbandoned only on an END (see BranchCleanupRules). */
+    private void addBranchCleanupSemantics(JsonNode wf, List<String> violations) {
+        JsonNode steps = wf.get("steps");
+        if (steps == null || !steps.isArray()) {
+            return;
+        }
+        for (JsonNode step : steps) {
+            JsonNode losers = step.get("compensateLosers");
+            JsonNode abandoned = step.get("compensateAbandoned");
+            violations.addAll(io.mateu.workflow.analysis.BranchCleanupRules.stepViolations(
+                    text(step, "type"), text(step, "joinType"),
+                    losers != null && losers.isBoolean() ? losers.asBoolean() : null,
+                    abandoned != null && abandoned.isBoolean() ? abandoned.asBoolean() : null,
+                    "step '" + text(step, "id") + "'"));
+        }
+    }
+
     private void addSensitiveVariableSemantics(JsonNode wf, List<String> violations) {
         var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
         List<String> patterns = new ArrayList<>();
@@ -375,6 +392,7 @@ public class SpecValidator {
             }
         }
         addSensitiveVariableSemantics(wf, violations);
+        addBranchCleanupSemantics(wf, violations);
         JsonNode cron = wf.get("cronExpression");
         if (cron != null && cron.isTextual() && !cron.asText().isBlank()
                 && !CronExpression.isValidExpression(cron.asText().trim())) {

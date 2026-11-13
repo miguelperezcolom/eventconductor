@@ -1,0 +1,14 @@
+id: fork-late-completion
+name: Book car, hotel and flight in parallel
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: fork, type: FORK, name: Fork, preconditionStepId: start }
+  - { id: car, type: ACTION, name: Book a car, topic: work, preconditionStepId: fork, compensable: true, compensationStepId: cancel-car }
+  - { id: hotel, type: ACTION, name: Book a hotel, topic: work, preconditionStepId: fork, compensable: true, compensationStepId: cancel-hotel }
+  - { id: audit, type: ACTION, name: Audit, topic: work, preconditionStepId: fork }
+  - { id: flight, type: ACTION, name: Book a flight, topic: work, preconditionStepId: fork }
+  - { id: join, type: JOIN, name: Join, preconditionStepIds: [car, hotel, audit, flight] }
+  - { id: end, type: END, name: End, preconditionStepId: join }
+  - { id: cancel-car, type: ACTION, name: Cancel the car, topic: work }
+  - { id: cancel-hotel, type: ACTION, name: Cancel the hotel, topic: work }

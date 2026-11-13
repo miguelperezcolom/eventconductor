@@ -1,0 +1,12 @@
+id: fork-late-end
+name: One branch ends the process while the other is still booking
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: fork, type: FORK, name: Fork, preconditionStepId: start }
+  - { id: quick, type: ACTION, name: Quick, topic: work, preconditionStepId: fork }
+  - { id: done, type: END, name: Done, preconditionStepId: quick }
+  - { id: car, type: ACTION, name: Book a car, topic: work, preconditionStepId: fork, compensable: true, compensationStepId: cancel-car }
+  - { id: hotel, type: ACTION, name: Book a hotel, topic: work, preconditionStepId: car, compensable: true, compensationStepId: cancel-hotel }
+  - { id: cancel-car, type: ACTION, name: Cancel the car, topic: work }
+  - { id: cancel-hotel, type: ACTION, name: Cancel the hotel, topic: work }

@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - That late COMPLETED is now kept as a completed run, with what it reported, when its step declares a compensation. Late answers for steps without a compensation are still ignored.
   - The rollback undoes it whenever it lands. Before the rollback reaches its step, it is included as usual. While that step's compensation is running, it waits for that run and then gets a new one. After the process was already `COMPENSATED`, the process goes back to `ERROR`, runs a new pass of the compensation over just that iteration, and ends `COMPENSATED` again.
   - A compensation container now records the iterations it undoes (`units` in its scope), so a later run covers only what is still to undo. A run started by an earlier engine counts as covering every iteration that had completed when it started.
+- **A step on a parallel branch whose work finished after the engine cancelled it was never compensated either.** The same race outside a forEach: the rollback, once done, cancels what is still running on the other branches, and an `END` cancels the branches it cuts short. A worker that had already booked, or a child process that had already completed, reported `COMPLETED` afterwards and the report was dropped.
+  - That late `COMPLETED` is now kept (with what it reported, on the run) when the step declares a compensation, and undone: by the rollback in a failed process (a new pass if it had already finished), and by a *cleanup* compensation in one that completed. Late answers for steps without a compensation, or for a process an operator cancelled, are still ignored.
+
+### Added
+- **`compensateLosers: true` on an `XOR` join** abandons the branches it does not go on with: their waiting or running steps are cancelled and their completed compensable steps compensated, newest first. Without it the other branches run on, as before.
+- **`compensateAbandoned: true` on an `END`** also compensates what the branches it cuts short completed in time.
+- Both are *cleanup* compensations: they do not move the process status or trigger a rollback, and one that fails is an incident in the Errors tab, not a failure of the process. Validated by the engine and `eventconductor:validate` (`compensateLosers` only on an `XOR` join, `compensateAbandoned` only on an `END`); absent or `false` they are left out of the JSON, so existing definitions keep their version hash.
 
 ## [2.38.1] - 2026-11-09
 

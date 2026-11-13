@@ -42,10 +42,11 @@ public class CompensationService {
         /** A compensation itself failed (after its own retries): halt the chain. */
         FAILED,
         /**
-         * The compensation of a forEach already ran (or was cancelled before it ever started, the
-         * rollback having found nothing of that step to undo), and an iteration it did not cover has
-         * completed since — one the engine had cancelled whose work won the race. Run it again, as a
-         * new pass of {@link Decision#next()}, over just {@link Decision#units()}.
+         * The compensation of a step already ran (or was cancelled before it ever started, the
+         * rollback having found nothing of that step to undo), and a run of the step it did not cover
+         * has completed since — a forEach iteration, or a step on a parallel branch, that the engine
+         * had cancelled and whose work won the race. Run it again, as a new pass of
+         * {@link Decision#next()}, over just {@link Decision#units()}.
          */
         RUN_AGAIN
     }
@@ -95,10 +96,7 @@ public class CompensationService {
         // iterations are, whether it went on to complete or failed after some of them did.
         var unitsByStep = new java.util.LinkedHashMap<String, List<StepExecution>>();
         for (var execution : executions) {
-            if (!succeeded(execution.getStatus())
-                    || StepExecution.LOOP_DISCARDED.equals(execution.getLoopDecision())
-                    || (execution.isIteration() && execution.isSuperseded())
-                    || (!execution.isIteration() && execution.isContainer())) {
+            if (!isUnit(execution)) {
                 continue;
             }
             unitsByStep.computeIfAbsent(execution.getStepId(), k -> new java.util.ArrayList<>()).add(execution);
@@ -165,7 +163,14 @@ public class CompensationService {
                     return compensationInFlight ? Decision.of(Outcome.WAITING)
                             : new Decision(Outcome.RUN_AGAIN, compensation, notUndone);
                 }
-                case ERROR, TIMEOUT -> { return Decision.of(Outcome.FAILED); }
+                case ERROR, TIMEOUT -> {
+                    if (compensation.isCleanupCompensation()) {
+                        // A cleanup of an abandoned branch that failed earlier: already an incident in
+                        // the Errors tab. The rollback does not halt on it — it undoes the rest.
+                        continue;
+                    }
+                    return Decision.of(Outcome.FAILED);
+                }
             }
         }
         return Decision.of(Outcome.DONE);
@@ -176,13 +181,16 @@ public class CompensationService {
             StepExecutionStatus.AWAITING_RETRY, StepExecutionStatus.WAITING_ON_LOCK);
 
     /**
-     * The completed forEach iterations of a compensable step that no completed run of its compensation
-     * covered, newest first. A run records the units it undid; one started by an engine that did not
-     * record them covered every iteration that had completed by the time it started.
+     * The completed units of a compensable step that no completed run of its compensation covered,
+     * newest first: forEach iterations, and ordinary runs — a step on a parallel branch whose late
+     * COMPLETED arrived after the rollback had cancelled it. A run over several units records the
+     * units it undid; a single run (an ordinary step's compensation, which runs once) and a run started
+     * by an engine that did not record them covered every unit that had completed by the time it
+     * started.
      */
     static List<StepExecution> notYetUndone(Compensable compensable, List<StepExecution> executions) {
-        var iterations = compensable.units().stream().filter(StepExecution::isIteration).toList();
-        if (iterations.isEmpty()) {
+        var units = compensable.units();
+        if (units.isEmpty()) {
             return List.of();
         }
         var compensationStepId = compensable.step().compensationStepId();
@@ -190,20 +198,49 @@ public class CompensationService {
         var runs = executions.stream()
                 .filter(e -> compensationStepId.equals(e.getStepId()) && !e.isIteration()
                         && e.getStatus() == StepExecutionStatus.COMPLETED
-                        && stepId.equals(e.compensatedStepId()))
+                        && (stepId.equals(e.compensatedStepId())
+                            // a single run: the compensation step's own execution, run once
+                            || (!e.isContainer() && e.compensatedStepId() == null)))
                 .toList();
-        return iterations.stream()
+        return units.stream()
                 .filter(unit -> runs.stream().noneMatch(run -> covers(run, unit)))
                 .toList();
     }
 
     private static boolean covers(StepExecution run, StepExecution unit) {
-        var ids = run.compensatedUnitIds();
+        var ids = run.isContainer() ? run.compensatedUnitIds() : null;
         if (ids != null) {
             return ids.contains(unit.getId());
         }
+        if (!run.isContainer() && (run.getStartedAt() == null || unit.getFinishedAt() == null)) {
+            // A single run whose timing cannot be compared: taken as covering, as every completed
+            // compensation was before late completions were kept.
+            return true;
+        }
         return unit.getFinishedAt() != null && run.getStartedAt() != null
                 && !unit.getFinishedAt().isAfter(run.getStartedAt());
+    }
+
+    /**
+     * Whether an execution is a unit of work a compensation undoes: a run that completed — a top-level
+     * execution (a loop's earlier passes included) or a live forEach iteration; never a container,
+     * whose iterations are the units, nor a pass a restart or migration discarded.
+     */
+    static boolean isUnit(StepExecution execution) {
+        return succeeded(execution.getStatus())
+                && !StepExecution.LOOP_DISCARDED.equals(execution.getLoopDecision())
+                && !(execution.isIteration() && execution.isSuperseded())
+                && !(!execution.isIteration() && execution.isContainer());
+    }
+
+    /** The completed units of {@code stepId}, newest first. */
+    static List<StepExecution> unitsOf(String stepId, List<StepExecution> executions) {
+        return newestFirst(executions.stream().filter(e -> stepId.equals(e.getStepId()) && isUnit(e)).toList());
+    }
+
+    /** {@link #notYetUndone(Compensable, List)} for a step and its units, outside a rollback decision. */
+    static List<StepExecution> notYetUndone(List<StepExecution> units, Step step, List<StepExecution> executions) {
+        return units.isEmpty() ? List.of() : notYetUndone(new Compensable(units, step), executions);
     }
 
     private static List<StepExecution> newestFirst(List<StepExecution> units) {
@@ -241,7 +278,8 @@ public class CompensationService {
      * status already treat a routed timeout as handled — this must agree with them).
      */
     private static boolean failsTheProcess(StepExecution execution) {
-        if (!isFailure(execution.getStatus())) {
+        if (!isFailure(execution.getStatus()) || execution.isCleanupCompensation()) {
+            // A cleanup compensation that failed is an incident, not a failure of the process.
             return false;
         }
         if (execution.getStatus() == StepExecutionStatus.TIMEOUT) {

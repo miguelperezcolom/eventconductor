@@ -1,0 +1,14 @@
+id: fork-late-xor-losers
+name: Ask two suppliers, go on with the first and clean up after the other
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: fork, type: FORK, name: Fork, preconditionStepId: start }
+  - { id: fast, type: ACTION, name: Fast supplier, topic: work, preconditionStepId: fork, compensable: true, compensationStepId: release-fast }
+  - { id: hold, type: ACTION, name: Hold a slot, topic: work, preconditionStepId: fork, compensable: true, compensationStepId: release-hold }
+  - { id: quote, type: ACTION, name: Ask for a quote, topic: work, preconditionStepId: hold }
+  - { id: first, type: JOIN, name: First answer, joinType: XOR, compensateLosers: true, preconditionStepIds: [fast, quote] }
+  - { id: pay, type: ACTION, name: Pay, topic: work, preconditionStepId: first }
+  - { id: end, type: END, name: End, preconditionStepId: pay }
+  - { id: release-fast, type: ACTION, name: Release fast, topic: work }
+  - { id: release-hold, type: ACTION, name: Release the slot, topic: work }
