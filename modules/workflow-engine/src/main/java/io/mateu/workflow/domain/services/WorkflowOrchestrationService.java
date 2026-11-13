@@ -133,7 +133,8 @@ public class WorkflowOrchestrationService {
         // A process whose flow is blocked by a failed step stops launching forEach iterations (its
         // compensations aside); see advanceContainer. Read off the steps, not the process status: a
         // step an operator is retrying leaves the process ERROR for a moment with nothing blocking.
-        boolean failed = pass.current().stream().anyMatch(se -> isBlockingError(se, stepCache));
+        boolean failed = process.isRollbackRequested()
+                || pass.current().stream().anyMatch(se -> isBlockingError(se, stepCache));
 
         // forEach containers first: their iterations are driven here, never by the precondition graph.
         for (var container : pass.current()) {
@@ -165,6 +166,13 @@ public class WorkflowOrchestrationService {
         // always was. A loop that went round has superseded its section's executions with fresh
         // CREATED ones, so every barrier, latch and guard in it starts over without knowing why.
         var current = pass.current();
+        if (process.isRollbackRequested()) {
+            // Rolled back from outside (its parent cancelled it): no step of its own failed, but the
+            // flow is held exactly as a failed step holds it — only its compensations run.
+            Process updatedProcess = pass.process.getStatus() == ProcessStatus.ERROR
+                    ? pass.process : pass.process.withStatus(ProcessStatus.ERROR);
+            return new TransitionResult(updatedProcess, pass.saved(List.of()), false, false, pass.followUp);
+        }
         for (StepExecution stepExecution : current) {
             if (isBlockingError(stepExecution, stepCache)) {
                 // A step that failed blocks the flow: don't schedule successors or complete the process.

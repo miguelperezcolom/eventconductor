@@ -222,7 +222,7 @@ public class StepOverProcessUseCase {
         // run or in flight is still changing what its locks protect, so it keeps them until the
         // rollback ends (COMPENSATED or COMPENSATION_FAILED, which this same check then releases).
         if (endsHoldingNothing(result.getUpdatedProcess().getStatus())
-                && !rollingBack(result.getUpdatedProcess().getStatus(), stepExecutions)) {
+                && !rollingBack(result.getUpdatedProcess(), stepExecutions)) {
             releaseLocksOf(process.getId());
         }
 
@@ -488,11 +488,11 @@ public class StepOverProcessUseCase {
     }
 
     /** A failed process whose saga rollback has a compensation still to run or in flight. */
-    private boolean rollingBack(ProcessStatus status, List<StepExecution> stepExecutions) {
-        if (status != ProcessStatus.ERROR) {
+    private boolean rollingBack(io.mateu.workflow.domain.aggregates.Process process, List<StepExecution> stepExecutions) {
+        if (process.getStatus() != ProcessStatus.ERROR) {
             return false;
         }
-        var outcome = compensationService.decide(stepExecutions).outcome();
+        var outcome = compensationService.decide(process, stepExecutions).outcome();
         return outcome == CompensationService.Outcome.RUN || outcome == CompensationService.Outcome.RUN_AGAIN
                 || outcome == CompensationService.Outcome.WAITING;
     }

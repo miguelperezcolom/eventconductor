@@ -1,0 +1,9 @@
+id: trip-child-with-grandchild
+name: Pay a deposit, then book a room through a grandchild
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: deposit, type: ACTION, name: Pay a deposit, topic: work, preconditionStepId: start, compensable: true, compensationStepId: refund-deposit }
+  - { id: lodging, type: PROCESS, name: Book a room, preconditionStepId: deposit, childWorkflowDefinitionId: room-child-two-steps }
+  - { id: end, type: END, name: End, preconditionStepId: lodging }
+  - { id: refund-deposit, type: ACTION, name: Refund the deposit, topic: work }

@@ -67,8 +67,9 @@ public class CancelProcessUseCase {
         // holding one lock each while waiting for the other's.
         for (var stepExecution : cancellation.cancelledSteps()) {
             // A cancelled PROCESS step must take its still-running child down with it
-            // (which cascades into grandchildren through this very use case).
-            cancelChildProcessService.stepReachedTerminalStatus(stepExecution);
+            // (which cascades into grandchildren through this very use case) — cancelled, not rolled
+            // back: an operator's cancel does not undo what the process did, nor what its children did.
+            cancelChildProcessService.stepCancelledWithItsProcess(stepExecution);
         }
         var cancelledProcess = cancellation.cancelledProcess();
         if (cancellation.repeated()) {

@@ -1,0 +1,12 @@
+id: fork-grandchild-rollback
+name: A trip (child with a grandchild) and a flight, in parallel
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: fork, type: FORK, name: Fork, preconditionStepId: start }
+  - { id: car, type: ACTION, name: Book a car, topic: work, preconditionStepId: fork, compensable: true, compensationStepId: cancel-car }
+  - { id: trip, type: PROCESS, name: Book the trip, preconditionStepId: fork, childWorkflowDefinitionId: trip-child-with-grandchild }
+  - { id: flight, type: ACTION, name: Book a flight, topic: work, preconditionStepId: fork }
+  - { id: join, type: JOIN, name: Join, preconditionStepIds: [car, trip, flight] }
+  - { id: end, type: END, name: End, preconditionStepId: join }
+  - { id: cancel-car, type: ACTION, name: Cancel the car, topic: work }

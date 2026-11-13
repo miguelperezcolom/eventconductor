@@ -138,6 +138,12 @@ just that iteration, and the process ends `COMPENSATED` again. Late answers for 
 compensation are ignored. Your worker should still be idempotent, and your compensation must
 tolerate the work it undoes having completed late.
 
+An iteration over `PROCESS` whose child is still **running** when the forEach fails fast is cut short
+the other way round: its child is rolled back — it compensates what it had already done (the room it
+held) and ends `COMPENSATED` — and the parent's rollback waits for it. The iteration stays `CANCELLED`,
+so the step's own compensation does not undo it a second time. See
+[A child process cut short](/guides/retries-timeouts-compensation/#a-child-process-cut-short).
+
 Each iteration — and each compensation — can reach the target system more than once, so give it a
 per-item key it can recognise: see
 [Not creating duplicates in the target system](/guides/http-calls/#not-creating-duplicates-in-the-target-system).

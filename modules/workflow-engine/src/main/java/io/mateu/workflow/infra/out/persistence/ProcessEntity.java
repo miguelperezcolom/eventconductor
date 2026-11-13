@@ -104,6 +104,27 @@ public class ProcessEntity {
     @Column(length = 64)
     private String testRunRequestDigest;
 
+    /** Why the engine rolled this process back from outside (its parent cancelled it); null otherwise (V61). */
+    @Column(length = 255)
+    private String rollbackReason;
+
+    /** The row before engine-requested rollbacks: none. */
+    public ProcessEntity(String id, String businessKey, String name, String variables, String status,
+                         int completionPercentage, String log, String workflowDefinitionId,
+                         int workflowDefinitionVersion, String workflowDefinitionJson,
+                         LocalDateTime created, LocalDateTime started, LocalDateTime finished,
+                         LocalDateTime pausedAt, String parentStepExecutionId, Integer version,
+                         String replyStepId, String replyJson, String replyOutcome, String replyCompensation,
+                         String replyError, LocalDateTime repliedAt, String continuedFromProcessId,
+                         String continuedAsProcessId, String releasedBusinessKey, String initiatingActor,
+                         boolean testRun, String testRunRequestDigest) {
+        this(id, businessKey, name, variables, status, completionPercentage, log, workflowDefinitionId,
+                workflowDefinitionVersion, workflowDefinitionJson, created, started, finished, pausedAt,
+                parentStepExecutionId, version, replyStepId, replyJson, replyOutcome, replyCompensation,
+                replyError, repliedAt, continuedFromProcessId, continuedAsProcessId, releasedBusinessKey,
+                initiatingActor, testRun, testRunRequestDigest, null);
+    }
+
     /** The row before IDE test runs: an ordinary process, with no request fingerprint. */
     public ProcessEntity(String id, String businessKey, String name, String variables, String status,
                          int completionPercentage, String log, String workflowDefinitionId,

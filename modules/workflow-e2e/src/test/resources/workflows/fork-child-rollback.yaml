@@ -1,0 +1,19 @@
+id: fork-child-rollback
+name: Book a car, a room through a two-step child, and a flight, in parallel
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: fork, type: FORK, name: Fork, preconditionStepId: start }
+  - { id: car, type: ACTION, name: Book a car, topic: work, preconditionStepId: fork, compensable: true, compensationStepId: cancel-car }
+  - id: room
+    type: PROCESS
+    name: Book a room
+    preconditionStepId: fork
+    childWorkflowDefinitionId: room-child-two-steps
+    compensable: true
+    compensationStepId: cancel-booking
+  - { id: flight, type: ACTION, name: Book a flight, topic: work, preconditionStepId: fork }
+  - { id: join, type: JOIN, name: Join, preconditionStepIds: [car, room, flight] }
+  - { id: end, type: END, name: End, preconditionStepId: join }
+  - { id: cancel-car, type: ACTION, name: Cancel the car, topic: work }
+  - { id: cancel-booking, type: ACTION, name: Cancel a booking, topic: work }

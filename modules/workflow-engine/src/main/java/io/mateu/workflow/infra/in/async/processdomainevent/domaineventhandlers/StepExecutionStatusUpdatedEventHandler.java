@@ -183,6 +183,15 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
                     execution.logInfo("Step " + execution.getStepId() + " cancelled: its branch lost an XOR join "
                             + "that abandons the other branches (compensateLosers).");
                     execution.updateStatus(StepExecutionStatus.CANCELLED);
+                    // A losing PROCESS step's child is undone with the rest of its branch — before the
+                    // save that announces the cancellation (see rollBackLiveChildren).
+                    var reason = "its branch in " + execution.getProcessId() + " lost an XOR join with compensateLosers";
+                    if (execution.isContainer()) {
+                        for (var iteration : io.mateu.workflow.domain.services.StepExecutions.iterationsOf(execution, executions)) {
+                            cancelChildProcessService.rollBackChildrenOf(iteration, reason);
+                        }
+                    }
+                    cancelChildProcessService.rollBackChildrenOf(execution, reason);
                     stepExecutionRepository.save(execution);
                 }
                 continue;
@@ -222,7 +231,25 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
         // carries the current @Version — reusing the pre-update snapshot here would save a stale
         // version and trip optimistic locking. The step list is unchanged, so it is reused.
         var process = processRepository.findById(processId).orElseThrow();
-        var decision = compensationService.decide(executions);
+        if (!process.isRollbackRequested() && compensationService.rollsBack(process, executions)) {
+            // A rollback undoes the children too: a child process still running under a PROCESS step
+            // is cut short and rolled back (not left to finish for a saga that is already undoing),
+            // and this rollback ends only once theirs has.
+            rollBackLiveChildren(executions);
+        }
+        var decision = compensationService.decide(process, executions);
+        if ((decision.outcome() == CompensationService.Outcome.DONE
+                || decision.outcome() == CompensationService.Outcome.FAILED)
+                && childStillRollingBack(executions)) {
+            // Its own compensations are done, but a child it cut short is still undoing its work: the
+            // process ends when that child does, which wakes it (see wakeParentOf).
+            return;
+        }
+        if (decision.outcome() == CompensationService.Outcome.DONE && childRollbackFailed(executions)) {
+            markCompensationFailed(process, executions);
+            wakeParentOf(process);
+            return;
+        }
         switch (decision.outcome()) {
             case RUN -> {
                 // The compensation step is a regular StepExecution created at process-start
@@ -246,12 +273,18 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
                 workflowMetrics.compensationTriggered(compensation.getWorkflowDefinitionId());
             }
             case RUN_AGAIN -> runCompensationAgain(process, decision);
-            case DONE -> markCompensated(process, executions);
+            case DONE -> {
+                markCompensated(process, executions);
+                wakeParentOf(process);
+            }
             // A compensation step itself failed (its own retries exhausted): the rollback cannot go
             // on. This must NOT fall into the do-nothing bucket — that left the process ERROR and
             // half-rolled-back with no terminal state, no metric and no alert, which for a saga is
             // worse than not rolling back at all. Record the distinct COMPENSATION_FAILED terminal.
-            case FAILED -> markCompensationFailed(process, executions);
+            case FAILED -> {
+                markCompensationFailed(process, executions);
+                wakeParentOf(process);
+            }
             case NONE, WAITING -> { /* nothing to start now */ }
         }
     }
@@ -284,6 +317,88 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
         log.info("Process {}: {} run(s) of step {} completed after they had been cancelled; compensating them too.",
                 process.getId(), units.size(), units.get(0).getStepId());
         workflowMetrics.compensationTriggered(again.getWorkflowDefinitionId());
+    }
+
+    /** Live: still waiting on its child process. */
+    private static final java.util.Set<StepExecutionStatus> WAITING_ON_A_CHILD = java.util.Set.of(
+            StepExecutionStatus.PENDING, StepExecutionStatus.RUNNING, StepExecutionStatus.AWAITING_RETRY);
+
+    /**
+     * Cancels the PROCESS steps (and forEach iterations over PROCESS) still waiting on a child, and
+     * rolls their children back. Idempotent: what it cancelled is no longer waiting the next time.
+     */
+    private void rollBackLiveChildren(List<StepExecution> executions) {
+        for (var execution : executions) {
+            if (!WAITING_ON_A_CHILD.contains(execution.getStatus()) || execution.isContainer()
+                    || !isProcessStep(execution)) {
+                continue;
+            }
+            execution.logInfo("Step " + execution.getStepId() + " cancelled: its process is rolling back, "
+                    + "so the child process it started is rolled back too.");
+            if (execution.isIteration()) {
+                execution.cancelQuietly();
+            } else {
+                execution.updateStatus(StepExecutionStatus.CANCELLED);
+            }
+            // The child first, the save second: saving announces the cancellation, and the rollback
+            // that event drives must already find the child rolling back, or it could end without it.
+            cancelChildProcessService.rollBackChildrenOf(execution,
+                    "its parent " + execution.getProcessId() + " is rolling back");
+            stepExecutionRepository.save(execution);
+        }
+    }
+
+    /** The children this process cut short and asked to roll back. */
+    private List<Process> rolledBackChildren(List<StepExecution> executions) {
+        var children = new java.util.ArrayList<Process>();
+        for (var execution : executions) {
+            if (execution.getStatus() == StepExecutionStatus.CANCELLED && !execution.isContainer()
+                    && isProcessStep(execution)) {
+                io.mateu.workflow.application.usecases.process.parentnotify.ChildProcesses
+                        .of(processRepository, execution.getId()).stream()
+                        .filter(Process::isRollbackRequested)
+                        .forEach(children::add);
+            }
+        }
+        return children;
+    }
+
+    private boolean childStillRollingBack(List<StepExecution> executions) {
+        return rolledBackChildren(executions).stream()
+                .anyMatch(child -> child.getStatus() == ProcessStatus.ERROR || child.getStatus() == ProcessStatus.RUNNING
+                        || child.getStatus() == ProcessStatus.PENDING || child.getStatus() == ProcessStatus.PAUSED);
+    }
+
+    private boolean childRollbackFailed(List<StepExecution> executions) {
+        return rolledBackChildren(executions).stream()
+                .anyMatch(child -> child.getStatus() == ProcessStatus.COMPENSATION_FAILED);
+    }
+
+    /**
+     * A child the engine rolled back has finished doing so: its parent's rollback may have been waiting
+     * for exactly that (see advanceCompensation), so the parent is looked at again.
+     */
+    private void wakeParentOf(Process process) {
+        if (!process.isRollbackRequested() || process.getParentStepExecutionId() == null) {
+            return;
+        }
+        stepExecutionRepository.findById(process.getParentStepExecutionId()).ifPresent(parentStep -> {
+            parentStep.announceStatusAgain();
+            stepExecutionRepository.save(parentStep);
+        });
+    }
+
+    private static boolean isProcessStep(StepExecution execution) {
+        if (execution.getStepJson() == null || !execution.getStepJson().contains("PROCESS")) {
+            return false;
+        }
+        try {
+            var step = io.mateu.core.infra.JsonSerializer.pojoFromJson(execution.getStepJson(),
+                    io.mateu.workflow.domain.aggregates.Step.class);
+            return io.mateu.workflow.domain.aggregates.StepType.PROCESS.equals(step.type());
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     private static List<String> idsOf(List<io.mateu.workflow.domain.aggregates.StepExecution> units) {

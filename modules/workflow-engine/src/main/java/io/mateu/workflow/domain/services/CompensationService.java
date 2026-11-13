@@ -78,10 +78,36 @@ public class CompensationService {
      * @return what to do next to advance (or finish) the compensation of that process
      */
     public Decision decide(List<StepExecution> executions) {
+        return decide(executions, false);
+    }
+
+    /**
+     * The same, for {@code process}: one the engine asked to roll back from outside (its parent
+     * cancelled it while it ran — see {@link io.mateu.workflow.domain.aggregates.Process#getRollbackReason()})
+     * has failed even though none of its steps did, and its rollback ends ({@link Outcome#DONE}) even
+     * when it has nothing to undo, so the process reaches COMPENSATED and its parent stops waiting on it.
+     */
+    public Decision decide(io.mateu.workflow.domain.aggregates.Process process, List<StepExecution> executions) {
+        return decide(executions, process != null && process.isRollbackRequested());
+    }
+
+    /**
+     * Whether {@code process} is being rolled back: it failed (or was asked to roll back) and has
+     * something to undo, or was asked to roll back at all. The children it started and cut short roll
+     * back with it.
+     */
+    public boolean rollsBack(io.mateu.workflow.domain.aggregates.Process process, List<StepExecution> executions) {
+        if (process != null && process.isRollbackRequested()) {
+            return true;
+        }
+        return decide(executions, false).outcome() != Outcome.NONE;
+    }
+
+    private Decision decide(List<StepExecution> executions, boolean rollbackRequested) {
         // The process's failure, its compensations and their progress are read off the current
         // execution of each step; the units of work to undo are every completed run.
         var current = StepExecutions.current(executions);
-        boolean failed = current.stream().anyMatch(CompensationService::failsTheProcess);
+        boolean failed = rollbackRequested || current.stream().anyMatch(CompensationService::failsTheProcess);
         if (!failed) {
             return Decision.of(Outcome.NONE);
         }
@@ -119,8 +145,9 @@ public class CompensationService {
                 .toList();
 
         if (toCompensate.isEmpty()) {
-            // Failed, but no compensable step ran: a plain error, not a rollback.
-            return Decision.of(Outcome.NONE);
+            // Failed, but no compensable step ran: a plain error, not a rollback — unless the rollback
+            // was asked for from outside, which is over as soon as there is nothing to undo.
+            return Decision.of(rollbackRequested ? Outcome.DONE : Outcome.NONE);
         }
 
         // Walk in reverse execution order; the first compensation that is not yet COMPLETED
