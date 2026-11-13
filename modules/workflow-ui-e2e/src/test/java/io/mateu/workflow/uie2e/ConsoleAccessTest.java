@@ -32,7 +32,8 @@ class ConsoleAccessTest {
     static final List<String> CONSOLE_POSTS = List.of(
             "/_workflow/mateu/v3/workflow", "/_workflow/mateu/v3;x=y/workflow", "/%5Fworkflow/mateu/v3/workflow",
             "/_workflow-admin/mateu/v3/definitions", "/mateu/v3/workflow/processes",
-            "/mateu/v3/sse/workflow/processes", "//mateu/v3/workflow/processes", "/mateu/mcp");
+            "/mateu/v3/sse/workflow/processes", "//mateu/v3/workflow/processes", "/mateu/mcp",
+            "/mateu/v3/sync/workflow/processes", "/_workflow/mateu/v3/sync/workflow", "//mateu/v3/sync/workflow/processes");
 
     record Response(int status, String body) { }
 
@@ -76,8 +77,13 @@ class ConsoleAccessTest {
                     "workflow.message-api.allow-anonymous=true", "workflow.ui.enabled=false");
             assertThat(http(port, "GET", "/").status()).as("an app UI mounting WorkflowMenu").isEqualTo(403);
             assertThat(http(port, "GET", "/%5Fworkflow").status()).isEqualTo(403);
-            assertThat(http(port, "POST", "/mateu/v3/workflow/processes").status()).isEqualTo(403);
-            assertThat(http(port, "POST", "/_workflow/mateu/v3;x=y/workflow").status()).isIn(403, 400);
+            // Mateu's action endpoint is /mateu/v3/sync/{route} (and /sse/): the guard answers there.
+            // The old spelling without /sync is no endpoint any more (404, in CONSOLE_POSTS above).
+            assertThat(http(port, "POST", "/mateu/v3/sync/workflow/processes").status()).isEqualTo(403);
+            assertThat(http(port, "POST", "/_workflow/mateu/v3/sync/workflow").status()).isEqualTo(403);
+            // a ;parameter does not sneak past the guard on the real endpoint; the old spelling is no endpoint
+            assertThat(http(port, "POST", "/_workflow/mateu/v3;x=y/sync/workflow").status()).isIn(403, 400);
+            assertThat(http(port, "POST", "/_workflow/mateu/v3;x=y/workflow").status()).isIn(403, 400, 404);
         }
 
         @Test
