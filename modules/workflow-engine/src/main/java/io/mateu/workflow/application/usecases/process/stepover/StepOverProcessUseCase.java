@@ -200,11 +200,13 @@ public class StepOverProcessUseCase {
                     downstreamEventPublisher.publish(new TaskCancellationRequested(stepExecution.getId(), stepExecution.getInvocationId()),
                             stepExecution.topic());
                 }
-                // END-transition and implicit-completion cancellations (and start-time errors)
-                // flow through here — a PROCESS step ending CANCELLED/ERROR must take its
-                // still-running child down with it.
-                cancelChildProcessService.stepReachedTerminalStatus(stepExecution);
             });
+            // END-transition and implicit-completion cancellations (and start-time errors) flow
+            // through here — a PROCESS step ending CANCELLED/ERROR must take its still-running child
+            // down with it. Once every step of the pass is saved: whether the child is rolled back
+            // or only cancelled is read off the parent's state (an END with compensateAbandoned that
+            // completed in this very pass, a sibling iteration that failed), which must be complete.
+            outcome.getStepsToSave().forEach(cancelChildProcessService::stepReachedTerminalStatus);
         });
 
         // The UNLOCK steps above are persisted now; wake whoever they handed the lock to.

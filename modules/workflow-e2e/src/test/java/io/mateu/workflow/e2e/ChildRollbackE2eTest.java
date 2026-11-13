@@ -196,6 +196,30 @@ class ChildRollbackE2eTest extends AbstractE2eTest {
     }
 
     @Test
+    void anEndThatCompensatesWhatItAbandonsRollsBackTheChildItCutShort() {
+        worker.on("hold", (req, cb, n) -> cb.complete());
+        var confirms = new CopyOnWriteArrayList<TestWorker.WorkerCallback>();
+        worker.on("confirm", (req, cb, n) -> confirms.add(cb));
+        var quick = new CopyOnWriteArrayList<TestWorker.WorkerCallback>();
+        worker.on("quick", (req, cb, n) -> quick.add(cb));
+        worker.on("release-hold", (req, cb, n) -> cb.complete());
+        worker.on("cancel-booking", (req, cb, n) -> cb.complete());
+
+        createProcess("fork-child-end-abandoned", "child-rb-6");
+        await().atMost(WAIT).untilAsserted(() -> assertThat(confirms).hasSize(1));
+        await().atMost(WAIT).untilAsserted(() -> assertThat(quick).hasSize(1));
+        quick.get(0).complete();
+
+        await().atMost(WAIT).untilAsserted(() ->
+                assertThat(process("child-rb-6").getStatus()).isEqualTo(ProcessStatus.COMPLETED));
+        var child = childrenOf("child-rb-6", "room").get(0);
+        await().atMost(WAIT).untilAsserted(() ->
+                assertThat(reload(child).getStatus()).isEqualTo(ProcessStatus.COMPENSATED));
+        assertThat(worker.invocationsOf("release-hold")).isEqualTo(1);
+        assertThat(worker.invocationsOf("cancel-booking")).isZero();
+    }
+
+    @Test
     void anOperatorCancellingTheParentCancelsTheChildWithoutRollingItBack() {
         worker.on("car", (req, cb, n) -> cb.complete());
         worker.on("hold", (req, cb, n) -> cb.complete());
