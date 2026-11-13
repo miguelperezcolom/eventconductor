@@ -486,7 +486,8 @@ public class StepOverProcessUseCase {
             return false;
         }
         var outcome = compensationService.decide(stepExecutions).outcome();
-        return outcome == CompensationService.Outcome.RUN || outcome == CompensationService.Outcome.WAITING;
+        return outcome == CompensationService.Outcome.RUN || outcome == CompensationService.Outcome.RUN_AGAIN
+                || outcome == CompensationService.Outcome.WAITING;
     }
 
     /** The statuses a process never leaves on its own: it holds no lock in any of them. */

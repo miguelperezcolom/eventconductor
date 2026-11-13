@@ -86,6 +86,14 @@ seeing that iteration's item and index **and everything it reported**:
   topic: booking                   # receives room, roomIndex and reservationId
 ```
 
+A cancellation races with the work it cancels. An iteration that was cancelled while its worker was
+already booking the room, or while its child process was finishing, can still report COMPLETED
+afterwards. When its step declares a compensation, that late answer is kept as a completed iteration
+and undone with the rest. If the rollback had already finished, a new run of the compensation undoes
+just that iteration, and the process ends `COMPENSATED` again. Late answers for a step without a
+compensation are ignored. Your worker should still be idempotent, and your compensation must
+tolerate the work it undoes having completed late.
+
 **Empty list, limits.** An empty list completes the step at once, with `output` `[]`. A list longer
 than `workflow.foreach.max-items` (default 1000) fails the step at start.
 

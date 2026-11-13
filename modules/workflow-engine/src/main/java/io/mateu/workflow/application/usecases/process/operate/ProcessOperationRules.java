@@ -292,7 +292,8 @@ public class ProcessOperationRules {
             return false;
         }
         var outcome = compensationService.decide(steps).outcome();
-        return outcome == CompensationService.Outcome.RUN || outcome == CompensationService.Outcome.WAITING;
+        return outcome == CompensationService.Outcome.RUN || outcome == CompensationService.Outcome.RUN_AGAIN
+                || outcome == CompensationService.Outcome.WAITING;
     }
 
     /** A final failure that holds the flow: ERROR, or a TIMEOUT that does not route anywhere. */

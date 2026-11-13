@@ -9,6 +9,7 @@ import io.mateu.workflow.e2e.support.AbstractJpaE2eTest;
 import io.mateu.workflow.e2e.support.TestWorker;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -64,6 +65,40 @@ class LoopsAndForEachJpaE2eTest extends AbstractJpaE2eTest {
 
         awaitStatus("jfe-fail", ProcessStatus.COMPENSATED);
         assertThat(released).containsExactlyInAnyOrder("R1", "R3");
+    }
+
+    @Test
+    void anIterationCompletedAfterItWasCancelledIsCompensatedByAnotherRunThroughTheDatabase() {
+        var pending = new CopyOnWriteArrayList<TestWorker.WorkerCallback>();
+        worker.on("reserve", (req, cb, n) -> {
+            switch (var(req, "room")) {
+                case "1" -> cb.complete(List.of(TestWorker.var("reservationId", "R1")));
+                case "2" -> pending.add(cb);
+                default -> cb.fail("full");
+            }
+        });
+        var released = new CopyOnWriteArrayList<String>();
+        worker.on("release", (req, cb, n) -> {
+            released.add(var(req, "reservationId"));
+            cb.complete();
+        });
+
+        createProcess("foreach-rooms", "jfe-late", new Variable("rooms", "[\"1\",\"2\",\"3\"]"));
+        awaitStatus("jfe-late", ProcessStatus.COMPENSATED);
+        assertThat(released).containsExactly("R1");
+
+        // The worker had reserved room 2 before the cancellation reached it.
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> assertThat(pending).hasSize(1));
+        pending.get(0).complete(List.of(TestWorker.var("reservationId", "R2")));
+
+        await().atMost(Duration.ofSeconds(20)).untilAsserted(() -> assertThat(released).containsExactly("R1", "R2"));
+        awaitStatus("jfe-late", ProcessStatus.COMPENSATED);
+        var releaseRuns = steps("jfe-late").stream()
+                .filter(s -> "release".equals(s.getStepId()) && !s.isIteration())
+                .sorted(Comparator.comparingInt(StepExecution::getIteration)).toList();
+        assertThat(releaseRuns).hasSize(2);
+        assertThat(releaseRuns.get(0).isSuperseded()).isTrue();
+        assertThat(releaseRuns.get(1).compensatedUnitIds()).hasSize(1);
     }
 
     @Test
