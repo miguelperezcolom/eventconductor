@@ -1,0 +1,21 @@
+id: foreach-room-children
+name: Book every room, one child process each
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: book-rooms
+    type: PROCESS
+    name: Book one room
+    preconditionStepId: start
+    childWorkflowDefinitionId: room-child
+    outputVariables: [bookingId]
+    compensable: true
+    compensationStepId: cancel-booking
+    forEach:
+      items: rooms
+      as: room
+      output: bookings
+      outputElement: bookingId
+  - { id: notify, type: ACTION, name: Notify, topic: work, preconditionStepId: book-rooms }
+  - { id: cancel-booking, type: ACTION, name: Cancel a booking, topic: work }
+  - { id: end, type: END, name: End, preconditionStepId: notify }

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **A forEach iteration whose work finished after the engine cancelled it was never compensated.** When a forEach failed fast (or stopped because the process failed), the iterations still at a worker, or running a child process, were cancelled. But cancelling races with the work: a worker that had already made the booking, or a child process that had already completed, reported COMPLETED after the cancellation, and that report was dropped as stale. The iteration stayed CANCELLED, the saga never undid it, and the booking was left behind in the target system.
+  - That late COMPLETED is now kept as a completed run, with what it reported, when its step declares a compensation. Late answers for steps without a compensation are still ignored.
+  - The rollback undoes it whenever it lands. Before the rollback reaches its step, it is included as usual. While that step's compensation is running, it waits for that run and then gets a new one. After the process was already `COMPENSATED`, the process goes back to `ERROR`, runs a new pass of the compensation over just that iteration, and ends `COMPENSATED` again.
+  - A compensation container now records the iterations it undoes (`units` in its scope), so a later run covers only what is still to undo. A run started by an earlier engine counts as covering every iteration that had completed when it started.
+
 ## [2.38.1] - 2026-11-09
 
 The Docker images of 2.38.0 were never published: the release's image scan stopped them. Use this version.

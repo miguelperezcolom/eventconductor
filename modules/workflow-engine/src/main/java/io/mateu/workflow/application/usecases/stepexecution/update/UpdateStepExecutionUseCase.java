@@ -63,6 +63,32 @@ public class UpdateStepExecutionUseCase {
         ProcessLockService.runExclusivelyOrThrow(processLockService, processId, () -> doUpdate(command));
     }
 
+    /**
+     * A COMPLETED report for a forEach iteration the engine had cancelled after starting it, of a step
+     * that declares a compensation: work that happened and must be undone, not a stale answer. Only
+     * the attempt that was running when it was cancelled counts, and an iteration a retry of the
+     * forEach has since replaced (superseded) is left out — its item ran again under a new iteration.
+     */
+    static boolean isLateCompletionOfACancelledIteration(io.mateu.workflow.domain.aggregates.StepExecution execution,
+                                                         UpdateStepExecutionCommand command) {
+        if (command.status() != StepExecutionStatus.COMPLETED
+                || execution.getStatus() != StepExecutionStatus.CANCELLED
+                || !execution.isIteration()
+                || execution.isSuperseded()
+                || execution.getStartedAt() == null
+                || execution.getInvocationId() != null
+                || (command.attempt() != null && command.attempt() != execution.getDispatchCount())) {
+            return false;
+        }
+        try {
+            var step = io.mateu.core.infra.JsonSerializer.pojoFromJson(execution.getStepJson(),
+                    io.mateu.workflow.domain.aggregates.Step.class);
+            return step.compensable() && step.compensationStepId() != null && !step.compensationStepId().isBlank();
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     private void doUpdate(UpdateStepExecutionCommand command) {
         var stepExecutionId = command.stepId();
         var execution = repository.findById(command.stepId())
@@ -82,6 +108,16 @@ public class UpdateStepExecutionUseCase {
                 && "TIMEOUT".equals(execution.getAgentHoldReason())) {
             command = new UpdateStepExecutionCommand(command.stepId(), java.util.List.of(), command.log(),
                     StepExecutionStatus.TIMEOUT, true, command.attempt(), command.invocationId(), true, command.stateSequence());
+        }
+        if (isLateCompletionOfACancelledIteration(execution, command)) {
+            // The engine cancelled this iteration (its forEach failed fast, or stopped because the
+            // process failed) while the work was already under way, and the work won the race. The
+            // unit exists in the system it was done in: dropping this report — as for any late
+            // answer below — would leave it there with nobody to undo it. Keep it as a completed
+            // run instead; the saga's rollback picks it up (see CompensationService).
+            execution.completeAfterCancellation(command.variables());
+            repository.save(execution);
+            return;
         }
         if (TERMINAL_STATUSES.contains(execution.getStatus())) {
             // Late report from a worker whose task already reached a final state

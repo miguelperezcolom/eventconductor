@@ -40,7 +40,14 @@ public class CompensationService {
         /** Every required compensation has completed: the process is fully rolled back. */
         DONE,
         /** A compensation itself failed (after its own retries): halt the chain. */
-        FAILED
+        FAILED,
+        /**
+         * The compensation of a forEach already ran (or was cancelled before it ever started, the
+         * rollback having found nothing of that step to undo), and an iteration it did not cover has
+         * completed since — one the engine had cancelled whose work won the race. Run it again, as a
+         * new pass of {@link Decision#next()}, over just {@link Decision#units()}.
+         */
+        RUN_AGAIN
     }
 
     /**
@@ -121,6 +128,11 @@ public class CompensationService {
         // Walk in reverse execution order; the first compensation that is not yet COMPLETED
         // decides the outcome. Returning at that point enforces strict sequencing — only one
         // compensation is ever in flight, and the next starts only once the previous completes.
+        // Strict sequencing holds for the re-runs below too: none starts while any compensation is
+        // still in flight.
+        boolean compensationInFlight = toCompensate.stream()
+                .map(c -> byStepId.get(c.step().compensationStepId()))
+                .anyMatch(c -> c != null && IN_FLIGHT.contains(c.getStatus()));
         for (var compensable : toCompensate) {
             var compensation = byStepId.get(compensable.step().compensationStepId());
             if (compensation == null) {
@@ -129,15 +141,69 @@ public class CompensationService {
                 continue;
             }
             switch (compensation.getStatus()) {
-                case COMPLETED -> { /* already undone — look further back in the chain */ }
+                case COMPLETED -> {
+                    // Undone — unless an iteration completed after the run was decided.
+                    var notUndone = notYetUndone(compensable, executions);
+                    if (!notUndone.isEmpty()) {
+                        return compensationInFlight ? Decision.of(Outcome.WAITING)
+                                : new Decision(Outcome.RUN_AGAIN, compensation, notUndone);
+                    }
+                }
                 case CREATED -> { return new Decision(Outcome.RUN, compensation, compensable.units()); }
                 // AWAITING_RETRY is a compensation waiting out its own backoff before retrying —
                 // still in flight, so wait for it, exactly like PENDING/RUNNING.
                 case PENDING, RUNNING, AWAITING_RETRY, WAITING_ON_LOCK -> { return Decision.of(Outcome.WAITING); }
-                case ERROR, TIMEOUT, CANCELLED -> { return Decision.of(Outcome.FAILED); }
+                case CANCELLED -> {
+                    // Cancelled without ever starting: the rollback ended finding nothing of this
+                    // step to undo, and cancelled it with the other steps that never ran. A late
+                    // iteration has given it something now.
+                    var notUndone = compensation.getStartedAt() == null
+                            ? notYetUndone(compensable, executions) : List.<StepExecution>of();
+                    if (notUndone.isEmpty()) {
+                        return Decision.of(Outcome.FAILED);
+                    }
+                    return compensationInFlight ? Decision.of(Outcome.WAITING)
+                            : new Decision(Outcome.RUN_AGAIN, compensation, notUndone);
+                }
+                case ERROR, TIMEOUT -> { return Decision.of(Outcome.FAILED); }
             }
         }
         return Decision.of(Outcome.DONE);
+    }
+
+    private static final java.util.Set<StepExecutionStatus> IN_FLIGHT = java.util.Set.of(
+            StepExecutionStatus.PENDING, StepExecutionStatus.RUNNING,
+            StepExecutionStatus.AWAITING_RETRY, StepExecutionStatus.WAITING_ON_LOCK);
+
+    /**
+     * The completed forEach iterations of a compensable step that no completed run of its compensation
+     * covered, newest first. A run records the units it undid; one started by an engine that did not
+     * record them covered every iteration that had completed by the time it started.
+     */
+    static List<StepExecution> notYetUndone(Compensable compensable, List<StepExecution> executions) {
+        var iterations = compensable.units().stream().filter(StepExecution::isIteration).toList();
+        if (iterations.isEmpty()) {
+            return List.of();
+        }
+        var compensationStepId = compensable.step().compensationStepId();
+        var stepId = compensable.execution().getStepId();
+        var runs = executions.stream()
+                .filter(e -> compensationStepId.equals(e.getStepId()) && !e.isIteration()
+                        && e.getStatus() == StepExecutionStatus.COMPLETED
+                        && stepId.equals(e.compensatedStepId()))
+                .toList();
+        return iterations.stream()
+                .filter(unit -> runs.stream().noneMatch(run -> covers(run, unit)))
+                .toList();
+    }
+
+    private static boolean covers(StepExecution run, StepExecution unit) {
+        var ids = run.compensatedUnitIds();
+        if (ids != null) {
+            return ids.contains(unit.getId());
+        }
+        return unit.getFinishedAt() != null && run.getStartedAt() != null
+                && !unit.getFinishedAt().isAfter(run.getStartedAt());
     }
 
     private static List<StepExecution> newestFirst(List<StepExecution> units) {

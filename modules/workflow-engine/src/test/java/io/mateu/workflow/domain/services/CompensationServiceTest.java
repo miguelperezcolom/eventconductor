@@ -227,4 +227,97 @@ class CompensationServiceTest {
         assertThat(decision.outcome()).isEqualTo(Outcome.WAITING);
         assertThat(compensation.compensatedStepId()).isEqualTo("charge");
     }
+
+    // ------------------------------------------------- iterations that complete after being cancelled
+
+    private StepExecution iteration(String id, int index, StepExecutionStatus status, LocalDateTime finishedAt) {
+        return exec("reserve", status, true, "release", 1, finishedAt)
+                .toBuilder().id(id).parentExecutionId("se-reserve").itemIndex(index).build();
+    }
+
+    private StepExecution failedForEach() {
+        return exec("reserve", StepExecutionStatus.ERROR, true, "release", 1, t0.plusSeconds(5))
+                .toBuilder().scopeJson("{\"total\":3}").build();
+    }
+
+    private StepExecution releaseRun(StepExecutionStatus status, String scopeJson, LocalDateTime startedAt) {
+        return comp("release", status).toBuilder().scopeJson(scopeJson).startedAt(startedAt).build();
+    }
+
+    @Test
+    void anIterationThatCompletedAfterItsStepWasUndoneIsUndoneByAnotherRun() {
+        var decision = service.decide(List.of(failedForEach(),
+                iteration("it-0", 0, StepExecutionStatus.COMPLETED, t0.plusSeconds(2)),
+                iteration("it-1", 1, StepExecutionStatus.COMPLETED, t0.plusSeconds(9)),
+                iteration("it-2", 2, StepExecutionStatus.ERROR, t0.plusSeconds(4)),
+                releaseRun(StepExecutionStatus.COMPLETED,
+                        "{\"total\":1,\"compensates\":\"reserve\",\"units\":\"it-0\"}", t0.plusSeconds(6))));
+
+        assertThat(decision.outcome()).isEqualTo(Outcome.RUN_AGAIN);
+        assertThat(decision.next().getStepId()).isEqualTo("release");
+        assertThat(decision.units()).extracting(StepExecution::getId).containsExactly("it-1");
+    }
+
+    @Test
+    void aRunThatRecordedItsUnitsCoversThemAll() {
+        var decision = service.decide(List.of(failedForEach(),
+                iteration("it-0", 0, StepExecutionStatus.COMPLETED, t0.plusSeconds(2)),
+                iteration("it-1", 1, StepExecutionStatus.COMPLETED, t0.plusSeconds(3)),
+                iteration("it-2", 2, StepExecutionStatus.ERROR, t0.plusSeconds(4)),
+                releaseRun(StepExecutionStatus.COMPLETED,
+                        "{\"total\":2,\"compensates\":\"reserve\",\"units\":\"it-1,it-0\"}", t0.plusSeconds(6))));
+
+        assertThat(decision.outcome()).isEqualTo(Outcome.DONE);
+    }
+
+    @Test
+    void aRunThatDidNotRecordItsUnitsCoversWhatHadCompletedWhenItStarted() {
+        var legacy = "{\"total\":1,\"compensates\":\"reserve\"}";
+        var before = service.decide(List.of(failedForEach(),
+                iteration("it-0", 0, StepExecutionStatus.COMPLETED, t0.plusSeconds(2)),
+                iteration("it-2", 2, StepExecutionStatus.ERROR, t0.plusSeconds(4)),
+                releaseRun(StepExecutionStatus.COMPLETED, legacy, t0.plusSeconds(6))));
+        assertThat(before.outcome()).isEqualTo(Outcome.DONE);
+
+        var after = service.decide(List.of(failedForEach(),
+                iteration("it-0", 0, StepExecutionStatus.COMPLETED, t0.plusSeconds(2)),
+                iteration("it-1", 1, StepExecutionStatus.COMPLETED, t0.plusSeconds(9)),
+                iteration("it-2", 2, StepExecutionStatus.ERROR, t0.plusSeconds(4)),
+                releaseRun(StepExecutionStatus.COMPLETED, legacy, t0.plusSeconds(6))));
+        assertThat(after.outcome()).isEqualTo(Outcome.RUN_AGAIN);
+        assertThat(after.units()).extracting(StepExecution::getId).containsExactly("it-1");
+    }
+
+    @Test
+    void aCompensationCancelledBeforeItEverRanIsRevivedByALateIteration() {
+        var decision = service.decide(List.of(failedForEach(),
+                iteration("it-1", 1, StepExecutionStatus.COMPLETED, t0.plusSeconds(9)),
+                iteration("it-2", 2, StepExecutionStatus.ERROR, t0.plusSeconds(4)),
+                releaseRun(StepExecutionStatus.CANCELLED, null, null)));
+
+        assertThat(decision.outcome()).isEqualTo(Outcome.RUN_AGAIN);
+        assertThat(decision.units()).extracting(StepExecution::getId).containsExactly("it-1");
+    }
+
+    @Test
+    void aCompensationCancelledAfterItStartedStillHaltsTheRollback() {
+        var decision = service.decide(List.of(failedForEach(),
+                iteration("it-1", 1, StepExecutionStatus.COMPLETED, t0.plusSeconds(9)),
+                iteration("it-2", 2, StepExecutionStatus.ERROR, t0.plusSeconds(4)),
+                releaseRun(StepExecutionStatus.CANCELLED, "{\"total\":1,\"compensates\":\"reserve\"}", t0.plusSeconds(6))));
+
+        assertThat(decision.outcome()).isEqualTo(Outcome.FAILED);
+    }
+
+    @Test
+    void aRunAgainWaitsWhileAnotherCompensationIsInFlight() {
+        var charge = exec("charge", StepExecutionStatus.COMPLETED, true, "refund", 0, t0.plusSeconds(1));
+        var decision = service.decide(List.of(failedForEach(), charge,
+                iteration("it-1", 1, StepExecutionStatus.COMPLETED, t0.plusSeconds(9)),
+                iteration("it-2", 2, StepExecutionStatus.ERROR, t0.plusSeconds(4)),
+                releaseRun(StepExecutionStatus.COMPLETED, "{\"total\":1,\"compensates\":\"reserve\",\"units\":\"it-0\"}", t0.plusSeconds(6)),
+                comp("refund", StepExecutionStatus.PENDING)));
+
+        assertThat(decision.outcome()).isEqualTo(Outcome.WAITING);
+    }
 }

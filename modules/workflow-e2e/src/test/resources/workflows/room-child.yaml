@@ -1,0 +1,7 @@
+id: room-child
+name: Book one room in the target system
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: book, type: ACTION, name: Book, topic: work, preconditionStepId: start }
+  - { id: end, type: END, name: End, preconditionStepId: book }

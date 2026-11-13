@@ -165,7 +165,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
                     // compensation runs once per run, newest first, each seeing the run it undoes
                     // (its item and index, and what it reported). The step-over below starts the first.
                     var units = decision.units();
-                    compensation.beginIterations(process, units.size(), units.get(0).getStepId());
+                    compensation.beginIterations(process, units.size(), units.get(0).getStepId(), idsOf(units));
                     for (int i = 0; i < units.size(); i++) {
                         stepExecutionRepository.save(io.mateu.workflow.domain.aggregates.StepExecution.iterationOf(
                                 compensation, compensation.getStepJson(), i, compensationScope(units.get(i))));
@@ -176,6 +176,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
                 stepExecutionRepository.save(compensation);
                 workflowMetrics.compensationTriggered(compensation.getWorkflowDefinitionId());
             }
+            case RUN_AGAIN -> runCompensationAgain(process, decision);
             case DONE -> markCompensated(process, executions);
             // A compensation step itself failed (its own retries exhausted): the rollback cannot go
             // on. This must NOT fall into the do-nothing bucket — that left the process ERROR and
@@ -184,6 +185,40 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
             case FAILED -> markCompensationFailed(process, executions);
             case NONE, WAITING -> { /* nothing to start now */ }
         }
+    }
+
+    /**
+     * Undoes forEach iterations that completed after the compensation of their step was decided —
+     * iterations the engine had cancelled whose work won the race (see
+     * {@code UpdateStepExecutionUseCase#isLateCompletionOfACancelledIteration}). The compensation's
+     * execution is history now: a new pass of it runs once per such iteration, newest first, exactly
+     * like the first run did for the others. A process the rollback had already left COMPENSATED is
+     * rolling back again until that pass is done, so it goes back to ERROR; the pass ends it
+     * COMPENSATED (or COMPENSATION_FAILED) as any rollback ends.
+     */
+    private void runCompensationAgain(Process process, CompensationService.Decision decision) {
+        var previous = decision.next();
+        var units = decision.units();
+        previous.supersede(null);
+        stepExecutionRepository.save(previous);
+        var again = io.mateu.workflow.domain.aggregates.StepExecution.nextPassOf(previous);
+        again.beginIterations(process, units.size(), units.get(0).getStepId(), idsOf(units));
+        stepExecutionRepository.save(again);
+        for (int i = 0; i < units.size(); i++) {
+            stepExecutionRepository.save(io.mateu.workflow.domain.aggregates.StepExecution.iterationOf(
+                    again, again.getStepJson(), i, compensationScope(units.get(i))));
+        }
+        if (ProcessStatus.COMPENSATED.equals(process.getStatus())
+                || ProcessStatus.COMPENSATION_FAILED.equals(process.getStatus())) {
+            processRepository.save(process.withStatus(ProcessStatus.ERROR));
+        }
+        log.info("Process {}: {} iteration(s) of step {} completed after they had been cancelled; compensating them too.",
+                process.getId(), units.size(), units.get(0).getStepId());
+        workflowMetrics.compensationTriggered(again.getWorkflowDefinitionId());
+    }
+
+    private static List<String> idsOf(List<io.mateu.workflow.domain.aggregates.StepExecution> units) {
+        return units.stream().map(io.mateu.workflow.domain.aggregates.StepExecution::getId).toList();
     }
 
     /**

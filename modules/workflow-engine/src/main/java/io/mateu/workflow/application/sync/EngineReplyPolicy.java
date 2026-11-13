@@ -83,7 +83,7 @@ public class EngineReplyPolicy {
     private ProcessReply onError(Process process, SyncInvocation sync) {
         var decision = compensationService.decide(stepExecutionRepository.findByProcessId(process.getId()));
         var compensation = switch (decision.outcome()) {
-            case RUN, WAITING -> ProcessReply.Compensation.IN_PROGRESS;
+            case RUN, RUN_AGAIN, WAITING -> ProcessReply.Compensation.IN_PROGRESS;
             case DONE -> ProcessReply.Compensation.DONE;
             case FAILED -> ProcessReply.Compensation.FAILED;
             case NONE -> ProcessReply.Compensation.NONE;

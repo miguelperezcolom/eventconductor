@@ -1194,12 +1194,48 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     }
 
     /**
+     * For a compensation container, the ids of the units it undoes; null when it did not record them
+     * (one started by an engine before 2.39, or not a compensation container).
+     */
+    public java.util.Set<String> compensatedUnitIds() {
+        var units = scope().get("units");
+        if (units == null || units.isBlank()) {
+            return null;
+        }
+        return java.util.Set.of(units.split(","));
+    }
+
+    /**
+     * Records the answer of a worker — or of a child process — that completed this iteration after the
+     * engine had already cancelled it (a forEach that failed fast, or stopped because the process
+     * failed). The cancellation raced with the work and lost: the unit of work exists, so it is kept as
+     * a completed run — with what it reported — for the saga to compensate, instead of being dropped
+     * and left behind in the system it was done in.
+     */
+    public void completeAfterCancellation(List<Variable> reported) {
+        recordOutput(reported);
+        send(new TaskLogEmitted(id, MessageType.Info, "Iteration " + itemIndex + " of step " + stepId
+                + " completed after it had been cancelled: kept as a completed run, so the saga compensates it."));
+        updateStatus(StepExecutionStatus.COMPLETED);
+    }
+
+    /**
      * Starts this execution as a container of {@code total} iterations: no task of its own, no
      * deadline (each iteration has its own), PENDING until its iterations say otherwise.
      *
      * @param compensates for a compensation run over several units, the step it undoes; else null
      */
     public void beginIterations(Process process, int total, String compensates) {
+        beginIterations(process, total, compensates, null);
+    }
+
+    /**
+     * As {@link #beginIterations(Process, int, String)}, for a compensation run over several units that
+     * records which units it undoes ({@code unitIds}, in run order), so a unit that completes only after
+     * this run was decided — an iteration whose late answer arrived after it had been cancelled — is
+     * recognised as not yet undone (see {@link #compensatedUnitIds()}).
+     */
+    public void beginIterations(Process process, int total, String compensates, List<String> unitIds) {
         this.dispatchCount++;
         this.variables = process.getVariables() == null ? List.of() : process.getVariables();
         this.startedAt = EngineClock.now();
@@ -1209,6 +1245,9 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         scope.put("total", total);
         if (compensates != null) {
             scope.put("compensates", compensates);
+        }
+        if (unitIds != null && !unitIds.isEmpty()) {
+            scope.put("units", String.join(",", unitIds));
         }
         this.scopeJson = io.mateu.workflow.domain.services.MultiInstance.toJson(scope);
         this.status = StepExecutionStatus.PENDING;
