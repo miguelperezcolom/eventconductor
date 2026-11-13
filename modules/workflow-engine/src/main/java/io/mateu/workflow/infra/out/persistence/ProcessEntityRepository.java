@@ -25,6 +25,24 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
     org.springframework.data.domain.Page<ProcessEntity> findDirectChildren(@Param("parentId") String parentId, @Param("stepId") String stepId, Pageable pageable);
 
 
+    /**
+     * The runs these step executions started, as (parent step execution, child id) pairs, oldest
+     * first — answered from {@code idx_process_parent_step}, never touching a row's JSON columns.
+     */
+    @Query("""
+            select p.parentStepExecutionId as parentStepExecutionId, p.id as id
+            from ProcessEntity p
+            where p.parentStepExecutionId in :ids
+            order by p.created, p.id
+            """)
+    List<ChildLink> findChildLinks(@Param("ids") Collection<String> parentStepExecutionIds);
+
+    /** Projection for {@link #findChildLinks}. */
+    interface ChildLink {
+        String getParentStepExecutionId();
+        String getId();
+    }
+
     /** The run that holds this key now (the column is UNIQUE; a run that handed it over keeps it apart). */
     Optional<ProcessEntity> findByBusinessKey(String businessKey);
 

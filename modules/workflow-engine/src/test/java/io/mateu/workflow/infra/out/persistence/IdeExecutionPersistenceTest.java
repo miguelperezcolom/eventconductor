@@ -42,6 +42,10 @@ class IdeExecutionPersistenceTest {
             var filtered = rows.findDirectChildren("parent","first",PageRequest.of(0,20));
             assertThat(filtered.getContent()).extracting(ProcessEntity::getId).containsExactly("child-0");
             assertThat(rows.findDirectChildren("parent","missing",PageRequest.of(0,20))).isEmpty();
+            // The graph's child lookup: one indexed query, latest child per parent execution.
+            assertThat(repository.findChildIdsByParentStepExecutionIds(java.util.List.of("old","new","missing")))
+                    .containsExactlyInAnyOrderEntriesOf(java.util.Map.of("old","child-0","new","child-3"));
+            assertThat(repository.findChildIdsByParentStepExecutionIds(java.util.List.of())).isEmpty();
             jdbc.update("insert into process_entity (id,status) values ('normal','RUNNING')");
             assertThat(repository.findById("normal").orElseThrow().isTestRun()).isFalse();
         }
