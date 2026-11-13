@@ -180,6 +180,14 @@ YAML (first line):
 # yaml-language-server: $schema=https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json
 ```
 
+### Visual editor (VS Code / IntelliJ plugins)
+The graph editor edits every field above. Its step panel carries `forEach.onIterationFailure`
+(failFast / continue / compensateAll) and `forEach.label`, `compensateLosers` (XOR joins only) and
+`compensateAbandoned` (END only), with the same validation messages as `eventconductor:validate`;
+inline PROCESS bodies are edited in place (see PROCESS). In VS Code's execution view a double-click
+on a PROCESS step (or a lane header) opens that child process. Light and dark themes follow the
+host (`--ec-*` tokens).
+
 ---
 
 ### Definition status
@@ -334,6 +342,19 @@ parent step waits `PENDING`. On child `COMPLETED`, the parent step completes and
 grandchildren; while retries remain the child keeps running (a retried step re-attaches to it
 via the deterministic business key).
 
+**A child cut short by the engine rolls back** (since #640). When the engine stops a still-running
+child because the parent is rolling back, because its iteration belongs to a `failFast` forEach
+that had a failure, because the parent reached an `END` with `compensateAbandoned`, or because an
+XOR join with `compensateLosers` fired, the child does not just stop: it goes `ERROR`, its
+in-flight steps are cancelled and its completed compensable steps are compensated by the normal
+saga (recursively for grandchildren), ending `COMPENSATED` or `COMPENSATION_FAILED`. A rolling-back
+parent stops its running children as soon as its rollback starts and only ends `COMPENSATED` once
+they have (`COMPENSATION_FAILED` if one failed to). No double undo: a child cut short undoes its own
+steps and the parent's `compensationStepId` does **not** run for it; a child that had already
+**completed** is undone by the parent's `compensationStepId` instead. Every other cancellation still
+only cancels — an **operator cancel** of the parent, an `END` without the flag, a forEach that
+completes early, a parent failing with nothing to compensate.
+
 **Inline body.** Instead of `childWorkflowDefinitionId`, a PROCESS may carry its child **in line**
 under `steps:` (exactly one of the two). The body is compiled from the parent's own definition into
 the child definition `<workflowId>.<stepId>` (nested: `booking.rooms.extras`): versioned and migrated
@@ -361,6 +382,10 @@ covers the body as a workflow of its own, errors located `booking.rooms: …`. W
 Console (process view): double-click a PROCESS step to open its child process; double-click an inline
 PROCESS to open its body as lanes — one per iteration, headed by its label and status, with the
 body's steps coloured by that child run (double-click a lane header to open that child).
+Editor (IDE plugins): double-click an inline PROCESS (or "Edit ▸" in its panel) to edit its body as
+the graph — palette, links, panel, nested bodies, a breadcrumb and Esc/"↩ Back" to return; the panel
+switches a PROCESS between "definition by id" and "written in line". Body positions are not saved
+(the body is laid out automatically).
 
 ### FORK / JOIN / CHOICE — gateways
 ```yaml
@@ -864,6 +889,7 @@ class BookingSagaTest {
 - **Saga**: mark steps `compensable: true` with a `compensationStepId`. When any step fails after exhausting retries, the engine runs the compensations of **every completed compensable step** (never the step that failed — its work did not happen) **sequentially, in reverse completion order** — latest undone first, each starting only once the previous compensation completes; a step that ran several times (forEach iterations, loop passes) is compensated once per completed run, newest first. When the whole chain finishes the process ends in the terminal **`COMPENSATED`** state; if a compensation itself fails after its own retries, the chain halts and the process ends **`COMPENSATION_FAILED`** (partially rolled back — alert on `eventconductor.compensations.failed`). If nothing compensable had completed, the process stays `ERROR`. Define compensation steps as ordinary `ACTION` steps with **no preconditions** — being named as a `compensationStepId` is what makes them reachable, and the dataflow never starts a step that has nothing to wait for. (Older definitions anchor them with `"preconditionExpression": "false"`; still supported. An anchor without the guard is a live branch of the happy path.)
 - **Late completion.** The engine cancels still-running steps at the end of a rollback, when another branch reaches `END`, and when an XOR join with `compensateLosers` fires. If such a step had started and its work completes anyway (a worker reporting after the cancellation, a child PROCESS already `COMPLETED`), and the step declares a compensation, that late `COMPLETED` is kept as a completed run (its reported variables on the run, not the process) and undone: in a failed process by the rollback (if it had already finished, the process goes back to `ERROR`, a new pass of the compensation undoes just that run, and it ends `COMPENSATED` again); in a process that did not fail, as a cleanup. Late answers for a step without compensation, or in a process an operator cancelled, are still ignored.
 - **Cleanup compensations** (late work in a non-failed process, `compensateLosers` on an XOR join, `compensateAbandoned` on an END): one at a time, newest first; they do not change the process status (an END cleanup runs after `COMPLETED`; reaching END never cancels one); a cleanup that fails after its retries is an **incident** in the Errors tab, and the process neither fails nor rolls back; a run a cleanup undid is not undone twice.
+- **Child processes cut short** by the engine (parent rollback, `failFast` forEach, `compensateLosers`, `compensateAbandoned`) roll themselves back before the parent's rollback ends; a child that already completed is undone by the parent's `compensationStepId`. An operator cancel never rolls back. See PROCESS (§4).
 - Workers and compensations must be idempotent and tolerate undoing work that completed late.
 
 ```json

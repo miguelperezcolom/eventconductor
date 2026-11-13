@@ -55,6 +55,7 @@ for autocomplete. The schema forbids unknown keys. Examples: [patterns.md](patte
 | `messageVariables` | SEND_MESSAGE | variables the message carries (absent = none) |
 | `awaitReply` | HTTP_CALL, PUBLISH_EVENT | `{messageName, correlationExpression, onEvent?}` — wait for the reply in the same step |
 | `childWorkflowDefinitionId`, `outputVariables`, `sensitiveOutputs` | PROCESS | child definition; variables copied back (absent = none) |
+| (child rollback) | PROCESS | a running child the engine cuts short (parent rollback, `failFast` forEach, `compensateLosers`, `compensateAbandoned`) rolls itself back (`COMPENSATED`) before the parent finishes its rollback; the parent's `compensationStepId` runs only for a child that completed |
 | `steps` | PROCESS | the child workflow **in line** (same syntax as a definition's steps), instead of `childWorkflowDefinitionId` — exactly one of the two. Runs as child definition `<workflow>.<step>`, versioned with the parent, not startable on its own |
 | `joinType` | JOIN | `AND` (default) \| `XOR` |
 | `compensateLosers` | XOR JOIN | `true`: cancel the losing branches as the join fires and compensate their completed compensable steps (cleanup; default `false` = they run on) |

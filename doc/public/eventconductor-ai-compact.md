@@ -89,6 +89,10 @@ are optional, to keep egress and its secrets out of the orchestrator.
   completes anyway is kept as completed and undone too (in a non-failed process as a *cleanup*: status
   unchanged, a failed cleanup = incident). Opt-ins: `compensateLosers: true` on an XOR `JOIN` (cancel and
   undo the losing branches), `compensateAbandoned: true` on `END` (undo what the cut-short branches did).
+  A running child PROCESS the engine cuts short (parent rollback, `failFast` forEach, those two opt-ins)
+  rolls itself back first (child ends `COMPENSATED`; the parent waits for it, and its `compensationStepId`
+  is not run for that child); a child that already completed is undone by the parent's
+  `compensationStepId`. An operator cancel never rolls back.
 - **No secrets** in definitions (HTTP via profiles / `${secret:NAME}`, LLM keys in config).
 
 ```yaml
@@ -311,6 +315,7 @@ class BookingSagaTest {
 - forEach outputs are not on the process (read `output`); `maxIterations` required on `repeat`/`loopBack`.
 - `forEach.onIterationFailure`: `failFast` (default) | `continue` (step completes; `output` elements `{status, value|error}`) | `compensateAll` (wait all; any failure → fail + compensate all completed; needs `completion: all`). `forEach.label` (JEXL) names iterations in the console / `itemLabel`.
 - Compensations and workers must be idempotent: a cancelled step's late `COMPLETED` is compensated.
+- Cancelling a process (operator) only cancels — children included; rollback happens only when the engine cuts a child short.
 - Kafka consumers (main after 2.33.0) redeliver retryable failures with unlimited back-off
   (`workflow.consumer.retry.*`); records are never discarded, only parked on `dead-letter` when defective.
 - 2.27: secrets from `workflow.http.secrets`, API refuses anonymous. 2.28: consoles refuse anonymous,

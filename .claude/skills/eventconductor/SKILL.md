@@ -41,6 +41,7 @@ features: `updates`, `startPolicy`, `businessKeyPolicy`, `CONTINUE_AS_NEW`, `pri
 | run only when a condition holds | `preconditions: [{stepId, expression, onFalse}]` or `preconditionExpression` |
 | undo completed work on failure (saga) | `compensable: true` + `compensationStepId` (compensation step has no preconditions) |
 | undo what losing / abandoned branches did | `compensateLosers: true` on an XOR `JOIN`; `compensateAbandoned: true` on `END` |
+| undo a sub-process the engine cut short | automatic: a running child `PROCESS` stopped by a rollback, a `failFast` forEach or those opt-ins rolls itself back; a completed child is undone by the parent's `compensationStepId` |
 | no duplicates in the target system | `HTTP_CALL` header `Idempotency-Key: "${businessKey}-…"` (replaces the automatic one), or `GET` lookup + `CHOICE` |
 | wait a duration / until a date | `TIMER` (`duration`, `untilVariable`, or `until: {date, offset, at, zone}`) |
 | finish by a date or route elsewhere | `deadline` / `timeout` + `onTimeoutStepId` |
