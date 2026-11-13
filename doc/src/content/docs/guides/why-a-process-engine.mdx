@@ -3,6 +3,8 @@ title: Why a process engine?
 description: What a business process costs when you write it by hand, what an engine takes off your hands, what it costs you in return — and when hand-written code is the better choice.
 ---
 
+import CodeIceberg from '../../../components/CodeIceberg.astro';
+
 Every team that automates a business process faces the same question first: *do we need an engine for this, or is it just code?* It is a fair question. A process starts as a few calls in a row, and a few calls in a row is exactly what a service method is for.
 
 This page follows one ordinary process from the first version to the one that survives production, lists what has to be built along the way, and is honest about the other side: what an engine costs, and when you should not use one.
@@ -48,6 +50,8 @@ Each of the following is a real failure mode, and each one adds code.
 12. **Operations asks to retry the 40 bookings that failed during last night's outage — from step 3, not from scratch.** You add tooling for that, with an audit trail.
 
 None of these is exotic. Together they are the bulk of the code, and very little of it is about hotels.
+
+<CodeIceberg />
 
 ## The same process, declared
 

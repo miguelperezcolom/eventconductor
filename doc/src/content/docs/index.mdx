@@ -15,6 +15,7 @@ hero:
 ---
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
+import CodeIceberg from '../../components/CodeIceberg.astro';
 
 ## See it in 90 seconds
 
@@ -32,6 +33,8 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 ## Why not just write it in code?
 
 A business process starts as a few calls in a row — and then production adds the rest: undoing what succeeded when a later step fails, retries that must not book twice, a pod that dies halfway, people who answer two days later, code that changes while runs are in flight, and someone asking *"where is booking 123?"*. Written by hand, that is most of the code, and almost none of it is about your business.
+
+<CodeIceberg />
 
 <CardGrid>
   <Card title="It scales — in capacity and in change" icon="rocket">
