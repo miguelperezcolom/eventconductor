@@ -73,6 +73,7 @@ automatic one (the match is exact, case included):
 
 ```yaml
 - id: create
+  name: Create the room booking
   type: HTTP_CALL
   retries: 3
   http:
@@ -108,6 +109,7 @@ a [`CHOICE`](/reference/step-types/#choice) takes the branch:
 
 ```yaml
 - id: lookup
+  name: Look up the room booking
   type: HTTP_CALL
   http:
     connection: hotel
@@ -119,10 +121,12 @@ a [`CHOICE`](/reference/step-types/#choice) takes the branch:
       roomBookingId: "status == 200 ? body.id : ''"
 
 - id: exists
+  name: Already booked?
   type: CHOICE
   preconditionStepId: lookup
 
 - id: create                      # not there yet → create it
+  name: Create the room booking
   type: HTTP_CALL
   preconditions: [ { stepId: exists, expression: "found == 'false'" } ]
   http:
@@ -134,6 +138,7 @@ a [`CHOICE`](/reference/step-types/#choice) takes the branch:
       roomBookingId: "body.id"
 
 - id: confirm                     # already there, or just created
+  name: Confirm the room booking
   type: ACTION
   topic: confirm-booking
   preconditions:
@@ -159,6 +164,7 @@ response the process never saw. So, for a `cancelRoom` compensation:
 
 ```yaml
 - id: cancelRoom
+  name: Cancel the room booking
   type: HTTP_CALL
   http:
     connection: hotel
