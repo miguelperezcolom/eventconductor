@@ -19,22 +19,15 @@ import CodeIceberg from '../../components/CodeIceberg.astro';
 
 ## See it in 90 seconds
 
-{/* The promo video is self-hosted: it is rebuilt from source in media/promo-video (see its README).
-    To show a narrated YouTube cut instead, put back an iframe of
-    https://www.youtube-nocookie.com/embed/<id> with the same wrapper and style. */}
 <div style={{ maxWidth: '960px', margin: '0 auto' }}>
-  <video
-    controls
-    muted
-    playsinline
-    preload="metadata"
-    poster="/video/eventconductor-promo-poster.jpg"
+  <iframe
+    src="https://www.youtube-nocookie.com/embed/b-sUmq9_6TM"
     title="EventConductor — see it in 90 seconds"
-    style={{ width: '100%', aspectRatio: '16 / 9', border: 0, display: 'block', borderRadius: '12px', boxShadow: '0 20px 60px rgba(0,0,0,.35)', background: '#060a16' }}
-  >
-    <source src="/video/eventconductor-promo.webm" type="video/webm" />
-    <source src="/video/eventconductor-promo.mp4" type="video/mp4" />
-  </video>
+    loading="lazy"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowfullscreen
+    style={{ width: '100%', aspectRatio: '16 / 9', border: 0, display: 'block', borderRadius: '12px', boxShadow: '0 20px 60px rgba(0,0,0,.35)' }}
+  ></iframe>
 </div>
 
 ## Why not just write it in code?

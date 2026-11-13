@@ -1,7 +1,8 @@
-// Captures the REAL console states the promo video animates over: screenshots at 2x
-// (3840x2160, so the camera can zoom without blur) plus the boxes of the elements the cursor
-// points at, in 1920x1080 CSS pixels. Needs the promo app running (scripts/prepare-app.sh, then
-// scripts/run-app.sh). Usage: node scripts/record-real.mjs [baseUrl] [phase]
+// Captures the REAL console states the promo video animates over: screenshots of a 1280x720
+// viewport at 3x (3840x2160) — the small viewport makes the console's UI large in the frame, the
+// 3x lets the camera zoom in further without blur — plus the boxes of the elements the cursor
+// points at, in 1280x720 CSS pixels. Run by scripts/capture-real.sh, which starts the app.
+// Usage: node scripts/record-real.mjs [baseUrl] [phase]
 //   phase "main"     — everything except the Versions tab (first run of the app)
 //   phase "versions" — the Versions tab, after the app was restarted with definition v2
 import { chromium } from 'playwright';
@@ -15,16 +16,16 @@ const boxesFile = `${out}/boxes.json`;
 const boxes = existsSync(boxesFile) ? JSON.parse(readFileSync(boxesFile, 'utf8')) : {};
 
 const browser = await chromium.launch();
-const page = await browser.newPage({
-  viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 2, colorScheme: 'dark',
-});
+const VW = 1280, VH = 720;
+const page = await browser.newPage({ viewport: { width: VW, height: VH }, deviceScaleFactor: 3, colorScheme: 'dark' });
+boxes.viewport = { w: VW, h: VH };
 
 async function settle(ms = 1800) {
   await page.waitForLoadState('networkidle').catch(() => {});
   await page.waitForTimeout(ms);
 }
 async function shot(name) {
-  await page.mouse.move(1919, 1079); // no hover state left behind
+  await page.mouse.move(VW - 1, VH - 1); // no hover state left behind
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${out}/${name}.png` });
   console.log('captured', name);
@@ -36,6 +37,17 @@ async function box(name, locator) {
 }
 const graph = () => page.locator('eventconductor-workflow-graph');
 const graphNode = (text) => graph().locator('g.node').filter({ hasText: text }).first();
+/** The union of every node's box: the part of the canvas the graph actually occupies. */
+async function nodesBox(name) {
+  const bs = await graph().locator('g.node').evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; }).filter((b) => b[2] > b[0]));
+  const x = Math.min(...bs.map((b) => b[0])), y = Math.min(...bs.map((b) => b[1]));
+  boxes[name] = { x, y, w: Math.max(...bs.map((b) => b[2])) - x, h: Math.max(...bs.map((b) => b[3])) - y };
+}
+/** Click an empty corner of the canvas: drops the selection (and its popover), keeps the view. */
+async function deselect() {
+  const g = await graph().boundingBox();
+  await page.mouse.click(g.x + 24, g.y + 24); await settle(1000);
+}
 
 async function mainProcessId() {
   const r = await fetch(`${base}/workflow/api/processes?size=50`);
@@ -73,8 +85,8 @@ if (phase === 'main') {
   await box('lanes.node', graphNode('Book every room'));
   await box('lanes.cancel', graphNode('Cancel the room'));
   await box('lanes.room102', graph().getByText('Room 102', { exact: true }).first());
-  // Deselect (click empty canvas) to drop the popover, keep the lanes.
-  await page.mouse.click(400, 420); await settle(1200);
+  await deselect();
+  await nodesBox('lanes.nodes');
   await shot('process-lanes');
 
   // 3. Operate: the failed child run selected in the list, the retry action at hand.
@@ -96,10 +108,13 @@ if (phase === 'main') {
   // 4. The definition: its graph, then the inline body opened.
   await page.goto(`${base}/workflow/definitions/hotel-booking`); await settle(2500);
   await box('def.rooms', graphNode('Book every room'));
+  await nodesBox('def.nodes');
   await shot('definition');
   const d = boxes['def.rooms'];
   await page.mouse.dblclick(d.x + d.w / 2, d.y + d.h / 2); await settle(2500);
-  await page.mouse.click(400, 420); await settle(1000);
+  await deselect();
+  await box('defx.rooms', graphNode('Book every room'));
+  await nodesBox('defx.nodes');
   await shot('definition-expanded');
 }
 

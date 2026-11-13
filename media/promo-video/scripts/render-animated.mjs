@@ -18,15 +18,14 @@ import { fileURLToPath } from 'node:url';
 const here = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const arg = (name, dflt) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : dflt; };
 const FPS = Number(arg('fps', 30));
-const DURATION = 90;
-const from = Number(arg('from', 0)), to = Number(arg('to', DURATION));
+const from = Number(arg('from', 0));
 const stills = arg('stills', null);
 const out = resolve(here, arg('out', 'build/master.mp4'));
 
 const read = (p) => readFileSync(resolve(here, p), 'utf8');
 const lines = (p) => read(p).split('\n').filter((l) => l.trim().length > 0);
-for (const need of ['build/real/boxes.json', 'build/out/test-green.txt']) {
-  if (!existsSync(resolve(here, need))) throw new Error(`missing ${need}: run scripts/capture-real.sh and scripts/capture-terminal.sh first`);
+for (const need of ['build/real/boxes.json', 'build/out/test-green.txt', 'build/editor/meta.json']) {
+  if (!existsSync(resolve(here, need))) throw new Error(`missing ${need}: run scripts/capture-real.sh, capture-terminal.sh and record-editor.mjs first`);
 }
 
 // The definition as typed in the editor: the real file, from its top through the inline body,
@@ -44,8 +43,7 @@ const DATA = {
   strings: JSON.parse(read(arg('strings', 'strings.json'))),
   yaml, yamlEmphasis, logo,
   boxes: JSON.parse(read('build/real/boxes.json')),
-  defRegion: { x: 540, y: 330, w: 960 },         // the definition graph, whole
-  defBodyRegion: { x: 690, y: 430, w: 600 },     // …then the opened inline body
+  drawFrames: JSON.parse(read('build/editor/meta.json')).frames,
   out: {
     validateGreen: lines('build/out/validate-green.txt').map((l) => l.replace(/^\[INFO\] /, '')),
     testGreen: lines('build/out/test-green.txt'),
@@ -61,8 +59,10 @@ await page.evaluate(() => window.ready);
 await page.evaluate(() => window.render(0));
 await page.waitForTimeout(300);
 
+const to = Number(arg('to', await page.evaluate(() => window.DURATION)));
 async function frameAt(t) {
   await page.evaluate((tt) => window.render(tt), t);
+  await page.evaluate(() => window.pending);      // a recorded frame still decoding
   return page.screenshot({ type: 'png', animations: 'disabled' });
 }
 

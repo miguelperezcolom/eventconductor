@@ -1,7 +1,11 @@
 {
   "lang": "en",
   "intro.headline": "Your process is three steps.",
-  "chips.business": ["Book each room", "Get approval", "Confirm to the customer"],
+  "chips.business": [
+    "Book each room",
+    "Get approval",
+    "Confirm to the customer"
+  ],
   "iceberg.headline": "Production adds the rest.",
   "iceberg.count": "Sixteen things to build, test and keep working — in every service.",
   "chips.plumbing": [
@@ -27,6 +31,8 @@
   "editor.caption": "Declare the process. One booking per room, all rooms or none.",
   "editor.file": "hotel-booking.yaml",
   "editor.graph": "The graph is derived from it — open the inline body: one lane per room.",
+  "draw.caption1": "Or draw it. Same definition — in the browser, VS Code or IntelliJ.",
+  "draw.caption2": "The graph and the file are the same thing.",
   "console.caption1": "A booking for 3 rooms. The hotel refuses room 102.",
   "console.room102": "Room 102 refused",
   "console.cancel": "Rooms 101 and 103 undone automatically",
@@ -46,9 +52,13 @@
   "gate.checks.blocked": "Merging is blocked: a required check failed",
   "gate.checks.note": "Illustration of a protected branch",
   "ship.caption": "Ship a definition without redeploying a service.",
-  "ship.steps": ["Merge to main", "Git webhook", "Engine imports v2"],
+  "ship.steps": [
+    "Merge to main",
+    "Git webhook",
+    "Engine imports v2"
+  ],
   "ship.versions": "v2 for new bookings · runs in flight keep theirs",
   "outro.tagline": "Orchestration as a library · MIT",
-  "outro.url": "eventconductor.io",
-  "outro.links": "Docs · Hands-on workshop · GitHub"
+  "outro.url": "eventconductor.mateu.io",
+  "outro.links": "Hands-on workshop in the docs · github.com/miguelperezcolom/eventconductor"
 }

@@ -30,8 +30,8 @@
   .headline { position: absolute; left: 0; right: 0; text-align: center; font-weight: 750; letter-spacing: -0.02em; }
   .chip { position: absolute; white-space: nowrap; border-radius: 999px; font-weight: 600; transform-origin: 50% 50%; }
   .chip.biz { background: linear-gradient(180deg, #7c8bff, #5865f2); color: #fff; font-size: 34px; padding: 14px 30px; box-shadow: 0 10px 30px rgba(88, 101, 242, .45); }
-  .chip.plumb { font-size: 25px; padding: 9px 20px; border: 2px solid var(--red-line); background: var(--red-bg); color: #fecaca; }
-  .chip.plumb.ok { border-color: var(--green-line); background: var(--green-bg); color: #bbf7d0; }
+  .chip.plumb { font-size: 25px; padding: 9px 20px; border: 2px solid #f87171; background: rgba(220, 38, 38, .38); color: #fff; box-shadow: 0 0 18px rgba(239, 68, 68, .25); }
+  .chip.plumb.ok { border-color: #4ade80; background: rgba(22, 163, 74, .45); color: #fff; box-shadow: 0 0 18px rgba(74, 222, 128, .3); }
   .caption { position: absolute; left: 50%; bottom: 46px; transform: translateX(-50%); white-space: nowrap; font-size: 38px; font-weight: 650;
     padding: 16px 34px; border-radius: 18px; background: rgba(8, 12, 28, .82); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 16px 50px rgba(0,0,0,.45); }
   .tag { position: absolute; font-size: 20px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
@@ -42,8 +42,9 @@
   .win .bar i { width: 13px; height: 13px; border-radius: 50%; display: inline-block; }
   .win .bar .title { position: absolute; left: 0; right: 0; text-align: center; font-size: 17px; color: var(--muted); font-weight: 500; }
   .win .vp { position: absolute; left: 0; right: 0; top: 40px; bottom: 0; overflow: hidden; background: #232f48; }
-  #cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
-  #cam img { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  #cam { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  #cam img { position: absolute; left: 0; top: 0; }
+  #draw { position: absolute; left: 40px; top: 28px; width: 1840px; height: 1035px; border-radius: 16px; box-shadow: 0 40px 120px rgba(0,0,0,.6); border: 1px solid rgba(255,255,255,.12); }
   /* editor */
   .code { position: absolute; font-family: 'JetBrains Mono', monospace; font-size: 21px; line-height: 31px; white-space: pre; color: #e2e8f0; }
   .ln { color: #4b5875; display: inline-block; width: 46px; text-align: right; margin-right: 22px; }
@@ -92,6 +93,7 @@
     <div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span class="title" id="conTitle">localhost · EventConductor console</span></div>
     <div class="vp" id="vp"><div id="cam"></div></div>
   </div>
+  <img id="draw">
   <div id="overlay" class="layer"></div>
 
   <!-- 6: MCP -->
@@ -170,10 +172,13 @@ for (const name of ['process-collapsed', 'process-lanes', 'list', 'list-searched
 }
 $('defA').src = '../build/real/definition.png'; $('defB').src = '../build/real/definition-expanded.png';
 const B = D.boxes;
+const SW = B.viewport.w, SH = B.viewport.h;   // the console screenshots' CSS size
+for (const img of $('cam').querySelectorAll('img')) css(img, { width: SW + 'px', height: SH + 'px' });
+css($('cam'), { width: SW + 'px', height: SH + 'px' });
 const center = (b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
 
 /* ---------- camera over the console ---------- */
-const CON = { x: 80, y: 62 + 40, w: 1760, h: 944 - 40 }, BASE = CON.w / W;
+const CON = { x: 80, y: 62 + 40, w: 1760, h: 944 - 40 }, BASE = CON.w / SW;
 function camAt(keys, t) {
   if (t <= keys[0].t) return keys[0];
   for (let i = 1; i < keys.length; i++) {
@@ -181,14 +186,17 @@ function camAt(keys, t) {
   }
   return keys[keys.length - 1];
 }
-let CAM = { cx: 960, cy: 493, z: 1 };
+let CAM = { cx: SW / 2, cy: CON.h / BASE / 2, z: 1 };
 function applyCam(c) {
   CAM = c; const k = BASE * c.z;
   const tx = CON.w / 2 - c.cx * k, ty = CON.h / 2 - c.cy * k;
   $('cam').style.transform = `translate(${tx}px, ${ty}px) scale(${k})`;
 }
 function toScreen(x, y) { const k = BASE * CAM.z; return { x: CON.x + CON.w / 2 + (x - CAM.cx) * k, y: CON.y + CON.h / 2 + (y - CAM.cy) * k, k }; }
-const FULL = { cx: 960, cy: 493, z: 1 };
+const FULL = { cx: SW / 2, cy: CON.h / BASE / 2, z: 1 };
+const pad = (b, p) => ({ x: b.x - p, y: b.y - p, w: b.w + 2 * p, h: b.h + 2 * p });
+/** A camera that frames box b (screenshot coordinates) in the console window, capped at zmax. */
+const frame = (b, zmax = 3) => ({ cx: b.x + b.w / 2, cy: b.y + b.h / 2, z: Math.min(zmax, CON.w / BASE / b.w, CON.h / BASE / b.h) });
 
 /* ---------- overlay helpers (redrawn every frame) ---------- */
 let ov;
@@ -221,7 +229,11 @@ function callout(anchor, op, text, color, dx, dy) {
 function caption(text, op) { const c = $('cap'); c.style.opacity = op; c.style.display = op > 0 ? 'block' : 'none'; if (op > 0 && c.dataset.t !== text) { c.textContent = text; c.dataset.t = text; } c.style.transform = `translate(-50%, ${lerp(16, 0, eout(op))}px)`; }
 
 /* ---------- the timeline ---------- */
-const T = { introEnd: 6, icebergEnd: 18, quoteEnd: 23, editorEnd: 38, consoleEnd: 55, opsEnd: 65, gateEnd: 75, shipEnd: 83, end: 90 };
+const DRAW_SPEED = 1.25;                         // the editor recording, played a little faster
+const DRAW = D.drawFrames / 30 / DRAW_SPEED;
+const T = { introEnd: 6, icebergEnd: 18, quoteEnd: 23, editorEnd: 38 };
+T.drawEnd = T.editorEnd + DRAW; T.consoleEnd = T.drawEnd + 17; T.opsEnd = T.consoleEnd + 10; T.gateEnd = T.opsEnd + 10; T.shipEnd = T.gateEnd + 8; T.end = T.shipEnd + 7;
+window.DURATION = T.end; window.TIMELINE = T;
 
 function scenesIceberg(t) {
   const active = t < T.quoteEnd + .2;
@@ -266,7 +278,7 @@ function scenesIceberg(t) {
   // plumbing chips sink in one by one, then flip green one by one
   plumbEls.forEach((e, i) => {
     const t0 = 8 + i * .36, p = seg(t, t0, t0 + .55);
-    const flip = seg(t, 19.1 + i * .15, 19.1 + i * .15 + .3);
+    const flip = seg(t, 18.9 + i * .17, 18.9 + i * .17 + .32);
     e.classList.toggle('ok', flip >= .5);
     const ry = flip > 0 && flip < 1 ? Math.abs(Math.cos(flip * Math.PI)) : 1;
     const pos = plumbPos[i];
@@ -309,10 +321,11 @@ function sceneEditor(t) {
   const g = vis(t, a + 9.4, b, .6, .5);
   const GW = 900, GH = 660 - 40;
   css($('defView'), { left: '985px', top: '120px', width: GW + 'px', height: (GH + 40) + 'px', opacity: g, transform: `translateX(${lerp(40, 0, eout(seg(t, a + 9.4, a + 10.2)))}px)` });
-  const r0 = D.defRegion, r1 = D.defBodyRegion, rp = eio(seg(t, a + 12.4, a + 13.6));
+  const fit = (b) => { const w = Math.max(b.w, b.h * GW / GH); return { x: b.x + b.w / 2 - w / 2, y: b.y + b.h / 2 - (w * GH / GW) / 2, w }; };
+  const r0 = fit(pad(B['def.nodes'], 30)), r1 = fit(pad(B['defx.rooms'], 40)), rp = eio(seg(t, a + 12.4, a + 13.6));
   const r = { x: lerp(r0.x, r1.x, rp), y: lerp(r0.y, r1.y, rp), w: lerp(r0.w, r1.w, rp) };
   const s = GW / r.w;
-  for (const [id, o] of [['defA', 1 - seg(t, a + 11.6, a + 12.0)], ['defB', seg(t, a + 11.6, a + 12.0)]]) css($(id), { width: 1920 * s + 'px', height: 1080 * s + 'px', left: (-r.x * s) + 'px', top: (-r.y * s) + 'px', opacity: o });
+  for (const [id, o] of [['defA', 1 - seg(t, a + 11.6, a + 12.0)], ['defB', seg(t, a + 11.6, a + 12.0)]]) css($(id), { width: SW * s + 'px', height: SH * s + 'px', left: (-r.x * s) + 'px', top: (-r.y * s) + 'px', opacity: o });
   // the cursor double-clicks the inline node to open its body
   if (t > a + 10.4 && t < b - .4) {
     const dc = center(B['def.rooms']); const target = { x: 985 + (dc.x - r.x) * s, y: 120 + 40 + (dc.y - r.y) * s };
@@ -322,7 +335,7 @@ function sceneEditor(t) {
   caption(t < a + 9.6 ? S['editor.caption'] : S['editor.graph'], vis(t, a + .6, b, .5, .4));
 }
 
-const CON_A = T.editorEnd, CON_B = T.shipEnd;
+const CON_A = T.drawEnd, CON_B = T.shipEnd;
 function sceneConsole(t) {
   const on = t > CON_A - .1 && t < CON_B + .1 && !(t > T.opsEnd + .1 && t < T.gateEnd + 2.3);
   $('console').style.display = on ? '' : 'none';
@@ -331,26 +344,25 @@ function sceneConsole(t) {
   for (const k in shots) lay[k] = 0;
   let cam = FULL;
   const R = B['process.rooms'], L = B['lanes.node'], C = B['lanes.cancel'], R2 = B['lanes.room102'], ST = B['process.status'];
-  const lane102 = { x: R2.x - 12, y: R2.y - 8, w: 252, h: 60 };
+  const lane102 = { x: R2.x - R2.h * .9, y: R2.y - R2.h * .6, w: L.w - 2 * (R2.x - R2.h * .9 - L.x), h: R2.h * 4.6 };
   if (t < T.consoleEnd) {
     const a = CON_A;
     lay['process-collapsed'] = 1 - seg(t, a + 2.62, a + 2.72);
     lay['process-lanes'] = seg(t, a + 2.62, a + 2.72);
+    const G = B['lanes.nodes'], LANES = frame(pad(L, 30)), CANCEL = frame(pad({ x: L.x + L.w * .45, y: C.y - 20, w: C.x + C.w - (L.x + L.w * .45), h: L.h * .7 }, 30));
+    const STATUS = frame(pad({ x: ST.x, y: ST.y - 50, w: 420, h: 130 }, 10), 3.2), OVER = frame(pad(G, 40));
     cam = camAt([
-      { t: a + 3.1, ...FULL },
-      { t: a + 4.6, cx: L.x + L.w / 2 + 60, cy: L.y + L.h / 2, z: 1.9 },
-      { t: a + 8.0, cx: L.x + L.w / 2 + 60, cy: L.y + L.h / 2, z: 1.9 },
-      { t: a + 9.6, cx: (L.x + L.w + C.x + C.w) / 2 - 80, cy: C.y + C.h / 2 + 20, z: 1.6 },
-      { t: a + 12.0, cx: (L.x + L.w + C.x + C.w) / 2 - 80, cy: C.y + C.h / 2 + 20, z: 1.6 },
-      { t: a + 13.2, cx: 560, cy: 300, z: 1.75 },
-      { t: a + 14.6, cx: 560, cy: 300, z: 1.75 },
-      { t: a + 16.0, ...FULL },
+      { t: a + .2, ...OVER }, { t: a + 3.1, ...OVER },
+      { t: a + 4.6, ...LANES }, { t: a + 8.0, ...LANES },
+      { t: a + 9.6, ...CANCEL }, { t: a + 12.0, ...CANCEL },
+      { t: a + 13.2, ...STATUS }, { t: a + 14.6, ...STATUS },
+      { t: a + 16.0, ...OVER },
     ], t);
     applyCam(cam);
     css($('console'), { opacity: vis(t, a, T.consoleEnd + 1, .5, .01), transform: `translateY(${lerp(40, 0, eout(seg(t, a, a + .7)))}px)` });
     ov.innerHTML = '';
     const rc = center(R);
-    const p = cursorPath([{ t: a + .8, x: 1300, y: 860 }, { t: a + 2.2, x: rc.x, y: rc.y }], t);
+    const p = cursorPath([{ t: a + .8, x: rc.x + 260, y: rc.y + 160 }, { t: a + 2.2, x: rc.x, y: rc.y }], t);
     if (t < a + 3.4) { const s = toScreen(p.x, p.y); cursor(s, vis(t, a + .8, a + 3.4, .3, .3)); pulse(s, t, a + 2.3, true); }
     highlight(lane102, vis(t, a + 4.8, a + 8.6, .4, .4), '#f87171');
     callout({ x: lane102.x + lane102.w, y: lane102.y + lane102.h / 2 }, vis(t, a + 5.2, a + 8.6, .4, .3), S['console.room102'], '#dc2626', 70, 215);
@@ -361,7 +373,8 @@ function sceneConsole(t) {
     caption(t < a + 15.2 ? S['console.caption1'] : S['console.caption2'], vis(t, a + .6, T.consoleEnd + .05, .5, .4));
   } else if (t < T.opsEnd) {
     const a = T.consoleEnd;
-    const OPS = { cx: 700, cy: 300, z: 1.58 };
+    const eb = B['list.errorRow'], cbx = B['list.errorCheckbox'], rbx = B['list.retry'], sbx = B['list.search'];
+    const OPS = frame({ x: cbx.x - 30, y: rbx.y - 20, w: rbx.x + rbx.w + 30 - (cbx.x - 30), h: eb.y + eb.h + 110 - (rbx.y - 20) }, 2.4);
     applyCam(camAt([{ t: a + .1, ...FULL }, { t: a + 1.1, ...OPS }], t));
     css($('console'), { opacity: 1 - .55 * seg(t, a + 6.2, a + 6.8), transform: 'none' });
     lay['process-lanes'] = 1 - seg(t, a, a + .4);
@@ -374,12 +387,12 @@ function sceneConsole(t) {
     if (t > a + 1.6 && t < a + 2.75) {
       const s = toScreen(sb.x + 2, sb.y + sb.h / 2), k = BASE * CAM.z;
       const txt = 'BK-4711'.slice(0, Math.ceil(7 * seg(t, a + 1.7, a + 2.4)));
-      el('abs', { left: s.x + 'px', top: s.y + 'px', fontSize: (17 * k / BASE) * BASE + 'px', color: '#e2e8f0', transform: 'translateY(-50%)', lineHeight: '1', whiteSpace: 'nowrap' },
+      el('abs', { left: s.x + 'px', top: s.y + 'px', fontSize: (14 * k) + 'px', color: '#e2e8f0', transform: 'translateY(-50%)', lineHeight: '1', whiteSpace: 'nowrap' },
         esc(txt) + (Math.floor(t * 3) % 2 ? '<span style="opacity:.8">|</span>' : ''));
     }
     const p = cursorPath([
-      { t: a + .5, x: 1100, y: 600 }, { t: a + 1.4, x: sb.x + 220, y: sb.y + sb.h / 2 },
-      { t: a + 3.6, x: sb.x + 220, y: sb.y + sb.h / 2 }, { t: a + 4.4, x: cb.x + cb.w / 2, y: cb.y + cb.h / 2 },
+      { t: a + .5, x: sb.x + 500, y: sb.y + 220 }, { t: a + 1.4, x: sb.x + 160, y: sb.y + sb.h / 2 },
+      { t: a + 3.6, x: sb.x + 160, y: sb.y + sb.h / 2 }, { t: a + 4.4, x: cb.x + cb.w / 2, y: cb.y + cb.h / 2 },
       { t: a + 4.9, x: cb.x + cb.w / 2, y: cb.y + cb.h / 2 }, { t: a + 5.7, x: rb.x + rb.w / 2, y: rb.y + rb.h / 2 },
     ], t);
     const s = toScreen(p.x, p.y);
@@ -389,12 +402,13 @@ function sceneConsole(t) {
     mcp(t, a + 6.4);
   } else {
     const a = T.gateEnd + 2.4;
-    applyCam(camAt([{ t: a + .6, ...FULL }, { t: a + 1.8, cx: B['versions.table'].x + 520, cy: B['versions.table'].y + B['versions.table'].h / 2 + 60, z: 1.6 }], t));
+    const VT = B['versions.table'];
+    applyCam(camAt([{ t: a + .6, ...FULL }, { t: a + 1.8, ...frame({ x: VT.x - 20, y: VT.y - 90, w: VT.w * .62, h: VT.h + 210 }, 2.6) }], t));
     css($('console'), { opacity: vis(t, a, CON_B, .5, .5), transform: 'none' });
     lay['versions'] = 1;
     ov.innerHTML = '';
     const vt = B['versions.table'];
-    highlight({ x: vt.x, y: vt.y + 48, w: Math.min(vt.w, 1130), h: vt.h - 48 }, vis(t, a + 2.0, CON_B - .4, .4, .3), '#6d7cff', 4);
+    highlight({ x: vt.x, y: vt.y + vt.h * .37, w: vt.w * .6, h: vt.h * .63 }, vis(t, a + 2.0, CON_B - .4, .4, .3), '#6d7cff', 4);
     callout({ x: vt.x + 300, y: vt.y + vt.h }, vis(t, a + 2.3, CON_B - .4, .4, .3), S['ship.versions'], '#4f46e5', 90, 130);
     caption(S['ship.caption'], vis(t, a, CON_B, .3, .4));
   }
@@ -483,12 +497,25 @@ function sceneOutro(t) {
     <div class="headline" style="top:760px;font-size:30px;font-weight:500;color:var(--muted);opacity:${r}">${esc(S['outro.links'])}</div>`;
 }
 
+function sceneDraw(t) {
+  const a = T.editorEnd, b = T.drawEnd, img = $('draw'), on = t > a - .1 && t < b + .1;
+  img.style.display = on ? '' : 'none';
+  window.pending = null;
+  if (!on) return;
+  const f = Math.max(1, Math.min(D.drawFrames, Math.floor((t - a) * 30 * DRAW_SPEED) + 1));
+  const src = `../build/editor/${String(f).padStart(5, '0')}.jpg`;
+  if (img.dataset.f !== String(f)) { img.src = src; img.dataset.f = String(f); window.pending = img.decode().catch(() => {}); }
+  css(img, { opacity: vis(t, a, b, .45, .45), transform: `scale(${lerp(.97, 1, eout(seg(t, a, a + .6)))})` });
+  caption(t < b - 3.2 ? S['draw.caption1'] : S['draw.caption2'], vis(t, a + .5, b, .4, .4));
+}
+
 window.render = function (t) {
   ov = $('overlay');
   if (!(t > CON_A - .1 && t < CON_B + .1)) ov.innerHTML = '';
   $('cap').style.opacity = 0;
   scenesIceberg(t);
   sceneEditor(t);
+  sceneDraw(t);
   sceneConsole(t);
   if (t < T.consoleEnd || t >= T.opsEnd) $('mcp').style.display = 'none';
   sceneGate(t);
