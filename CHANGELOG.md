@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.39.0] - 2026-11-13
+
 ### Added
 - **Edit inline PROCESS bodies in the graph editor.** Double-click an inline PROCESS (or **Edit ▸** in its panel) and its body becomes the graph being edited, with every tool — palette, links, panel, delete; a breadcrumb shows the path and **Esc** / **↩ Back** returns to the level above, at the arrangement and zoom it was left. Bodies nest. Edits are written back into the step's `steps`, so the host still receives the whole definition. A PROCESS panel switches between naming a child (`childWorkflowDefinitionId`) and writing it in line (a fresh body is a START and an END; the side switched away from is kept for the session).
 - **Panel fields for the new flags:** `forEach.onIterationFailure` and `forEach.label`, **Compensate losers** on an XOR join and **Compensate abandoned** on an END — each with the message `eventconductor:validate` would give when the combination is refused. The Mateu step form shows `compensateLosers` only on an XOR join.
