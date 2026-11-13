@@ -14,10 +14,10 @@ import java.util.Map;
  * real model — the definitions do not change.
  */
 @RestController
-@RequestMapping("/fake/llm/v1")
+@RequestMapping("/fake/llm")
 public class FakeLanguageModel {
 
-    @PostMapping("/chat/completions")
+    @PostMapping({"/chat/completions", "/v1/chat/completions"})
     public Map<String, Object> complete(@RequestBody Map<String, Object> request) {
         var prompt = String.valueOf(request.get("messages"));
         String answer;

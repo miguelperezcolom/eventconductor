@@ -1,0 +1,42 @@
+# Continuous integration for workflow definitions.
+#
+# In a repository of your own, put this file at .github/workflows/workflows.yml. (It lives in ci/
+# here because this project is a folder inside the EventConductor repository, not a repository root.)
+#
+# On every pull request and every push to main it runs, in this order:
+#   1. mvn verify — eventconductor:validate (schema, references, expressions) on every definition,
+#      then the test-kit tests: happy paths, failure paths, time, simulated integrations;
+#   2. eventconductor:check-migration — could the processes running the previous version move
+#      onto this one? Compared against the PR's base branch (or the previous commit on main).
+#
+# Protect main (Settings → Branches → require this check to pass): a definition that does not
+# validate, breaks a test or strands running processes can then never be merged — and so never
+# reach the engine, which imports main through its Git webhook.
+name: Workflows CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0                       # check-migration reads the previous version from git
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Validate the definitions and run the workflow tests
+        run: mvn -B verify
+
+      - name: Check that running processes can move onto this version
+        run: mvn -B eventconductor:check-migration -Dfrom="$FROM"
+        env:
+          FROM: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'HEAD~1' }}
