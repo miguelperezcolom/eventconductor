@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.40.0] - 2026-11-13
+
 ### Fixed
 - **`forms-engine` in an embedded application stopped it from starting** (*"HumanTaskEvents required a bean of type StreamBridge"*), in a `@WorkflowEmbeddedApplication` and under the workflow-test kit (`@EventConductorTest`) alike: embedded mode switches Spring Cloud Stream off (`EmbeddedModeAutoConfigurationExcluder` excludes its `FunctionConfiguration`), and the forms engine published through a `StreamBridge`. And had it started, the USER_TASK went to the application's `EmbeddedTaskExecutor`, not to the forms engine. Now, next to an embedded engine, the forms engine works in process: it takes every USER_TASK with a `formId` (and its escalations and cancellations) before the executor, the submitted form completes the step on the engine directly, and `HumanTaskChanged` events are Spring application events. Kafka mode is unchanged. `forms.embedded.serve-user-tasks=false` leaves USER_TASKs to the executor; the test kit sets it, so `completeUserTask` keeps working. New SPI in `shared`: `InProcessTaskRoute`, `InProcessUpstream`.
 - **`forms.directory-import.*` and `forms.git-import.*` were ignored when the workflow engine was in the same application** (embedded, or `orchestrator-standalone-app`): both engines had an `io.mateu.workflow.infra.config.DirectoryImportProperties` / `GitImportProperties`, only one of each was loaded, and it bound `workflow.*`. The forms engine's are now `FormsDirectoryImportProperties` / `FormsGitImportProperties`.
