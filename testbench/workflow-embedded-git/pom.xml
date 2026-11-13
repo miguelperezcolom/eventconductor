@@ -14,7 +14,7 @@
     <name>workflow-embedded-git</name>
     <description>EventConductor demo — embedded mode with JPA (H2) and workflow definitions imported from Git</description>
     <properties>
-        <mateu.version>3.0-beta.52</mateu.version>
+        <mateu.version>3.0-beta.63</mateu.version>
         <java.version>21</java.version>
     </properties>
     <dependencies>
@@ -62,17 +62,17 @@
 
         <dependency>
             <groupId>io.mateu</groupId>
-            <artifactId>annotation-processor-mvc</artifactId>
+            <artifactId>mateu-annotation-processor-mvc</artifactId>
             <version>${mateu.version}</version>
         </dependency>
         <dependency>
             <groupId>io.mateu</groupId>
-            <artifactId>mvc-core</artifactId>
+            <artifactId>mateu-mvc</artifactId>
             <version>${mateu.version}</version>
         </dependency>
         <dependency>
             <groupId>io.mateu</groupId>
-            <artifactId>vaadin-lit</artifactId>
+            <artifactId>mateu-vaadin</artifactId>
             <version>${mateu.version}</version>
         </dependency>
 
@@ -108,7 +108,7 @@
                                 </path>
                                 <path>
                                     <groupId>io.mateu</groupId>
-                                    <artifactId>annotation-processor-mvc</artifactId>
+                                    <artifactId>mateu-annotation-processor-mvc</artifactId>
                                     <version>${mateu.version}</version>
                                 </path>
                             </annotationProcessorPaths>

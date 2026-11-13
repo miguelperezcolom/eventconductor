@@ -7,6 +7,7 @@ import io.mateu.workflow.infra.in.ui.pages.Tasks;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * The forms UI's routes that are not a menu entry of one particular front door.
@@ -39,10 +40,19 @@ public class FormsRoutes implements RouteEntrySupplier {
         return TASK.replace(":_taskId", taskId);
     }
 
+    /**
+     * The mounts that serve these routes: Mateu's route table is ABSOLUTE (since 3.0-beta.63 a
+     * route is looked up only under the mount that was asked, never across mounts), so a code
+     * supplier names the mount in front of each route — the links stay mount-relative.
+     */
+    static final List<String> FRONT_DOORS = List.of("/_forms", "/_forms-admin");
+
     @Override
     public List<RouteEntry> routes() {
-        return List.of(
-                RouteEntry.of(TASK, Task.class.getName()),
-                RouteEntry.of(TASKS, Tasks.class.getName()));
+        return FRONT_DOORS.stream()
+                .flatMap(door -> Stream.of(
+                        RouteEntry.of(door + TASK, Task.class.getName()),
+                        RouteEntry.of(door + TASKS, Tasks.class.getName())))
+                .toList();
     }
 }

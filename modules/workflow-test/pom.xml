@@ -31,7 +31,7 @@
         <!-- The engine jar references mateu UI/uidl types at class level (CrudStore among them). -->
         <dependency>
             <groupId>io.mateu</groupId>
-            <artifactId>mvc-core</artifactId>
+            <artifactId>mateu-mvc</artifactId>
             <version>${mateu.version}</version>
         </dependency>
         <!-- The engine's request filters and the Mateu MVC configuration are parsed as configuration

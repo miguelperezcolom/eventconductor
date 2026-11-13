@@ -58,7 +58,7 @@
         </dependency>
         <dependency>
             <groupId>io.mateu</groupId>
-            <artifactId>mvc-core</artifactId>
+            <artifactId>mateu-mvc</artifactId>
             <version>${mateu.version}</version>
         </dependency>
         <!-- Generates the UI's index page at compile time from the @UI class. Without it the
@@ -66,13 +66,13 @@
              as a missing build step. -->
         <dependency>
             <groupId>io.mateu</groupId>
-            <artifactId>annotation-processor-mvc</artifactId>
+            <artifactId>mateu-annotation-processor-mvc</artifactId>
             <version>${mateu.version}</version>
         </dependency>
         <!-- The web components the engine's pages are rendered with. -->
         <dependency>
             <groupId>io.mateu</groupId>
-            <artifactId>vaadin-lit</artifactId>
+            <artifactId>mateu-vaadin</artifactId>
             <version>${mateu.version}</version>
         </dependency>
 
@@ -107,7 +107,7 @@
                         </path>
                         <path>
                             <groupId>io.mateu</groupId>
-                            <artifactId>annotation-processor-mvc</artifactId>
+                            <artifactId>mateu-annotation-processor-mvc</artifactId>
                             <version>${mateu.version}</version>
                         </path>
                     </annotationProcessorPaths>
