@@ -1,6 +1,6 @@
 # EventConductor promo — script
 
-1:43 (103 s), 1920×1080, 30 fps. It is made to be watched **muted**: everything that matters is
+1:49 (109 s): a 6-second opening ([`scenes/opening.html`](scenes/opening.html)) and the 103-second main timeline ([`scenes/index.html`](scenes/index.html)), 1920×1080, 30 fps. It is made to be watched **muted**: everything that matters is
 on screen. This script adds a **voice-over** for a narrated cut (YouTube, talks). Read it at an
 easy pace — each block fits its scene with room to breathe; where a line runs long, cut the
 words in *italics* first.
@@ -11,6 +11,7 @@ On-screen text lives in [`strings.json`](strings.json). To make another language
 
 | # | Time | On screen | Voice-over |
 |---|---|---|---|
+| 0 | opening, 6 s | The logo, **EventConductor**, "Business processes, without the plumbing." — then the hook, word by word: "How much of your code / is actually the business?" | How much of your code is actually the business? |
 | 1 | 0:00–0:06 | "Your process is three steps." — *Book each room · Get approval · Confirm to the customer* | Your business process is three steps. Book the rooms, get it approved, confirm to the customer. |
 | 2 | 0:06–0:18 | The water rises under the three steps; sixteen red chips sink below it, one by one. "Production adds the rest." | Then production adds the rest. Undo what already succeeded when a later step fails. Retries that must not book twice. A pod that dies halfway. Replies that arrive after you gave up. People who answer two days later. *Code that changes while runs are in flight.* |
 | 3 | 0:18–0:23 | "The code that never fails is the code you don't write." The red chips turn green: *Built into EventConductor*. | The code that never fails is the code you don't write. With EventConductor, all of that is built in. |
@@ -28,16 +29,18 @@ recording (493 frames played at 1.25×).
 
 ## YouTube chapters
 
-Published at https://youtu.be/ZFVvhcsp-28 (public, 2026-11-13). The home page embeds it.
+Times in the table above are on the main timeline; in the published video add the 6-second opening (as the chapters below do).
+
+Published at https://youtu.be/QZhz7KwSfUk (public, 2026-11-13; with the opening and a music bed from the YouTube Audio Library). The home page embeds it.
 
 ```
 0:00 Your process is three steps — production adds the rest
-0:23 Declare it
-0:38 Or draw it: the visual editor
-0:51 A real run: one room refused, the rest undone
-1:08 Operate: search, retry, ask your AI assistant
-1:18 A test gate on every pull request
-1:28 Ship without redeploying
+0:29 Declare it
+0:44 Or draw it: the visual editor
+0:57 A real run: one room refused, the rest undone
+1:14 Operate: search, retry, ask your AI assistant
+1:24 A test gate on every pull request
+1:34 Ship without redeploying
 ```
 
 ## What is real and what is illustrated

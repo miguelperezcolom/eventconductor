@@ -1,5 +1,7 @@
 {
   "lang": "en",
+  "opening.tagline": "Business processes, without the plumbing.",
+  "opening.hook": ["How much of your code", "is actually the business?"],
   "intro.headline": "Your process is three steps.",
   "chips.business": [
     "Book each room",

@@ -21,6 +21,7 @@ const FPS = Number(arg('fps', 30));
 const from = Number(arg('from', 0));
 const stills = arg('stills', null);
 const out = resolve(here, arg('out', 'build/master.mp4'));
+const scenePage = arg('page', 'scenes/index.html');            // or scenes/opening.html
 
 const read = (p) => readFileSync(resolve(here, p), 'utf8');
 const lines = (p) => read(p).split('\n').filter((l) => l.trim().length > 0);
@@ -54,7 +55,7 @@ const DATA = {
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
 await page.addInitScript((d) => { window.DATA = d; }, DATA);
-await page.goto('file://' + resolve(here, 'scenes/index.html'));
+await page.goto('file://' + resolve(here, scenePage));
 await page.evaluate(() => window.ready);
 await page.evaluate(() => window.render(0));
 await page.waitForTimeout(300);
