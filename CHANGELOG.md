@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Templates inside an inline PROCESS body under a `forEach` lost the item and the business key.** Each child got the item (`as`) and index (`indexAs`) as variables, but as JSON text, so `${room.number}` rendered empty in the body's `HTTP_CALL`s and compensations; and `${businessKey}` rendered the child's generated key (`parent:<id>`), so `Idempotency-Key: "${businessKey}-${room.number}"` — the example of the docs and the workshop — gave neither a stable nor a per-room key. Now a child started for one forEach item (inline or named) reads the iteration's variables as structure in its templates and guards, as an iteration of any other step does; and inside an inline body `${businessKey}` is the business key of the process that owns the body (outermost, for nested bodies). The child keeps its own key as `process.businessKey`, in the console and for everything else, and a named child still reads its own key. What a child inherits is stored with it (migration V62: `inherited_business_key`, `structured_variables`), so it holds in memory, JPA and Kafka modes alike.
+
 ## [2.39.0] - 2026-11-13
 
 ### Added

@@ -182,9 +182,10 @@ public class CreateProcessUseCase {
                         command.parentStepExecutionId()
                 );
         String initiatingActor = command.caller() == null ? null : command.caller().subject();
-        var origin = command.parentStepExecutionId() == null ? null
-                : stepExecutionRepository.findById(command.parentStepExecutionId())
-                    .flatMap(parent -> processRepository.findById(parent.getProcessId())).orElse(null);
+        var parentExecution = command.parentStepExecutionId() == null ? null
+                : stepExecutionRepository.findById(command.parentStepExecutionId()).orElse(null);
+        var origin = parentExecution == null ? null
+                : processRepository.findById(parentExecution.getProcessId()).orElse(null);
         if (command.parentStepExecutionId() != null)
             initiatingActor = origin == null ? null : origin.getInitiatingActor();
         if (origin == null && command.continuedFromProcessId() != null)
@@ -196,6 +197,10 @@ public class CreateProcessUseCase {
         var creationEvents = process.popEvents();
         process = process.withInitiatingActor(initiatingActor).withTestRun(testRun)
                 .withTestRunRequestDigest(testDigest);
+        if (parentExecution != null && origin != null) {
+            process = process.withInheritedBusinessKey(inheritedBusinessKey(parentExecution, origin))
+                    .withStructuredVariables(structuredVariables(parentExecution, origin));
+        }
         creationEvents.forEach(process::send);
         if (workflowDefinition.paused()) {
             // Born paused: creation is deliberately still accepted while the definition is
@@ -355,6 +360,37 @@ public class CreateProcessUseCase {
             return java.util.Optional.empty();
         }
         return java.util.Optional.of(embedded);
+    }
+
+    /**
+     * The business key a child's templates and guards read as {@code businessKey}: for a child an inline
+     * body became, the one its parent reads (the owner's — a body is part of its parent's definition, so
+     * {@code ${businessKey}} in it means what it means next to it); null — its own — for a named child.
+     */
+    private static String inheritedBusinessKey(StepExecution parentExecution, Process parent) {
+        var step = parentStep(parentExecution);
+        return io.mateu.workflow.domain.services.EmbeddedProcessDefinitions.isInlineProcess(step)
+                ? parent.templateBusinessKey() : null;
+    }
+
+    /**
+     * The variables a child reads as structure: those its parent did (they reach it as variables too), and,
+     * for the child of one forEach item, the iteration's {@code as} and {@code indexAs} — which arrive as
+     * process variables, strings, and would otherwise leave {@code ${room.number}} empty. Null for none.
+     */
+    private static String structuredVariables(StepExecution parentExecution, Process parent) {
+        var names = new java.util.LinkedHashSet<>(parent.structuredVariableNames());
+        var step = parentStep(parentExecution);
+        if (parentExecution.getParentExecutionId() != null && step != null && step.forEach() != null) {
+            names.add(step.forEach().itemVariable());
+            names.add(step.forEach().indexVariable());
+        }
+        return names.isEmpty() ? null : String.join(",", names);
+    }
+
+    private static io.mateu.workflow.domain.aggregates.Step parentStep(StepExecution parentExecution) {
+        return parentExecution.getStepJson() == null ? null : io.mateu.core.infra.JsonSerializer.pojoFromJson(
+                parentExecution.getStepJson(), io.mateu.workflow.domain.aggregates.Step.class);
     }
 
     private static boolean isAPROCESSStepsChild(CreateProcessCommand command) {

@@ -45,7 +45,7 @@ public final class MultiInstance {
     public static List<Object> items(ForEach forEach, Process process) {
         var context = new HashMap<String, Object>();
         process.getVariables().forEach(variable -> context.put(variable.name(), structured(variable.value())));
-        context.put("businessKey", process.getBusinessKey());
+        context.put("businessKey", process.templateBusinessKey());
         Object value;
         try {
             value = evaluate(forEach.items(), context).value();
@@ -180,7 +180,7 @@ public final class MultiInstance {
         }
         var context = new HashMap<String, Object>();
         process.getVariables().forEach(variable -> context.put(variable.name(), structured(variable.value())));
-        context.put("businessKey", process.getBusinessKey());
+        context.put("businessKey", process.templateBusinessKey());
         context.putAll(typed(scope));
         var value = evaluate(forEach.label(), context).value();
         if (value == null) {
@@ -261,7 +261,7 @@ public final class MultiInstance {
     public static boolean conditionHolds(ForEach forEach, Process process, List<StepExecution> iterations,
                                          int total, int completed, int active, int failed) {
         var context = new HashMap<String, Object>();
-        process.getVariables().forEach(variable -> context.put(variable.name(), variable.value()));
+        context.putAll(process.expressionVariables());
         if (forEach.hasOutput()) {
             context.put(forEach.output(), structured(output(forEach, iterations, total)));
         }
@@ -269,7 +269,7 @@ public final class MultiInstance {
         context.put("totalIterations", total);
         context.put("activeIterations", active);
         context.put("failedIterations", failed);
-        context.put("businessKey", process.getBusinessKey());
+        context.put("businessKey", process.templateBusinessKey());
         try {
             var value = evaluate(forEach.completionCondition(), context).value();
             return Truthiness.isTruthy(value);

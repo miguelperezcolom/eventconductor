@@ -499,6 +499,37 @@ What differs is where the child's definition comes from:
   its problems say where they are: `booking.rooms: Step 'confirm' has no preconditions …`.
 - Steps inside it that wait for a message or an event (`WAIT_FOR_MESSAGE`, `onEvent`, `awaitReply`)
   are routed as any other's.
+- **`${businessKey}` inside it is the parent's.** The body is part of the parent's definition, so its
+  templates and guards read `businessKey` as they would next to it: the business key of the process
+  that owns the body (for a body inside a body, the outermost one's). The child keeps its own key,
+  `parent:<stepExecutionId>`, as `process.businessKey`, in the console and for everything else. A
+  child named by `childWorkflowDefinitionId` reads its own key, as always.
+
+Under a `forEach`, every child — inline or named — also receives the item and its index as variables
+(`as`, `indexAs`), and its templates and guards read the item as structure, as an iteration of any
+other step does: `${room.number}` works in the body's `HTTP_CALL`s, in its compensations and in its
+guards. So the example in [Not creating duplicates](/guides/http-calls/#not-creating-duplicates-in-the-target-system)
+works unchanged inside an inline body:
+
+```yaml
+- id: rooms
+  type: PROCESS
+  name: Book every room
+  preconditionStepId: start
+  forEach: { items: rooms, as: room }
+  steps:
+    - { id: start, type: START, name: Start }
+    - id: create
+      type: HTTP_CALL
+      name: Create the room booking
+      preconditionStepId: start
+      http:
+        connection: hotel
+        method: POST
+        path: /bookings
+        headers: { Idempotency-Key: "${businessKey}-${room.number}" }   # BOOKING-1-101, BOOKING-1-102 …
+    - { id: end, type: END, name: End, preconditionStepId: create }
+```
 
 ---
 
