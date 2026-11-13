@@ -26,7 +26,21 @@ public final class ProcessGraphProjection {
     public static Graph project(WorkflowDefinition definition, Process process,
                                 List<StepExecution> steps, List<LogMessage> logs,
                                 Map<String, String> childProcessIds) {
+        return project(definition, process, steps, logs, childProcessIds, Map.of());
+    }
+
+    /**
+     * {@link #project(WorkflowDefinition, Process, List, List, Map)}, with how the steps of an inline
+     * PROCESS body stand in each child run ({@code childProcessId → bodyStepId → state}, see {@link
+     * #childBodyStates}): a forEach iteration or a plain inline PROCESS node carries it as {@code
+     * body}, which the graph draws as that run's lane when the node is expanded.
+     */
+    public static Graph project(WorkflowDefinition definition, Process process,
+                                List<StepExecution> steps, List<LogMessage> logs,
+                                Map<String, String> childProcessIds,
+                                Map<String, Map<String, String>> bodyStates) {
         var children = childProcessIds == null ? Map.<String, String>of() : childProcessIds;
+        var bodies = bodyStates == null ? Map.<String, Map<String, String>>of() : bodyStates;
         var byStep = new HashMap<String, StepExecution>();
         for (var se : io.mateu.workflow.domain.services.StepExecutions.current(steps)) {
             byStep.merge(se.getStepId(), se, (a, b) -> {
@@ -41,10 +55,12 @@ public final class ProcessGraphProjection {
         byStep.forEach((id, execution) -> {
             var entry = overlayEntry(execution, errors.get(execution.id()), sensitive);
             if (order.containsKey(id)) entry.put("order", order.get(id));
-            putRunsAndIterations(entry, execution, steps, children, errors);
+            putRunsAndIterations(entry, execution, steps, children, errors, bodies);
             var child = execution.id() == null ? null : children.get(execution.id());
             if (child != null && !execution.isContainer()) {
                 entry.put("childProcessId", child);
+                var body = bodies.get(child);
+                if (body != null) entry.put("body", body);
             }
             overlay.put(id, entry);
         });
@@ -126,6 +142,17 @@ public final class ProcessGraphProjection {
      */
     public static void putRunsAndIterations(Map<String, Object> entry, StepExecution current, List<StepExecution> all,
                                             Map<String, String> childProcessIds, Map<String, String> errors) {
+        putRunsAndIterations(entry, current, all, childProcessIds, errors, Map.of());
+    }
+
+    /**
+     * {@link #putRunsAndIterations(Map, StepExecution, List, Map, Map)}, each listed iteration also
+     * carrying its forEach {@code itemLabel} and — for a forEach over an inline PROCESS body — the
+     * {@code body} states of the child run it started.
+     */
+    public static void putRunsAndIterations(Map<String, Object> entry, StepExecution current, List<StepExecution> all,
+                                            Map<String, String> childProcessIds, Map<String, String> errors,
+                                            Map<String, Map<String, String>> bodyStates) {
         long runs = all.stream()
                 .filter(e -> e.getParentExecutionId() == null && current.getStepId().equals(e.getStepId())
                         && !io.mateu.workflow.domain.aggregates.StepExecution.LOOP_DISCARDED.equals(e.getLoopDecision())
@@ -142,7 +169,7 @@ public final class ProcessGraphProjection {
             summary.put("failed", iterations.stream().filter(i -> i.getStatus() == StepExecutionStatus.ERROR
                     || i.getStatus() == StepExecutionStatus.TIMEOUT).count());
             summary.put("active", iterations.stream().filter(i -> i.getStatus().keepsTheProcessInFlight()).count());
-            var items = iterationItems(iterations, childProcessIds, errors);
+            var items = iterationItems(iterations, childProcessIds, errors, bodyStates);
             if (!items.isEmpty()) {
                 summary.put("items", items);
             }
@@ -156,6 +183,12 @@ public final class ProcessGraphProjection {
      */
     static List<Map<String, Object>> iterationItems(List<StepExecution> iterations,
                                                      Map<String, String> childProcessIds, Map<String, String> errors) {
+        return iterationItems(iterations, childProcessIds, errors, Map.of());
+    }
+
+    static List<Map<String, Object>> iterationItems(List<StepExecution> iterations,
+                                                     Map<String, String> childProcessIds, Map<String, String> errors,
+                                                     Map<String, Map<String, String>> bodyStates) {
         var byIndex = new TreeMap<Integer, StepExecution>();
         for (var it : iterations) {
             if (it.getItemIndex() == null) continue;
@@ -172,6 +205,7 @@ public final class ProcessGraphProjection {
             if (items.size() >= MAX_LISTED_ITERATIONS) break;
             var item = new LinkedHashMap<String, Object>();
             item.put("index", it.getItemIndex());
+            if (it.getItemLabel() != null && !it.getItemLabel().isBlank()) item.put("itemLabel", it.getItemLabel());
             if (it.getStatus() != StepExecutionStatus.CREATED || it.getAttemptCount() > 0) {
                 item.put("state", overlayState(it.getStatus()));
             }
@@ -180,7 +214,11 @@ public final class ProcessGraphProjection {
             if (error != null) item.put("error", error);
             if (it.getAttemptCount() > 0) item.put("attempt", it.getAttemptCount());
             var child = children.get(it.id());
-            if (child != null) item.put("childProcessId", child);
+            if (child != null) {
+                item.put("childProcessId", child);
+                var body = bodyStates == null ? null : bodyStates.get(child);
+                if (body != null) item.put("body", body);
+            }
             items.add(item);
         }
         return items;
@@ -206,6 +244,78 @@ public final class ProcessGraphProjection {
                 .toList();
         if (executionIds.isEmpty()) return Map.of();
         return processes.findChildIdsByParentStepExecutionIds(executionIds);
+    }
+
+    /**
+     * How many lanes the graph draws for an expanded forEach over an inline PROCESS body — the same
+     * cap as its iteration cards — and so how many child runs {@link #childBodyStates} reads the
+     * steps of, per such step. The lanes past it are summarised; the Steps tab lists them all.
+     */
+    public static final int MAX_BODY_LANES = 20;
+
+    /**
+     * How the body steps of this process's inline PROCESS steps stand in the child runs they started:
+     * {@code childProcessId → bodyStepId → overlay state}. Only inline bodies (a named child workflow
+     * is opened, not drawn in line), only the first {@link #MAX_BODY_LANES} items of a forEach, and
+     * one store call for all of those children together — never one per child.
+     *
+     * @param childProcessIds what {@link #childProcessIds} found ({@code parentStepExecutionId →
+     *                        child process id})
+     */
+    public static Map<String, Map<String, String>> childBodyStates(
+            WorkflowDefinition definition, List<StepExecution> steps, Map<String, String> childProcessIds,
+            io.mateu.workflow.application.out.StepExecutionRepository stepExecutions) {
+        if (definition == null || steps == null || childProcessIds == null || childProcessIds.isEmpty()
+                || stepExecutions == null) return Map.of();
+        var inlineStepIds = withInjectedSteps(definition, steps).steps().stream()
+                .filter(io.mateu.workflow.domain.services.EmbeddedProcessDefinitions::isInlineProcess)
+                .map(io.mateu.workflow.domain.aggregates.Step::id)
+                .collect(java.util.stream.Collectors.toSet());
+        if (inlineStepIds.isEmpty()) return Map.of();
+        var wanted = new LinkedHashSet<String>();
+        // Iterations by container, so each forEach contributes its first MAX_BODY_LANES items only.
+        var itemsByContainer = new HashMap<String, TreeMap<Integer, List<StepExecution>>>();
+        for (var se : steps) {
+            if (se.id() == null || !inlineStepIds.contains(se.getStepId())) continue;
+            if (se.isIteration()) {
+                if (se.getItemIndex() == null || se.getParentExecutionId() == null) continue;
+                itemsByContainer.computeIfAbsent(se.getParentExecutionId(), k -> new TreeMap<>())
+                        .computeIfAbsent(se.getItemIndex(), k -> new ArrayList<>()).add(se);
+            } else if (!se.isContainer() && io.mateu.workflow.domain.services.StepExecutions.isCurrent(se)) {
+                var child = childProcessIds.get(se.id());
+                if (child != null) wanted.add(child);
+            }
+        }
+        for (var byIndex : itemsByContainer.values()) {
+            int lanes = 0;
+            for (var executions : byIndex.values()) {
+                if (lanes++ >= MAX_BODY_LANES) break;
+                for (var se : executions) {
+                    var child = childProcessIds.get(se.id());
+                    if (child != null) wanted.add(child);
+                }
+            }
+        }
+        if (wanted.isEmpty()) return Map.of();
+        var result = new LinkedHashMap<String, Map<String, String>>();
+        stepExecutions.findByProcessIds(wanted).forEach((childId, executions) -> {
+            var byStep = new LinkedHashMap<String, StepExecution>();
+            for (var se : io.mateu.workflow.domain.services.StepExecutions.current(executions)) {
+                if (se.isIteration()) continue;   // a forEach inside the body reads as its container
+                byStep.merge(se.getStepId(), se, (a, b) -> {
+                    int ra = statusRank(a.getStatus()), rb = statusRank(b.getStatus());
+                    return rb != ra ? (rb > ra ? b : a) : (b.getAttemptCount() >= a.getAttemptCount() ? b : a);
+                });
+            }
+            var states = new LinkedHashMap<String, String>();
+            byStep.forEach((stepId, se) -> {
+                if (se.getStatus() != StepExecutionStatus.CREATED || se.getAttemptCount() > 0) {
+                    states.put(stepId, overlayState(se.getStatus()));
+                }
+            });
+            result.put(childId, states);
+        });
+        return result;
     }
 
     /** Overlay state token understood by the graph component. */

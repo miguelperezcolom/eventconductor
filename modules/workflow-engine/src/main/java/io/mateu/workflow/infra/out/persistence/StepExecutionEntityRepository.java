@@ -10,6 +10,7 @@ import java.util.List;
 
 public interface StepExecutionEntityRepository extends JpaRepository<StepExecutionEntity, String> {
     List<StepExecutionEntity> findAllByProcessIdOrderByOrder(String processId);
+    List<StepExecutionEntity> findAllByProcessIdInOrderByOrder(java.util.Collection<String> processIds);
     List<StepExecutionEntity> findAllByStatusIn(List<String> statuses);
     List<StepExecutionEntity> findAllByProcessIdAndStatusIn(String processId, List<String> statuses);
     List<StepExecutionEntity> findAllByStatusInAndDeadlineAtLessThanEqual(List<String> statuses, LocalDateTime deadline);

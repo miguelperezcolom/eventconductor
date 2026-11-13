@@ -23,6 +23,22 @@ public interface StepExecutionRepository extends CrudStore<StepExecution> {
      */
     List<StepExecution> findByProcessId(String processId);
 
+    /**
+     * The step executions of several processes at once, by process id (each list in execution
+     * order; a process with none is absent). For views that show a handful of child runs together —
+     * the process graph's lanes — and must not ask once per child. The default asks once per
+     * process, which is what an in-memory store does anyway; a database store answers in one query.
+     */
+    default java.util.Map<String, List<StepExecution>> findByProcessIds(java.util.Collection<String> processIds) {
+        var result = new java.util.LinkedHashMap<String, List<StepExecution>>();
+        if (processIds == null) return result;
+        for (var id : new java.util.LinkedHashSet<>(processIds)) {
+            var executions = findByProcessId(id);
+            if (!executions.isEmpty()) result.put(id, executions);
+        }
+        return result;
+    }
+
     /** Convenience for callers that hold the aggregate and are not about to save it. */
     default List<StepExecution> findByProcess(Process process) {
         return findByProcessId(process.id());

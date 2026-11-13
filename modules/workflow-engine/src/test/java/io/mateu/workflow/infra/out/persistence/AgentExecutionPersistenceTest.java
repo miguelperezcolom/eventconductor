@@ -49,4 +49,28 @@ class AgentExecutionPersistenceTest {
         assertThat(restored.getScopeJson()).isEqualTo(execution.getScopeJson());
         assertThat(restored.getOutputJson()).isEqualTo("{}");
     }
+
+    @Test void stepsOfSeveralProcessesComeInOneQueryPerChunkGroupedByProcess() {
+        var rows = mock(StepExecutionEntityRepository.class);
+        var saved = new java.util.ArrayList<StepExecutionEntity>();
+        when(rows.save(any())).thenAnswer(call -> { saved.add(call.getArgument(0)); return call.getArgument(0); });
+        var repository = new StepExecutionDBRepository(rows, mock(OutboxMessageEntityRepository.class),
+                WorkflowTracing.NOOP, mock(OutboxSignal.class), mock(ObjectProvider.class),
+                io.mateu.workflow.application.services.VariableProtection.none());
+        repository.save(StepExecution.builder().id("a1").processId("a").stepJson("{}").status(StepExecutionStatus.COMPLETED).build());
+        repository.save(StepExecution.builder().id("b1").processId("b").stepJson("{}").status(StepExecutionStatus.RUNNING).build());
+        repository.save(StepExecution.builder().id("a2").processId("a").stepJson("{}").status(StepExecutionStatus.PENDING).build());
+        when(rows.findAllByProcessIdInOrderByOrder(anyCollection())).thenAnswer(call -> {
+            java.util.Collection<String> ids = call.getArgument(0);
+            return saved.stream().filter(e -> ids.contains(e.getProcessId())).toList();
+        });
+
+        var found = repository.findByProcessIds(List.of("a", "b", "none"));
+
+        assertThat(found).containsOnlyKeys("a", "b");
+        assertThat(found.get("a")).extracting(StepExecution::id).containsExactly("a1", "a2");
+        verify(rows, times(1)).findAllByProcessIdInOrderByOrder(anyCollection());
+        verify(rows, never()).findAllByProcessIdOrderByOrder(anyString());
+        assertThat(repository.findByProcessIds(List.of())).isEmpty();
+    }
 }

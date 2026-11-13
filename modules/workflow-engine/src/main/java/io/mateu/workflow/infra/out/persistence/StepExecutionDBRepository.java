@@ -164,6 +164,23 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
     }
 
     @Override
+    public java.util.Map<String, List<StepExecution>> findByProcessIds(java.util.Collection<String> processIds) {
+        var result = new java.util.LinkedHashMap<String, List<StepExecution>>();
+        if (processIds == null || processIds.isEmpty()) return result;
+        // Chunked, like the child-link lookup: some databases cap the length of an IN list.
+        var ids = new java.util.ArrayList<>(new java.util.LinkedHashSet<>(processIds));
+        for (int from = 0; from < ids.size(); from += PROCESS_ID_CHUNK) {
+            for (var entity : stepExecutionEntityRepository.findAllByProcessIdInOrderByOrder(
+                    ids.subList(from, Math.min(from + PROCESS_ID_CHUNK, ids.size())))) {
+                result.computeIfAbsent(entity.getProcessId(), k -> new java.util.ArrayList<>()).add(map(entity));
+            }
+        }
+        return result;
+    }
+
+    private static final int PROCESS_ID_CHUNK = 500;
+
+    @Override
     public List<StepExecution> findPendingOrRunning() {
         return stepExecutionEntityRepository
                 .findAllByStatusIn(List.of(PENDING.name(), RUNNING.name()))
