@@ -456,10 +456,24 @@ interface StepOverlay {
     injected?: boolean;
     /** The DYNAMIC step execution that injected it — provenance, for tooling that traces it back. */
     injectedBy?: string;
-    /** Process view, forEach steps: how its iterations stand. */
-    iterations?: {total: number; completed: number; failed: number; active: number};
+    /** Process view, forEach steps: how its iterations stand, and (`items`) each one, in item order. */
+    iterations?: {total: number; completed: number; failed: number; active: number; items?: IterationItem[]};
+    /** Process view, PROCESS steps: the child run this step started (opened on a double click). */
+    childProcessId?: string;
     /** Process view, looped steps: how many times the step has run (passes of a repeat/loopBack). */
     runs?: number;
+}
+
+/** One forEach iteration as the process view sends it (see ProcessGraphProjection). */
+interface IterationItem {
+    index: number;
+    /** Absent while the iteration has not been reached. */
+    state?: StepState;
+    reason?: string;
+    error?: string;
+    attempt?: number;
+    /** For a forEach over PROCESS: the child run this iteration started. */
+    childProcessId?: string;
 }
 
 interface NodePos { x: number; y: number; }
@@ -472,6 +486,25 @@ interface Box { x: number; y: number; w: number; h: number; }
 const NODE_W = 176;
 const NODE_H = 60;
 const PAD = 60;
+
+// An expanded forEach (process view, double click): the node opens into a frame with one small card
+// per iteration, stacked, fanning out of the frame's left edge and back into its right one — so the
+// iterations hang off the same incoming and outgoing edges as the collapsed node.
+const EXP_W = 236;
+/** Room above the first iteration for the step's title and id. */
+const EXP_HEAD = 44;
+/** Horizontal room either side of the iteration cards for the fan-in/fan-out lines. */
+const EXP_SIDE = 30;
+const EXP_PAD_B = 12;
+const ITER_H = 24;
+const ITER_GAP = 6;
+/** More than this and the rest are summarised in one "+N more" row (the Steps tab lists them all). */
+const MAX_EXPANDED_ITERATIONS = 20;
+/** The glyph an iteration card ends with, by state; a card not reached yet has none. */
+const ITERATION_MARKS: Record<string, string> = {
+    COMPLETED: "✓", ERROR: "✕", TIMEOUT: "⏱", CANCELLED: "⊘", RUNNING: "…", PENDING: "…",
+    WAITING_ON_LOCK: "🔒", REVIEW_REQUIRED: "!",
+};
 
 const STEP_TYPES: StepType[] = [
     "START", "ACTION", "USER_TASK", "RULE", "TIMER",
@@ -1358,6 +1391,19 @@ export class MateuWorkflowElk extends LitElement {
     /** Parsed monitoring overlay (see the `overlay` property): stepId → live count / state. */
     @state() private overlayData: Record<string, StepOverlay> = {};
     @state() private positions: Record<string, NodePos> = {};
+    /**
+     * Process view: the forEach steps opened (double click) into their iterations. Purely a way of
+     * looking — never written into the definition, never emitted.
+     */
+    @state() private expanded = new Set<string>();
+    /**
+     * The arrangement as it was before the first expansion, restored as it was when the last one is
+     * collapsed — so opening and closing a forEach leaves the graph exactly where it found it,
+     * including the positions a file declares.
+     */
+    private beforeExpansion: {positions: Record<string, NodePos>; elkPositioned: Set<string>} | null = null;
+    /** The sizes the current layout was computed for; a change (iterations arriving) relays it out. */
+    private expansionSignature = "";
     @state() private layoutReady = false;
     @state() private layoutPending = false;
     private layoutGeneration = 0;
@@ -1507,7 +1553,9 @@ export class MateuWorkflowElk extends LitElement {
                 // as well as placed, so the run below only has to find room for the steps the file
                 // says nothing about — a step added since the arrangement was made, or one a DYNAMIC
                 // step injected into a running process.
-                this.adoptLayout(this.wf.layout);
+                // While a forEach is expanded the file's arrangement is set aside (it is restored on
+                // collapse) — re-pinning it here, on every poll, would pull the expanded layout apart.
+                if (this.expanded.size === 0) this.adoptLayout(this.wf.layout);
                 if (structureChanged || !this.layoutReady) {
                     this.didInitialFit = false;   // re-fit the new graph in view
                     this.runElkLayout();
@@ -1531,6 +1579,11 @@ export class MateuWorkflowElk extends LitElement {
                 this.overlayData = this.overlay ? JSON.parse(this.overlay) : {};
             } catch {
                 this.overlayData = {};
+            }
+            // An expanded forEach is as tall as its iterations: when they arrive (or the node stops
+            // having any), the boxes changed size and the layout has to make room again.
+            if (this.expanded.size > 0 && this.layoutReady && this.currentExpansionSignature() !== this.expansionSignature) {
+                void this.layoutForExpansion();
             }
         }
         // Keep the token-flow loop in sync with the toggle and layout readiness. A monitoring
@@ -1732,7 +1785,7 @@ export class MateuWorkflowElk extends LitElement {
                 "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
             },
             children: steps.map(s => {
-                const {w, h} = sizeOf(s.type);
+                const {w, h} = this.sizeOfStep(s);
                 return {id: s.id, width: w, height: h};
             }),
             edges: this.layoutEdges(steps),
@@ -2236,6 +2289,171 @@ export class MateuWorkflowElk extends LitElement {
         if (!this.readOnly) this.emit();
     }
 
+    // ── forEach expansion and child runs (process view) ───────────────────────
+
+    /** A step's box: its type's, or — for an expanded forEach — the frame holding its iterations. */
+    private sizeOfStep(step: WorkflowStep): {w: number; h: number} {
+        const shown = this.expandedIterations(step.id);
+        if (!shown) return sizeOf(step.type);
+        const rows = shown.items.length + (shown.hidden > 0 ? 1 : 0);
+        return {w: EXP_W, h: EXP_HEAD + rows * ITER_H + (rows - 1) * ITER_GAP + EXP_PAD_B};
+    }
+
+    /** The iterations an expanded node draws (and how many it leaves out), or null when it is not expanded. */
+    private expandedIterations(id: string): {items: IterationItem[]; hidden: number} | null {
+        if (!this.expanded.has(id)) return null;
+        const items = this.overlayData[id]?.iterations?.items ?? [];
+        if (items.length === 0) return null;
+        const total = Math.max(this.overlayData[id]?.iterations?.total ?? items.length, items.length);
+        const shown = items.slice(0, MAX_EXPANDED_ITERATIONS);
+        return {items: shown, hidden: total - shown.length};
+    }
+
+    private currentExpansionSignature(): string {
+        return [...this.expanded].sort().map(id => `${id}:${this.sizeOfStepById(id).h}`).join("|");
+    }
+
+    private sizeOfStepById(id: string) {
+        const step = (this.wf.steps ?? []).find(s => s.id === id);
+        return step ? this.sizeOfStep(step) : {w: 0, h: 0};
+    }
+
+    /**
+     * Double click, process view only — a definition, in the editor or with live counts on it, has
+     * no single run to open, so there the gesture does what it always did (nothing).
+     *
+     * <p>On a forEach it opens the node into its iterations, or closes it again; that comes first
+     * even for a forEach over PROCESS, whose node has no one child to go to — each iteration has its
+     * own, opened by double clicking that iteration. On a plain PROCESS step it opens the child run.
+     */
+    private onNodeDblClick(e: MouseEvent, id: string) {
+        if (!this.hasStateOverlay()) return;
+        const step = (this.wf.steps ?? []).find(s => s.id === id);
+        const ov = this.overlayData[id];
+        if (!step || !ov) return;
+        if (step.forEach) {
+            if (this.expanded.has(id) || (ov.iterations?.items?.length ?? 0) > 0) {
+                e.stopPropagation();
+                this.toggleExpanded(id);
+            }
+            return;
+        }
+        if (step.type === "PROCESS" && ov.childProcessId) {
+            e.stopPropagation();
+            this.openProcess(ov.childProcessId, id);
+        }
+    }
+
+    private onIterationDblClick(e: MouseEvent, stepId: string, item: IterationItem) {
+        // Never the node's own double click underneath: that would collapse what was just opened.
+        e.stopPropagation();
+        if (item.childProcessId) this.openProcess(item.childProcessId, stepId, item.index);
+    }
+
+    /**
+     * Asks the host to show a child run. The component cannot navigate itself — it does not know
+     * where it is mounted, or whether there is anywhere to go (an IDE webview may have nowhere) — so
+     * it says what it wants and the host decides; a host that does not listen loses nothing.
+     */
+    private openProcess(processId: string, stepId: string, itemIndex?: number) {
+        this.dispatchEvent(new CustomEvent("ec-open-process", {
+            detail: {processId, stepId, ...(itemIndex === undefined ? {} : {itemIndex})},
+            bubbles: true, composed: true,
+        }));
+    }
+
+    private toggleExpanded(id: string) {
+        const next = new Set(this.expanded);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        if (this.expanded.size === 0 && next.size > 0) {
+            this.beforeExpansion = {positions: {...this.positions}, elkPositioned: new Set(this.elkPositioned)};
+        }
+        const anchor = this.positions[id];
+        this.expanded = next;
+        if (next.size === 0 && this.beforeExpansion) {
+            // The last one closed: back to the arrangement from before, untouched.
+            this.positions = this.beforeExpansion.positions;
+            this.elkPositioned = this.beforeExpansion.elkPositioned;
+            this.beforeExpansion = null;
+            this.expansionSignature = "";
+            this.keepOnScreen(id, anchor);
+            return;
+        }
+        void this.layoutForExpansion(id, anchor);
+    }
+
+    /**
+     * A fresh layout with the expanded frames at their real size, so the graph makes room for them
+     * rather than drawing them over their neighbours. Manual and declared positions are set aside
+     * for it (they come back on collapse); they were placed for boxes of another size.
+     */
+    private async layoutForExpansion(anchorId?: string, anchor?: NodePos) {
+        this.expansionSignature = this.currentExpansionSignature();
+        // Every position recomputed (none pinned), but the old ones stay on screen until it lands.
+        this.elkPositioned = new Set();
+        await this.runElkLayout();
+        if (anchorId) this.keepOnScreen(anchorId, anchor);
+    }
+
+    /** Pans so the node that was double clicked stays where the pointer left it. */
+    private keepOnScreen(id: string, before?: NodePos) {
+        const after = this.positions[id];
+        if (!before || !after) return;
+        this.panX -= (after.x - before.x) * this.zoomK;
+        this.panY -= (after.y - before.y) * this.zoomK;
+    }
+
+    /** The expanded frame of a forEach: title, then one card per iteration on a fan in and out. */
+    private renderExpandedShape(step: WorkflowStep, shown: {items: IterationItem[]; hidden: number},
+                                w: number, h: number, st: {fill: string; stroke: string; symbol: string}) {
+        const label = step.name.length > NODE_LABEL_CHARS ? step.name.slice(0, NODE_LABEL_CHARS - 1) + "…" : step.name;
+        const badge = badgeOf(step);
+        const badgeText = badge.length > NODE_BADGE_CHARS ? badge.slice(0, NODE_BADGE_CHARS - 1) + "…" : badge;
+        const cw = w - 2 * EXP_SIDE;
+        const rowY = (i: number) => EXP_HEAD + i * (ITER_H + ITER_GAP);
+        const midY = h / 2;
+        const fan = (y: number) => svg`
+            <path class="iter-fan" d="M 0 ${midY} C ${EXP_SIDE * 0.7} ${midY}, ${EXP_SIDE * 0.3} ${y}, ${EXP_SIDE} ${y}"/>
+            <path class="iter-fan" d="M ${w - EXP_SIDE} ${y} C ${w - EXP_SIDE * 0.3} ${y}, ${w - EXP_SIDE * 0.7} ${midY}, ${w} ${midY}"/>`;
+        const cards = shown.items.map((item, i) => {
+            const y = rowY(i);
+            const state = (item.state ?? "NOT_STARTED").toLowerCase();
+            const mark = ITERATION_MARKS[item.state ?? ""] ?? "";
+            const tip = [`item ${item.index}`, item.reason, item.error && item.error !== item.reason ? item.error : "",
+                item.attempt ? `attempt ${item.attempt + 1}` : "",
+                item.childProcessId ? "Double-click to open its child process" : ""].filter(Boolean).join("\n");
+            return svg`
+                ${fan(y + ITER_H / 2)}
+                <g class="iter-node st-${state} ${item.childProcessId ? "has-child" : ""}" data-iteration="${item.index}"
+                   transform="translate(${EXP_SIDE}, ${y})"
+                   @dblclick="${(e: MouseEvent) => this.onIterationDblClick(e, step.id, item)}">
+                    <title>${tip}</title>
+                    <rect width="${cw}" height="${ITER_H}" rx="6"/>
+                    <text class="iter-label" x="9" y="${ITER_H / 2 + 4}">item ${item.index}</text>
+                    ${item.childProcessId ? svg`<text class="iter-child" x="${cw - 26}" y="${ITER_H / 2 + 4}" text-anchor="middle">↗</text>` : nothing}
+                    <text class="iter-mark" x="${cw - 10}" y="${ITER_H / 2 + 4}" text-anchor="middle">${mark}</text>
+                </g>`;
+        });
+        const more = shown.hidden > 0 ? svg`
+            ${fan(rowY(shown.items.length) + ITER_H / 2)}
+            <g class="iter-more" transform="translate(${EXP_SIDE}, ${rowY(shown.items.length)})">
+                <title>The Steps tab lists every iteration.</title>
+                <rect width="${cw}" height="${ITER_H}" rx="6"/>
+                <text x="${cw / 2}" y="${ITER_H / 2 + 4}" text-anchor="middle">+${shown.hidden} more</text>
+            </g>` : nothing;
+        return svg`
+            <text class="node-badge" x="2" y="-7">${badgeText}</text>
+            <rect class="node-shape node-expanded" width="${w}" height="${h}" rx="12"
+                  fill="${st.fill}" stroke="${st.stroke}" stroke-width="1.4" style="--ec-tint: ${st.stroke}"/>
+            <g class="node-symbol" transform="translate(${w - 23}, 9)"
+               fill="none" stroke="${st.stroke}" stroke-width="1.1" style="--ec-tint: ${st.stroke}"
+               stroke-linejoin="round">${SYMBOLS[st.symbol] ?? svg``}</g>
+            <text class="node-title" x="14" y="20">${label}</text>
+            <text class="node-id" x="14" y="34">${step.id} · double-click to collapse</text>
+            ${cards}
+            ${more}`;
+    }
+
     // ── Canvas size ───────────────────────────────────────────────────────────
 
     private canvasSize() {
@@ -2243,7 +2461,7 @@ export class MateuWorkflowElk extends LitElement {
         for (const s of this.wf.steps ?? []) {
             const p = this.positions[s.id];
             if (!p) continue;
-            const sz = sizeOf(s.type);
+            const sz = this.sizeOfStep(s);
             w = Math.max(w, p.x + sz.w + PAD);
             h = Math.max(h, p.y + sz.h + PAD);
         }
@@ -2256,7 +2474,7 @@ export class MateuWorkflowElk extends LitElement {
         if (steps.length === 0) return null;
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         for (const s of steps) {
-            const p = this.positions[s.id], sz = sizeOf(s.type);
+            const p = this.positions[s.id], sz = this.sizeOfStep(s);
             minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
             maxX = Math.max(maxX, p.x + sz.w); maxY = Math.max(maxY, p.y + sz.h + 18); // +caption
         }
@@ -2476,7 +2694,7 @@ export class MateuWorkflowElk extends LitElement {
         const pos = this.positions[id];
         const step = (this.wf.steps ?? []).find(s => s.id === id);
         if (!pos || !step) return null;
-        const {w, h} = sizeOf(step.type);
+        const {w, h} = this.sizeOfStep(step);
         return {x: pos.x + w / 2, y: pos.y + h / 2, w, h};
     }
 
@@ -2996,7 +3214,7 @@ export class MateuWorkflowElk extends LitElement {
             if (g) g.classList.toggle("err", this.pulseColor[s.id] === "#dc2626" && dt < 0.5);
             if (dt > 0.6) { ring.setAttribute("opacity", "0"); continue; }
             const k = dt / 0.6;
-            const base = Math.max(sizeOf(s.type).w, sizeOf(s.type).h) / 2;
+            const base = Math.max(this.sizeOfStep(s).w, this.sizeOfStep(s).h) / 2;
             ring.style.fill = this.pulseColor[s.id] || "";  // red on error nodes, else default
             ring.setAttribute("r", String(base + k * 16));
             ring.setAttribute("opacity", String((1 - k) * 0.45));
@@ -3040,7 +3258,7 @@ export class MateuWorkflowElk extends LitElement {
                     ${(this.wf.steps ?? []).map(s => {
                         const p = this.positions[s.id];
                         if (!p) return nothing;
-                        const sz = sizeOf(s.type), st = styleOf(s.type);
+                        const sz = this.sizeOfStep(s), st = styleOf(s.type);
                         return svg`<rect class="mini-node" x="${p.x - b.minX}" y="${p.y - b.minY}" width="${sz.w}" height="${sz.h}"
                                          rx="4" fill="${st.fill}" stroke="${st.stroke}" stroke-width="2" style="--ec-tint: ${st.stroke}"/>`;
                     })}
@@ -3550,7 +3768,7 @@ export class MateuWorkflowElk extends LitElement {
         for (const step of steps) {
             const pos = this.positions[step.id];
             if (!pos) continue;
-            const {w, h} = sizeOf(step.type);
+            const {w, h} = this.sizeOfStep(step);
             taken.push({x: pos.x, y: pos.y, w, h});
         }
         const chips: {key: string; chip: unknown}[] = [];
@@ -3587,7 +3805,7 @@ export class MateuWorkflowElk extends LitElement {
 
         const stepExpr = step.preconditionExpression?.trim();
         if (stepExpr) {
-            const {w} = sizeOf(step.type);
+            const {w} = this.sizeOfStep(step);
             // Above the node, centred on it: this one is about the step, not about a way in.
             const size = guardChipSize(stepExpr);
             const at = clearOf({x: to.x + w / 2, y: to.y - 40}, size, taken,
@@ -3688,7 +3906,7 @@ export class MateuWorkflowElk extends LitElement {
     private renderNode(step: WorkflowStep) {
         const pos = this.positions[step.id] ?? {x: PAD, y: PAD};
         const st = styleOf(step.type);
-        const {w, h} = sizeOf(step.type);
+        const {w, h} = this.sizeOfStep(step);
         const sel = this.selectedId === step.id ? "sel" : "";
         const label = step.name.length > NODE_LABEL_CHARS ? step.name.slice(0, NODE_LABEL_CHARS - 1) + "…" : step.name;
 
@@ -3717,6 +3935,8 @@ export class MateuWorkflowElk extends LitElement {
                 <polygon class="node-shape gateway" points="${pts}" fill="${st.fill}" stroke="${st.stroke}" style="--ec-tint: ${st.stroke}"/>
                 ${glyph}
                 <text class="node-caption" x="${w / 2}" y="${h + 15}" text-anchor="middle">${label}</text>`;
+        } else if (this.expandedIterations(step.id)) {
+            shape = this.renderExpandedShape(step, this.expandedIterations(step.id)!, w, h, st);
         } else {
             // BPMN task: rounded card with a corner glyph, an uppercase caption, title + id.
             const badge = badgeOf(step);
@@ -3860,13 +4080,16 @@ export class MateuWorkflowElk extends LitElement {
             </g>` : nothing;
 
         const linkCls = `${(this.linkHoverId === step.id || this.paletteHoverNode === step.id) ? "link-target" : ""} ${this.linkingFrom === step.id ? "link-source" : ""}`;
-        const monDim = this.hasStateOverlay() && !this.isVisited(step.id) ? "mon-dim" : "";
+        // An expanded forEach is never dimmed: it was opened to be read, and its iterations carry
+        // their own states (the container may still read PENDING while they run).
+        const monDim = this.hasStateOverlay() && !this.isVisited(step.id) && !this.expandedIterations(step.id) ? "mon-dim" : "";
         const focusDim = this.focusPaint && !this.focusPaint.nodes.has(step.id) ? "focus-dim" : "";
         return svg`
             <g class="node ${sel} ${ovCls} ${linkCls} ${monDim} ${focusDim} ${heatOn ? "heat-on" : ""}"
                style="${heatOn ? `--heat:${heatPct}` : ""}" data-node="${step.id}" transform="translate(${pos.x},${pos.y})"
                @mousedown="${(e: MouseEvent) => this.onNodeMouseDown(e, step.id)}"
                @click="${(e: MouseEvent) => this.onNodeClick(e, step.id)}"
+               @dblclick="${(e: MouseEvent) => this.onNodeDblClick(e, step.id)}"
                @mouseenter="${() => this.onNodeHover(step.id)}"
                @mouseleave="${() => this.onNodeHover(null)}">
                 ${pulse}
@@ -3937,7 +4160,7 @@ export class MateuWorkflowElk extends LitElement {
         // Monitoring view with something to say about this step -> the diagnostic card. A step the
         // run has not reached has no overlay entry, and it still gets its name card.
         if (!ov || !this.hasStateOverlay()) return this.renderNameTip(step, pos);
-        const {h} = sizeOf(step?.type ?? "ACTION");
+        const {h} = step ? this.sizeOfStep(step) : sizeOf("ACTION");
         const left = this.panX + pos.x * this.zoomK;
         const top = this.panY + (pos.y + h) * this.zoomK + 8;
         const fmt = (s?: string) => s ? s.replace("T", " ").slice(0, 16) : "";
@@ -3983,7 +4206,7 @@ export class MateuWorkflowElk extends LitElement {
      * no pointer events — it can never be the thing a click, a drag or a hover lands on.
      */
     private renderNameTip(step: WorkflowStep, pos: NodePos) {
-        const {w, h} = sizeOf(step.type);
+        const {w, h} = this.sizeOfStep(step);
         const round = isEventType(step.type) || isGatewayType(step.type);
         // Centred on the node, but kept inside the canvas: the card is at most 320px wide.
         const centre = this.panX + (pos.x + w / 2) * this.zoomK;
@@ -4920,6 +5143,34 @@ export class MateuWorkflowElk extends LitElement {
         .priority-chip text {font-size: 9.5px; font-weight: 700; fill: var(--ec-text);}
         .ov-iterations rect {fill: #7c3aed;}
         .ov-iterations text {font-size: 10px; fill: #fff; font-weight: 700;}
+        /* An expanded forEach: the frame, the fan of lines, and one card per iteration coloured by
+           its state with the same palette as the nodes. */
+        .node-expanded {stroke-dasharray: 6 3;}
+        .iter-fan {fill: none; stroke: var(--ec-edge); stroke-width: 1.2;}
+        .iter-node rect {fill: var(--ec-surface, #fff); stroke: #94a3b8; stroke-width: 1.3;}
+        .iter-node text {font-size: 11px; fill: #1e293b; user-select: none;}
+        .iter-node .iter-label {font-weight: 600;}
+        .iter-node .iter-mark {font-weight: 700;}
+        .iter-node .iter-child {fill: var(--ec-primary); font-weight: 700;}
+        .iter-node.has-child {cursor: pointer;}
+        .iter-node.has-child:hover rect {stroke-width: 2.2;}
+        .iter-node.st-completed rect {stroke: #16a34a; fill: #f0fdf4;}
+        .iter-node.st-completed .iter-mark {fill: #16a34a;}
+        .iter-node.st-error rect, .iter-node.st-timeout rect {stroke: #dc2626; fill: #fef2f2; stroke-width: 1.8;}
+        .iter-node.st-error .iter-mark, .iter-node.st-timeout .iter-mark {fill: #dc2626;}
+        .iter-node.st-running rect, .iter-node.st-review_required rect {stroke: #d97706; fill: #fffbeb; stroke-dasharray: 6 3;
+                                                                     animation: ec-march 1s linear infinite;}
+        .iter-node.st-pending rect, .iter-node.st-waiting_on_lock rect {stroke: #64748b; stroke-dasharray: 4 2;
+                                                                        animation: ec-march 2.6s linear infinite;}
+        .iter-node.st-cancelled rect {stroke: #94a3b8; opacity: .7;}
+        .iter-node.st-not_started rect {stroke: #cbd5e1; stroke-dasharray: 2 3;}
+        .iter-node.st-not_started text {fill: #94a3b8;}
+        :host([dark]) .iter-node rect {fill: var(--ec-surface);}
+        :host([dark]) .iter-node .iter-label {fill: var(--ec-text);}
+        :host([dark]) .iter-node.st-not_started text {fill: var(--ec-text-faint);}
+        @media (prefers-reduced-motion: reduce) {.iter-node rect {animation: none !important;}}
+        .iter-more rect {fill: none; stroke: var(--ec-border); stroke-dasharray: 3 3;}
+        .iter-more text {font-size: 10.5px; fill: var(--ec-text-dim); font-style: italic;}
         .loop-section {border-top: 1px dashed var(--ec-border, #e2e8f0); padding-top: 6px; margin-top: 4px;}
         .pair {display: flex; gap: 6px;}
         .pair .inp {flex: 1; min-width: 0;}

@@ -33,6 +33,29 @@ public interface ProcessRepository extends CrudStore<Process> {
 
 
     /**
+     * Which process each of these step executions started, as {@code parentStepExecutionId → child
+     * process id} — what the process graph needs to open a PROCESS step's child run (one per
+     * iteration for a forEach over PROCESS). Step executions that started nothing are absent; if one
+     * started several runs, the latest created wins.
+     *
+     * <p>This default scans {@code findAll()}, which suits memory mode only; the JPA store answers
+     * from the {@code parentStepExecutionId} index.
+     */
+    default java.util.Map<String, String> findChildIdsByParentStepExecutionIds(java.util.Collection<String> parentStepExecutionIds) {
+        var result = new java.util.HashMap<String, String>();
+        if (parentStepExecutionIds == null || parentStepExecutionIds.isEmpty()) {
+            return result;
+        }
+        var wanted = new java.util.HashSet<>(parentStepExecutionIds);
+        findAll().stream()
+                .filter(process -> process.getParentStepExecutionId() != null && wanted.contains(process.getParentStepExecutionId()))
+                .sorted(Comparator.comparing(Process::getCreated, Comparator.nullsFirst(Comparator.naturalOrder()))
+                        .thenComparing(Process::getId))
+                .forEach(process -> result.put(process.getParentStepExecutionId(), process.getId()));
+        return result;
+    }
+
+    /**
      * The process that holds this business key now — the only one, unless the definition's
      * {@code businessKeyPolicy} or a CONTINUE_AS_NEW let later runs take the key over, in which case it is
      * the latest of them.

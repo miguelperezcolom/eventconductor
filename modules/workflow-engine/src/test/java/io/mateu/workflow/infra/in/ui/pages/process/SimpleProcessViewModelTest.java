@@ -526,4 +526,48 @@ class SimpleProcessViewModelTest {
         assertThat(view.isHidden("invocation", null)).isTrue();
         assertThat(view.isHidden("replyOutcome", null)).isTrue();
     }
+
+    // --- opening a child run from the graph ------------------------------------------------------
+
+    private static io.mateu.uidl.interfaces.HttpRequest graphEvent(Object detail) {
+        var request = mock(io.mateu.uidl.interfaces.HttpRequest.class);
+        var parameters = new java.util.HashMap<String, Object>();
+        parameters.put("event", detail);
+        when(request.runActionRq()).thenReturn(io.mateu.dtos.RunActionRqDto.builder().parameters(parameters).build());
+        return request;
+    }
+
+    @Test
+    void theGraphWiresItsOpenProcessEventToTheOpenProcessAction() {
+        var defs = mock(WorkflowDefinitionRepository.class);
+        when(defs.findById("wd-1")).thenReturn(Optional.of(emptyDefinition()));
+        var process = mock(Process.class);
+        when(process.getWorkflowDefinitionId()).thenReturn("wd-1");
+
+        var element = view(defs).buildDiagram(process, List.of(se("start", StepExecutionStatus.COMPLETED)), List.of());
+
+        assertThat(element.on()).containsEntry("ec-open-process", "openProcess");
+    }
+
+    @Test
+    void openProcessNavigatesToTheChildTheGraphNamed() {
+        var processes = new io.mateu.workflow.infra.out.memory.InMemoryProcessRepositoryForTests();
+        processes.put(Process.builder().id("child 1").variables(new java.util.ArrayList<>()).build());
+        var view = new SimpleProcessViewModel(null, processes, null, null, null, null, null, null, null, null);
+
+        var result = view.openProcess(graphEvent(java.util.Map.of("processId", "child 1")));
+
+        assertThat(result).isEqualTo(java.net.URI.create("../processes/child%201"));
+    }
+
+    @Test
+    void openProcessStaysPutForAnUnknownOrMissingChild() {
+        var processes = new io.mateu.workflow.infra.out.memory.InMemoryProcessRepositoryForTests();
+        var view = new SimpleProcessViewModel(null, processes, null, null, null, null, null, null, null, null);
+
+        assertThat(view.openProcess(graphEvent(java.util.Map.of("processId", "nope"))))
+                .isInstanceOf(io.mateu.uidl.data.State.class);
+        assertThat(view.openProcess(graphEvent("not an object"))).isInstanceOf(io.mateu.uidl.data.State.class);
+        assertThat(SimpleProcessViewModel.openedProcessId(null)).isNull();
+    }
 }

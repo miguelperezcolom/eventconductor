@@ -79,6 +79,25 @@ public class ProcessDBRepository implements ProcessRepository {
         return new ChildrenPage(found.getContent().stream().map(this::map).toList(), page, size, found.getTotalElements());
     }
 
+    @Override
+    public java.util.Map<String, String> findChildIdsByParentStepExecutionIds(java.util.Collection<String> parentStepExecutionIds) {
+        var result = new java.util.HashMap<String, String>();
+        if (parentStepExecutionIds == null || parentStepExecutionIds.isEmpty()) {
+            return result;
+        }
+        // Chunked: a forEach over PROCESS has one parent execution per item, and some databases cap
+        // the length of an IN list (Oracle at 1000).
+        var ids = new java.util.ArrayList<>(new java.util.LinkedHashSet<>(parentStepExecutionIds));
+        for (int from = 0; from < ids.size(); from += CHILD_LINK_CHUNK) {
+            for (var link : processEntityRepository.findChildLinks(ids.subList(from, Math.min(from + CHILD_LINK_CHUNK, ids.size())))) {
+                result.put(link.getParentStepExecutionId(), link.getId());
+            }
+        }
+        return result;
+    }
+
+    private static final int CHILD_LINK_CHUNK = 500;
+
     private Process map(ProcessEntity entity) {
         var process = new Process(
                 entity.getId(),

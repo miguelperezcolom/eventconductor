@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **A forEach opens into its iterations on the process graph.** In a process view, double-click a forEach node: it expands into one card per iteration (item index, coloured by state, the error and attempt on hover), fanning out of the same incoming and outgoing edges; double-click again to collapse. Up to 20 cards are drawn, the rest as "+N more"; the overlay lists up to 100 (`iterations.items`, also on `GET /workflow/api/processes/{id}/graph`).
+- **Double-click a PROCESS node to open its child run.** The graph fires `ec-open-process` with `{processId, stepId, itemIndex?}`, and the admin console navigates to that process; in an expanded forEach over PROCESS, each iteration opens its own child. The definition editor and the definition view are unchanged.
+
 ### Fixed
 - **A forEach iteration whose work finished after the engine cancelled it was never compensated.** When a forEach failed fast (or stopped because the process failed), the iterations still at a worker, or running a child process, were cancelled. But cancelling races with the work: a worker that had already made the booking, or a child process that had already completed, reported COMPLETED after the cancellation, and that report was dropped as stale. The iteration stayed CANCELLED, the saga never undid it, and the booking was left behind in the target system.
   - That late COMPLETED is now kept as a completed run, with what it reported, when its step declares a compensation. Late answers for steps without a compensation are still ignored.

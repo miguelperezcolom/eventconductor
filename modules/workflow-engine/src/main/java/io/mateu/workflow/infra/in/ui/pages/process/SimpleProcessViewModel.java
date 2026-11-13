@@ -87,6 +87,8 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     /** Custom element + ESM bundle that render the workflow as a read-only ELK graph. */
     private static final String GRAPH_TAG = "eventconductor-workflow-graph";
     private static final String GRAPH_MODULE = "/eventconductor/workflow-graph.js";
+    /** What the graph fires, with {@code detail.processId}, when the operator asks to open a child run. */
+    static final String OPEN_PROCESS_EVENT = "ec-open-process";
 
     final io.mateu.workflow.application.services.CommandDispatcher commandDispatcher;
     final ProcessRepository processRepository;
@@ -370,7 +372,10 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     Element buildDiagram(Process process, List<StepExecution> stepExecutions, List<LogMessage> logs) {
         var def = definitionOf(process);
         if (def == null) return null;
-        var projection = io.mateu.workflow.infra.in.monitoring.ProcessGraphProjection.project(def, process, stepExecutions, logs);
+        // The child runs its PROCESS steps started — one lookup for the whole process — so the graph
+        // can open a child on a double click (a PROCESS node, or one iteration of a forEach over one).
+        var children = io.mateu.workflow.infra.in.monitoring.ProcessGraphProjection.childProcessIds(def, stepExecutions, processRepository);
+        var projection = io.mateu.workflow.infra.in.monitoring.ProcessGraphProjection.project(def, process, stepExecutions, logs, children);
         var overlay = projection.overlay();
         var attrs = new HashMap<String, String>();
         attrs.put("import", GRAPH_MODULE);
@@ -396,6 +401,9 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         return Element.builder()
                 .name(GRAPH_TAG)
                 .attributes(attrs)
+                // Double click on a PROCESS node (or on an iteration of an expanded forEach over one)
+                // fires ec-open-process with the child's id; openProcess navigates to it.
+                .on(Map.of(OPEN_PROCESS_EVENT, "openProcess"))
                 .content("")
                 .style("display: block; height: calc(100vh - 30rem); min-height: 320px;")
                 .build();
@@ -678,6 +686,33 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     }
 
     private record LogStateSnapshot(String timestamp, String type, String message) {
+    }
+
+    /**
+     * Opens the child run the graph asked for (see {@link #OPEN_PROCESS_EVENT}): the event's detail
+     * arrives as the {@code event} parameter. Only a run that exists is navigated to; anything else
+     * leaves the view where it is. Relative, like the incident view's process links, so it works
+     * under whatever path the console is mounted at.
+     */
+    @Action
+    public Object openProcess(HttpRequest httpRequest) {
+        var target = openedProcessId(httpRequest);
+        if (target == null || processRepository.findById(target).isEmpty()) {
+            return new State(this);
+        }
+        return URI.create("../processes/" + io.mateu.workflow.infra.in.ui.pages.schedules.ScheduleFormats.pathSegment(target));
+    }
+
+    /** The {@code processId} of the graph's {@code ec-open-process} event, or null. */
+    static String openedProcessId(HttpRequest httpRequest) {
+        if (httpRequest == null || httpRequest.runActionRq() == null || httpRequest.runActionRq().parameters() == null) {
+            return null;
+        }
+        var event = httpRequest.runActionRq().parameters().get("event");
+        if (event instanceof Map<?, ?> detail && detail.get("processId") instanceof String id && !id.isBlank()) {
+            return id;
+        }
+        return null;
     }
 
     @Action
