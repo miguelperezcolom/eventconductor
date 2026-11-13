@@ -57,6 +57,12 @@ window.ecExecutionBridge = ({ vscode, graph: graphElement, projection, applyGrap
     for (const other of document.querySelectorAll("[data-tab]")) { const selected = other === tab; other.setAttribute("aria-selected", String(selected)); byId(other.dataset.tab).hidden = !selected; }
   });
   graphElement.addEventListener("ec-step-selected", event => send("selectStep", { stepId: event.detail.stepId }));
+  // A double click on a PROCESS node, an iteration card or a lane header: open that child run. The
+  // host navigates only to processes it already knows to be related (it re-checks the id).
+  graphElement.addEventListener("ec-open-process", event => {
+    const id = event.detail?.processId;
+    if (typeof id === "string" && id) send("navigate", { id, follow: true });
+  });
 
   window.addEventListener("message", async event => {
     const message = event.data;

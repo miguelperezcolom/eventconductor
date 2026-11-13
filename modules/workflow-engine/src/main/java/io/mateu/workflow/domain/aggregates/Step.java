@@ -336,7 +336,7 @@ public record Step(
          * hashes into a definition version as before.
          */
         @HiddenInList
-        @Hidden("state['type'] != 'JOIN'")
+        @Hidden("state['type'] != 'JOIN' || state['joinType'] != 'XOR'")
         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
         Boolean compensateLosers,
         /**

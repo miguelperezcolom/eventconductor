@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const test = require('node:test');
-const { createGraphProjection } = require('../media/graph-state');
+const { createGraphProjection, linkChildren } = require('../media/graph-state');
 const draft = () => ({name:'Synthetic workflow',steps:[{id:'start',type:'START'},{id:'end',type:'END',preconditionStepId:'start'}]});
 const state = (id='root', definition=draft()) => ({rootId:'root',currentId:id,following:true,loading:false,history:[],warnings:[],logs:[],children:{content:[],page:0,totalPages:0},
   graph:{definition,process:{id,name:definition.name,definitionVersion:1,status:'COMPLETED',variables:{}},overlay:{start:{state:'COMPLETED'},end:{state:'COMPLETED'}},steps:[]}});
@@ -103,4 +103,25 @@ test('historical and ended views cannot send Stop, while a followed child can be
   b.graph.emit('ec-stop-workflow');assert.ok(!b.posts.some(p=>p.type==='stopRun'));
   const child=state('child');child.graph.process.status='PAUSED';await b.receive({type:'execution',state:child});assert.equal(b.byId('stop').disabled,false);
   const ended=state('child');await b.receive({type:'execution',state:ended});assert.equal(b.byId('stop').disabled,true);
+});
+
+test('child runs on the loaded page are linked into the overlay so a double click can open them',()=>{
+  const overlay={invoice:{state:'COMPLETED'},rooms:{state:'RUNNING',iterations:{total:2,items:[{index:0,state:'COMPLETED'},{index:1,state:'RUNNING'}]}}};
+  const children=[{id:'inv-1',stepId:'invoice',itemIndex:null,iteration:0},{id:'room-0',stepId:'rooms',itemIndex:0,iteration:0},
+    {id:'room-1-old',stepId:'rooms',itemIndex:1,iteration:0},{id:'room-1',stepId:'rooms',itemIndex:1,iteration:1},{id:'ghost',stepId:'missing',iteration:0}];
+  const linked=linkChildren(overlay,children);
+  assert.equal(linked.invoice.childProcessId,'inv-1');
+  assert.deepEqual(linked.rooms.iterations.items.map(i=>i.childProcessId),['room-0','room-1'],'the latest run of an item wins');
+  assert.equal(overlay.invoice.childProcessId,undefined,'the engine overlay itself is left as it came');
+  const p=createGraphProjection();p.setDraft(draft());p.capture('root',draft());
+  const s=state();s.children={content:[{id:'start-child',stepId:'start',itemIndex:null,iteration:0}],page:0,totalPages:1};p.update(s);
+  assert.equal(JSON.parse(p.view().overlay).start.childProcessId,'start-child');
+  p.showSnapshot();assert.equal(JSON.parse(p.view().overlay).start.childProcessId,'start-child');
+});
+
+test('a double click that asks for a child run navigates the host to it',async()=>{
+  const b=bridge();await b.receive({type:'setValue',value:JSON.stringify(draft())});
+  b.graph.emit('ec-open-process',{detail:{processId:'child-7',stepId:'rooms',itemIndex:2}});
+  assert.deepEqual(b.posts.at(-1),{type:'navigate',id:'child-7',follow:true});
+  const before=b.posts.length;b.graph.emit('ec-open-process',{detail:{}});assert.equal(b.posts.length,before,'nothing to open, nothing sent');
 });
