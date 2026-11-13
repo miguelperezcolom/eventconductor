@@ -244,6 +244,7 @@ class AiReferenceExamplesTest {
             "doc/src/content/docs/guides/workflow-definitions.md",
             "doc/src/content/docs/guides/testing-workflows.md",
             "doc/src/content/docs/guides/request-response.md",
+            "doc/src/content/docs/guides/why-a-process-engine.mdx",
             "doc/src/content/docs/reference/step-types.md",
             "doc/src/content/docs/reference/maven-plugin.md",
             "doc/src/content/docs/reference/configuration.md");

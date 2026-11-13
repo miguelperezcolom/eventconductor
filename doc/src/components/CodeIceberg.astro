@@ -1,0 +1,241 @@
+---
+/**
+ * "The code iceberg": what a business process looks like above the waterline (the business
+ * steps) and below it (everything production demands). Left: written by hand — all of it is
+ * yours. Right: with EventConductor — the same mass, built into the engine.
+ * Pure HTML/CSS on Starlight's theme tokens, so it follows light/dark and reflows on phones.
+ */
+const tip = ['Book each room', 'Get approval', 'Confirm to the customer'];
+const plumbing = [
+  'Compensation in reverse order',
+  'Retries + backoff',
+  'Timeouts',
+  'Idempotency keys',
+  'Progress table',
+  'Stuck-run sweeper',
+  'Transactional outbox',
+  'Locks / one owner per run',
+  'Late replies to cancelled work',
+  'Parallel fan-out + join',
+  'Timers that survive restarts',
+  'Task inbox + escalation',
+  'Versioning in-flight runs',
+  'Audit trail',
+  'Search + admin screens',
+  'Retry from step / bulk repair',
+];
+---
+
+<figure class="ec-iceberg" aria-labelledby="ec-iceberg-caption">
+  <div class="ec-iceberg__panels">
+    <section class="ec-iceberg__panel ec-iceberg__panel--hand" aria-label="Written by hand">
+      <h3 class="ec-iceberg__title">Written by hand</h3>
+      <div class="ec-iceberg__sky">
+        <div class="ec-iceberg__tip">
+          {tip.map((t) => <span class="ec-iceberg__chip ec-iceberg__chip--business">{t}</span>)}
+        </div>
+      </div>
+      <div class="ec-iceberg__water">
+        <div class="ec-iceberg__berg">
+          {plumbing.map((p) => <span class="ec-iceberg__chip ec-iceberg__chip--yours">{p}</span>)}
+        </div>
+      </div>
+      <p class="ec-iceberg__verdict">All of it is yours to write, test, review and fix — in every service.</p>
+    </section>
+
+    <section class="ec-iceberg__panel ec-iceberg__panel--engine" aria-label="With EventConductor">
+      <h3 class="ec-iceberg__title">With EventConductor</h3>
+      <div class="ec-iceberg__sky">
+        <div class="ec-iceberg__tip">
+          {tip.map((t) => <span class="ec-iceberg__chip ec-iceberg__chip--business">{t}</span>)}
+        </div>
+      </div>
+      <div class="ec-iceberg__water">
+        <div class="ec-iceberg__berg">
+          <span class="ec-iceberg__engine-label">Built into the engine</span>
+          {plumbing.map((p) => <span class="ec-iceberg__chip ec-iceberg__chip--engine">{p}</span>)}
+        </div>
+      </div>
+      <p class="ec-iceberg__verdict">You write the tip. The rest is declared — or simply there.</p>
+    </section>
+  </div>
+  <figcaption id="ec-iceberg-caption" class="ec-iceberg__quote">
+    The code that never fails is the code you don't write.
+  </figcaption>
+</figure>
+
+<style>
+  .ec-iceberg {
+    --ec-ice: #e9f1fb;
+    --ec-ice-edge: #c9d9ef;
+    margin: 2rem auto;
+    max-width: 1040px;
+  }
+  /* Starlight spaces sibling elements in content (".sl-markdown-content * + *"); inside the
+     figure every gap is set here instead. */
+  .ec-iceberg :is(div, span, section, p, h3) {
+    margin-top: 0 !important;
+  }
+  .ec-iceberg__panels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+    gap: 1.25rem;
+  }
+  .ec-iceberg__panel {
+    margin: 0 !important;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--sl-color-bg);
+    display: flex;
+    flex-direction: column;
+  }
+  .ec-iceberg__title {
+    margin: 0 !important;
+    padding: 0.8rem 1rem 0.2rem;
+    font-size: var(--sl-text-lg);
+    text-align: center;
+  }
+  .ec-iceberg__sky {
+    background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--sl-color-accent) 10%, transparent));
+    padding: 0.6rem 0.5rem 0;
+    display: flex;
+    justify-content: center;
+  }
+  /* The visible tip: a jagged peak on the waterline. The shape is a background layer, so the
+     chips on it are never clipped. */
+  .ec-iceberg__tip {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 1.9rem 1.4rem 0.8rem;
+    width: 92%;
+  }
+  .ec-iceberg__tip::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, #ffffff, var(--ec-ice-edge));
+    border-bottom: 0;
+    clip-path: polygon(44% 0, 52% 8%, 58% 2%, 74% 46%, 82% 40%, 100% 100%, 0 100%, 16% 52%, 26% 44%);
+  }
+  .ec-iceberg__tip > * {
+    position: relative;
+  }
+  .ec-iceberg__water {
+    flex: 1;
+    padding: 0 0.75rem 1rem;
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--sl-color-accent) 22%, transparent),
+      color-mix(in srgb, var(--sl-color-accent) 40%, transparent)
+    );
+    border-top: 2px solid var(--sl-color-accent);
+  }
+  /* The submerged mass: much wider than the tip, tapering to a ragged bottom. Again a
+     background layer, so nothing on it is clipped. */
+  .ec-iceberg__berg {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: flex-start;
+    gap: 0.35rem;
+    padding: 0.9rem 1.4rem 2.6rem;
+  }
+  .ec-iceberg__berg::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 0 0;
+    background: linear-gradient(to bottom, var(--ec-ice), var(--ec-ice-edge));
+    clip-path: polygon(0 0, 100% 0, 97% 38%, 100% 62%, 90% 84%, 72% 100%, 56% 93%, 40% 100%, 20% 90%, 4% 70%, 1% 40%);
+  }
+  .ec-iceberg__berg > * {
+    position: relative;
+  }
+  .ec-iceberg__chip {
+    font-size: 0.78rem;
+    line-height: 1.2;
+    padding: 0.25rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .ec-iceberg__chip--business {
+    background: var(--sl-color-accent);
+    color: var(--sl-color-black);
+    font-weight: 600;
+  }
+  .ec-iceberg__chip--yours {
+    background: var(--sl-color-red-low);
+    color: var(--sl-color-red-high);
+    border-color: var(--sl-color-red);
+  }
+  .ec-iceberg__chip--yours::before {
+    content: '✎ ';
+  }
+  .ec-iceberg__chip--engine {
+    background: var(--sl-color-green-low);
+    color: var(--sl-color-green-high);
+    border-color: var(--sl-color-green);
+  }
+  .ec-iceberg__chip--engine::before {
+    content: '✓ ';
+  }
+  .ec-iceberg__engine-label {
+    flex-basis: 100%;
+    text-align: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sl-color-green-high);
+    margin-bottom: 0.15rem;
+  }
+  .ec-iceberg__verdict {
+    margin: 0 !important;
+    padding: 0.7rem 1rem 0.9rem;
+    text-align: center;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-2);
+    background: color-mix(in srgb, var(--sl-color-accent) 40%, transparent);
+  }
+  .ec-iceberg__panel--hand .ec-iceberg__verdict {
+    font-weight: 600;
+  }
+  .ec-iceberg__quote {
+    margin-top: 1.6rem !important;
+    text-align: center;
+    font-size: clamp(1.25rem, 2.6vw, 1.75rem);
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--sl-color-white);
+  }
+  .ec-iceberg__quote::before,
+  .ec-iceberg__quote::after {
+    color: var(--sl-color-accent);
+  }
+  .ec-iceberg__quote::before {
+    content: '“';
+  }
+  .ec-iceberg__quote::after {
+    content: '”';
+  }
+:root[data-theme='dark'] .ec-iceberg {
+    --ec-ice: #34465f;
+    --ec-ice-edge: #26354b;
+  }
+  :root[data-theme='dark'] .ec-iceberg__tip::before {
+    background: linear-gradient(to bottom, #4a5f7d, var(--ec-ice));
+  }
+  @media (max-width: 30rem) {
+    .ec-iceberg__chip {
+      white-space: normal;
+    }
+    .ec-iceberg__tip {
+      width: 100%;
+    }
+  }
+</style>

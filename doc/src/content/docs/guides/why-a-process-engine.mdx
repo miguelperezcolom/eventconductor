@@ -1,0 +1,225 @@
+---
+title: Why a process engine?
+description: What a business process costs when you write it by hand, what an engine takes off your hands, what it costs you in return — and when hand-written code is the better choice.
+---
+
+import CodeIceberg from '../../../components/CodeIceberg.astro';
+
+Every team that automates a business process faces the same question first: *do we need an engine for this, or is it just code?* It is a fair question. A process starts as a few calls in a row, and a few calls in a row is exactly what a service method is for.
+
+This page follows one ordinary process from the first version to the one that survives production, lists what has to be built along the way, and is honest about the other side: what an engine costs, and when you should not use one.
+
+**In short**, an engine gives you four things that hand-written orchestration has to earn one incident at a time:
+
+- **It scales** — in capacity, and in change: adding a step, a branch or a whole new process does not get harder as the system grows.
+- **You write less code** — the process is a short declaration; what remains in code is the business work itself.
+- **The hard parts come for free** — retries, timeouts, sagas and compensation, parallel fan-out, timers, human tasks, crash recovery, versioning.
+- **It can be operated** — every run can be found, inspected and repaired, by people and by tools.
+- **It saves time** — not only writing the first version, but in every change, deployment, diagnosis and repair after it.
+
+## It starts as a method
+
+A booking arrives with several rooms. For each room, create a booking in the hotel system; then confirm to the customer.
+
+```java
+@Transactional
+public void book(Booking booking) {
+    for (Room room : booking.rooms()) {
+        hotel.createBooking(booking.id(), room);
+    }
+    notifier.confirm(booking);
+}
+```
+
+Ten lines, readable, testable. If every call were local, instant and infallible, this would be the whole story. None of them is.
+
+## Then production happens
+
+Each of the following is a real failure mode, and each one adds code.
+
+1. **A call fails halfway.** Room 3 is refused after rooms 1 and 2 were created. The `@Transactional` does not reach the hotel's system, so rooms 1 and 2 stay booked. You add compensation: remember what succeeded and cancel it, in reverse order.
+2. **The call times out.** Did the hotel create the booking or not? You cannot know. You add retries — and because a retry may repeat a booking that did happen, you add an idempotency key, and the compensation has to cope with a booking whose id you never received.
+3. **The pod dies between room 2 and room 3.** Everything in memory is gone. You add a table with the booking's progress, a status column and a step counter, and a job that finds stuck bookings and resumes them.
+4. **Writing to that table and calling the hotel are two systems.** One can succeed while the other fails — the dual-write problem. You add an outbox table and a relay that publishes what was committed.
+5. **You run two pods.** Both pick up the same stuck booking. You add locking, or a partitioning scheme so that one booking has one owner.
+6. **A reply arrives late.** The hotel answers room 4 after you already gave up on it and cancelled the rest. Now it is booked and nobody will ever undo it. You add handling for answers to work you thought was cancelled.
+7. **Some steps need a person.** A manager must approve bookings above a threshold, and may take two days. You add a task table, an inbox UI, reminders, escalation, and a way to resume when they answer.
+8. **Some steps must wait.** Release unconfirmed rooms after 24 hours. You add a scheduler, persisted timers, and their recovery after a restart.
+9. **Rooms should be booked in parallel.** You add a fan-out, a join that knows when all are done, a policy for when one fails, and a merge of their results.
+10. **The code changes while bookings are in flight.** A booking started yesterday is halfway through the old logic. You add versioning of in-flight state, or a migration, or you wait until nothing is running.
+11. **Support asks "where is booking 123, and why is it stuck?"** You add logging of every transition, a search, and an admin screen that shows the steps.
+12. **Operations asks to retry the 40 bookings that failed during last night's outage — from step 3, not from scratch.** You add tooling for that, with an audit trail.
+
+None of these is exotic. Together they are the bulk of the code, and very little of it is about hotels.
+
+<CodeIceberg />
+
+## The same process, declared
+
+With an engine, the process is a definition, and every concern above is either the engine's default or one declared line:
+
+```yaml
+- id: start
+  type: START
+  name: Booking received
+
+- id: rooms
+  type: PROCESS
+  name: Book every room
+  preconditionStepId: start
+  compensable: true
+  compensationStepId: cancelRoom        # undoes each room that completed
+  outputVariables: [roomBookingId]
+  forEach:
+    items: rooms
+    as: room
+    label: "'Room ' + room.number"      # how each branch is named in the console
+    onIterationFailure: compensateAll   # all rooms or none
+    output: roomBookings
+    outputElement: roomBookingId
+  steps:                                # what happens for one room
+    - { id: start, type: START, name: Start }
+    - id: create
+      type: HTTP_CALL
+      name: Create the room booking
+      preconditionStepId: start
+      retries: 3
+      timeout: PT15S
+      http:
+        connection: hotel
+        method: POST
+        path: /bookings
+        headers: { Idempotency-Key: "${businessKey}-${room.number}" }
+        body: { externalRef: "${businessKey}-${room.number}", room: "${room.number}" }
+        output: { roomBookingId: "body.id" }
+    - { id: end, type: END, name: End, preconditionStepId: create }
+
+- id: approve
+  type: USER_TASK
+  name: Manager approval
+  preconditionStepId: rooms
+  formId: booking-approval
+
+- id: confirm
+  type: ACTION
+  name: Confirm to the customer
+  preconditionStepId: approve
+  topic: notifications
+
+- id: done
+  type: END
+  name: Done
+  preconditionStepId: confirm
+
+- id: cancelRoom                        # the compensation: runs once per completed room
+  type: HTTP_CALL
+  name: Cancel the room booking
+  retries: 5
+  http:
+    connection: hotel
+    method: DELETE
+    path: "/bookings/by-ref/${businessKey}-${room.number}"
+    successStatus: [200, 204, 404]      # already gone is fine
+```
+
+Read against the list above:
+
+| Concern | Written by hand | With EventConductor |
+|---|---|---|
+| 1. Partial failure | Track what succeeded, undo in reverse | `compensable` + `compensationStepId`; undone in reverse order of actual completion |
+| 2. Timeouts and retries | Counters, backoff, idempotency | `timeout`, `retries`; HTTP calls send an `Idempotency-Key` on every attempt ([patterns](/guides/http-calls/#not-creating-duplicates-in-the-target-system)) |
+| 3. Crash between steps | Progress table, stuck-job sweeper | Every transition is persisted; a restarted engine carries on |
+| 4. Dual writes | Outbox + relay | Built in: state and events commit together (transactional outbox) |
+| 5. Several instances | Locks or partitioning | Events are keyed by process; one owner per process |
+| 6. Late replies | Usually missed | A late completion of cancelled work is still compensated |
+| 7. People in the loop | Task table, inbox, reminders | `USER_TASK` + forms, assignment and escalation |
+| 8. Waiting | Scheduler, persisted timers | `TIMER`, deadlines, `WAIT_FOR_MESSAGE` |
+| 9. Parallel fan-out | Fan-out, join, failure policy, merge | `forEach` with `onIterationFailure` and `output` |
+| 10. Changing code in flight | Version the state yourself | Definitions are versioned; running processes keep theirs or are [migrated](/guides/migrating-running-processes/) |
+| 11. "Where is booking 123?" | Logs, search, admin screen | Console with the live graph, steps, variables and errors; search by business key |
+| 12. Bulk repair | Scripts | [Retry from step, set variables, batch operations](/guides/operating-running-processes/), audited |
+
+The hard cases are the same in every process, so solving them once in an engine beats solving them — slightly differently, and partially — in every service.
+
+## What you get
+
+### It scales — in capacity and in change
+
+**Capacity.** A hand-written orchestrator scales as far as its own locking and sweeping jobs allow, and those are usually the first thing to break under load. The engine is built for it: in distributed mode events are keyed by process onto Kafka partitions, so instances can be added without two of them ever driving the same run, and past one database the work can be [sharded](/guides/sharding/). A process waiting two days for a manager holds no thread, no connection and no memory — just a row — so a million waiting processes cost storage, not compute. Where the real ceiling is, and how it was measured, is in [Performance](/guides/performance/). The same definition runs unchanged from a unit test to a cluster: the [deployment mode](/guides/deployment-modes/) is configuration, not code.
+
+**Change.** This is the scalability teams notice later, and value more. In hand-written orchestration every new requirement touches the same tangle: the state table, the status values, the sweeper, the compensation path, the admin screen. Each change is riskier than the last, because the process is spread across all of them. With an engine:
+
+- adding a step, a branch, an approval or a timeout is adding a block to a definition, and the rest of the machinery already applies to it;
+- a new process reuses what exists — workers, HTTP connections, forms, rules — instead of copying a whole orchestration skeleton;
+- workers are decoupled by topic and contract, so a new service plugs in without the process knowing how it is built;
+- a new version of a definition runs side by side with the old one, and running processes keep theirs or are [migrated](/guides/migrating-running-processes/) deliberately;
+- the [Maven plugin](/reference/maven-plugin/) validates every definition in CI — dangling references, unreachable steps, invalid expressions — before a change can reach production.
+
+### You write less code
+
+The ten-line method became, by item 12, a small framework: tables, sweepers, an outbox, locks, timers, a task inbox, an admin UI. Most of that code is not about hotels, and it has to be written, tested, reviewed and maintained in every service that orchestrates something. With an engine, the process is the definition above — readable in a pull request by someone who does not know Java — and the code that remains is the business work inside each step. The [test kit](/guides/testing-workflows/) runs a definition in memory with stubbed workers, so tests are about the business flow, not the plumbing.
+
+### The hard parts come for free
+
+Retries with backoff, timeouts, sagas with compensation in reverse order of actual completion, idempotency keys, parallel fan-out with a failure policy, timers and deadlines, waiting for messages, human tasks with assignment and escalation, crash recovery, the transactional outbox, one owner per process, versioning: each is declared or built in. Because they are solved once, they are solved the same way for every process, and they cannot be forgotten in one of them.
+
+Item 6 is a good example of why that matters. A reply that arrives after its work was cancelled is a bug that hand-written orchestration almost always has and almost nobody notices, because it only shows up when a reply races a cancellation. The engine had it too, until it was found and fixed — once, for every process that runs on it.
+
+### It can be operated
+
+Hand-written processes get operational tooling after the first incident, if ever. With the engine it is there from day one:
+
+- a console with every process's live graph, steps, variables, errors and history, and search by business key or [search attributes](/guides/searching-and-bulk-operations/);
+- [repair operations](/guides/operating-running-processes/) on a single run — set variables, complete a step, retry from a step, migrate — and the same as [batch operations](/guides/searching-and-bulk-operations/#batch-operations) over many, all audited and authorized;
+- incidents that say what failed and why, instead of a stack trace in a log;
+- metrics and tracing out of the box ([Observability](/reference/observability/));
+- an [MCP interface](/guides/mcp-overview/), so an AI assistant can answer "where is booking 123?" or "retry everything that failed last night" in natural language.
+
+### It saves time — at every stage, not just the first
+
+Time is the metric that sums up the others, and the first version is the smallest part of it. A process lives for years; most of its cost is in what happens after it ships.
+
+| Stage | Written by hand | With EventConductor |
+|---|---|---|
+| **First version** | The business steps *plus* the plumbing under the waterline, built and tested from scratch | The definition and the workers; the plumbing is already there |
+| **Each change** | Touch the state table, the status values, the sweeper, the compensation path, the admin screen — and re-test all of them | Edit one block of the definition; the [IDE plugins](/guides/ide-plugins/) and the [Maven plugin](/reference/maven-plugin/) validate it as you type and in CI |
+| **Review** | Reconstruct the flow from code spread across classes | Read the definition, or its graph, in the pull request |
+| **Deploy** | Rebuild and redeploy the service; decide what happens to the runs in flight | Merge to the definitions repository: the engine [imports it from Git](/guides/workflow-definitions/#importing-from-git) on the webhook, records a new version, and running processes keep the one they started with — no service redeploy. Workers deploy on their own schedule |
+| **Test** | Spin up the service and its dependencies, or mock the plumbing | The [test kit](/guides/testing-workflows/) runs the definition in memory, with stubbed workers and [simulated time](/guides/testing-workflows/#moving-time) — a three-day timer passes without waiting three days |
+| **Diagnose** | Correlate logs across services to rebuild what one run did | Open the run: its graph, steps, variables, errors and history are on one screen |
+| **Repair** | Write a one-off script, get it reviewed, run it against production | Retry from a step, set a variable, or run a batch operation — audited |
+| **Next process** | Copy the skeleton, or build a second one | Write another definition; everything above applies to it on day one |
+
+The pattern in that table is that the hand-written cost is paid **again** at every stage and for every process, while the engine's is paid **once**. That is also why the gap widens with time instead of closing: the first process is where hand-written code is closest to an engine, not furthest.
+
+Being fair about it: the first hours with an engine are slower, because the team is learning it — and for the very first, very simple process, writing it by hand may well be quicker. The comparison that matters is the second change, the first incident and the third process.
+
+## What it costs
+
+An engine is not free, and pretending otherwise is how teams end up resenting one.
+
+- **One more dependency and one more concept.** The team learns the DSL, the step types and the execution model. Debugging goes through the engine's view of the world.
+- **Conventions are a constraint.** EventConductor decides how work is dispatched, retried and compensated. Inside those conventions there is almost nothing to write; outside them — say, a deadline on a *group* of steps — you have to find another way to express it (see [the comparison](/guides/comparison/#the-trade-is-the-one-maven-and-spring-boot-make)).
+- **Latency.** Persisting every transition costs milliseconds per step. Irrelevant for a booking that takes minutes; relevant for a request that must answer in 20 ms.
+- **Operations, in distributed mode.** Kafka and PostgreSQL are moving parts. Embedded mode removes Kafka, and memory mode removes both, but a production deployment is still something to run.
+
+## When to write it by hand
+
+Write it yourself when **all** of these hold:
+
+- it is a single request–response, finished within that request;
+- every call is local, or fits in one database transaction;
+- nothing waits — no person, no timer, no external callback;
+- a failure halfway can simply be reported and retried from the start;
+- nobody needs to ask where an individual run is.
+
+Validation chains, a synchronous enrichment, a CRUD operation with a side effect: that is code, and an engine would only add weight.
+
+Reach for an engine as soon as **two or more** of these appear: calls to other systems that can fail independently, work that must be undone, steps that wait for people or time, parallel branches, processes that outlive a deployment, or people who need to see and repair individual runs. By then the hand-written version is already growing an engine of its own — just an undocumented, untested one, built one incident at a time.
+
+## Further reading
+
+- [Introduction](/guides/introduction/) — the core concepts.
+- [Comparison with Camunda, Temporal and Conductor](/guides/comparison/) — if you have decided on an engine, which one.
+- [Retries, timeouts and compensation](/guides/retries-timeouts-compensation/) — the failure model in detail.
+- [Reliability](/guides/reliability/) — what the engine guarantees under crashes and network faults, and how it is tested.
