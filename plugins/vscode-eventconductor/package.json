@@ -2,7 +2,7 @@
   "name": "eventconductor-vscode",
   "displayName": "EventConductor",
   "description": "Edit workflows and forms visually; execute workflow drafts on a test engine and follow processes, child workflows, variables and logs.",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "publisher": "miguelperezcolom",
   "license": "MIT",
   "icon": "media/icon.png",
