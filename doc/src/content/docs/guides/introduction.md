@@ -14,6 +14,10 @@ Most workflow engines fall into one of two traps:
 
 EventConductor sits in the middle: a **library** you embed in your Spring Boot application, with a JSON DSL designed to be written and reviewed by developers, and three deployment modes that scale from a unit test to a multi-pod Kubernetes cluster.
 
+## Engine or hand-written code?
+
+Before choosing *which* engine, it is worth asking whether you need one at all. A process written by hand has to rebuild compensation, idempotent retries, crash recovery, timers, human tasks, versioning of in-flight runs and an operations console on its own — usually one incident at a time. [Why a process engine?](/guides/why-a-process-engine/) walks through that with a concrete example, lists what an engine costs in return, and says when plain code is the better choice.
+
 ## Core concepts
 
 ### Workflow Definition

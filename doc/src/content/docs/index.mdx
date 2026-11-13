@@ -29,6 +29,27 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
   ></iframe>
 </div>
 
+## Why not just write it in code?
+
+A business process starts as a few calls in a row — and then production adds the rest: undoing what succeeded when a later step fails, retries that must not book twice, a pod that dies halfway, people who answer two days later, code that changes while runs are in flight, and someone asking *"where is booking 123?"*. Written by hand, that is most of the code, and almost none of it is about your business.
+
+<CardGrid>
+  <Card title="It scales — in capacity and in change" icon="rocket">
+    From one JVM to a cluster with the same definition; millions of waiting processes cost storage, not threads. And adding a step, a branch or a whole new process stays as easy on day 500 as on day one.
+  </Card>
+  <Card title="You write less code" icon="pencil">
+    The process is a short, reviewable declaration. What remains in code is the business work inside each step — not state tables, sweepers, outboxes and locks.
+  </Card>
+  <Card title="The hard parts come for free" icon="approve-check">
+    Retries, timeouts, sagas and compensation, parallel fan-out, timers, human tasks, crash recovery and versioning — declared in one line, solved once for every process.
+  </Card>
+  <Card title="It can be operated" icon="magnifier">
+    Every run is a live graph you can search, inspect, retry from a step, migrate or repair in bulk — audited, and from day one rather than after the first incident.
+  </Card>
+</CardGrid>
+
+And when hand-written code *is* the better choice, we say that too: [Why a process engine?](/guides/why-a-process-engine/)
+
 ## Why EventConductor?
 
 <CardGrid stagger>

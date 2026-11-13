@@ -54,6 +54,7 @@ export default defineConfig({
 					label: 'Getting Started',
 					items: [
 						{ label: 'Introduction', slug: 'guides/introduction' },
+						{ label: 'Why a Process Engine?', slug: 'guides/why-a-process-engine' },
 						{ label: 'Comparison: Camunda & Temporal', slug: 'guides/comparison' },
 						{ label: 'Quick Start', slug: 'guides/quickstart' },
 						{ label: 'Deployment Modes', slug: 'guides/deployment-modes' },
