@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>EventConductor graph editor — promo harness</title>
+<!--
+  Hosts the REAL graph editor (the eventconductor-workflow-graph web component, the same bundle the
+  console serves and the VS Code / IntelliJ plugins embed) in edit mode, beside a live view of the
+  definition it edits: every value-changed event re-renders the YAML on the right. Served over
+  HTTP by scripts/record-editor.mjs (ES modules do not load from file://).
+-->
+<style>
+  @font-face { font-family: 'Inter'; font-weight: 100 900; src: url('/media/promo-video/node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'JetBrains Mono'; font-weight: 100 800; src: url('/media/promo-video/node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2') format('woff2'); }
+  html, body { margin: 0; height: 100%; background: #0b1020; color: #e2e8f0; font-family: 'Inter', sans-serif; overflow: hidden; }
+  #wrap { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 380px; }
+  #editor { position: relative; border-right: 1px solid rgba(255,255,255,.1); }
+  eventconductor-workflow-graph { position: absolute; inset: 0; display: block; }
+  #file { position: relative; background: #0d1426; overflow: hidden; }
+  #file h2 { margin: 0; padding: 12px 16px; font-size: 13px; font-weight: 600; color: #9aa6c4; border-bottom: 1px solid rgba(255,255,255,.08); letter-spacing: .02em; }
+  #file h2 b { color: #e2e8f0; }
+  #file h2 .live { float: right; color: #4ade80; font-weight: 700; }
+  #yaml { margin: 0; padding: 10px 0; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 17px; white-space: pre; }
+  #yaml div { padding: 0 14px; }
+  #yaml .new { background: rgba(74, 222, 128, .16); box-shadow: inset 3px 0 0 #4ade80; }
+  .k { color: #93c5fd; } .s { color: #a7f3d0; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="editor"></div>
+  <div id="file"><h2><b>hotel-booking.yaml</b> <span class="live">● live</span></h2><pre id="yaml"></pre></div>
+</div>
+<script type="module">
+  import '/modules/workflow-engine/src/main/resources/META-INF/resources/eventconductor/workflow-graph.js';
+  import * as YAML from '/media/promo-video/node_modules/yaml/browser/dist/index.js';
+
+  const def = YAML.parse(await (await fetch('/media/promo-video/app/definitions/hotel-booking.yaml')).text());
+  // ?unset=onIterationFailure starts from the definition without that field (the default,
+  // failFast), so the video can set it in the editor and the file shows the line appear.
+  for (const f of new URLSearchParams(location.search).getAll('unset')) {
+    for (const st of def.steps) if (st.forEach && f in st.forEach) delete st.forEach[f];
+  }
+  const graph = document.createElement('eventconductor-workflow-graph');
+  graph.dark = true;
+  graph.value = JSON.stringify(def);
+  document.getElementById('editor').appendChild(graph);
+
+  const pre = document.getElementById('yaml');
+  let previous = [];
+  function show(value, mark) {
+    const text = YAML.stringify(JSON.parse(value), { lineWidth: 0, flowCollectionPadding: true });
+    const lines = text.split('\n');
+    const old = new Set(previous);
+    // The layout block (positions the editor saves when a step is placed) is real but not the
+    // point: it is shown, never highlighted.
+    let inLayout = false;
+    pre.innerHTML = lines.map((l) => {
+      if (/^\S/.test(l)) inLayout = l.startsWith('layout:');
+      const html = l.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/^(\s*-?\s*)([\w$-]+)(:)/, '$1<span class="k">$2</span>$3');
+      return `<div class="${mark && !inLayout && !old.has(l) ? 'new' : ''}">${html || ' '}</div>`;
+    }).join('');
+    previous = lines;
+    // keep the newest change in sight
+    const first = pre.querySelector('.new');
+    if (first) first.scrollIntoView({ block: 'center' });
+  }
+  show(graph.value, false);
+  graph.addEventListener('value-changed', (e) => show(e.detail.value, true));
+  window.harnessReady = true;
+</script>
+</body>
+</html>

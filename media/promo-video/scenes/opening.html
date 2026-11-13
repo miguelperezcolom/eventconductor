@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>EventConductor promo — opening</title>
+<!--
+  The 6-second opening played before scenes/index.html: the logo and tagline, then the hook
+  question, then back to the empty background the main timeline starts on — so the cut between
+  the two clips is invisible. Same contract as index.html: window.render(t), nothing animates
+  on its own. Rendered by: node scripts/render-animated.mjs --page scenes/opening.html --out build/opening.mp4
+-->
+<style>
+  @font-face { font-family: 'Inter'; font-weight: 100 900; src: url('../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2'); }
+  :root { --bg0: #060a16; --ink: #eef2ff; --muted: #9aa6c4; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg0); }
+  #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; font-family: 'Inter', sans-serif; color: var(--ink);
+    background: radial-gradient(1400px 900px at 50% 38%, #142046 0%, #0a1024 55%, var(--bg0) 100%); }
+  .abs { position: absolute; }
+  .headline { position: absolute; left: 0; right: 0; text-align: center; font-weight: 750; letter-spacing: -0.02em; }
+  .glow { position: absolute; left: 50%; top: 330px; width: 900px; height: 900px; margin-left: -450px; margin-top: -450px; border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(109,124,255,.30), rgba(56,189,248,.10) 55%, transparent); }
+</style>
+</head>
+<body>
+<div id="stage"><div id="o" class="abs" style="inset:0"></div></div>
+<script>
+const D = window.DATA, S = D.strings, W = 1920;
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, p) => a + (b - a) * p;
+const eout = (p) => 1 - Math.pow(1 - p, 3);
+const back = (p) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); };
+const vis = (t, a, b, fi = .35, fo = .35) => Math.min(seg(t, a, a + fi), 1 - seg(t, b - fo, b));
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+window.DURATION = 5.9;
+window.render = (t) => {
+  // 0.25–2.75 brand: logo pops in, name and tagline follow, then everything lifts and fades.
+  const brand = vis(t, .25, 2.75, .6, .4), p = seg(t, .25, 1.05), q = seg(t, .7, 1.4), lift = eout(seg(t, 2.35, 2.75)) * -30;
+  // 2.9–4.85 hook: the question, word by word.
+  // Two lines, word by word; the last word ("business?") in the accent colour.
+  const lines = S['opening.hook'], hook = 1 - seg(t, 5.3, 5.7);
+  let k = 0; const total = lines.join(' ').split(' ').length;
+  const hookHtml = lines.map((line) => line.split(' ').map((w) => { const i = k++, a = seg(t, 2.9 + i * .1, 3.25 + i * .1);
+    const colour = i === total - 1 ? 'color:#7dd3fc;' : '';
+    return `<span style="display:inline-block;${colour}opacity:${a * hook};transform:translateY(${lerp(18, 0, eout(a))}px)">${esc(w)}</span>`; }).join(' ')).join('<br>');
+  document.getElementById('o').innerHTML = `
+    <div class="glow" style="opacity:${brand * .9};transform:scale(${lerp(.7, 1, eout(p))})"></div>
+    <div class="abs" style="inset:0;opacity:${brand};transform:translateY(${lift}px)">
+      <svg class="abs" style="left:${W / 2 - 90}px;top:250px;transform:scale(${lerp(.6, 1, back(p))});transform-origin:90px 90px" width="180" height="180" viewBox="0 0 128 128">
+        <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b9bff"/><stop offset="1" stop-color="#38bdf8"/></linearGradient></defs>
+        <g fill="url(#lg)">${D.logo}</g></svg>
+      <div class="headline" style="top:470px;font-size:112px;opacity:${p};transform:translateY(${lerp(20, 0, eout(p))}px)">EventConductor</div>
+      <div class="headline" style="top:620px;font-size:46px;font-weight:600;color:#c7d2fe;opacity:${q};transform:translateY(${lerp(16, 0, eout(q))}px)">${esc(S['opening.tagline'])}</div>
+    </div>
+    <div class="headline" style="top:410px;font-size:84px;line-height:1.2">${hookHtml}</div>`;
+};
+window.ready = document.fonts.ready;
+window.pending = Promise.resolve();
+</script>
+</body>
+</html>
