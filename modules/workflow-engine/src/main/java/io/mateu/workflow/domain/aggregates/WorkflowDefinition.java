@@ -1516,6 +1516,17 @@ public record WorkflowDefinition(
     }
 
     /** The steps some other step names as its {@code compensationStepId}. */
+    /** Each step with an on-timeout branch, to that branch's step id. */
+    private java.util.Map<String, String> timeoutRoutes() {
+        var routes = new java.util.HashMap<String, String>();
+        for (var step : steps) {
+            if (step.id() != null && step.onTimeoutStepId() != null && !step.onTimeoutStepId().isBlank()) {
+                routes.put(step.id(), step.onTimeoutStepId());
+            }
+        }
+        return routes;
+    }
+
     private java.util.Set<String> compensationTargets() {
         var targets = new java.util.HashSet<String>();
         for (var step : steps) {
@@ -1538,11 +1549,15 @@ public record WorkflowDefinition(
     public List<String> topologyWarnings() {
         if (steps == null || steps.isEmpty()) return List.of();
         var compensationTargets = compensationTargets();
-        // Real outgoing edges per node, excluding the anchor edges into compensation steps.
+        var timeoutRoutes = timeoutRoutes();
+        // Real outgoing edges per node, excluding the anchor edges into compensation steps and the
+        // edge from a step to its own on-timeout branch: that one is the route the engine takes when
+        // the step runs out of time (onTimeoutStepId), not a second flow out of it.
         var realOut = new java.util.LinkedHashMap<String, Integer>();
         for (var step : steps) {
             for (var pre : step.preconditionIds()) {
                 if (compensationTargets.contains(step.id())) continue; // anchor edge — not real flow
+                if (step.id() != null && step.id().equals(timeoutRoutes.get(pre))) continue; // timeout route
                 realOut.merge(pre, 1, Integer::sum);
             }
         }
