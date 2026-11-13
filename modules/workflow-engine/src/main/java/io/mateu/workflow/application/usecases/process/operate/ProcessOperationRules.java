@@ -298,6 +298,9 @@ public class ProcessOperationRules {
 
     /** A final failure that holds the flow: ERROR, or a TIMEOUT that does not route anywhere. */
     public static boolean blocksTheFlow(StepExecution se) {
+        if (se.isCleanupCompensation()) {
+            return false;
+        }
         if (StepExecutionStatus.ERROR.equals(se.getStatus())) {
             return true;
         }

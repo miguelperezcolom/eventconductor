@@ -326,8 +326,66 @@ public record Step(
         /** AGENT only: published catalogue reference and explicit task input. */
         @HiddenInList
         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-        AgentCall agent
+        AgentCall agent,
+        /**
+         * XOR JOIN only: true makes the join, once it goes on with the first branch, abandon the others —
+         * their steps still waiting or running are cancelled, and the compensable steps of theirs that
+         * completed are compensated, newest first, as a cleanup beside the flow (not a saga rollback:
+         * the process carries on, and a cleanup that fails is an incident). Absent or false: the other
+         * branches run on, as they always have. Left out of the JSON unless true, so a step without it
+         * hashes into a definition version as before.
+         */
+        @HiddenInList
+        @Hidden("state['type'] != 'JOIN'")
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        Boolean compensateLosers,
+        /**
+         * END only: true makes reaching this END also compensate, as a cleanup, the compensable steps
+         * that completed on the branches it cut short (a branch with a step the END cancelled). Absent or
+         * false: only the steps whose work completed <em>after</em> the END cancelled them are
+         * compensated. Left out of the JSON unless true, so a step without it hashes into a definition
+         * version as before.
+         */
+        @HiddenInList
+        @Hidden("state['type'] != 'END'")
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        Boolean compensateAbandoned
 ) implements Identifiable {
+
+    /** The shape this record had before {@code compensateLosers}/{@code compensateAbandoned}, so every caller of the full constructor keeps compiling. */
+    public Step(String id, String workflowDefinitionId, StepType type, String name, String description,
+                String preconditionStepId, List<String> preconditionStepIds, List<Precondition> preconditions,
+                String preconditionExpression, boolean parallel, String topic, String formId, String ruleId,
+                String childWorkflowDefinitionId, List<String> outputVariables, long duration,
+                String untilVariable, String messageName, String correlationExpression,
+                List<String> messageVariables, long timeout, int retries, boolean compensable,
+                String compensationStepId, String onTimeoutStepId, int maxSuccessfulExecutions,
+                JoinType joinType, List<String> requiredScopes, List<String> requiredRoles,
+                String lockName, String lockKey, String task, List<String> replyVariables,
+                String replyExpression, Object replyTemplate, PublishEvent event, HttpCall http,
+                Moment until, Moment deadline, LlmCall llm, EventWait onEvent, AwaitReply awaitReply,
+                ForEach forEach, Repeat repeat, LoopBack loopBack, TaskAssignment assignment,
+                List<Escalation> escalation, Boolean sensitiveOutputs, Integer priority, ContinueAsNew continueAsNew,
+                AgentCall agent) {
+        this(id, workflowDefinitionId, type, name, description, preconditionStepId, preconditionStepIds,
+                preconditions, preconditionExpression, parallel, topic, formId, ruleId,
+                childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
+                correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
+                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
+                lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, event, http, until, deadline,
+                llm, onEvent, awaitReply, forEach, repeat, loopBack, assignment, escalation, sensitiveOutputs,
+                priority, continueAsNew, agent, null, null);
+    }
+
+    /** Whether this is an XOR JOIN that abandons, and cleans up after, the branches it does not go on with. */
+    public boolean compensatesLosers() {
+        return Boolean.TRUE.equals(compensateLosers);
+    }
+
+    /** Whether this is an END that cleans up after the branches it cuts short. */
+    public boolean compensatesAbandoned() {
+        return Boolean.TRUE.equals(compensateAbandoned);
+    }
 
     /** The shape this record had before {@code agent}, so every caller of the full constructor keeps compiling. */
     public Step(String id, String workflowDefinitionId, StepType type, String name, String description,
@@ -350,11 +408,14 @@ public record Step(
                 onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
                 lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, event, http, until, deadline,
                 llm, onEvent, awaitReply, forEach, repeat, loopBack, assignment, escalation, sensitiveOutputs,
-                priority, continueAsNew, null);
+                priority, continueAsNew, null, null, null);
     }
 
     public Step {
         if (type == StepType.AGENT && timeout == 0) timeout = 300000;
+        // false is the default: kept out of the JSON like absent, so it never changes a version hash.
+        if (Boolean.FALSE.equals(compensateLosers)) compensateLosers = null;
+        if (Boolean.FALSE.equals(compensateAbandoned)) compensateAbandoned = null;
         requiredScopes = requiredScopes == null ? List.of() : List.copyOf(requiredScopes);
         requiredRoles = requiredRoles == null ? List.of() : List.copyOf(requiredRoles);
     }

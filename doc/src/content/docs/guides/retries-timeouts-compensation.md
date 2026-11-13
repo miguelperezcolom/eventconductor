@@ -214,6 +214,50 @@ any step fails after exhausting its retries:
 If nothing compensable had completed when the step failed (for instance `reserve-hotel` itself
 fails), there is nothing to roll back: no compensation runs and the process stays in plain `ERROR`.
 
+### A cancelled step whose work completes anyway
+
+The engine cancels steps that are still running: at the end of a rollback (a sibling branch failed),
+when another branch reaches `END`, and when an `XOR` join with `compensateLosers` goes on without
+them. Cancelling races with the work. A worker that had already made the booking, or a child process
+that had already completed, reports `COMPLETED` after the cancellation — and that report used to be
+dropped as stale, leaving the booking behind with nothing to undo it.
+
+When the step declares a compensation, that late `COMPLETED` is now kept as a completed run, with what
+it reported (on the run, not in the process variables — the compensation sees it), and undone:
+
+- **In a failed process** the rollback picks it up. If the rollback had already finished, the process
+  goes back to `ERROR`, runs a new pass of the compensation over just that run, and ends `COMPENSATED`
+  again.
+- **In a process that did not fail** (`END` reached, or an `XOR` join with `compensateLosers`) it is
+  compensated as a *cleanup* — see below.
+
+A late answer for a step without a compensation is still ignored, and so is one for a process an
+operator cancelled: cancelling a process is not a rollback. Workers should still be idempotent, and a
+compensation must tolerate undoing work that completed late.
+
+### Branches the flow abandons
+
+Two things end a branch without failing the process: another branch reaching `END`, and an `XOR`
+join going on with another branch. What those branches completed **in time** stands by default —
+that is how they have always behaved. Two opt-ins undo it:
+
+| Where | Field | What it compensates |
+|---|---|---|
+| an `XOR` `JOIN` | `compensateLosers: true` | The losing branches are cancelled as the join fires, and their completed compensable steps are compensated. |
+| an `END` | `compensateAbandoned: true` | The completed compensable steps of the branches this `END` cut short (not on the way to it, with a step after them it cancelled). |
+
+Work that completed **late** — after the cancellation — is compensated with or without them.
+
+These compensations are a **cleanup beside the flow**, not a rollback:
+
+- They run one at a time, newest first, each over the runs it undoes.
+- They do not change the process status: an `XOR` cleanup runs while the process carries on, an
+  `END` cleanup runs after it is `COMPLETED`. Reaching `END` never cancels a cleanup in progress.
+- If one fails after its retries, it is an **incident** — the failed compensation shows in the Errors
+  tab for an operator — and the process neither fails nor rolls back because of it. A rollback that
+  starts later for another reason does not halt on it either; it undoes the rest.
+- A run a cleanup undid counts as undone: a later rollback does not undo it twice.
+
 ## Conditional skipping
 
 Use `preconditionExpression` (a [JEXL](https://commons.apache.org/proper/commons-jexl/) expression) to skip steps based on process variables:

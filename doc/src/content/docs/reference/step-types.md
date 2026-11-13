@@ -523,6 +523,19 @@ everything after it while the process still completes successfully. The
 on a guarded step.
 :::
 
+**`compensateLosers`** (`XOR` only, default `false`). By default an `XOR` join leaves the other
+branches running: they finish on their own, and what they did stands. With `compensateLosers: true`
+the join **abandons** them the moment it goes on: their steps still waiting or running are cancelled,
+and every [compensable](/guides/retries-timeouts-compensation/#branches-the-flow-abandons) step of
+theirs that completed is compensated, newest first, as a *cleanup* beside the flow — the process
+carries on down the winning branch. A losing branch is what leads into the join only through a link
+that was not satisfied when it fired; a step that also feeds some other part of the flow is not part
+of it. `compensateLosers` on any other step is a validation error.
+
+```yaml
+- { id: first, type: JOIN, name: First answer, joinType: XOR, compensateLosers: true, preconditionStepIds: [fast, quote] }
+```
+
 :::note[Only `AND` and `XOR` — no *n-of-m* join]
 The merge is a two-valued choice: wait for **all** branches (`AND`) or the **first** one (`XOR`).
 There is deliberately no first-class *n-of-m* (partial join / discriminator) — "proceed once **2
@@ -621,6 +634,18 @@ Marks the workflow as complete. The process transitions to `COMPLETED`.
 ```
 
 An `END` step is recommended, but not enforced: the engine also completes a process **implicitly** when no runnable steps remain — no step is active, and every remaining step is blocked by a precondition that does not hold. On completion (explicit or implicit), any step still waiting is transitioned to `CANCELLED`. Declaring an explicit `END` makes the intended terminal point visible and lets you end the process early while other steps are still eligible.
+
+A step the `END` cancelled while its work was under way may still complete — the worker had already
+booked. That work is always compensated when its step declares a compensation (see
+[Branches the flow abandons](/guides/retries-timeouts-compensation/#branches-the-flow-abandons)).
+With **`compensateAbandoned: true`** (default `false`, `END` only) the `END` also compensates what the
+branches it cut short had completed *in time*: every compensable step that is not on the way to this
+`END` and has a step after it that the `END` cancelled. The process is `COMPLETED` either way; the
+compensations run after it as a cleanup.
+
+```yaml
+- { id: done, type: END, name: Done, compensateAbandoned: true, preconditionStepId: quick }
+```
 
 ---
 

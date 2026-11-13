@@ -1,0 +1,13 @@
+id: fork-late-xor
+name: Ask two suppliers, go on with the first, then pay
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: fork, type: FORK, name: Fork, preconditionStepId: start }
+  - { id: fast, type: ACTION, name: Fast supplier, topic: work, preconditionStepId: fork, compensable: true, compensationStepId: release-fast }
+  - { id: slow, type: ACTION, name: Slow supplier, topic: work, preconditionStepId: fork, compensable: true, compensationStepId: release-slow }
+  - { id: first, type: JOIN, name: First answer, joinType: XOR, preconditionStepIds: [fast, slow] }
+  - { id: pay, type: ACTION, name: Pay, topic: work, preconditionStepId: first }
+  - { id: end, type: END, name: End, preconditionStepId: pay }
+  - { id: release-fast, type: ACTION, name: Release fast, topic: work }
+  - { id: release-slow, type: ACTION, name: Release slow, topic: work }

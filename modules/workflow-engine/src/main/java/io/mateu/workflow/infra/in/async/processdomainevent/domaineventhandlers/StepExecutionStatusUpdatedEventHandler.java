@@ -42,6 +42,9 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
     final CancelChildProcessService cancelChildProcessService;
     final CompensationService compensationService;
     final AutoRetryService autoRetryService;
+    /** Pure, so a plain instance serves; not a constructor dependency, so hand-built handlers (tests) still compile. */
+    io.mateu.workflow.domain.services.AbandonedBranchService abandonedBranchService =
+            new io.mateu.workflow.domain.services.AbandonedBranchService();
 
     /** What a terminal process still holds that can never run now. */
     private static final java.util.Set<StepExecutionStatus> CANCELLABLE_AT_THE_END = java.util.Set.of(
@@ -138,6 +141,72 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
         // sees the blocking error and holds the normal flow.
         advanceCompensation(processId, executions);
         stepOverProcessUseCase.handle(new StepOverProcessCommand(processId));
+        // After the step-over, which is where an END or an XOR join is reached: clean up after the
+        // branches the flow abandoned — in a process that did not fail (a failed one is rolled back).
+        if (cleanUpAbandonedBranches(processId)) {
+            stepOverProcessUseCase.handle(new StepOverProcessCommand(processId));
+        }
+    }
+
+    /**
+     * Applies {@link io.mateu.workflow.domain.services.AbandonedBranchService}: cancels the losing
+     * branches of an XOR join that abandons them, then starts at most one cleanup compensation.
+     *
+     * @return whether a cleanup was started, so the caller steps the process over to dispatch it
+     */
+    private boolean cleanUpAbandonedBranches(String processId) {
+        for (int round = 0; round < 2; round++) {
+            var process = processRepository.findById(processId).orElseThrow();
+            var executions = stepExecutionRepository.findByProcess(process);
+            var plan = abandonedBranchService.decide(process, executions);
+            if (plan.isEmpty()) {
+                return false;
+            }
+            if (!plan.toCancel().isEmpty()) {
+                for (var execution : plan.toCancel()) {
+                    if (execution.getStatus().isInFlightAtAWorker()) {
+                        downstreamEventPublisher.publish(new TaskCancellationRequested(execution.getId(), execution.getInvocationId()),
+                                execution.topic());
+                    }
+                    if (execution.isContainer()) {
+                        for (var iteration : io.mateu.workflow.domain.services.StepExecutions.iterationsOf(execution, executions)) {
+                            if (iteration.getStatus() == StepExecutionStatus.CREATED || iteration.getStatus().keepsTheProcessInFlight()) {
+                                if (iteration.getStatus().isInFlightAtAWorker()) {
+                                    downstreamEventPublisher.publish(new TaskCancellationRequested(iteration.getId(),
+                                            iteration.getInvocationId()), iteration.topic());
+                                }
+                                iteration.cancelQuietly();
+                                stepExecutionRepository.save(iteration);
+                            }
+                        }
+                    }
+                    execution.logInfo("Step " + execution.getStepId() + " cancelled: its branch lost an XOR join "
+                            + "that abandons the other branches (compensateLosers).");
+                    execution.updateStatus(StepExecutionStatus.CANCELLED);
+                    stepExecutionRepository.save(execution);
+                }
+                continue;
+            }
+            var cleanup = plan.cleanup();
+            var units = cleanup.units();
+            var run = cleanup.compensation();
+            if (cleanup.runsAgain()) {
+                run.supersede(null);
+                stepExecutionRepository.save(run);
+                run = StepExecution.nextPassOf(run);
+            }
+            run.beginIterations(process, units.size(), units.get(0).getStepId(), idsOf(units));
+            run.markCleanup(cleanup.reason());
+            stepExecutionRepository.save(run);
+            for (int i = 0; i < units.size(); i++) {
+                stepExecutionRepository.save(StepExecution.iterationOf(run, run.getStepJson(), i, compensationScope(units.get(i))));
+            }
+            log.info("Process {}: compensating {} run(s) of step {} left by an abandoned branch ({}).",
+                    process.getId(), units.size(), units.get(0).getStepId(), cleanup.reason());
+            workflowMetrics.compensationTriggered(run.getWorkflowDefinitionId());
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -188,11 +257,11 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
     }
 
     /**
-     * Undoes forEach iterations that completed after the compensation of their step was decided —
-     * iterations the engine had cancelled whose work won the race (see
-     * {@code UpdateStepExecutionUseCase#isLateCompletionOfACancelledIteration}). The compensation's
-     * execution is history now: a new pass of it runs once per such iteration, newest first, exactly
-     * like the first run did for the others. A process the rollback had already left COMPENSATED is
+     * Undoes runs that completed after the compensation of their step was decided — forEach iterations,
+     * or steps on a parallel branch, that the engine had cancelled and whose work won the race (see
+     * {@code UpdateStepExecutionUseCase#isLateCompletionOfACancelledRun}). The compensation's
+     * execution is history now: a new pass of it runs once per such run, newest first, exactly like
+     * the first run did for the others. A process the rollback had already left COMPENSATED is
      * rolling back again until that pass is done, so it goes back to ERROR; the pass ends it
      * COMPENSATED (or COMPENSATION_FAILED) as any rollback ends.
      */
@@ -212,7 +281,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
                 || ProcessStatus.COMPENSATION_FAILED.equals(process.getStatus())) {
             processRepository.save(process.withStatus(ProcessStatus.ERROR));
         }
-        log.info("Process {}: {} iteration(s) of step {} completed after they had been cancelled; compensating them too.",
+        log.info("Process {}: {} run(s) of step {} completed after they had been cancelled; compensating them too.",
                 process.getId(), units.size(), units.get(0).getStepId());
         workflowMetrics.compensationTriggered(again.getWorkflowDefinitionId());
     }
@@ -232,6 +301,11 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
             scope.putAll(unit.scope());
             scope.putAll(unit.output());
         } else {
+            // What an ordinary run reported went to the process variables — except for a run that
+            // completed after the rollback had cancelled it, whose report was kept on the run itself
+            // (see StepExecution#completeAfterCancellation): its compensation needs it (the booking id
+            // to cancel). Empty for every other run.
+            scope.putAll(unit.output());
             scope.put("iteration", String.valueOf(unit.getIteration() + 1));
         }
         return scope;

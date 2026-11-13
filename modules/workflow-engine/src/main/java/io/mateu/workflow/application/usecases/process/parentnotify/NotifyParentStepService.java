@@ -48,18 +48,20 @@ public class NotifyParentStepService {
                     process.getId(), process.getParentStepExecutionId());
             return;
         }
-        boolean completedForACancelledIteration = ProcessStatus.COMPLETED.equals(process.getStatus())
+        boolean completedForACancelledRun = ProcessStatus.COMPLETED.equals(process.getStatus())
                 && StepExecutionStatus.CANCELLED.equals(parentStepExecution.getStatus())
-                && parentStepExecution.isIteration();
-        if (!StepExecutionStatus.PENDING.equals(parentStepExecution.getStatus()) && !completedForACancelledIteration) {
+                && !parentStepExecution.isContainer();
+        if (!StepExecutionStatus.PENDING.equals(parentStepExecution.getStatus()) && !completedForACancelledRun) {
             // Idempotency: the parent step already left its wait (earlier notification,
             // timeout, cancellation, …) — a late or redelivered notification must not
             // resurrect it.
             //
-            // Except a child that COMPLETED for a forEach iteration the parent cancelled meanwhile
-            // (the forEach failed fast while this child was finishing): its work happened, so it is
-            // reported, and the step update keeps the iteration as a completed run for the saga to
-            // compensate when its step declares a compensation — it drops it otherwise, as before.
+            // Except a child that COMPLETED for a parent step the parent cancelled meanwhile — a
+            // forEach iteration whose forEach failed fast, or a PROCESS step on a parallel branch the
+            // rollback cancelled — while this child was finishing: its work happened, so it is
+            // reported. The step update decides (UpdateStepExecutionUseCase#isLateCompletionOfACancelledRun):
+            // it keeps the run as a completed one for the saga to compensate when its step declares a
+            // compensation and the parent is rolling back, and drops it otherwise, as before.
             return;
         }
         var step = pojoFromJson(parentStepExecution.getStepJson(), Step.class);

@@ -64,20 +64,37 @@ public class UpdateStepExecutionUseCase {
     }
 
     /**
-     * A COMPLETED report for a forEach iteration the engine had cancelled after starting it, of a step
-     * that declares a compensation: work that happened and must be undone, not a stale answer. Only
-     * the attempt that was running when it was cancelled counts, and an iteration a retry of the
-     * forEach has since replaced (superseded) is left out — its item ran again under a new iteration.
+     * A COMPLETED report for a run the engine had cancelled after starting it, of a step that declares
+     * a compensation: work that happened and must be undone, not a stale answer. Two runs qualify:
+     *
+     * <ul>
+     *   <li>a <b>forEach iteration</b> — its forEach failed fast, or stopped because the process
+     *       failed, while the iteration's work was under way;</li>
+     *   <li>an <b>ordinary step</b> the flow cancelled while it ran: a sibling branch failed and the
+     *       rollback, once done, cancelled what was still in flight; another branch reached END; or
+     *       an XOR join with {@code compensateLosers} went on with another branch. Not when an operator
+     *       cancelled the process — a cancellation is not a rollback, it compensates nothing.</li>
+     * </ul>
+     *
+     * <p>The run is kept as a completed one; the saga's rollback (a failed process) or the cleanup of
+     * abandoned branches (one that did not fail) then compensates it. Only the attempt that was
+     * running when it was cancelled counts, and a run something has since replaced (superseded — a
+     * retry of the forEach, a loop going round, a retry from an earlier step, a restart, a migration)
+     * is left out: its work runs again under the new execution.
      */
-    static boolean isLateCompletionOfACancelledIteration(io.mateu.workflow.domain.aggregates.StepExecution execution,
-                                                         UpdateStepExecutionCommand command) {
+    static boolean isLateCompletionOfACancelledRun(io.mateu.workflow.domain.aggregates.StepExecution execution,
+                                                   UpdateStepExecutionCommand command,
+                                                   io.mateu.workflow.domain.aggregates.ProcessStatus processStatus) {
         if (command.status() != StepExecutionStatus.COMPLETED
                 || execution.getStatus() != StepExecutionStatus.CANCELLED
-                || !execution.isIteration()
                 || execution.isSuperseded()
                 || execution.getStartedAt() == null
                 || execution.getInvocationId() != null
                 || (command.attempt() != null && command.attempt() != execution.getDispatchCount())) {
+            return false;
+        }
+        if (!execution.isIteration() && (execution.isContainer() || processStatus == null
+                || processStatus == io.mateu.workflow.domain.aggregates.ProcessStatus.CANCELLED)) {
             return false;
         }
         try {
@@ -87,6 +104,13 @@ public class UpdateStepExecutionUseCase {
         } catch (RuntimeException e) {
             return false;
         }
+    }
+
+    private io.mateu.workflow.domain.aggregates.ProcessStatus processStatusOf(
+            io.mateu.workflow.domain.aggregates.StepExecution execution) {
+        return processRepository.findById(execution.getProcessId())
+                .map(io.mateu.workflow.domain.aggregates.Process::getStatus)
+                .orElse(null);
     }
 
     private void doUpdate(UpdateStepExecutionCommand command) {
@@ -109,12 +133,15 @@ public class UpdateStepExecutionUseCase {
             command = new UpdateStepExecutionCommand(command.stepId(), java.util.List.of(), command.log(),
                     StepExecutionStatus.TIMEOUT, true, command.attempt(), command.invocationId(), true, command.stateSequence());
         }
-        if (isLateCompletionOfACancelledIteration(execution, command)) {
-            // The engine cancelled this iteration (its forEach failed fast, or stopped because the
-            // process failed) while the work was already under way, and the work won the race. The
-            // unit exists in the system it was done in: dropping this report — as for any late
-            // answer below — would leave it there with nobody to undo it. Keep it as a completed
-            // run instead; the saga's rollback picks it up (see CompensationService).
+        if (execution.getStatus() == StepExecutionStatus.CANCELLED
+                && command.status() == StepExecutionStatus.COMPLETED
+                && isLateCompletionOfACancelledRun(execution, command, processStatusOf(execution))) {
+            // The engine cancelled this run (its forEach failed fast; the rollback, once done, cancelled
+            // what was still in flight; another branch reached END; an XOR join abandoned its branch)
+            // while the work was already under way, and the work won the race. The unit exists in the system it was done in:
+            // dropping this report — as for any late answer below — would leave it there with nobody
+            // to undo it. Keep it as a completed run instead; the saga's rollback picks it up (see
+            // CompensationService).
             execution.completeAfterCancellation(command.variables());
             repository.save(execution);
             return;
