@@ -54,8 +54,8 @@ public class InMemoryStepExecutionRepository implements StepExecutionRepository 
                 && !previous.getProcessId().equals(stepExecution.getProcessId())) {
             unindex(previous.getProcessId(), stepExecution.id());
         }
-        stepExecution.popEvents().forEach(event ->
-                processDomainEventUseCase.handle(new ProcessDomainEventCommand(event)));
+        stepExecution.popEvents().forEach(event -> io.mateu.workflow.application.services.DeferredEvents.raise(event,
+                e -> processDomainEventUseCase.handle(new ProcessDomainEventCommand(e))));
         return stepExecution.id();
     }
 

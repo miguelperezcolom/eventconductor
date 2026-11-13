@@ -172,32 +172,39 @@ public class StepOverProcessUseCase {
             result.getUpdatedProcess().releaseBusinessKey();
         }
 
-        if (result.getUpdatedProcess() != process || replied || continuation != null) {
-            processRepository.save(result.getUpdatedProcess());
-        }
-        if (continuation != null) {
-            // Written before the next run's insert: business_key is UNIQUE, and a flush orders inserts first.
-            processRepository.flush();
-            startNextRun(result.getUpdatedProcess(), continuation);
-        }
-        tagOutcome(result.getUpdatedProcess(), result.getStepsToSave());
-
-        result.getStepsToSave().forEach(stepExecution -> {
-            stepExecutionRepository.save(stepExecution);
-            // A branch still running at a worker when another branch reaches END is cancelled here
-            // by a plain status flip, which reaches nobody: the worker finishes and reports on a
-            // process that is already over. Same reasoning — and same event — as the saga rollback
-            // path and CancelProcessUseCase.
-            var before = statusBefore.get(stepExecution.getId());
-            if (StepExecutionStatus.CANCELLED.equals(stepExecution.getStatus())
-                    && before != null && before.isInFlightAtAWorker()) {
-                downstreamEventPublisher.publish(new TaskCancellationRequested(stepExecution.getId(), stepExecution.getInvocationId()),
-                        stepExecution.topic());
+        // All of this pass's writes land before any of their consequences run (see DeferredEvents): in
+        // memory mode a save acts on its events at once, and an embedded worker answering inline would
+        // otherwise drive the process on between two of these saves and have the second overwrite it.
+        final var outcome = result;
+        final boolean repliedNow = replied;
+        io.mateu.workflow.application.services.DeferredEvents.batch(() -> {
+            if (outcome.getUpdatedProcess() != process || repliedNow || continuation != null) {
+                processRepository.save(outcome.getUpdatedProcess());
             }
-            // END-transition and implicit-completion cancellations (and start-time errors)
-            // flow through here — a PROCESS step ending CANCELLED/ERROR must take its
-            // still-running child down with it.
-            cancelChildProcessService.stepReachedTerminalStatus(stepExecution);
+            if (continuation != null) {
+                // Written before the next run's insert: business_key is UNIQUE, and a flush orders inserts first.
+                processRepository.flush();
+                startNextRun(outcome.getUpdatedProcess(), continuation);
+            }
+            tagOutcome(outcome.getUpdatedProcess(), outcome.getStepsToSave());
+
+            outcome.getStepsToSave().forEach(stepExecution -> {
+                stepExecutionRepository.save(stepExecution);
+                // A branch still running at a worker when another branch reaches END is cancelled here
+                // by a plain status flip, which reaches nobody: the worker finishes and reports on a
+                // process that is already over. Same reasoning — and same event — as the saga rollback
+                // path and CancelProcessUseCase.
+                var before = statusBefore.get(stepExecution.getId());
+                if (StepExecutionStatus.CANCELLED.equals(stepExecution.getStatus())
+                        && before != null && before.isInFlightAtAWorker()) {
+                    downstreamEventPublisher.publish(new TaskCancellationRequested(stepExecution.getId(), stepExecution.getInvocationId()),
+                            stepExecution.topic());
+                }
+                // END-transition and implicit-completion cancellations (and start-time errors)
+                // flow through here — a PROCESS step ending CANCELLED/ERROR must take its
+                // still-running child down with it.
+                cancelChildProcessService.stepReachedTerminalStatus(stepExecution);
+            });
         });
 
         // The UNLOCK steps above are persisted now; wake whoever they handed the lock to.

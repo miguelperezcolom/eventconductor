@@ -119,8 +119,8 @@ public class InMemoryProcessRepository implements ProcessRepository {
         if (process.hasReplied() && replySignal != null) {
             replySignal.ifAvailable(signal -> signal.replyRecorded(process.id()));
         }
-        process.popEvents().forEach(event ->
-                processDomainEventUseCase.handle(new ProcessDomainEventCommand(event)));
+        process.popEvents().forEach(event -> io.mateu.workflow.application.services.DeferredEvents.raise(event,
+                e -> processDomainEventUseCase.handle(new ProcessDomainEventCommand(e))));
         return process.id();
     }
 

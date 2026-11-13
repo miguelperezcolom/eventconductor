@@ -1,0 +1,12 @@
+id: sync-fork-choice
+name: A CHOICE on one branch routes to END while the other branch is still being dispatched
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: fork, type: FORK, name: Fork, preconditionStepId: start }
+  - { id: score, type: ACTION, name: Score, topic: work, preconditionStepId: fork }
+  - { id: route, type: CHOICE, name: Route, preconditionStepId: score }
+  - { id: reject, type: END, name: Rejected, preconditions: [ { stepId: route, expression: "verdict == 'no'" } ] }
+  - { id: proceed, type: ACTION, name: Proceed, topic: work, preconditions: [ { stepId: route } ] }
+  - { id: slow, type: ACTION, name: Slow, topic: work, preconditionStepId: fork }
+  - { id: finish, type: END, name: Finish, preconditionStepIds: [proceed, slow] }

@@ -1,0 +1,15 @@
+id: sync-fork-foreach
+name: A branch reaches END while a parallel forEach beside it is still fanning out
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: fork, type: FORK, name: Fork, preconditionStepId: start }
+  - id: reserve
+    type: ACTION
+    name: Reserve a room
+    topic: work
+    preconditionStepId: fork
+    forEach: { items: rooms, as: room }
+  - { id: quick, type: ACTION, name: Quick, topic: work, preconditionStepId: fork }
+  - { id: done, type: END, name: Done, preconditionStepId: quick }
+  - { id: after, type: ACTION, name: After the rooms, topic: work, preconditionStepId: reserve }
