@@ -1,6 +1,6 @@
 package io.mateu.workflow.application.usecases.gitimport;
 
-import io.mateu.workflow.infra.config.GitImportProperties;
+import io.mateu.workflow.infra.config.FormsGitImportProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -17,7 +17,7 @@ import static org.mockito.Mockito.verify;
 /**
  * Scoping the scan to a subdirectory of the clone.
  *
- * <p>GitImportProperties.GitRepository had no `directory` field, while the workflow engine's copy
+ * <p>FormsGitImportProperties.GitRepository had no `directory` field, while the workflow engine's copy
  * of the same class did — so `FORMS_GITIMPORT_REPOSITORIES_0_DIRECTORY` was accepted by relaxed
  * binding and then did nothing. Pointed at a repository that is not exclusively definitions, the
  * import walked the entire clone: a parse error per unrelated YAML file, and anything that happened
@@ -35,11 +35,11 @@ class FormsGitImportScanTest {
                     io.mateu.workflow.application.usecases.directoryimport.ImportFormsFromDirectoryUseCase.class);
 
     private final ImportFormsFromGitUseCase useCase = new ImportFormsFromGitUseCase(
-            mock(GitImportProperties.class), mock(io.mateu.workflow.application.out.FormsMetrics.class),
+            mock(FormsGitImportProperties.class), mock(io.mateu.workflow.application.out.FormsMetrics.class),
             directoryImport);
 
-    private static GitImportProperties.GitRepository repo(String directory) {
-        var repo = new GitImportProperties.GitRepository();
+    private static FormsGitImportProperties.GitRepository repo(String directory) {
+        var repo = new FormsGitImportProperties.GitRepository();
         repo.setUrl("https://github.com/org/defs.git");
         repo.setDirectory(directory);
         return repo;
@@ -112,7 +112,7 @@ class FormsGitImportScanTest {
     /** The key is persisted and shown: credentials embedded in the URL stay out of it. */
     @org.junit.jupiter.api.Test
     void theSourceKeyCarriesNoCredentials() {
-        var withToken = new GitImportProperties.GitRepository();
+        var withToken = new FormsGitImportProperties.GitRepository();
         withToken.setUrl("https://ci-bot:fake-test-token@github.com/org/defs.git");
         assertThat(ImportFormsFromGitUseCase.pruneKey(withToken)).isEqualTo("https://******@github.com/org/defs.git");
         assertThat(ImportFormsFromGitUseCase.formerPruneKey(withToken)).isEqualTo("https://ci-bot:fake-test-token@github.com/org/defs.git");
@@ -121,7 +121,7 @@ class FormsGitImportScanTest {
     /** A clone that fails names the URL in its message; the credentials in it never reach the errors. */
     @org.junit.jupiter.api.Test
     void aFailedCloneReportsNoCredentials() {
-        var unreachable = new GitImportProperties.GitRepository();
+        var unreachable = new FormsGitImportProperties.GitRepository();
         // The token as the user name, as GitHub accepts it; a closed loopback port fails the clone at once.
         unreachable.setUrl("http://fake-test-token@127.0.0.1:1/org/defs.git");
 

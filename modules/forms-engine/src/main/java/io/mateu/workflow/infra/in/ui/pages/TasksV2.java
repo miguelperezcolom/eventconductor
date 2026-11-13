@@ -44,7 +44,7 @@ import io.mateu.workflow.domain.TaskQuery;
 import io.mateu.workflow.infra.out.persistence.FormExecutionEntityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cloud.stream.function.StreamBridge;
+import org.springframework.cloud.stream.function.StreamOperations;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -81,7 +81,7 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
     final FormRepository formRepository;
     final CompleteTaskUseCase completeTaskUseCase;
     final TaskAuthorization taskAuthorization;
-    final StreamBridge streamBridge;
+    final StreamOperations streamBridge;
     final TaskInbox taskInbox;
     final TaskCallers taskCallers;
     final ClaimTaskUseCase claimTaskUseCase;

@@ -4,7 +4,7 @@ import io.mateu.workflow.application.out.FormRepository;
 import io.mateu.workflow.application.out.FormsMetrics;
 import io.mateu.workflow.domain.Form;
 import io.mateu.workflow.application.usecases.directoryimport.ImportFormsFromDirectoryUseCase;
-import io.mateu.workflow.infra.config.DirectoryImportProperties;
+import io.mateu.workflow.infra.config.FormsDirectoryImportProperties;
 import io.mateu.workflow.webhook.InMemoryImportedDefinitionsRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -25,7 +25,7 @@ class ImportFormsFileTypesTest {
 
     private final FormRepository repository = mock(FormRepository.class);
     private final ImportFormsFromDirectoryUseCase useCase = new ImportFormsFromDirectoryUseCase(
-            mock(DirectoryImportProperties.class), repository, mock(FormsMetrics.class), new InMemoryImportedDefinitionsRegistry());
+            mock(FormsDirectoryImportProperties.class), repository, mock(FormsMetrics.class), new InMemoryImportedDefinitionsRegistry());
 
     private void write(Path dir, String name, String body) throws IOException {
         Files.writeString(dir.resolve(name), body);

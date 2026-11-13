@@ -4,7 +4,7 @@ import io.mateu.workflow.dtos.MessageType;
 import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cloud.stream.function.StreamBridge;
+import org.springframework.cloud.stream.function.StreamOperations;
 import org.springframework.stereotype.Service;
 
 /**
@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class TaskTimeline {
 
-    final StreamBridge streamBridge;
+    final StreamOperations streamBridge;
 
     public void log(String stepExecutionId, String message) {
         if (stepExecutionId == null) {

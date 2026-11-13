@@ -4,7 +4,7 @@ import io.mateu.workflow.application.out.FormRepository;
 import io.mateu.workflow.application.out.FormsMetrics;
 import io.mateu.workflow.domain.Form;
 import io.mateu.workflow.application.usecases.directoryimport.ImportFormsFromDirectoryUseCase;
-import io.mateu.workflow.infra.config.DirectoryImportProperties;
+import io.mateu.workflow.infra.config.FormsDirectoryImportProperties;
 import io.mateu.workflow.webhook.InMemoryImportedDefinitionsRegistry;
 import org.junit.jupiter.api.Test;
 
@@ -21,7 +21,7 @@ class ImportFormsPruneTest {
     private final FormRepository repository = mock(FormRepository.class);
     private final InMemoryImportedDefinitionsRegistry registry = new InMemoryImportedDefinitionsRegistry();
     private final ImportFormsFromDirectoryUseCase useCase = new ImportFormsFromDirectoryUseCase(
-            mock(DirectoryImportProperties.class), repository, mock(FormsMetrics.class), registry);
+            mock(FormsDirectoryImportProperties.class), repository, mock(FormsMetrics.class), registry);
 
     private static final String REPO = "https://github.com/org/forms.git";
 

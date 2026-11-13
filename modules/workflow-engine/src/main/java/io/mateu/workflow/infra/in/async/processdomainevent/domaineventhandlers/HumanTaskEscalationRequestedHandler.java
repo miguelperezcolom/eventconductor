@@ -13,7 +13,8 @@ import org.springframework.stereotype.Service;
  * A human task's escalation, relayed off the outbox to the worker side of the USER_TASK — the forms
  * engine — on the topic the task itself was dispatched to, the way a cancellation is. Written to the
  * outbox in the unit of work that recorded the escalation, so it goes out if and only if the
- * escalation fired. Embedded mode has no forms engine to tell: the publisher drops it there.
+ * escalation fired. In embedded mode it reaches the forms engine when one is in the JVM (its
+ * {@code InProcessTaskRoute}); otherwise the publisher drops it.
  */
 @Service
 @RequiredArgsConstructor

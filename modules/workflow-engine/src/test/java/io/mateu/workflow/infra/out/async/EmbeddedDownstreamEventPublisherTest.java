@@ -265,4 +265,48 @@ class EmbeddedDownstreamEventPublisherTest {
 
         assertThat(dispatched.get()).isNull();
     }
+
+    /** A provider of exactly these routes, as the context hands them in {@code @Order}. */
+    private static org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.inprocess.InProcessTaskRoute> routes(
+            io.mateu.workflow.inprocess.InProcessTaskRoute... routes) {
+        var factory = new org.springframework.beans.factory.support.StaticListableBeanFactory();
+        for (int i = 0; i < routes.length; i++) {
+            factory.addBean("route" + i, routes[i]);
+        }
+        return factory.getBeanProvider(io.mateu.workflow.inprocess.InProcessTaskRoute.class);
+    }
+
+    @Test
+    void aTaskAnInProcessRouteTakesNeverReachesTheExecutor() {
+        var executed = new ArrayList<TaskExecutionRequested>();
+        var taken = new ArrayList<Object>();
+        var publisher = inline(executed::add);
+        publisher.routes(routes((event, topic) -> {
+            if (event instanceof TaskExecutionRequested task && "complete-form".equals(task.taskId())) {
+                taken.add(event);
+                return true;
+            }
+            return false;
+        }));
+        var userTask = new TaskExecutionRequested("step-execution-2", "process-1", "definition-1", "approve",
+                "complete-form", List.of());
+
+        publisher.publish(userTask, "forms");
+        publisher.publish(aTask(), null);
+
+        assertThat(taken).containsExactly(userTask);
+        assertThat(executed).extracting(TaskExecutionRequested::taskExecutionId).containsExactly("step-execution-1");
+    }
+
+    @Test
+    void aRouteCanTakeWhatTheExecutorWouldNeverSeeACancellation() {
+        var taken = new ArrayList<Object>();
+        var publisher = inline(request -> { });
+        publisher.routes(routes((event, topic) -> taken.add(event)));
+        var cancellation = new TaskCancellationRequested("step-execution-1", null);
+
+        publisher.publish(cancellation, null);
+
+        assertThat(taken).containsExactly(cancellation);
+    }
 }

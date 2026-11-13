@@ -7,7 +7,7 @@ import io.mateu.workflow.dtos.events.integration.HumanTaskChanged;
 import io.mateu.workflow.time.EngineClock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cloud.stream.function.StreamBridge;
+import org.springframework.cloud.stream.function.StreamOperations;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 
@@ -28,6 +28,11 @@ import java.util.UUID;
  * <p>Best effort, like the timeline's log line: it is published after the task is saved, and a broker
  * that refuses it costs an inbox that lags, never a task that is not created or not closed. The task
  * itself, and the reply to the engine, do not depend on it.
+ *
+ * <p>Sent through {@link StreamOperations}: the {@code StreamBridge} in kafka mode; with the engine
+ * embedded in the same application ({@code workflow.mode=embedded}, no broker) the forms engine's
+ * in-process implementation, which publishes the {@link HumanTaskChanged} as a Spring application event
+ * instead — {@code @EventListener void on(HumanTaskChanged changed)} receives it.
  */
 @Slf4j
 @Service
@@ -39,7 +44,7 @@ public class HumanTaskEvents {
     /** The CloudEvents source of every task event. */
     public static final String SOURCE = "eventconductor/forms";
 
-    final StreamBridge streamBridge;
+    final StreamOperations streamBridge;
     final FormRepository formRepository;
     final FormsMetrics formsMetrics;
 

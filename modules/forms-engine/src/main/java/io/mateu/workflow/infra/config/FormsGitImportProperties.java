@@ -7,10 +7,17 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Git repositories to import form definitions from at startup ({@code forms.git-import}).
+ *
+ * <p>Named {@code Forms…} because the workflow engine has an {@code io.mateu.workflow.infra.config.GitImportProperties}
+ * of its own (for {@code workflow.*}): with both engines in one application, two classes of one name
+ * meant only one was loaded, and these {@code forms.*} settings were silently never read.
+ */
 @ConfigurationProperties(prefix = "forms.git-import")
 @Getter
 @Setter
-public class GitImportProperties {
+public class FormsGitImportProperties {
 
     /** List of Git repositories to scan for form definition JSON files. */
     private List<GitRepository> repositories = new ArrayList<>();

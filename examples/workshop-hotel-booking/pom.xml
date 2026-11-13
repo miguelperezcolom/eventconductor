@@ -50,10 +50,14 @@
             <version>${eventconductor.version}</version>
             <type>pom</type>
         </dependency>
-        <!-- USER_TASK: in a full deployment the forms engine serves the approval form and the task
-             inbox. It is left out of this single-app workshop: with an embedded engine,
-             forms-engine fails to start (it needs a Spring Cloud Stream StreamBridge that embedded
-             mode switches off). The workshop completes the approval from the console instead. -->
+        <!-- USER_TASK: the forms engine, in the same application. It serves the approval form
+             (forms/booking-approval.ecform) and the task inbox, and takes the USER_TASKs of the
+             embedded engine in process: no broker. -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>forms-engine</artifactId>
+            <version>${eventconductor.version}</version>
+        </dependency>
         <!-- LLM_CALL provider: OpenAI or any OpenAI-compatible server (here, the fake one) -->
         <dependency>
             <groupId>org.springframework.ai</groupId>

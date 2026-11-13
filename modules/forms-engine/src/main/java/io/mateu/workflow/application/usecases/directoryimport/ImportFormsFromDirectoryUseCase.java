@@ -6,7 +6,7 @@ import io.mateu.workflow.application.out.FormRepository;
 import io.mateu.workflow.application.out.FormsMetrics;
 import io.mateu.workflow.domain.Form;
 import io.mateu.workflow.imports.DerivedIds;
-import io.mateu.workflow.infra.config.DirectoryImportProperties;
+import io.mateu.workflow.infra.config.FormsDirectoryImportProperties;
 import io.mateu.workflow.webhook.ImportedDefinitionsRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +36,7 @@ public class ImportFormsFromDirectoryUseCase {
     /** Registry namespace so workflows, forms and rules can share one provenance store. */
     static final String NAMESPACE = "form";
 
-    final DirectoryImportProperties directoryImportProperties;
+    final FormsDirectoryImportProperties directoryImportProperties;
     final FormRepository formRepository;
     final FormsMetrics formsMetrics;
     final ImportedDefinitionsRegistry importedDefinitionsRegistry;

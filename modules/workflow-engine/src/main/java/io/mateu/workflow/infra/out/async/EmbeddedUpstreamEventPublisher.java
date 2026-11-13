@@ -14,7 +14,8 @@ import org.springframework.stereotype.Service;
 @Service
 @ConditionalOnProperty(name = "workflow.mode", havingValue = "embedded", matchIfMissing = true)
 @RequiredArgsConstructor
-public class EmbeddedUpstreamEventPublisher implements UpstreamEventPublisher {
+public class EmbeddedUpstreamEventPublisher implements UpstreamEventPublisher,
+        io.mateu.workflow.inprocess.InProcessUpstream {
 
     private final ProcessUpstreamEventUseCase processUpstreamEventUseCase;
     // Optional: embedded mode ships no dead-letter destination today (a poison event surfaces to

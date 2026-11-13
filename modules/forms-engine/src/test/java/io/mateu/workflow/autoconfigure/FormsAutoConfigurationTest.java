@@ -59,4 +59,58 @@ class FormsAutoConfigurationTest {
         engine.withBean(ImportedDefinitionsRegistry.class, () -> durable)
                 .run(context -> assertThat(context.getBean(ImportedDefinitionsRegistry.class)).isSameAs(durable));
     }
+
+    final ApplicationContextRunner inProcess = new ApplicationContextRunner()
+            .withConfiguration(AutoConfigurations.of(FormsInProcessAutoConfiguration.class))
+            .withBean(io.mateu.workflow.application.usecases.createtask.CreateTaskUseCase.class,
+                    () -> mock(io.mateu.workflow.application.usecases.createtask.CreateTaskUseCase.class))
+            .withBean(io.mateu.workflow.application.usecases.canceltask.CancelTaskUseCase.class,
+                    () -> mock(io.mateu.workflow.application.usecases.canceltask.CancelTaskUseCase.class))
+            .withBean(io.mateu.workflow.application.usecases.escalatetask.EscalateTaskUseCase.class,
+                    () -> mock(io.mateu.workflow.application.usecases.escalatetask.EscalateTaskUseCase.class))
+            .withBean(io.mateu.workflow.application.out.FormExecutionRepository.class,
+                    () -> mock(io.mateu.workflow.application.out.FormExecutionRepository.class));
+
+    @Test
+    void nextToAnEmbeddedEngineTheFormsEngineTalksToItInProcess() {
+        inProcess.run(context -> {
+            assertThat(context.getBean(org.springframework.cloud.stream.function.StreamOperations.class))
+                    .isInstanceOf(io.mateu.workflow.infra.out.inprocess.InProcessStreamOperations.class);
+            assertThat(context).hasSingleBean(io.mateu.workflow.infra.in.inprocess.FormsInProcessTaskRoute.class);
+        });
+        inProcess.withPropertyValues("workflow.mode=embedded")
+                .run(context -> assertThat(context).hasSingleBean(io.mateu.workflow.infra.in.inprocess.FormsInProcessTaskRoute.class));
+    }
+
+    @Test
+    void inKafkaModeNothingChangesTheBrokerIsUsed() {
+        inProcess.withPropertyValues("workflow.mode=kafka").run(context -> {
+            assertThat(context).doesNotHaveBean(io.mateu.workflow.infra.out.inprocess.InProcessStreamOperations.class);
+            assertThat(context).doesNotHaveBean(io.mateu.workflow.infra.in.inprocess.FormsInProcessTaskRoute.class);
+        });
+    }
+
+    @Test
+    void aStreamBridgeOfItsOwnIsKept() {
+        var bridge = mock(org.springframework.cloud.stream.function.StreamOperations.class);
+        inProcess.withBean(org.springframework.cloud.stream.function.StreamOperations.class, () -> bridge)
+                .run(context -> assertThat(context.getBean(org.springframework.cloud.stream.function.StreamOperations.class))
+                        .isSameAs(bridge));
+    }
+
+    @Test
+    void userTasksCanBeLeftToTheApplicationsExecutor() {
+        inProcess.withPropertyValues("forms.embedded.serve-user-tasks=false")
+                .run(context -> assertThat(context).doesNotHaveBean(io.mateu.workflow.infra.in.inprocess.FormsInProcessTaskRoute.class));
+    }
+
+    @Test
+    void withoutTheFormsEnginesUseCasesInTheContextThereIsNoRoute() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(FormsInProcessAutoConfiguration.class))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).doesNotHaveBean(io.mateu.workflow.infra.in.inprocess.FormsInProcessTaskRoute.class);
+                });
+    }
 }

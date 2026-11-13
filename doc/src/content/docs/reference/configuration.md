@@ -218,6 +218,12 @@ public class MyApplication {
 
 `@FormsEmbeddedApplication` is provided by the `forms-engine` module and follows the same pattern as `@WorkflowEmbeddedApplication`.
 
+**Forms engine next to an embedded workflow engine.** Add `forms-engine` to a `@WorkflowEmbeddedApplication` and the two talk in process — no broker: the forms engine takes every `USER_TASK` that names a `formId` (plus its escalations and cancellations) before the application's `EmbeddedTaskExecutor`, puts it in the task inbox, and a submitted form completes the step on the engine directly. Task events (`HumanTaskChanged`) are published as Spring application events (`@EventListener void on(HumanTaskChanged changed)`) instead of on the `humanTasks` binding. Forms are loaded with `forms.directory-import.directories[]` or `forms.git-import.*`, not from the classpath.
+
+| Property | Default | Description |
+|---|---|---|
+| `forms.embedded.serve-user-tasks` | `true` | `false` leaves USER_TASKs to the application's `EmbeddedTaskExecutor`, as without forms-engine. The workflow-test kit (`@EventConductorTest`) sets it, so `completeUserTask` keeps answering them. |
+
 For `workflow.mode=kafka`, use `@SpringBootApplication` as normal — both engines integrate as regular Spring Boot auto-configurations.
 
 ## Database (when `workflow.persistence=jpa`)

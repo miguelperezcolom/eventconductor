@@ -15,7 +15,7 @@ import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
 import io.mateu.workflow.worker.WorkerReply;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cloud.stream.function.StreamBridge;
+import org.springframework.cloud.stream.function.StreamOperations;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -25,7 +25,7 @@ public class CompleteTaskUseCase {
 
     final FormExecutionRepository formExecutionRepository;
     final FormRepository formRepository;
-    final StreamBridge streamBridge;
+    final StreamOperations streamBridge;
     final FormsMetrics formsMetrics;
     final TaskAuthorization taskAuthorization;
     final io.mateu.workflow.application.services.HumanTaskEvents humanTaskEvents;

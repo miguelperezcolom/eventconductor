@@ -2,7 +2,7 @@ package io.mateu.workflow.application.usecases.gitimport;
 
 import io.mateu.workflow.application.out.FormsMetrics;
 import io.mateu.workflow.application.usecases.directoryimport.ImportFormsFromDirectoryUseCase;
-import io.mateu.workflow.infra.config.GitImportProperties;
+import io.mateu.workflow.infra.config.FormsGitImportProperties;
 import io.mateu.workflow.webhook.UrlSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +27,7 @@ import java.util.List;
 @Slf4j
 public class ImportFormsFromGitUseCase {
 
-    final GitImportProperties gitImportProperties;
+    final FormsGitImportProperties gitImportProperties;
     final FormsMetrics formsMetrics;
     final ImportFormsFromDirectoryUseCase directoryImport;
 
@@ -37,7 +37,7 @@ public class ImportFormsFromGitUseCase {
     }
 
     /** Re-imports the given subset of repositories (used by the webhook to reload only what changed). */
-    public ImportFormsResult handle(List<GitImportProperties.GitRepository> repositories) {
+    public ImportFormsResult handle(List<FormsGitImportProperties.GitRepository> repositories) {
         var imported = new ArrayList<String>();
         var errors   = new ArrayList<String>();
         var pruned   = new ArrayList<String>();
@@ -60,7 +60,7 @@ public class ImportFormsFromGitUseCase {
         return new ImportFormsResult(imported, errors, pruned);
     }
 
-    private void importFromRepository(GitImportProperties.GitRepository repo,
+    private void importFromRepository(FormsGitImportProperties.GitRepository repo,
                                       List<String> imported,
                                       List<String> errors,
                                       List<String> pruned) throws IOException, GitAPIException {
@@ -81,7 +81,7 @@ public class ImportFormsFromGitUseCase {
      * field did not exist here, so the clone root and the bare URL went straight through and
      * `directory` changed nothing.
      */
-    void importFromClone(GitImportProperties.GitRepository repo, Path cloneRoot,
+    void importFromClone(FormsGitImportProperties.GitRepository repo, Path cloneRoot,
                          List<String> imported, List<String> errors, List<String> pruned)
             throws IOException {
         directoryImport.importFrom(resolveScanRoot(repo, cloneRoot), pruneKey(repo), formerPruneKey(repo),
@@ -94,7 +94,7 @@ public class ImportFormsFromGitUseCase {
      * repo (e.g. "../etc") or does not exist is rejected.
      */
     /** Package-private so the escape guard below can be tested without cloning anything. */
-    Path resolveScanRoot(GitImportProperties.GitRepository repo, Path repoRoot) throws IOException {
+    Path resolveScanRoot(FormsGitImportProperties.GitRepository repo, Path repoRoot) throws IOException {
         String directory = repo.getDirectory();
         if (directory == null || directory.isBlank()) {
             return repoRoot;
@@ -114,13 +114,13 @@ public class ImportFormsFromGitUseCase {
      * subdirectories, so the directory is folded into the key to keep their provenance
      * — and therefore pruning — independent.
      */
-    static String pruneKey(GitImportProperties.GitRepository repo) {
+    static String pruneKey(FormsGitImportProperties.GitRepository repo) {
         // Sanitized: the key is persisted and shown, so URL-embedded credentials must not be in it.
         return keyOf(UrlSanitizer.sanitize(repo.getUrl()), repo.getDirectory());
     }
 
     /** The key before it was sanitized (the raw URL), whose record the next import moves over. */
-    static String formerPruneKey(GitImportProperties.GitRepository repo) {
+    static String formerPruneKey(FormsGitImportProperties.GitRepository repo) {
         return keyOf(repo.getUrl(), repo.getDirectory());
     }
 
@@ -131,7 +131,7 @@ public class ImportFormsFromGitUseCase {
         return url + "#" + directory;
     }
 
-    private void cloneRepository(GitImportProperties.GitRepository repo, Path targetDir)
+    private void cloneRepository(FormsGitImportProperties.GitRepository repo, Path targetDir)
             throws GitAPIException {
         log.info("Cloning repository {} (branch: {}) into {}", UrlSanitizer.sanitize(repo.getUrl()), repo.getBranch(), targetDir);
         var cloneCommand = Git.cloneRepository()

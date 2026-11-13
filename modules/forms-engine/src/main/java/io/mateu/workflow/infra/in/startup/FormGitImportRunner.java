@@ -1,7 +1,7 @@
 package io.mateu.workflow.infra.in.startup;
 
 import io.mateu.workflow.application.usecases.gitimport.ImportFormsFromGitUseCase;
-import io.mateu.workflow.infra.config.GitImportProperties;
+import io.mateu.workflow.infra.config.FormsGitImportProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class FormGitImportRunner implements ApplicationRunner {
 
-    final GitImportProperties gitImportProperties;
+    final FormsGitImportProperties gitImportProperties;
     final ImportFormsFromGitUseCase importUseCase;
 
     @Override

@@ -2,7 +2,7 @@ package io.mateu.workflow.infra.in.rest;
 
 import io.mateu.workflow.application.usecases.gitimport.ImportFormsFromGitUseCase;
 import io.mateu.workflow.application.usecases.gitimport.ImportFormsFromGitUseCase.ImportFormsResult;
-import io.mateu.workflow.infra.config.GitImportProperties;
+import io.mateu.workflow.infra.config.FormsGitImportProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,15 +25,15 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class FormGitImportWebhookControllerTest {
 
-    @Mock GitImportProperties properties;
+    @Mock FormsGitImportProperties properties;
     @Mock ImportFormsFromGitUseCase importUseCase;
 
     FormGitImportWebhookController controller;
 
-    private final GitImportProperties.GitRepository master = repo("https://github.com/org/forms.git", "master");
+    private final FormsGitImportProperties.GitRepository master = repo("https://github.com/org/forms.git", "master");
 
-    private static GitImportProperties.GitRepository repo(String url, String branch) {
-        var r = new GitImportProperties.GitRepository();
+    private static FormsGitImportProperties.GitRepository repo(String url, String branch) {
+        var r = new FormsGitImportProperties.GitRepository();
         r.setUrl(url);
         r.setBranch(branch);
         return r;
@@ -59,7 +59,7 @@ class FormGitImportWebhookControllerTest {
     @SuppressWarnings("unchecked")
     void reloadsOnlyTheMatchingRepository() {
         controller.webhook("github", new HttpHeaders(), githubPush("master", "https://github.com/org/forms.git"));
-        ArgumentCaptor<List<GitImportProperties.GitRepository>> captor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<FormsGitImportProperties.GitRepository>> captor = ArgumentCaptor.forClass(List.class);
         verify(importUseCase, timeout(2000)).handle(captor.capture());
         assertThat(captor.getValue()).containsExactly(master);
     }
@@ -102,7 +102,7 @@ class FormGitImportWebhookControllerTest {
         var response = controller.webhook("github", new HttpHeaders(), (byte[]) null);
 
         assertThat(response.getBody()).isEqualTo("import scheduled for 2 repository/ies");
-        ArgumentCaptor<List<GitImportProperties.GitRepository>> captor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<FormsGitImportProperties.GitRepository>> captor = ArgumentCaptor.forClass(List.class);
         verify(importUseCase, timeout(2000)).handle(captor.capture());
         assertThat(captor.getValue()).containsExactly(master, other);
     }
@@ -115,7 +115,7 @@ class FormGitImportWebhookControllerTest {
 
         controller.webhook("generic", new HttpHeaders(), "{\"branch\":\"dev\"}".getBytes(StandardCharsets.UTF_8));
 
-        ArgumentCaptor<List<GitImportProperties.GitRepository>> captor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<FormsGitImportProperties.GitRepository>> captor = ArgumentCaptor.forClass(List.class);
         verify(importUseCase, timeout(2000)).handle(captor.capture());
         assertThat(captor.getValue()).containsExactly(dev);
     }
@@ -129,7 +129,7 @@ class FormGitImportWebhookControllerTest {
         controller.webhook("generic", new HttpHeaders(),
                 "{\"repository\":\"https://github.com/org/other.git\"}".getBytes(StandardCharsets.UTF_8));
 
-        ArgumentCaptor<List<GitImportProperties.GitRepository>> captor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<FormsGitImportProperties.GitRepository>> captor = ArgumentCaptor.forClass(List.class);
         verify(importUseCase, timeout(2000)).handle(captor.capture());
         assertThat(captor.getValue()).containsExactly(other);
     }

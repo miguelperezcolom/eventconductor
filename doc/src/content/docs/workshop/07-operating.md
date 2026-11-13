@@ -25,7 +25,7 @@ A run's page has the operator's actions, each **audited** with your name and a m
 |---|---|
 | **Retry from failure** | The cause is gone (the hotel is back): run the failed steps again, keep the ones that succeeded |
 | **Retry from step** | Run again from a chosen step and everything that depends on it |
-| **Complete step** | The work was done another way (the guest paid by phone): mark the step done, with its output variables — as you did for the approval in module 6 |
+| **Complete step** | The work was done another way (the guest paid by phone): mark the step done, with its output variables — the console's way to decide the approval of module 6 without the form |
 | **Set variables** | Correct the data the next steps will use (a wrong room number) |
 | **Migrate…** | Move the run onto a newer version of the definition — see [module 10](/workshop/10-changing-without-redeploying/) |
 | **Pause / Cancel** | Hold it, or stop it. Cancelling never rolls back |
