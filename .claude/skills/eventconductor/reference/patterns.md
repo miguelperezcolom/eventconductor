@@ -176,6 +176,29 @@ Needs `io.mateu.workflow:worker-http` or `builtin-workers` (embedded); in kafka 
 topic `http-calls` itself (the `http-worker-standalone-app` is optional), plus
 `workflow.http.connections.payments.base-url` — see [security.md](security.md) for auth profiles, `${secret:NAME}` and host binding. Every retry sends the same `Idempotency-Key`.
 
+**No duplicates in the target.** The automatic `Idempotency-Key` is the step execution id: it covers
+the step's retries, not a retry-from-step, a restart or the same request as a new process. Put a
+business key under the same header name and it replaces the automatic one:
+
+```yaml
+  - id: create
+    type: HTTP_CALL
+    name: Create the room booking
+    preconditionStepId: start
+    retries: 3
+    http:
+      connection: hotel
+      method: POST
+      path: /bookings
+      headers: { Idempotency-Key: "${businessKey}-${room.number}" }
+      body: { externalRef: "${businessKey}-${room.number}", room: "${room.number}" }
+      output: { roomBookingId: "body.id" }
+```
+
+No key support in the target: `GET` by the external reference with `successStatus: [200, 404]`, then a
+`CHOICE` (racy only under concurrent attempts). The compensation cancels by the business key and
+accepts `404` (`successStatus: [200, 204, 404]`). Guide: guides/http-calls.
+
 ## 4. Started by a domain event, publishing one back
 
 ```yaml
@@ -375,7 +398,9 @@ outputs are NOT merged into the process — read `reservations`. Limit: `workflo
 One failed room fails the step at once (`onIterationFailure: failFast`, the default). `continue` lets
 the others finish and completes the step, with `output` elements `{status: COMPLETED, value}` /
 `{status: FAILED, error}`; `compensateAll` lets them finish and then, if any failed, fails the step
-and compensates every completed one (it needs `completion: all`).
+and compensates every completed one (it needs `completion: all`). `label: "'Hab. ' + room.number"` names
+each iteration in the console and as `itemLabel`. An iteration cancelled under `failFast` whose work
+completes anyway is compensated too.
 
 ### 6b. Several steps per item: forEach over an inline PROCESS (dynamic fork)
 
@@ -397,6 +422,7 @@ and compensates every completed one (it needs `completion: all`).
 
 One child process per room, of definition `<workflow>.rooms` (versioned with the parent, not
 startable on its own). Branch variables never touch the parent until `outputVariables`/`output`.
+In the console, double-click the step to see one lane per room with the body's steps and their states.
 
 ## 7. Poll until done (repeat)
 

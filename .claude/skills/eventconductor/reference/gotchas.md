@@ -10,6 +10,10 @@
 - **Array order means nothing** — steps run by preconditions; all eligible steps run concurrently.
   `parallel` is ignored.
 - **Cycles** — rejected; use `repeat` (one step) or `loopBack` (a section).
+- **Non-idempotent compensations** — a step cancelled mid-flight whose work completes later is
+  compensated, possibly without the id its create returned: compensate by a business key, accept 404.
+- **`compensateLosers` / `compensateAbandoned` elsewhere** — only on an XOR `JOIN` / an `END`;
+  refused on any other step.
 - **AND-JOIN after a CHOICE or guarded branch** — the branches not taken never complete, the JOIN never
   fires, and the process completes implicitly, cancelling everything after it. Use `joinType: XOR`
   after a CHOICE; the plugin warns about JOINs on guarded steps.

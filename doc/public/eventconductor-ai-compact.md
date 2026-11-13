@@ -85,6 +85,10 @@ are optional, to keep egress and its secrets out of the orchestrator.
 - **Saga:** `compensable: true` + `compensationStepId` on the step; the compensation step has NO
   preconditions. On final failure completed compensable steps are undone in reverse → `COMPENSATED`
   (`COMPENSATION_FAILED` if an undo fails; `ERROR` if nothing to undo). `rollbackable` = old spelling.
+  A compensable step cancelled while running (rollback, END in another branch, XOR join) whose work
+  completes anyway is kept as completed and undone too (in a non-failed process as a *cleanup*: status
+  unchanged, a failed cleanup = incident). Opt-ins: `compensateLosers: true` on an XOR `JOIN` (cancel and
+  undo the losing branches), `compensateAbandoned: true` on `END` (undo what the cut-short branches did).
 - **No secrets** in definitions (HTTP via profiles / `${secret:NAME}`, LLM keys in config).
 
 ```yaml
@@ -145,16 +149,16 @@ steps:
 | `WAIT_FOR_MESSAGE` | `messageName` + `correlationExpression` (`businessKey` for the key); `onEvent: {destination, type, correlationKey, filter, variables}`; unmatched messages are dropped, not buffered |
 | `SEND_MESSAGE` | emit a message (`messageVariables`); fire-and-forget |
 | `PUBLISH_EVENT` | domain event, rendered by the engine, sent by built-in `publish-event@1` (worker-events; topic `event-publications`), which completes the step after sending; at-least-once, stable `ce_id`; destination mapped by `workflow.events.destinations.<name>.topic`; CloudEvents on Kafka |
-| `HTTP_CALL` | built-in `http-call@1` (worker-http; topic `http-calls`, served by the orchestrator in kafka mode); `output` = JEXL over `{status, headers, body}`; default `retryOn: [5xx, io]` (4xx final); same `Idempotency-Key` on retries |
+| `HTTP_CALL` | built-in `http-call@1` (worker-http; topic `http-calls`, served by the orchestrator in kafka mode); `output` = JEXL over `{status, headers, body}`; default `retryOn: [5xx, io]` (4xx final); same `Idempotency-Key` (step execution id) on retries — a step header of the same name replaces it (business key, e.g. `${businessKey}-${room.number}`); no key support → `GET` with `successStatus: [200, 404]` + `CHOICE` |
 | `LLM_CALL` | built-in `llm-call@1` (worker-llm; `llm-calls`); `responseSchema` validated (`LLM_INVALID_OUTPUT`); `output` over `{text, json, usage, model}` |
 | `AGENT` | invoke an agent published in the IA catalogue (`ref` checked at import; prompt, model, tools, output schema are the catalogue's): task `run-agent@1` on `agent-calls`, variable `__agent`, `invocationId` on every reply; `retries: 0`, timeout 5 min; result = exactly `outputVariable` (JSON, `json:parse(x).f`); uncertain outcome → `REVIEW_REQUIRED` + process `PAUSED` until reconciled; `forEach` = one invocation per item |
 | `PROCESS` | child with ALL parent variables, key `parent:<stepExecutionId>`; `outputVariables` come back; the child is `childWorkflowDefinitionId` or the inline `steps:` (definition `<workflow>.<step>`, versioned with the parent, not startable alone) |
-| `FORK` / `JOIN` / `CHOICE` | gateways (see above); CHOICE picks the longest satisfied guard first, latches |
+| `FORK` / `JOIN` / `CHOICE` | gateways (see above); CHOICE picks the longest satisfied guard first, latches; XOR `JOIN` `compensateLosers: true` undoes the losing branches |
 | `LOCK` / `UNLOCK` | `lockName`, `lockKey` (JEXL); waiters park `WAITING_ON_LOCK`, FIFO |
 | `REPLY` | answer a sync caller: `replyVariables` \| `replyExpression` \| `replyTemplate`; at most one per run |
 | `CONTINUE_AS_NEW` | `continueAsNew: {version: same\|latest, variables}`; fresh run, same business key; nothing after it |
 | `DYNAMIC` | a worker injects steps at runtime (advanced) |
-| `END` | completes the process |
+| `END` | completes the process; `compensateAbandoned: true` undoes what the branches it cut short completed |
 
 Top-level fields: `id`, `name`, `version`, `description`, `status` (`DRAFT|ACTIVE|DISABLED|ARCHIVED`), `steps`,
 `tags`, `triggers`, `schedules`, `cronExpression`, `syncInvocation {enabled, onFailure, onLockBusy,
@@ -305,7 +309,8 @@ class BookingSagaTest {
 - A step without `name`, two STARTs, a step with no way in, a cycle → refused. AND-JOIN after a CHOICE never fires.
 - Business keys are unique across workflows: put the workflow in trigger keys. Reuse needs `businessKeyPolicy`.
 - forEach outputs are not on the process (read `output`); `maxIterations` required on `repeat`/`loopBack`.
-- `forEach.onIterationFailure`: `failFast` (default) | `continue` (step completes; `output` elements `{status, value|error}`) | `compensateAll` (wait all; any failure → fail + compensate all completed; needs `completion: all`).
+- `forEach.onIterationFailure`: `failFast` (default) | `continue` (step completes; `output` elements `{status, value|error}`) | `compensateAll` (wait all; any failure → fail + compensate all completed; needs `completion: all`). `forEach.label` (JEXL) names iterations in the console / `itemLabel`.
+- Compensations and workers must be idempotent: a cancelled step's late `COMPLETED` is compensated.
 - Kafka consumers (main after 2.33.0) redeliver retryable failures with unlimited back-off
   (`workflow.consumer.retry.*`); records are never discarded, only parked on `dead-letter` when defective.
 - 2.27: secrets from `workflow.http.secrets`, API refuses anonymous. 2.28: consoles refuse anonymous,
