@@ -40,6 +40,8 @@ features: `updates`, `startPolicy`, `businessKeyPolicy`, `CONTINUE_AS_NEW`, `pri
 | run branches in parallel, then wait for all | `FORK` … `JOIN` (`preconditionStepIds` = branch ends) |
 | run only when a condition holds | `preconditions: [{stepId, expression, onFalse}]` or `preconditionExpression` |
 | undo completed work on failure (saga) | `compensable: true` + `compensationStepId` (compensation step has no preconditions) |
+| undo what losing / abandoned branches did | `compensateLosers: true` on an XOR `JOIN`; `compensateAbandoned: true` on `END` |
+| no duplicates in the target system | `HTTP_CALL` header `Idempotency-Key: "${businessKey}-…"` (replaces the automatic one), or `GET` lookup + `CHOICE` |
 | wait a duration / until a date | `TIMER` (`duration`, `untilVariable`, or `until: {date, offset, at, zone}`) |
 | finish by a date or route elsewhere | `deadline` / `timeout` + `onTimeoutStepId` |
 | wait for a callback / external signal | `WAIT_FOR_MESSAGE` (`messageName` + `correlationExpression`; `onEvent` for a domain event) |

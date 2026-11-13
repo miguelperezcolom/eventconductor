@@ -57,6 +57,8 @@ for autocomplete. The schema forbids unknown keys. Examples: [patterns.md](patte
 | `childWorkflowDefinitionId`, `outputVariables`, `sensitiveOutputs` | PROCESS | child definition; variables copied back (absent = none) |
 | `steps` | PROCESS | the child workflow **in line** (same syntax as a definition's steps), instead of `childWorkflowDefinitionId` — exactly one of the two. Runs as child definition `<workflow>.<step>`, versioned with the parent, not startable on its own |
 | `joinType` | JOIN | `AND` (default) \| `XOR` |
+| `compensateLosers` | XOR JOIN | `true`: cancel the losing branches as the join fires and compensate their completed compensable steps (cleanup; default `false` = they run on) |
+| `compensateAbandoned` | END | `true`: compensate the completed compensable steps of the branches this END cut short (cleanup after `COMPLETED`) |
 | `lockName`, `lockKey` | LOCK/UNLOCK | JEXL key |
 | `replyVariables` \| `replyExpression` \| `replyTemplate` | REPLY | at most one |
 | `event` | PUBLISH_EVENT | `{destination, type, key?, payload \| payloadTemplate \| payloadVariables, format?}` |
@@ -110,7 +112,13 @@ for autocomplete. The schema forbids unknown keys. Examples: [patterns.md](patte
 - **DYNAMIC** — a worker that injects steps at runtime (advanced; `workers` guide).
 - **CONTINUE_AS_NEW** — end this run (`COMPLETED`, outcome `continued`) and start a fresh run with the
   same business key; nothing may follow it.
-- **END** — completes the process; one per definition.
+- **END** — completes the process; one per definition. Running branches are cancelled.
+
+**Late completion.** A compensable step cancelled while running (end of a rollback, END in another
+branch, XOR join with `compensateLosers`) whose work completes anyway is kept as completed and undone:
+by the rollback in a failed process (a finished rollback runs a new pass → `COMPENSATED` again), as a
+*cleanup* otherwise. Cleanups never change the process status; one that fails is an incident. Not for
+steps without compensation, nor processes an operator cancelled.
 
 ## Execution model in five lines
 
@@ -120,7 +128,8 @@ for autocomplete. The schema forbids unknown keys. Examples: [patterns.md](patte
    a falsy `WAIT` link holds the step and keeps the process open.
 4. A failure with retries left → `AWAITING_RETRY` → re-run; retries exhausted → compensation of
    completed compensable steps in reverse order → process `COMPENSATED` (or `COMPENSATION_FAILED`),
-   or `ERROR` when there is nothing to compensate.
+   or `ERROR` when there is nothing to compensate. Work that completes after its step was cancelled
+   is compensated too.
 5. The process completes at `END`, or when nothing is runnable any more.
 
 ## Variables, JEXL and templates

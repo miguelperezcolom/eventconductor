@@ -334,6 +334,34 @@ parent step waits `PENDING`. On child `COMPLETED`, the parent step completes and
 grandchildren; while retries remain the child keeps running (a retried step re-attaches to it
 via the deterministic business key).
 
+**Inline body.** Instead of `childWorkflowDefinitionId`, a PROCESS may carry its child **in line**
+under `steps:` (exactly one of the two). The body is compiled from the parent's own definition into
+the child definition `<workflowId>.<stepId>` (nested: `booking.rooms.extras`): versioned and migrated
+with the parent, inheriting its `sensitiveVariables`, `requiredScopes`/`requiredRoles` and tags, and
+**not startable on its own** (REST, MCP, console, events and cron answer "unknown definition").
+Semantics are those of any PROCESS (all parent variables in, `outputVariables` back). Validation
+covers the body as a workflow of its own, errors located `booking.rooms: …`. With `forEach` it is a
+**dynamic fork**: one child run of the body per item, each with its own variables:
+```yaml
+- id: rooms
+  type: PROCESS
+  name: Book one room
+  preconditionStepId: start
+  compensable: true
+  compensationStepId: cancelRoom
+  outputVariables: [roomBookingId]
+  forEach: { items: rooms, as: room, output: roomBookings, outputElement: roomBookingId,
+             onIterationFailure: compensateAll, label: "'Hab. ' + room.number" }
+  steps:                       # instead of childWorkflowDefinitionId
+    - { id: start, type: START, name: Start }
+    - { id: create, type: ACTION, name: Create, topic: create-booking, preconditionStepId: start }
+    - { id: confirm, type: ACTION, name: Confirm, topic: confirm-booking, preconditionStepId: create }
+    - { id: end, type: END, name: End, preconditionStepId: confirm }
+```
+Console (process view): double-click a PROCESS step to open its child process; double-click an inline
+PROCESS to open its body as lanes — one per iteration, headed by its label and status, with the
+body's steps coloured by that child run (double-click a lane header to open that child).
+
 ### FORK / JOIN / CHOICE — gateways
 ```yaml
 - { id: fork,  type: FORK,   name: Notify, preconditionStepId: process-order }
@@ -346,6 +374,9 @@ preconditioned on it starts concurrently (any step type fans out the same way �
 makes it visible). JOIN is the barrier/converge point: its **multiple preconditions**
 (`preconditionStepIds`) must ALL complete before it runs (`joinType: AND`, the default) — or, with
 `joinType: XOR`, the first one to complete. Do not use `parallel: true` — it is deprecated and ignored.
+By default an `XOR` join lets the losing branches run on and keeps what they complete;
+**`compensateLosers: true`** (XOR joins only) cancels them as the join fires and compensates their
+completed compensable steps as a cleanup (see §8).
 
 **CHOICE** is the exclusive split: it takes exactly ONE successor — the first whose link guard holds,
 evaluated from the longest guard expression to the shortest; a link with no guard is the default (tried
@@ -398,7 +429,7 @@ No worker to write. The engine renders and checks the event when the step starts
   "http": { "connection": "payments", "method": "POST", "path": "/charges/${bookingId}",
             "body": { "amount": "${amount * 1}" }, "output": { "chargeId": "body.id" } } }
 ```
-The engine renders the request (templates in url/path, query, headers, body) and dispatches the built-in task `http-call@1` (library `worker-http`: embedded in the engine's pod, or topic `http-calls` served by the orchestrator itself — optionally by `http-worker-standalone-app` instead). `successStatus` (default 2xx) completes and maps `output` (JEXL over `{status, headers, body}`) into variables; otherwise `HTTP_<status>` / `HTTP_IO`, retried only if `retryOn` (default `[5xx, io]`) covers it — a 4xx is final and compensation runs. `Idempotency-Key` = step execution id. Auth: named profile (`workflow.http.auth.<name>`) or inline with `${secret:NAME}` credentials only; absolute URLs subject to `workflow.http.allowed-hosts` and never internal addresses. Credentials are bound to hosts: a named profile reaches an absolute URL only when its host is in the profile's `hosts` (or `allowed-hosts` is set), else only through a connection; inline `${secret:…}` credentials reach an absolute URL only when `allowed-hosts` is set; otherwise `HTTP_FORBIDDEN_AUTH` (`workflow.http.credentials-to-any-host=true` lifts it).
+The engine renders the request (templates in url/path, query, headers, body) and dispatches the built-in task `http-call@1` (library `worker-http`: embedded in the engine's pod, or topic `http-calls` served by the orchestrator itself — optionally by `http-worker-standalone-app` instead). `successStatus` (default 2xx) completes and maps `output` (JEXL over `{status, headers, body}`) into variables; otherwise `HTTP_<status>` / `HTTP_IO`, retried only if `retryOn` (default `[5xx, io]`) covers it — a 4xx is final and compensation runs. `Idempotency-Key` = step execution id, the same on every retry of the step (a connection renames it or turns it off with `idempotency-header: none`); a step `headers` entry with the **exact same name** replaces it — use a business key (`"${businessKey}-${room.number}"`) to also cover retry-from-step, restarts and the same request arriving as a new process. Without key support in the target: look up first (`GET` with `successStatus: [200, 404]` → `CHOICE`; racy only under concurrent attempts). Compensations must be idempotent too: address the resource by the business key and accept `404`. Guide: guides/http-calls (Not creating duplicates in the target system). Auth: named profile (`workflow.http.auth.<name>`) or inline with `${secret:NAME}` credentials only; absolute URLs subject to `workflow.http.allowed-hosts` and never internal addresses. Credentials are bound to hosts: a named profile reaches an absolute URL only when its host is in the profile's `hosts` (or `allowed-hosts` is set), else only through a connection; inline `${secret:…}` credentials reach an absolute URL only when `allowed-hosts` is set; otherwise `HTTP_FORBIDDEN_AUTH` (`workflow.http.credentials-to-any-host=true` lifts it).
 
 ### LLM_CALL — ask a language model
 ```json
@@ -442,11 +473,12 @@ The precondition graph stays acyclic (a cycle is still an error); repetition is 
   preconditions: [ { stepId: decide, expression: "verdict == 'REWORK'" } ]
   loopBack: { to: draft, maxIterations: 5 }
 ```
-- **forEach**: `items` (JEXL; a variable holding a JSON array/object is read as structure; evaluated once) → one child step execution per item with its own task id, retries and timeout. The iteration sees the process vars with `as` (default `item`) and `indexAs` (default `index`) overlaid; workers get objects as JSON text, HTTP/LLM templates get them typed (`${room.number}`). What an iteration reports is NOT written to the process; `output` collects one element per item in item order (`null` if it did not complete), `outputElement` = JEXL over what it reported (default: all of it as an object). `completion`: `all` | `any` | JEXL over vars + `completedIterations`/`totalIterations`/`activeIterations` (+ the output so far) — the rest are cancelled. One iteration failing for good fails the step (rest cancelled, non-retryable); retrying it re-runs only failed/cancelled iterations. Empty list → completes at once (`output` = `[]`). Cap `workflow.foreach.max-items` (1000).
+- **forEach**: `items` (JEXL; a variable holding a JSON array/object is read as structure; evaluated once) → one child step execution per item with its own task id, retries and timeout. The iteration sees the process vars with `as` (default `item`) and `indexAs` (default `index`) overlaid; workers get objects as JSON text, HTTP/LLM templates get them typed (`${room.number}`). What an iteration reports is NOT written to the process; `output` collects one element per item in item order (`null` if it did not complete), `outputElement` = JEXL over what it reported (default: all of it as an object). `completion`: `all` | `any` | JEXL over vars + `completedIterations`/`totalIterations`/`activeIterations` (+ the output so far) — the rest are cancelled. **`onIterationFailure`** decides what one iteration failing for good does: `failFast` (default) fails the step at once and cancels the rest (non-retryable); `continue` waits for every iteration and **completes** the step anyway, each `output` element becoming `{status: COMPLETED, value}` / `{status: FAILED, error: ERROR|TIMEOUT}` / `{status: CANCELLED}` / `{status: NOT_RUN}`; `compensateAll` waits for every iteration (cancels none), then if any failed fails the step and compensates every completed one, else completes (refused with `completion: any` or a condition). Under `continue`/`compensateAll` an iteration an operator cancels counts as ended and failed. Retrying the step re-runs only failed/cancelled iterations. **`label`**: JEXL over the iteration scope, evaluated once when the iteration is created, kept on it (≤80 chars, encrypted with the item under `sensitiveVariables`) and shown in the console ("reserve · Hab. 101") and as `itemLabel` (REST, MCP); a label that fails only logs. Empty list → completes at once (`output` = `[]`). Cap `workflow.foreach.max-items` (1000).
 - **repeat**: `until` evaluated once per completed run over the vars + `iteration` (1-based); false → a new execution after `delay`.
 - **loopBack**: when the step completes and `while` (default always; vars + `iteration`) holds, every step on a path from `to` to it gets a fresh execution — JOIN/XOR/CHOICE latches reset, vars carry over, in-flight ones in the section are cancelled. `to` must be upstream; no REPLY/END in the section; loops nested or apart.
 - Decisions latch (evaluated once per completion). Caps — `maxIterations` (required), `maxSuccessfulExecutions`/`defaultMaxStepExecutions`, `workflow.loops.max-iterations` (1000) — fail the step finally when exceeded.
-- Compensation runs once per completed iteration/pass, newest first, each seeing that run's item/index and reported variables.
+- Compensation runs once per completed iteration/pass, newest first, each seeing that run's item/index and reported variables. An iteration cancelled while its work was finishing (a worker that had already booked, a child already completed) that then reports `COMPLETED` is kept as completed and compensated too (§8).
+- Console (process view): double-click a forEach step to expand it into one card per iteration (label or "item N", status, error), double-click again to collapse; up to 20 drawn, "+N more" beyond.
 - Storage: passes are step executions with `iteration` > 0 (earlier ones `superseded`); iterations have `parentExecutionId` + `itemIndex` (migration V47).
 
 ### CONTINUE_AS_NEW — hand over to a fresh run
@@ -463,7 +495,7 @@ Ends the run as END does (COMPLETED, outcome `continued`, other branches cancell
 ```json
 { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "last-step" }
 ```
-One per workflow (recommended; the process also completes when nothing is runnable). Transitions the process to `COMPLETED`. With parallel branches, precede it with a JOIN.
+One per workflow (recommended; the process also completes when nothing is runnable). Transitions the process to `COMPLETED`. With parallel branches, precede it with a JOIN. Branches still running are cancelled; what they completed in time stands unless **`compensateAbandoned: true`** (END only), which compensates the completed compensable steps of the branches this END cut short, as a cleanup after `COMPLETED` (§8).
 
 ### Common step fields
 
@@ -830,6 +862,9 @@ class BookingSagaTest {
 - `retries: N` — retry a step up to N times on `ERROR` or `TIMEOUT`.
 - `timeout` — on expiry the step goes `TIMEOUT`, then retries if attempts remain, else `ERROR`. A process in `ERROR` (after retries exhausted) can be retried, transitioning back to `RUNNING`.
 - **Saga**: mark steps `compensable: true` with a `compensationStepId`. When any step fails after exhausting retries, the engine runs the compensations of **every completed compensable step** (never the step that failed — its work did not happen) **sequentially, in reverse completion order** — latest undone first, each starting only once the previous compensation completes; a step that ran several times (forEach iterations, loop passes) is compensated once per completed run, newest first. When the whole chain finishes the process ends in the terminal **`COMPENSATED`** state; if a compensation itself fails after its own retries, the chain halts and the process ends **`COMPENSATION_FAILED`** (partially rolled back — alert on `eventconductor.compensations.failed`). If nothing compensable had completed, the process stays `ERROR`. Define compensation steps as ordinary `ACTION` steps with **no preconditions** — being named as a `compensationStepId` is what makes them reachable, and the dataflow never starts a step that has nothing to wait for. (Older definitions anchor them with `"preconditionExpression": "false"`; still supported. An anchor without the guard is a live branch of the happy path.)
+- **Late completion.** The engine cancels still-running steps at the end of a rollback, when another branch reaches `END`, and when an XOR join with `compensateLosers` fires. If such a step had started and its work completes anyway (a worker reporting after the cancellation, a child PROCESS already `COMPLETED`), and the step declares a compensation, that late `COMPLETED` is kept as a completed run (its reported variables on the run, not the process) and undone: in a failed process by the rollback (if it had already finished, the process goes back to `ERROR`, a new pass of the compensation undoes just that run, and it ends `COMPENSATED` again); in a process that did not fail, as a cleanup. Late answers for a step without compensation, or in a process an operator cancelled, are still ignored.
+- **Cleanup compensations** (late work in a non-failed process, `compensateLosers` on an XOR join, `compensateAbandoned` on an END): one at a time, newest first; they do not change the process status (an END cleanup runs after `COMPLETED`; reaching END never cancels one); a cleanup that fails after its retries is an **incident** in the Errors tab, and the process neither fails nor rolls back; a run a cleanup undid is not undone twice.
+- Workers and compensations must be idempotent and tolerate undoing work that completed late.
 
 ```json
 {
