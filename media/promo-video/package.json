@@ -1,0 +1,18 @@
+{
+  "name": "eventconductor-promo-video",
+  "private": true,
+  "type": "module",
+  "description": "Renders the EventConductor promo video: animated scenes frame by frame, real console scenes recorded with Playwright, assembled with ffmpeg.",
+  "scripts": {
+    "prepare-app": "bash scripts/prepare-app.sh",
+    "capture": "bash scripts/capture-real.sh && bash scripts/capture-terminal.sh",
+    "render": "node scripts/render-animated.mjs",
+    "assemble": "bash scripts/assemble.sh",
+    "build": "npm run capture && npm run render && npm run assemble"
+  },
+  "devDependencies": {
+    "@fontsource-variable/inter": "5.2.8",
+    "@fontsource-variable/jetbrains-mono": "5.2.8",
+    "playwright": "1.65.0"
+  }
+}

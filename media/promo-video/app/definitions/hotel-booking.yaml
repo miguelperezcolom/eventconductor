@@ -1,0 +1,42 @@
+id: hotel-booking
+name: Hotel booking
+steps:
+  - id: start
+    type: START
+    name: Booking received
+
+  - id: rooms
+    type: PROCESS
+    name: Book every room
+    preconditionStepId: start
+    compensable: true
+    compensationStepId: cancelRoom
+    outputVariables: [roomBookingId]
+    forEach:
+      items: rooms
+      as: room
+      label: "'Room ' + room.number"
+      onIterationFailure: compensateAll
+      output: roomBookings
+      outputElement: roomBookingId
+    steps:
+      - { id: start, type: START, name: Start }
+      - { id: create, type: ACTION, name: Create booking, topic: create-booking, preconditionStepId: start }
+      - { id: confirm, type: ACTION, name: Confirm, topic: confirm-booking, preconditionStepId: create }
+      - { id: end, type: END, name: End, preconditionStepId: confirm }
+
+  - id: notify
+    type: ACTION
+    name: Confirm to the customer
+    topic: notifications
+    preconditionStepId: rooms
+
+  - id: done
+    type: END
+    name: Done
+    preconditionStepId: notify
+
+  - id: cancelRoom
+    type: ACTION
+    name: Cancel the room
+    topic: cancel-booking
