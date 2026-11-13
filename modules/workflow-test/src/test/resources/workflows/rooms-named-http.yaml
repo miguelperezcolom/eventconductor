@@ -1,0 +1,16 @@
+# The same fan-out as rooms-inline-http, with the body as a named child workflow (room-hold): the child
+# reads the room as structure too, and keeps reading its own business key (InlineBodyVariablesTest).
+id: rooms-named-http
+name: Hold every room, one named child per room
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: rooms
+    type: PROCESS
+    name: Hold every room
+    preconditionStepId: start
+    childWorkflowDefinitionId: room-hold
+    forEach:
+      items: rooms
+      as: room
+  - { id: end, type: END, name: End, preconditionStepId: rooms }

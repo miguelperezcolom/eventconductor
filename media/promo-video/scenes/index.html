@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>EventConductor promo — scenes</title>
+<!--
+  The whole 90-second timeline as one deterministic page: window.render(t) draws the frame at
+  t seconds. Nothing animates on its own (no CSS transitions or animations), so rendering frame
+  by frame (scripts/render-animated.mjs) gives the same video every time.
+  Real console scenes are the REAL screenshots from scripts/record-real.mjs; the camera, cursor,
+  highlights and callouts are drawn over them here. Data arrives as window.DATA (strings.json,
+  the definition, the real terminal output, element boxes) — see render-animated.mjs.
+-->
+<style>
+  @font-face { font-family: 'Inter'; font-weight: 100 900; src: url('../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'JetBrains Mono'; font-weight: 100 800; src: url('../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2') format('woff2'); }
+  :root {
+    --bg0: #060a16; --bg1: #0d1530; --ink: #eef2ff; --muted: #9aa6c4; --accent: #6d7cff; --accent2: #38bdf8;
+    --red: #f87171; --red-bg: rgba(239, 68, 68, .16); --red-line: rgba(248, 113, 113, .85);
+    --green: #4ade80; --green-bg: rgba(34, 197, 94, .16); --green-line: rgba(74, 222, 128, .85);
+    --amber: #fbbf24; --water0: rgba(56, 120, 255, .18); --water1: rgba(30, 64, 175, .55);
+    --ice0: #dfe9f7; --ice1: #9fb6d6;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg0); }
+  #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; font-family: 'Inter', sans-serif; color: var(--ink);
+    background: radial-gradient(1400px 900px at 50% 38%, #142046 0%, #0a1024 55%, var(--bg0) 100%); }
+  .abs { position: absolute; }
+  .layer { position: absolute; inset: 0; }
+  .headline { position: absolute; left: 0; right: 0; text-align: center; font-weight: 750; letter-spacing: -0.02em; }
+  .chip { position: absolute; white-space: nowrap; border-radius: 999px; font-weight: 600; transform-origin: 50% 50%; }
+  .chip.biz { background: linear-gradient(180deg, #7c8bff, #5865f2); color: #fff; font-size: 34px; padding: 14px 30px; box-shadow: 0 10px 30px rgba(88, 101, 242, .45); }
+  .chip.plumb { font-size: 25px; padding: 9px 20px; border: 2px solid #f87171; background: rgba(220, 38, 38, .38); color: #fff; box-shadow: 0 0 18px rgba(239, 68, 68, .25); }
+  .chip.plumb.ok { border-color: #4ade80; background: rgba(22, 163, 74, .45); color: #fff; box-shadow: 0 0 18px rgba(74, 222, 128, .3); }
+  .caption { position: absolute; left: 50%; bottom: 46px; transform: translateX(-50%); white-space: nowrap; font-size: 38px; font-weight: 650;
+    padding: 16px 34px; border-radius: 18px; background: rgba(8, 12, 28, .82); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 16px 50px rgba(0,0,0,.45); }
+  .tag { position: absolute; font-size: 20px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  /* windows */
+  .win { position: absolute; border-radius: 16px; overflow: hidden; background: #0f1629; border: 1px solid rgba(255,255,255,.12);
+    box-shadow: 0 40px 120px rgba(0,0,0,.6), 0 0 0 1px rgba(0,0,0,.4); }
+  .win .bar { position: absolute; left: 0; right: 0; top: 0; height: 40px; background: #161f38; display: flex; align-items: center; padding-left: 18px; gap: 9px; }
+  .win .bar i { width: 13px; height: 13px; border-radius: 50%; display: inline-block; }
+  .win .bar .title { position: absolute; left: 0; right: 0; text-align: center; font-size: 17px; color: var(--muted); font-weight: 500; }
+  .win .vp { position: absolute; left: 0; right: 0; top: 40px; bottom: 0; overflow: hidden; background: #232f48; }
+  #cam { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  #cam img { position: absolute; left: 0; top: 0; }
+  #draw { position: absolute; left: 40px; top: 28px; width: 1840px; height: 1035px; border-radius: 16px; box-shadow: 0 40px 120px rgba(0,0,0,.6); border: 1px solid rgba(255,255,255,.12); }
+  /* editor */
+  .code { position: absolute; font-family: 'JetBrains Mono', monospace; font-size: 21px; line-height: 31px; white-space: pre; color: #e2e8f0; }
+  .ln { color: #4b5875; display: inline-block; width: 46px; text-align: right; margin-right: 22px; }
+  .k { color: #93c5fd; } .s { color: #a7f3d0; } .c { color: #64748b; font-style: italic; } .p { color: #c4b5fd; } .h { background: rgba(109, 124, 255, .22); }
+  .term { position: absolute; font-family: 'JetBrains Mono', monospace; font-size: 22px; line-height: 34px; white-space: pre; color: #cbd5e1; }
+  .ok { color: var(--green); } .bad { color: var(--red); } .dim { color: #64748b; } .prompt { color: var(--accent2); }
+  /* overlays drawn over the console */
+  .cursor { position: absolute; width: 34px; height: 34px; pointer-events: none; filter: drop-shadow(0 4px 8px rgba(0,0,0,.6)); }
+  .pulse { position: absolute; border-radius: 50%; border: 4px solid var(--accent2); }
+  .hl { position: absolute; border-radius: 12px; }
+  .callout { position: absolute; white-space: nowrap; font-size: 30px; font-weight: 700; padding: 12px 22px; border-radius: 14px; color: #fff; box-shadow: 0 14px 40px rgba(0,0,0,.5); }
+  .leader { position: absolute; height: 3px; transform-origin: 0 50%; border-radius: 3px; }
+  .dot { position: absolute; width: 16px; height: 16px; border-radius: 50%; border: 3px solid #fff; }
+  .card { position: absolute; border-radius: 18px; background: #0f172e; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 30px 90px rgba(0,0,0,.6); }
+  .bubble { position: absolute; font-size: 28px; line-height: 38px; padding: 16px 22px; border-radius: 16px; }
+  .toolcall { position: absolute; font-family: 'JetBrains Mono', monospace; font-size: 22px; padding: 10px 16px; border-radius: 10px;
+    background: rgba(109,124,255,.14); border: 1px solid rgba(109,124,255,.5); color: #c7d2fe; white-space: nowrap; }
+  .check { position: absolute; font-size: 27px; font-weight: 600; white-space: nowrap; }
+  .node { position: absolute; font-size: 30px; font-weight: 700; padding: 22px 34px; border-radius: 18px; background: #131c36; border: 2px solid rgba(255,255,255,.18); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <!-- 1–3: the iceberg -->
+  <div id="water" class="abs"></div>
+  <svg id="berg" class="abs" width="1920" height="1080" viewBox="0 0 1920 1080"><defs>
+    <linearGradient id="iceTop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#b9cbe6"/></linearGradient>
+    <linearGradient id="iceDeep" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7e9cc9" stop-opacity=".55"/><stop offset="1" stop-color="#2a4a86" stop-opacity=".35"/></linearGradient>
+  </defs><path id="tipPath" fill="url(#iceTop)"/><path id="deepPath" fill="url(#iceDeep)"/></svg>
+  <div id="waterline" class="abs"></div>
+  <div id="h1" class="headline"></div>
+  <div id="h2" class="headline"></div>
+  <div id="bizChips"></div>
+  <div id="plumbChips"></div>
+  <div id="engineLabel" class="tag"></div>
+
+  <!-- 4: the editor -->
+  <div id="editor" class="win"><div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span class="title" id="edTitle"></span></div>
+    <div class="vp" style="background:#0b1120"><div id="codeClip" class="abs" style="left:0;right:0;top:0;overflow:hidden"><div id="code" class="code" style="left:26px;top:22px"></div></div>
+      <div id="edTerm" class="term" style="left:18px;right:18px;bottom:16px"></div></div></div>
+  <div id="defView" class="win"><div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span class="title">Definition · Hotel booking</span></div>
+    <div class="vp"><img id="defA" class="abs"><img id="defB" class="abs"></div></div>
+
+  <!-- 5–6, 8: the console -->
+  <div id="console" class="win" style="left:80px;top:62px;width:1760px;height:944px">
+    <div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span class="title" id="conTitle">localhost · EventConductor console</span></div>
+    <div class="vp" id="vp"><div id="cam"></div></div>
+  </div>
+  <img id="draw">
+  <div id="overlay" class="layer"></div>
+
+  <!-- 6: MCP -->
+  <div id="mcp" class="card" style="left:1010px;top:150px;width:820px;height:700px"></div>
+  <!-- 7: the gate -->
+  <div id="gateTerm" class="win" style="left:150px;top:110px;width:1060px;height:760px"><div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span class="title">hotel-booking · CI</span></div>
+    <div class="vp" style="background:#0b1120"><div id="gateOut" class="term" style="left:28px;top:24px;font-size:21px;line-height:33px"></div></div></div>
+  <div id="diff" class="card" style="left:1250px;top:150px;width:560px;height:220px"></div>
+  <div id="checks" class="card" style="left:1250px;top:430px;width:560px;height:360px"></div>
+  <!-- 8: ship -->
+  <div id="ship" class="layer"></div>
+  <!-- 9: outro -->
+  <div id="outro" class="layer"></div>
+  <div id="cap" class="caption"></div>
+</div>
+<script>
+const D = window.DATA;
+const S = D.strings;
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, p) => a + (b - a) * p;
+const eio = (p) => p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+const eout = (p) => 1 - Math.pow(1 - p, 3);
+const back = (p) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); };
+/** Opacity of something shown from a to b, fading in over fi and out over fo. */
+const vis = (t, a, b, fi = .35, fo = .35) => Math.min(seg(t, a, a + fi), 1 - seg(t, b - fo, b));
+const css = (el, o) => { for (const k in o) el.style[k] = o[k]; return el; };
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/* ---------- build the static parts once ---------- */
+const W = 1920, H = 1080;
+const bizEls = S['chips.business'].map((txt) => { const e = document.createElement('div'); e.className = 'chip biz'; e.textContent = txt; $('bizChips').appendChild(e); return e; });
+const plumbEls = S['chips.plumbing'].map((txt) => { const e = document.createElement('div'); e.className = 'chip plumb'; e.textContent = txt; $('plumbChips').appendChild(e); return e; });
+css($('water'), { left: 0, width: W + 'px', height: H + 'px', background: 'linear-gradient(180deg, var(--water0), var(--water1) 70%, rgba(10,20,60,.9))' });
+css($('waterline'), { left: 0, width: W + 'px', height: '3px', background: 'linear-gradient(90deg, transparent, rgba(125,170,255,.9) 20%, rgba(125,170,255,.9) 80%, transparent)' });
+$('edTitle').textContent = S['editor.file'];
+
+// Layout of the chips: business row on the tip, plumbing in centred rows below the waterline.
+function measure(el) { return { w: el.offsetWidth, h: el.offsetHeight }; }
+const bizW = bizEls.map(measure), plumbW = plumbEls.map(measure);
+function rows(widths, maxW, gap) {
+  const out = []; let row = [], w = 0;
+  widths.forEach((m, i) => { if (row.length && w + gap + m.w > maxW) { out.push(row); row = []; w = 0; } row.push(i); w += (row.length > 1 ? gap : 0) + m.w; });
+  if (row.length) out.push(row); return out;
+}
+const WATER_Y = 540;
+const plumbPos = [];
+rows(plumbW, 1500, 16).forEach((row, r) => {
+  const total = row.reduce((s, i) => s + plumbW[i].w, 0) + 16 * (row.length - 1);
+  let x = W / 2 - total / 2;
+  row.forEach((i) => { plumbPos[i] = { x, y: WATER_Y + 58 + r * 66 }; x += plumbW[i].w + 16; });
+});
+const bizTotal = bizW.reduce((s, m) => s + m.w, 0) + 20 * 2;
+const bizRowPos = []; { let x = W / 2 - bizTotal / 2; bizW.forEach((m, i) => { bizRowPos[i] = { x, y: 0 }; x += m.w + 20; }); }
+
+// The YAML, highlighted line by line.
+const yamlLines = D.yaml.split('\n');
+function hl(line) {
+  if (/^\s*#/.test(line)) return `<span class="c">${esc(line)}</span>`;
+  let m = line.match(/^(\s*-?\s*)([A-Za-z_][\w-]*)(:)(.*)$/);
+  if (!m) return esc(line);
+  let rest = esc(m[4])
+    .replace(/("[^"]*"|'[^']*')/g, '<span class="s">$1</span>')
+    .replace(/(\{|\}|\[|\])/g, '<span class="p">$1</span>')
+    .replace(/(\b[a-zA-Z]+)(:)(?=\s)/g, '<span class="k">$1</span>$2');
+  return `${esc(m[1])}<span class="k">${m[2]}</span>${m[3]}${rest}`;
+}
+const yamlChars = D.yaml.length;
+const emphasise = new Set(D.yamlEmphasis);
+
+// The console's screenshot layers.
+const shots = {};
+for (const name of ['process-collapsed', 'process-lanes', 'list', 'list-searched', 'list-failed-selected', 'versions']) {
+  const img = document.createElement('img'); img.src = `../build/real/${name}.png`; $('cam').appendChild(img); shots[name] = img;
+}
+$('defA').src = '../build/real/definition.png'; $('defB').src = '../build/real/definition-expanded.png';
+const B = D.boxes;
+const SW = B.viewport.w, SH = B.viewport.h;   // the console screenshots' CSS size
+for (const img of $('cam').querySelectorAll('img')) css(img, { width: SW + 'px', height: SH + 'px' });
+css($('cam'), { width: SW + 'px', height: SH + 'px' });
+const center = (b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
+
+/* ---------- camera over the console ---------- */
+const CON = { x: 80, y: 62 + 40, w: 1760, h: 944 - 40 }, BASE = CON.w / SW;
+function camAt(keys, t) {
+  if (t <= keys[0].t) return keys[0];
+  for (let i = 1; i < keys.length; i++) {
+    if (t <= keys[i].t) { const a = keys[i - 1], b = keys[i], p = eio(seg(t, a.t, b.t)); return { cx: lerp(a.cx, b.cx, p), cy: lerp(a.cy, b.cy, p), z: lerp(a.z, b.z, p) }; }
+  }
+  return keys[keys.length - 1];
+}
+let CAM = { cx: SW / 2, cy: CON.h / BASE / 2, z: 1 };
+function applyCam(c) {
+  CAM = c; const k = BASE * c.z;
+  const tx = CON.w / 2 - c.cx * k, ty = CON.h / 2 - c.cy * k;
+  $('cam').style.transform = `translate(${tx}px, ${ty}px) scale(${k})`;
+}
+function toScreen(x, y) { const k = BASE * CAM.z; return { x: CON.x + CON.w / 2 + (x - CAM.cx) * k, y: CON.y + CON.h / 2 + (y - CAM.cy) * k, k }; }
+const FULL = { cx: SW / 2, cy: CON.h / BASE / 2, z: 1 };
+const pad = (b, p) => ({ x: b.x - p, y: b.y - p, w: b.w + 2 * p, h: b.h + 2 * p });
+/** A camera that frames box b (screenshot coordinates) in the console window, capped at zmax. */
+const frame = (b, zmax = 3) => ({ cx: b.x + b.w / 2, cy: b.y + b.h / 2, z: Math.min(zmax, CON.w / BASE / b.w, CON.h / BASE / b.h) });
+
+/* ---------- overlay helpers (redrawn every frame) ---------- */
+let ov;
+function el(cls, style, html) { const e = document.createElement('div'); e.className = cls; css(e, style); if (html != null) e.innerHTML = html; ov.appendChild(e); return e; }
+const ARROW = `<svg viewBox="0 0 24 24" width="34" height="34"><path d="M3 2 L3 20 L8 15.5 L11.5 22.5 L14.6 21 L11.2 14.2 L18 14.2 Z" fill="#fff" stroke="#0b1020" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
+function cursor(p, op = 1) { if (op <= 0) return; el('cursor', { left: (p.x - 3) + 'px', top: (p.y - 2) + 'px', opacity: op }, ARROW); }
+function pulse(p, t, at, double = false) {
+  for (const d of double ? [0, .22] : [0]) {
+    const q = seg(t, at + d, at + d + .55); if (q <= 0 || q >= 1) continue;
+    const r = lerp(8, 46, eout(q)); el('pulse', { left: (p.x - r) + 'px', top: (p.y - r) + 'px', width: 2 * r + 'px', height: 2 * r + 'px', opacity: 1 - q });
+  }
+}
+function cursorPath(keys, t) { // keys: [{t, x, y}] in screenshot coordinates
+  if (t <= keys[0].t) return keys[0];
+  for (let i = 1; i < keys.length; i++) if (t <= keys[i].t) { const a = keys[i - 1], b = keys[i], p = eio(seg(t, a.t, b.t)); return { x: lerp(a.x, b.x, p), y: lerp(a.y, b.y, p) }; }
+  return keys[keys.length - 1];
+}
+function highlight(b, op, color, pad = 6) {
+  if (op <= 0) return; const a = toScreen(b.x - pad, b.y - pad), z = toScreen(b.x + b.w + pad, b.y + b.h + pad);
+  el('hl', { left: a.x + 'px', top: a.y + 'px', width: (z.x - a.x) + 'px', height: (z.y - a.y) + 'px', opacity: op, border: `4px solid ${color}`, boxShadow: `0 0 0 9999px rgba(4,8,20,${.45 * op}), 0 0 30px ${color}` });
+}
+function callout(anchor, op, text, color, dx, dy) {
+  if (op <= 0) return; const a = toScreen(anchor.x, anchor.y);
+  const bx = a.x + dx, by = a.y + dy;
+  const c = el('callout', { left: bx + 'px', top: by + 'px', background: color, opacity: op, transform: `translate(${dx < 0 ? '-100%' : '0'}, -50%) scale(${lerp(.92, 1, eout(op))})` }, esc(text));
+  const len = Math.hypot(dx, dy), ang = Math.atan2(dy, dx);
+  el('leader', { left: a.x + 'px', top: a.y + 'px', width: len * op + 'px', background: color, transform: `rotate(${ang}rad)`, opacity: op });
+  el('dot', { left: (a.x - 8) + 'px', top: (a.y - 8) + 'px', background: color, opacity: op });
+}
+function caption(text, op) { const c = $('cap'); c.style.opacity = op; c.style.display = op > 0 ? 'block' : 'none'; if (op > 0 && c.dataset.t !== text) { c.textContent = text; c.dataset.t = text; } c.style.transform = `translate(-50%, ${lerp(16, 0, eout(op))}px)`; }
+
+/* ---------- the timeline ---------- */
+const DRAW_SPEED = 1.25;                         // the editor recording, played a little faster
+const DRAW = D.drawFrames / 30 / DRAW_SPEED;
+const T = { introEnd: 6, icebergEnd: 18, quoteEnd: 23, editorEnd: 38 };
+T.drawEnd = T.editorEnd + DRAW; T.consoleEnd = T.drawEnd + 17; T.opsEnd = T.consoleEnd + 10; T.gateEnd = T.opsEnd + 10; T.shipEnd = T.gateEnd + 8; T.end = T.shipEnd + 7;
+window.DURATION = T.end; window.TIMELINE = T;
+
+function scenesIceberg(t) {
+  const active = t < T.quoteEnd + .2;
+  for (const id of ['water', 'berg', 'waterline', 'h1', 'h2', 'bizChips', 'plumbChips', 'engineLabel']) $(id).style.display = active ? '' : 'none';
+  if (!active) return;
+  const out = 1 - seg(t, T.quoteEnd - .5, T.quoteEnd);          // whole scene fades at the end
+  // headline 1: "Your process is three steps."
+  const h1op = vis(t, .25, 6.4, .7, .5);
+  css($('h1'), { top: lerp(300, 250, eout(seg(t, .25, 1.2))) + 'px', fontSize: '84px', opacity: h1op });
+  $('h1').textContent = S['intro.headline'];
+  // the water rises into view (6 → 7.6) and settles at WATER_Y
+  const wy = lerp(H + 10, WATER_Y, eio(seg(t, 5.6, 7.4)));
+  css($('water'), { top: wy + 'px', opacity: out });
+  css($('waterline'), { top: (wy - 1) + 'px', opacity: out * seg(t, 5.6, 6.4) });
+  // business chips: centred row (intro) → riding on the tip at the waterline
+  const rowY = lerp(560, WATER_Y - 92, eio(seg(t, 5.6, 7.4)));
+  bizEls.forEach((e, i) => {
+    const p = back(seg(t, 1.3 + i * .38, 1.9 + i * .38));
+    css(e, { left: bizRowPos[i].x + 'px', top: rowY + 'px', opacity: seg(t, 1.3 + i * .38, 1.6 + i * .38) * out, transform: `scale(${lerp(.6, 1, p)})` });
+  });
+  // the tip (above water) and the submerged mass that grows with each chip
+  const tipOp = seg(t, 6.2, 7.4) * out;
+  const ty = WATER_Y, tw = bizTotal / 2 + 70;
+  $('tipPath').setAttribute('d', `M ${W/2 - tw} ${ty} L ${W/2 - tw*.55} ${ty - 70} L ${W/2 - tw*.2} ${ty - 128} L ${W/2 + tw*.05} ${ty - 112} L ${W/2 + tw*.32} ${ty - 140} L ${W/2 + tw*.7} ${ty - 64} L ${W/2 + tw} ${ty} Z`);
+  $('tipPath').style.opacity = tipOp;
+  const n = S['chips.plumbing'].length;
+  const shown = clamp((t - 8) / .36, 0, n);
+  const lastRowY = plumbPos.reduce((m, p) => Math.max(m, p.y), 0);
+  const depth = lerp(30, (lastRowY - WATER_Y) + 120, eio(clamp(shown / n)));
+  const bw = 820;
+  $('deepPath').setAttribute('d', `M ${W/2 - bw} ${ty} L ${W/2 + bw} ${ty} L ${W/2 + bw*.94} ${ty + depth*.55} L ${W/2 + bw*.7} ${ty + depth} L ${W/2 + bw*.1} ${ty + depth*.92} L ${W/2 - bw*.35} ${ty + depth*1.02} L ${W/2 - bw*.82} ${ty + depth*.7} L ${W/2 - bw*.97} ${ty + depth*.3} Z`);
+  $('deepPath').style.opacity = seg(t, 7.6, 8.4) * out;
+  // headline 2 / the quote
+  const h2a = vis(t, 7.4, 18.6, .6, .5), h2b = vis(t, 18.4, 30, .6, .1) * out;
+  const h2 = $('h2');
+  if (t < 18.5) { h2.textContent = S['iceberg.headline']; css(h2, { top: '120px', fontSize: '78px', opacity: h2a, color: '' }); }
+  else { h2.textContent = S['quote']; css(h2, { top: '110px', fontSize: '66px', opacity: h2b, color: '#fff' }); }
+  // the count line under the headline
+  const cnt = $('engineLabel');
+  if (t < 18.3) { cnt.textContent = S['iceberg.count']; css(cnt, { left: 0, right: 0, textAlign: 'center', top: '232px', fontSize: '30px', textTransform: 'none', letterSpacing: '0', fontWeight: '500', color: '#c7d2fe', opacity: vis(t, 14.6, 18.3, .6, .4) }); }
+  else { cnt.textContent = S['iceberg.engine']; css(cnt, { left: 0, right: 0, textAlign: 'center', top: (WATER_Y + 18) + 'px', fontSize: '24px', textTransform: 'uppercase', letterSpacing: '.12em', fontWeight: '800', color: '#86efac', opacity: seg(t, 21.2, 21.8) * out }); }
+  // plumbing chips sink in one by one, then flip green one by one
+  plumbEls.forEach((e, i) => {
+    const t0 = 8 + i * .36, p = seg(t, t0, t0 + .55);
+    const flip = seg(t, 18.9 + i * .17, 18.9 + i * .17 + .32);
+    e.classList.toggle('ok', flip >= .5);
+    const ry = flip > 0 && flip < 1 ? Math.abs(Math.cos(flip * Math.PI)) : 1;
+    const pos = plumbPos[i];
+    css(e, { left: pos.x + 'px', top: (lerp(WATER_Y - 30, pos.y, back(p)) + (t > 19 ? 30 * eout(seg(t, 18.6, 19.2)) : 0)) + 'px',
+      opacity: seg(t, t0, t0 + .2) * out, transform: `scaleY(${ry})` });
+  });
+}
+
+function sceneEditor(t) {
+  const a = T.quoteEnd, b = T.editorEnd, on = t > a - .1 && t < b + .1;
+  $('editor').style.display = $('defView').style.display = on ? '' : 'none';
+  if (!on) return;
+  const op = vis(t, a, b, .5, .5);
+  css($('editor'), { left: '60px', top: '60px', width: '900px', height: '880px', opacity: op, transform: `translateY(${lerp(30, 0, eout(seg(t, a, a + .6)))}px)` });
+  // typing: 23.8 → 30.8, with the view scrolling to keep the cursor in sight, like an editor
+  const n = Math.floor(yamlChars * eio(seg(t, a + .8, a + 7.8)));
+  let left = n, html = '', cur = 0;
+  yamlLines.forEach((line, i) => {
+    if (left < 0) return;
+    const part = line.slice(0, Math.max(0, left)); left -= line.length + 1; cur = i;
+    const em = emphasise.has(i) && t > a + 8.2 ? ' h' : '';
+    html += `<span class="ln">${i + 1}</span><span class="${em}">${hl(part)}</span>${left >= 0 ? '' : (Math.floor(t * 2) % 2 ? '▍' : ' ')}\n`;
+  });
+  $('code').innerHTML = html;
+  const termOn = t > a + 8.2, termH = 150 * eio(seg(t, a + 8.0, a + 8.5)), LH = 31;
+  const viewH = 840 - 22 - termH - 20;
+  const scroll = Math.max(0, (cur + 2) * LH - viewH);
+  $('codeClip').style.bottom = termH + 'px';
+  $('code').style.transform = `translateY(${-scroll}px)`;
+  // validate, in the editor's terminal: 31.2 →
+  let term = '';
+  if (termOn) {
+    const cmd = '$ mvn eventconductor:validate';
+    term += `<span class="prompt">${esc(cmd.slice(0, Math.ceil(cmd.length * seg(t, a + 8.2, a + 8.9))))}</span>`;
+    D.out.validateGreen.forEach((line, i) => { if (t > a + 9.2 + i * .35) term += `\n<span class="${/SUCCESS|successfully/.test(line) ? 'ok' : 'dim'}">${esc(line)}</span>`; });
+  }
+  $('edTerm').innerHTML = term;
+  css($('edTerm'), { display: term ? '' : 'none', background: '#111a2e', padding: '14px 18px', borderRadius: '10px', border: '1px solid rgba(255,255,255,.1)' });
+  // the derived graph, real screenshots, cropped to the graph
+  const g = vis(t, a + 9.4, b, .6, .5);
+  const GW = 900, GH = 660 - 40;
+  css($('defView'), { left: '985px', top: '120px', width: GW + 'px', height: (GH + 40) + 'px', opacity: g, transform: `translateX(${lerp(40, 0, eout(seg(t, a + 9.4, a + 10.2)))}px)` });
+  const fit = (b) => { const w = Math.max(b.w, b.h * GW / GH); return { x: b.x + b.w / 2 - w / 2, y: b.y + b.h / 2 - (w * GH / GW) / 2, w }; };
+  const r0 = fit(pad(B['def.nodes'], 30)), r1 = fit(pad(B['defx.rooms'], 40)), rp = eio(seg(t, a + 12.4, a + 13.6));
+  const r = { x: lerp(r0.x, r1.x, rp), y: lerp(r0.y, r1.y, rp), w: lerp(r0.w, r1.w, rp) };
+  const s = GW / r.w;
+  for (const [id, o] of [['defA', 1 - seg(t, a + 11.6, a + 12.0)], ['defB', seg(t, a + 11.6, a + 12.0)]]) css($(id), { width: SW * s + 'px', height: SH * s + 'px', left: (-r.x * s) + 'px', top: (-r.y * s) + 'px', opacity: o });
+  // the cursor double-clicks the inline node to open its body
+  if (t > a + 10.4 && t < b - .4) {
+    const dc = center(B['def.rooms']); const target = { x: 985 + (dc.x - r.x) * s, y: 120 + 40 + (dc.y - r.y) * s };
+    const p = cursorPath([{ t: a + 10.4, x: 1500, y: 640 }, { t: a + 11.2, x: target.x, y: target.y }], t);
+    cursor(p, vis(t, a + 10.4, b - .4, .2, .3)); pulse(p, t, a + 11.3, true);
+  }
+  caption(t < a + 9.6 ? S['editor.caption'] : S['editor.graph'], vis(t, a + .6, b, .5, .4));
+}
+
+const CON_A = T.drawEnd, CON_B = T.shipEnd;
+function sceneConsole(t) {
+  const on = t > CON_A - .1 && t < CON_B + .1 && !(t > T.opsEnd + .1 && t < T.gateEnd + 2.3);
+  $('console').style.display = on ? '' : 'none';
+  if (!on) return;
+  const lay = {};
+  for (const k in shots) lay[k] = 0;
+  let cam = FULL;
+  const R = B['process.rooms'], L = B['lanes.node'], C = B['lanes.cancel'], R2 = B['lanes.room102'], ST = B['process.status'];
+  const lane102 = { x: R2.x - R2.h * .9, y: R2.y - R2.h * .6, w: L.w - 2 * (R2.x - R2.h * .9 - L.x), h: R2.h * 4.6 };
+  if (t < T.consoleEnd) {
+    const a = CON_A;
+    lay['process-collapsed'] = 1 - seg(t, a + 2.62, a + 2.72);
+    lay['process-lanes'] = seg(t, a + 2.62, a + 2.72);
+    const G = B['lanes.nodes'], LANES = frame(pad(L, 30)), CANCEL = frame(pad({ x: L.x + L.w * .45, y: C.y - 20, w: C.x + C.w - (L.x + L.w * .45), h: L.h * .7 }, 30));
+    const STATUS = frame(pad({ x: ST.x, y: ST.y - 50, w: 420, h: 130 }, 10), 3.2), OVER = frame(pad(G, 40));
+    cam = camAt([
+      { t: a + .2, ...OVER }, { t: a + 3.1, ...OVER },
+      { t: a + 4.6, ...LANES }, { t: a + 8.0, ...LANES },
+      { t: a + 9.6, ...CANCEL }, { t: a + 12.0, ...CANCEL },
+      { t: a + 13.2, ...STATUS }, { t: a + 14.6, ...STATUS },
+      { t: a + 16.0, ...OVER },
+    ], t);
+    applyCam(cam);
+    css($('console'), { opacity: vis(t, a, T.consoleEnd + 1, .5, .01), transform: `translateY(${lerp(40, 0, eout(seg(t, a, a + .7)))}px)` });
+    ov.innerHTML = '';
+    const rc = center(R);
+    const p = cursorPath([{ t: a + .8, x: rc.x + 260, y: rc.y + 160 }, { t: a + 2.2, x: rc.x, y: rc.y }], t);
+    if (t < a + 3.4) { const s = toScreen(p.x, p.y); cursor(s, vis(t, a + .8, a + 3.4, .3, .3)); pulse(s, t, a + 2.3, true); }
+    highlight(lane102, vis(t, a + 4.8, a + 8.6, .4, .4), '#f87171');
+    callout({ x: lane102.x + lane102.w, y: lane102.y + lane102.h / 2 }, vis(t, a + 5.2, a + 8.6, .4, .3), S['console.room102'], '#dc2626', 70, 215);
+    highlight({ x: C.x + 4, y: C.y + 52, w: C.w - 10, h: C.h - 76 }, vis(t, a + 9.8, a + 12.4, .4, .4), '#fbbf24');
+    callout({ x: C.x + 30, y: C.y + 62 }, vis(t, a + 10.1, a + 12.4, .4, .3), S['console.cancel'], '#b45309', -50, -150);
+    highlight(ST, vis(t, a + 13.4, a + 15.0, .3, .4), '#4ade80', 4);
+    callout({ x: ST.x + ST.w, y: ST.y + ST.h / 2 }, vis(t, a + 13.6, a + 15.0, .3, .3), S['console.status'], '#15803d', 90, 70);
+    caption(t < a + 15.2 ? S['console.caption1'] : S['console.caption2'], vis(t, a + .6, T.consoleEnd + .05, .5, .4));
+  } else if (t < T.opsEnd) {
+    const a = T.consoleEnd;
+    const eb = B['list.errorRow'], cbx = B['list.errorCheckbox'], rbx = B['list.retry'], sbx = B['list.search'];
+    const OPS = frame({ x: cbx.x - 30, y: rbx.y - 20, w: rbx.x + rbx.w + 30 - (cbx.x - 30), h: eb.y + eb.h + 110 - (rbx.y - 20) }, 2.4);
+    applyCam(camAt([{ t: a + .1, ...FULL }, { t: a + 1.1, ...OPS }], t));
+    css($('console'), { opacity: 1 - .55 * seg(t, a + 6.2, a + 6.8), transform: 'none' });
+    lay['process-lanes'] = 1 - seg(t, a, a + .4);
+    lay['list'] = seg(t, a, a + .4) * (1 - seg(t, a + 2.6, a + 2.8)) + seg(t, a + 3.5, a + 3.7) * (1 - seg(t, a + 4.55, a + 4.6));
+    lay['list-searched'] = seg(t, a + 2.6, a + 2.8) * (1 - seg(t, a + 3.5, a + 3.7));
+    lay['list-failed-selected'] = seg(t, a + 4.55, a + 4.6);
+    ov.innerHTML = '';
+    const sb = B['list.search'], cb = B['list.errorCheckbox'], rb = B['list.retry'];
+    // typing the business key into the (still empty) search box of the plain list
+    if (t > a + 1.6 && t < a + 2.75) {
+      const s = toScreen(sb.x + 2, sb.y + sb.h / 2), k = BASE * CAM.z;
+      const txt = 'BK-4711'.slice(0, Math.ceil(7 * seg(t, a + 1.7, a + 2.4)));
+      el('abs', { left: s.x + 'px', top: s.y + 'px', fontSize: (14 * k) + 'px', color: '#e2e8f0', transform: 'translateY(-50%)', lineHeight: '1', whiteSpace: 'nowrap' },
+        esc(txt) + (Math.floor(t * 3) % 2 ? '<span style="opacity:.8">|</span>' : ''));
+    }
+    const p = cursorPath([
+      { t: a + .5, x: sb.x + 500, y: sb.y + 220 }, { t: a + 1.4, x: sb.x + 160, y: sb.y + sb.h / 2 },
+      { t: a + 3.6, x: sb.x + 160, y: sb.y + sb.h / 2 }, { t: a + 4.4, x: cb.x + cb.w / 2, y: cb.y + cb.h / 2 },
+      { t: a + 4.9, x: cb.x + cb.w / 2, y: cb.y + cb.h / 2 }, { t: a + 5.7, x: rb.x + rb.w / 2, y: rb.y + rb.h / 2 },
+    ], t);
+    const s = toScreen(p.x, p.y);
+    if (t < a + 6.6) { cursor(s, vis(t, a + .5, a + 6.6, .3, .3)); pulse(s, t, a + 1.5); pulse(s, t, a + 4.5); pulse(s, t, a + 5.9); }
+    highlight(rb, vis(t, a + 5.6, a + 6.6, .2, .3), '#38bdf8', 4);
+    caption(t < a + 3.6 ? S['ops.caption1'] : S['ops.caption2'], vis(t, a + .4, a + 6.4, .4, .3));
+    mcp(t, a + 6.4);
+  } else {
+    const a = T.gateEnd + 2.4;
+    const VT = B['versions.table'];
+    applyCam(camAt([{ t: a + .6, ...FULL }, { t: a + 1.8, ...frame({ x: VT.x - 20, y: VT.y - 90, w: VT.w * .62, h: VT.h + 210 }, 2.6) }], t));
+    css($('console'), { opacity: vis(t, a, CON_B, .5, .5), transform: 'none' });
+    lay['versions'] = 1;
+    ov.innerHTML = '';
+    const vt = B['versions.table'];
+    highlight({ x: vt.x, y: vt.y + vt.h * .37, w: vt.w * .6, h: vt.h * .63 }, vis(t, a + 2.0, CON_B - .4, .4, .3), '#6d7cff', 4);
+    callout({ x: vt.x + 300, y: vt.y + vt.h }, vis(t, a + 2.3, CON_B - .4, .4, .3), S['ship.versions'], '#4f46e5', 90, 130);
+    caption(S['ship.caption'], vis(t, a, CON_B, .3, .4));
+  }
+  for (const k in shots) shots[k].style.opacity = lay[k];
+}
+
+function mcp(t, a) {
+  const c = $('mcp'), op = vis(t, a, T.opsEnd, .5, .4);
+  c.style.display = op > 0 ? '' : 'none'; if (op <= 0) return;
+  css(c, { opacity: op, transform: `translateX(${lerp(60, 0, eout(seg(t, a, a + .6)))}px)` });
+  const pr = S['ops.mcp.prompt'], typed = pr.slice(0, Math.ceil(pr.length * seg(t, a + .5, a + 1.5)));
+  const id = D.boxes.meta.failedId;
+  let h = `<div class="tag" style="left:34px;top:28px;color:#c7d2fe">${esc(S['ops.mcp.title'])}</div>`;
+  h += `<div class="bubble" style="right:30px;top:80px;max-width:640px;background:#4f46e5;color:#fff">${esc(typed)}</div>`;
+  const step = (at) => seg(t, at, at + .35);
+  if (t > a + 1.8) h += `<div class="toolcall" style="left:34px;top:200px;opacity:${step(a + 1.8)}">→ listProcesses(status = ERROR)</div>`;
+  if (t > a + 2.3) h += `<div class="toolcall" style="left:34px;top:262px;opacity:${step(a + 2.3)}">→ retryProcess("…${id.slice(-12)}")</div>`;
+  if (t > a + 2.8) h += `<div class="bubble" style="left:34px;top:330px;width:752px;background:#1e293b;color:#e2e8f0;opacity:${step(a + 2.8)}">Retry requested for process <b>…${id.slice(-12)}.</b> It is carried out by the node that owns the process, so query the process to see the outcome.</div>`;
+  h += `<div class="tag" style="left:34px;bottom:26px;text-transform:none;letter-spacing:0;font-size:19px;font-weight:500">${esc(S['ops.mcp.note'])}</div>`;
+  c.innerHTML = h;
+}
+
+function sceneGate(t) {
+  const a = T.opsEnd, b = T.gateEnd, on = t > a - .1 && t < b + .1;
+  for (const id of ['gateTerm', 'diff', 'checks']) $(id).style.display = on ? '' : 'none';
+  if (!on) return;
+  css($('gateTerm'), { opacity: vis(t, a, b, .5, .4), transform: `translateY(${lerp(30, 0, eout(seg(t, a, a + .6)))}px)` });
+  const cls = (l) => /SUCCESS|Failures: 0/.test(l) ? 'ok' : /FAILURE|ERROR|Expected/.test(l) ? 'bad' : 'dim';
+  const lines = [];
+  const cmd = (at) => { const c = '$ mvn test'; lines.push(`<span class="prompt">${esc(c.slice(0, Math.ceil(c.length * seg(t, at, at + .5))))}</span>`); };
+  const wrap = (l) => l.replace(/ -- in com\.example\.booking\.HotelBookingTest$/, '').replace(/\(WorkflowTestRuntime\)/, '()').replace(/com\.example\.booking\./g, '').replace(/, Time elapsed: [0-9.]+ s/, '');
+  cmd(a + .4);
+  D.out.testGreen.forEach((l, i) => { if (t > a + 1.1 + i * .3) lines.push(`<span class="${cls(l)}">${esc(wrap(l))}</span>`); });
+  if (t > a + 4.4) { lines.push(''); cmd(a + 4.4); }
+  D.out.testRed.forEach((l, i) => {
+    if (t > a + 5.1 + i * .3) {
+      const w = wrap(l); const parts = w.length > 74 ? w.replace(/^(.{0,74})\s(.*)$/, '$1\n    $2') : w;
+      const em = /Expected/.test(l) ? ' style="background:rgba(239,68,68,.18);border-radius:6px"' : '';
+      lines.push(`<span class="${cls(l)}"${em}>${esc(parts)}</span>`);
+    }
+  });
+  $('gateOut').innerHTML = lines.join('\n');
+  // the change that breaks it
+  const d = $('diff'), dop = vis(t, a + 3.0, b, .4, .4);
+  css(d, { opacity: dop, transform: `translateX(${lerp(40, 0, eout(seg(t, a + 3, a + 3.6)))}px)` });
+  d.innerHTML = `<div class="tag" style="left:26px;top:22px">${esc(S['editor.file'])}</div>
+    <div class="term" style="left:26px;top:70px;font-size:22px"><span class="bad">- onIterationFailure: compensateAll</span>\n<span class="ok">+ onIterationFailure: continue</span></div>`;
+  // the protected branch
+  const k = $('checks'), kop = vis(t, a + 6.4, b, .4, .4);
+  css(k, { opacity: kop, transform: `translateX(${lerp(40, 0, eout(seg(t, a + 6.4, a + 7)))}px)` });
+  k.innerHTML = `<div class="tag" style="left:26px;top:22px">${esc(S['gate.checks.title'])}</div>
+    <div class="check" style="left:26px;top:76px;opacity:${seg(t, a + 6.7, a + 7)}"><span class="ok">✓</span>&nbsp; ${esc(S['gate.checks.validate'])}</div>
+    <div class="check" style="left:26px;top:128px;opacity:${seg(t, a + 7.0, a + 7.3)}"><span class="bad">✗</span>&nbsp; ${esc(S['gate.checks.tests'])}</div>
+    <div class="abs" style="left:26px;right:26px;top:196px;padding:18px 20px;border-radius:12px;background:rgba(220,38,38,.18);border:2px solid #ef4444;font-size:25px;font-weight:700;color:#fecaca;opacity:${seg(t, a + 7.4, a + 7.8)}">${esc(S['gate.checks.blocked'])}</div>
+    <div class="abs" style="left:26px;bottom:18px;font-size:18px;color:#7c8aa8">${esc(S['gate.checks.note'])}</div>`;
+  caption(t < a + 6.2 ? S['gate.change'] : S['gate.caption'], vis(t, a + 3.1, b, .4, .4));
+}
+
+function sceneShip(t) {
+  const a = T.gateEnd, on = t > a - .1 && t < a + 2.6;
+  const s = $('ship'); s.style.display = on ? '' : 'none'; if (!on) return;
+  const op = vis(t, a, a + 2.6, .4, .3);
+  const steps = S['ship.steps'];
+  let h = '';
+  const xs = [410, 960, 1510];
+  steps.forEach((txt, i) => {
+    const p = seg(t, a + .3 + i * .5, a + .7 + i * .5);
+    h += `<div class="node" style="left:${xs[i] - 180}px;top:470px;width:360px;text-align:center;opacity:${p * op};transform:scale(${lerp(.85, 1, back(p))});${i === 2 ? 'border-color:#6d7cff;box-shadow:0 0 40px rgba(109,124,255,.45)' : ''}">${esc(txt)}</div>`;
+    if (i < 2) { const q = seg(t, a + .6 + i * .5, a + 1 + i * .5); h += `<div class="abs" style="left:${xs[i] + 190}px;top:528px;height:5px;width:${170 * q}px;background:linear-gradient(90deg,#6d7cff,#38bdf8);border-radius:3px;opacity:${op}"></div>`; }
+  });
+  s.innerHTML = h;
+  caption(S['ship.caption'], vis(t, a + .2, a + 2.7, .4, .01));
+}
+
+function sceneOutro(t) {
+  const a = T.shipEnd, o = $('outro'), on = t > a - .05;
+  o.style.display = on ? '' : 'none'; if (!on) return;
+  const p = seg(t, a + .2, a + 1.2), q = seg(t, a + .9, a + 1.8), r = seg(t, a + 1.6, a + 2.5);
+  o.innerHTML = `
+    <svg class="abs" style="left:${W / 2 - 75}px;top:250px;opacity:${p};transform:scale(${lerp(.8, 1, back(p))})" width="150" height="150" viewBox="0 0 128 128">
+      <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b9bff"/><stop offset="1" stop-color="#38bdf8"/></linearGradient></defs>
+      <g fill="url(#lg)">${D.logo}</g></svg>
+    <div class="headline" style="top:430px;font-size:96px;opacity:${p}">EventConductor</div>
+    <div class="headline" style="top:560px;font-size:44px;font-weight:600;color:#c7d2fe;opacity:${q}">${esc(S['outro.tagline'])}</div>
+    <div class="headline" style="top:680px;font-size:52px;font-weight:700;color:#7dd3fc;opacity:${r}">${esc(S['outro.url'])}</div>
+    <div class="headline" style="top:760px;font-size:30px;font-weight:500;color:var(--muted);opacity:${r}">${esc(S['outro.links'])}</div>`;
+}
+
+function sceneDraw(t) {
+  const a = T.editorEnd, b = T.drawEnd, img = $('draw'), on = t > a - .1 && t < b + .1;
+  img.style.display = on ? '' : 'none';
+  window.pending = null;
+  if (!on) return;
+  const f = Math.max(1, Math.min(D.drawFrames, Math.floor((t - a) * 30 * DRAW_SPEED) + 1));
+  const src = `../build/editor/${String(f).padStart(5, '0')}.jpg`;
+  if (img.dataset.f !== String(f)) { img.src = src; img.dataset.f = String(f); window.pending = img.decode().catch(() => {}); }
+  css(img, { opacity: vis(t, a, b, .45, .45), transform: `scale(${lerp(.97, 1, eout(seg(t, a, a + .6)))})` });
+  caption(t < b - 3.2 ? S['draw.caption1'] : S['draw.caption2'], vis(t, a + .5, b, .4, .4));
+}
+
+window.render = function (t) {
+  ov = $('overlay');
+  if (!(t > CON_A - .1 && t < CON_B + .1)) ov.innerHTML = '';
+  $('cap').style.opacity = 0;
+  scenesIceberg(t);
+  sceneEditor(t);
+  sceneDraw(t);
+  sceneConsole(t);
+  if (t < T.consoleEnd || t >= T.opsEnd) $('mcp').style.display = 'none';
+  sceneGate(t);
+  sceneShip(t);
+  sceneOutro(t);
+  if (t < T.quoteEnd || t >= T.end) caption('', 0);
+  return true;
+};
+window.ready = Promise.all([document.fonts.ready, ...[...document.images].map((i) => i.decode().catch(() => {}))]);
+</script>
+</body>
+</html>

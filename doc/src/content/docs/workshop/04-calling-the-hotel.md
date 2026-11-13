@@ -78,8 +78,8 @@ steps:
 - **The idempotency key is built from business data** — the booking's business key and the room number. Any repeat of the same request, for whatever reason, carries the same key, and the hotel books the room once. See [Not creating duplicates in the target system](/guides/http-calls/#not-creating-duplicates-in-the-target-system).
 - **The compensation is idempotent too**: it cancels by the same business reference and treats `404` as done.
 
-:::caution[An HTTP call inside an inline body]
-Inside an inline `PROCESS` body (module 2's `steps:`), each branch is a child process: there, `${businessKey}` is the *child's* generated key and the branch's `room` arrives as JSON text, so `${room.number}` does not render. For a call per item that needs the item's fields, put the `forEach` on the `HTTP_CALL` step, as above.
+:::note[An HTTP call inside an inline body]
+The same call works inside an inline `PROCESS` body (module 2's `steps:`), when each room needs several steps: each branch is a child process, but its templates read `${room.number}` off the branch's room and `${businessKey}` as the booking's key, so the idempotency key is the same. For one call per room, the `forEach` on the `HTTP_CALL` step, as above, is simpler.
 :::
 
 ## Run it

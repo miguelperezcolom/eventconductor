@@ -120,7 +120,7 @@ public class ProcessDBRepository implements ProcessRepository {
                 entity.getContinuedAsProcessId(),
                 entity.getBusinessKey() == null && entity.getReleasedBusinessKey() != null,
                 entity.getInitiatingActor(), entity.isTestRun(), entity.getTestRunRequestDigest(),
-                entity.getRollbackReason()
+                entity.getRollbackReason(), entity.getInheritedBusinessKey(), entity.getStructuredVariables()
         );
         // Registered, so its step executions and events find the process's policy without loading it again.
         protection().policies().of(process);
@@ -205,7 +205,7 @@ public class ProcessDBRepository implements ProcessRepository {
                 process.getContinuedAsProcessId(),
                 released ? businessKey : null,
                 process.getInitiatingActor(), process.isTestRun(), process.getTestRunRequestDigest(),
-                process.getRollbackReason()
+                process.getRollbackReason(), process.getInheritedBusinessKey(), process.getStructuredVariables()
         ));
         // Captured here, at the one moment the event and the context that produced it are both
         // in hand: the relay publishes this row later, from a thread that has neither.

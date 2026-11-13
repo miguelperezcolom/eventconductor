@@ -1,0 +1,64 @@
+# The example of guides/why-a-process-engine.mdx: forEach + an inline body whose HTTP_CALLs read the
+# room and the booking's business key (InlineBodyVariablesTest).
+id: rooms-inline-http
+name: Book every room at the hotel, one child per room
+version: 1
+steps:
+  - { id: start, type: START, name: Booking received }
+  - id: rooms
+    type: PROCESS
+    name: Book every room
+    preconditionStepId: start
+    compensable: true
+    compensationStepId: cancelRoom
+    outputVariables: [roomBookingId]
+    forEach:
+      items: rooms
+      as: room
+      indexAs: position
+      label: "'Room ' + room.number"
+      onIterationFailure: compensateAll
+      output: roomBookings
+      outputElement: roomBookingId
+    steps:
+      - { id: start, type: START, name: Start }
+      - id: create
+        type: HTTP_CALL
+        name: Create the room booking
+        preconditionStepId: start
+        compensable: true
+        compensationStepId: release
+        http:
+          url: "https://hotel.example.com/bookings"
+          method: POST
+          headers: { Idempotency-Key: "${businessKey}-${room.number}" }
+          body: { externalRef: "${businessKey}-${room.number}", room: "${room.number}", position: "${position}", type: "${room.type}" }
+          output: { roomBookingId: "body.id" }
+      - id: check
+        type: HTTP_CALL
+        name: Check the room
+        preconditionStepId: create
+        http:
+          url: "https://hotel.example.com/bookings/${roomBookingId}/check?room=${room.number}"
+          method: GET
+      - { id: end, type: END, name: End, preconditionStepId: check }
+      - id: release                      # compensation inside the body
+        type: HTTP_CALL
+        name: Release the room
+        http:
+          url: "https://hotel.example.com/holds/${businessKey}-${room.number}-${position}"
+          method: DELETE
+          successStatus: [200, 204, 404]
+  - id: approve
+    type: ACTION
+    name: Approve
+    preconditionStepId: rooms
+    topic: approve
+  - { id: done, type: END, name: Done, preconditionStepId: approve }
+  - id: cancelRoom
+    type: HTTP_CALL
+    name: Cancel the room booking
+    http:
+      url: "https://hotel.example.com/bookings/by-ref/${businessKey}-${room.number}"
+      method: DELETE
+      successStatus: [200, 204, 404]

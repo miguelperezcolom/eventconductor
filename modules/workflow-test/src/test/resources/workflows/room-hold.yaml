@@ -1,0 +1,13 @@
+id: room-hold
+name: Hold one room
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: hold
+    type: HTTP_CALL
+    name: Hold the room
+    preconditionStepId: start
+    http:
+      url: "https://hotel.example.com/holds/${room.number}?ref=${businessKey}&index=${index}"
+      method: POST
+  - { id: end, type: END, name: End, preconditionStepId: hold }

@@ -422,6 +422,9 @@ completes anyway is compensated too.
 
 One child process per room, of definition `<workflow>.rooms` (versioned with the parent, not
 startable on its own). Branch variables never touch the parent until `outputVariables`/`output`.
+Inside the body `${room.number}` works (the item is read as structure) and `${businessKey}` is the
+parent's business key, so `Idempotency-Key: "${businessKey}-${room.number}"` in a body HTTP_CALL is
+one stable key per room.
 In the console, double-click the step to see one lane per room with the body's steps and their states.
 
 ## 7. Poll until done (repeat)
