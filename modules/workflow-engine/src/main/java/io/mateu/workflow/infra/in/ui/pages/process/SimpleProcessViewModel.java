@@ -375,7 +375,10 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         // The child runs its PROCESS steps started — one lookup for the whole process — so the graph
         // can open a child on a double click (a PROCESS node, or one iteration of a forEach over one).
         var children = io.mateu.workflow.infra.in.monitoring.ProcessGraphProjection.childProcessIds(def, stepExecutions, processRepository);
-        var projection = io.mateu.workflow.infra.in.monitoring.ProcessGraphProjection.project(def, process, stepExecutions, logs, children);
+        // And, for an inline PROCESS body, how its steps stand in those child runs (one lookup for
+        // all of them, capped at the lanes the graph draws), so an expanded node shows each run's lane.
+        var bodies = io.mateu.workflow.infra.in.monitoring.ProcessGraphProjection.childBodyStates(def, stepExecutions, children, stepExecutionRepository);
+        var projection = io.mateu.workflow.infra.in.monitoring.ProcessGraphProjection.project(def, process, stepExecutions, logs, children, bodies);
         var overlay = projection.overlay();
         var attrs = new HashMap<String, String>();
         attrs.put("import", GRAPH_MODULE);

@@ -138,6 +138,8 @@ interface WorkflowStep {
     messageVariables?: string[];
     /** PROCESS only: the child's variables copied back into the parent. */
     outputVariables?: string[];
+    /** PROCESS only: the child workflow written in line, instead of `childWorkflowDefinitionId`. */
+    steps?: WorkflowStep[];
     /** LOCK / UNLOCK: the lock domain, and a JEXL expression giving the key locked. */
     lockName?: string;
     lockKey?: string;
@@ -180,6 +182,10 @@ interface ForEachSpec {
     output?: string;
     outputElement?: string;
     completion?: string;
+    /** What a failed iteration does to the others: failFast (default), continue or compensateAll. */
+    onIterationFailure?: string;
+    /** JEXL naming each iteration ("'Hab. ' + room.number"), shown instead of "item N". */
+    label?: string;
 }
 
 /** A step's `repeat` block. */
@@ -460,6 +466,8 @@ interface StepOverlay {
     iterations?: {total: number; completed: number; failed: number; active: number; items?: IterationItem[]};
     /** Process view, PROCESS steps: the child run this step started (opened on a double click). */
     childProcessId?: string;
+    /** Process view, an inline PROCESS body without forEach: how each body step stands in the child run. */
+    body?: Record<string, StepState>;
     /** Process view, looped steps: how many times the step has run (passes of a repeat/loopBack). */
     runs?: number;
 }
@@ -474,6 +482,10 @@ interface IterationItem {
     attempt?: number;
     /** For a forEach over PROCESS: the child run this iteration started. */
     childProcessId?: string;
+    /** The iteration's forEach label ("Hab. 101"), when the step declares one. */
+    itemLabel?: string;
+    /** For a forEach over an inline PROCESS body: how each body step stands in this iteration's run. */
+    body?: Record<string, StepState>;
 }
 
 interface NodePos { x: number; y: number; }
@@ -505,6 +517,94 @@ const ITERATION_MARKS: Record<string, string> = {
     COMPLETED: "✓", ERROR: "✕", TIMEOUT: "⏱", CANCELLED: "⊘", RUNNING: "…", PENDING: "…",
     WAITING_ON_LOCK: "🔒", REVIEW_REQUIRED: "!",
 };
+
+// An expanded inline PROCESS body: one lane per run (per forEach iteration, or the one child run;
+// in a definition, the body once), each drawing the body's steps in columns by dependency depth.
+const BODY_W = 104;
+const BODY_H = 24;
+const BODY_COL_GAP = 22;
+const BODY_ROW_GAP = 6;
+const LANE_HEAD = 24;
+const LANE_PAD_X = 10;
+const LANE_PAD_B = 9;
+const LANE_GAP = 8;
+const BODY_LABEL_CHARS = 14;
+
+/** A PROCESS step that writes its child in line (`steps:`), rather than naming one. */
+function hasInlineBody(step: WorkflowStep): boolean {
+    return step.type === "PROCESS" && (step.steps?.length ?? 0) > 0;
+}
+
+/** The body's steps placed for a lane: columns by dependency depth, START/END and compensations left out. */
+interface BodyLayout {
+    nodes: {step: WorkflowStep; col: number; row: number}[];
+    edges: {from: string; to: string}[];
+    cols: number;
+    rows: number;
+}
+
+function bodyLayout(steps: WorkflowStep[]): BodyLayout {
+    const byId = new Map(steps.map(s => [s.id, s]));
+    const comp = compTargets(steps);
+    const depth = new Map<string, number>();
+    const depthOf = (id: string, seen: Set<string>): number => {
+        if (depth.has(id)) return depth.get(id)!;
+        if (seen.has(id)) return 0;   // a cycle: cut it, never loop
+        seen.add(id);
+        const step = byId.get(id);
+        const preds = step ? preconditionsOf(step).filter(p => byId.has(p)) : [];
+        const d = preds.length === 0 ? 0 : Math.max(...preds.map(p => depthOf(p, seen))) + 1;
+        seen.delete(id);
+        depth.set(id, d);
+        return d;
+    };
+    const shown = steps.filter(s => s.type !== "START" && s.type !== "END" && !comp.has(s.id));
+    const shownIds = new Set(shown.map(s => s.id));
+    const levels = [...new Set(shown.map(s => depthOf(s.id, new Set())))].sort((a, b) => a - b);
+    const colOf = new Map(levels.map((d, i) => [d, i]));
+    const rowsInCol = new Map<number, number>();
+    const nodes = shown.map(step => {
+        const col = colOf.get(depth.get(step.id)!)!;
+        const row = rowsInCol.get(col) ?? 0;
+        rowsInCol.set(col, row + 1);
+        return {step, col, row};
+    });
+    const edges = shown.flatMap(s => preconditionsOf(s).filter(p => shownIds.has(p)).map(p => ({from: p, to: s.id})));
+    return {nodes, edges, cols: Math.max(1, levels.length), rows: Math.max(1, ...rowsInCol.values())};
+}
+
+/** One lane of an expanded inline body: a run of it (live) or the body as declared (not live). */
+interface BodyLane {
+    key: string;
+    title: string;
+    live: boolean;
+    state?: StepState;
+    childProcessId?: string;
+    index?: number;
+    states: Record<string, StepState>;
+    tip: string;
+}
+
+/** What an expanded node draws: iteration cards (a forEach over anything else) or body lanes. */
+type ExpandedView =
+    | {kind: "cards"; items: IterationItem[]; hidden: number}
+    | {kind: "lanes"; lanes: BodyLane[]; hidden: number; body: BodyLayout};
+
+/** A lane's box for a body laid out as `body`. */
+function laneSize(body: BodyLayout): {w: number; h: number} {
+    return {
+        w: body.cols * BODY_W + (body.cols - 1) * BODY_COL_GAP + 2 * LANE_PAD_X,
+        h: LANE_HEAD + body.rows * BODY_H + (body.rows - 1) * BODY_ROW_GAP + LANE_PAD_B,
+    };
+}
+
+/** The hover text of one iteration: its name, why it is where it is, and what a double click does. */
+function iterationTip(item: IterationItem): string {
+    return [item.itemLabel ? `${item.itemLabel} (item ${item.index})` : `item ${item.index}`, item.reason,
+        item.error && item.error !== item.reason ? item.error : "",
+        item.attempt ? `attempt ${item.attempt + 1}` : "",
+        item.childProcessId ? "Double-click to open its child process" : ""].filter(Boolean).join("\n");
+}
 
 const STEP_TYPES: StepType[] = [
     "START", "ACTION", "USER_TASK", "RULE", "TIMER",
@@ -728,7 +828,8 @@ function badgeOf(step: WorkflowStep): string {
         case "CHOICE": return "◇ CHOICE";
         case "LOCK": return "🔒 " + lockLabel(step);
         case "UNLOCK": return "🔓 " + lockLabel(step);
-        case "PROCESS": return "⚙ " + (step.childWorkflowDefinitionId || "subprocess");
+        case "PROCESS": return "⚙ " + (hasInlineBody(step) ? "inline · " + step.steps!.length + " steps"
+            : (step.childWorkflowDefinitionId || "subprocess"));
         case "DYNAMIC": return "⚡ " + (step.topic ? "→ " + step.topic : "DYNAMIC");
         case "REPLY": return "↩ " + (step.replyVariables && step.replyVariables.length
             ? step.replyVariables.join(", ") : step.replyExpression ? "expression"
@@ -2293,10 +2394,55 @@ export class MateuWorkflowElk extends LitElement {
 
     /** A step's box: its type's, or — for an expanded forEach — the frame holding its iterations. */
     private sizeOfStep(step: WorkflowStep): {w: number; h: number} {
-        const shown = this.expandedIterations(step.id);
-        if (!shown) return sizeOf(step.type);
-        const rows = shown.items.length + (shown.hidden > 0 ? 1 : 0);
-        return {w: EXP_W, h: EXP_HEAD + rows * ITER_H + (rows - 1) * ITER_GAP + EXP_PAD_B};
+        const view = this.expandedView(step);
+        if (!view) return sizeOf(step.type);
+        if (view.kind === "cards") {
+            const rows = view.items.length + (view.hidden > 0 ? 1 : 0);
+            return {w: EXP_W, h: EXP_HEAD + rows * ITER_H + (rows - 1) * ITER_GAP + EXP_PAD_B};
+        }
+        const lane = laneSize(view.body);
+        const n = view.lanes.length;
+        return {
+            w: Math.max(EXP_W, lane.w + 2 * EXP_SIDE),
+            h: EXP_HEAD + n * lane.h + (n - 1) * LANE_GAP + (view.hidden > 0 ? LANE_GAP + ITER_H : 0) + EXP_PAD_B,
+        };
+    }
+
+    /**
+     * What a node draws expanded, or null when it is not (or has nothing to open into). A forEach
+     * over a named child or a task opens into its iteration cards; an inline PROCESS body opens into
+     * lanes — one per iteration with its runs' states, the one child run, or (in a definition, or
+     * before any run exists) the body once as declared.
+     */
+    private expandedView(step: WorkflowStep): ExpandedView | null {
+        if (!this.expanded.has(step.id)) return null;
+        const ov = this.overlayData[step.id];
+        if (!hasInlineBody(step)) {
+            const shown = this.expandedIterations(step.id);
+            return shown ? {kind: "cards", ...shown} : null;
+        }
+        const body = bodyLayout(step.steps!);
+        const declared = (): ExpandedView => ({kind: "lanes", hidden: 0, body, lanes: [{
+            key: "declared", live: false, states: {},
+            title: step.forEach ? "× each of " + (step.forEach.items || "items") : "inline body",
+            tip: step.forEach ? "One run of this body per item of " + (step.forEach.items || "items") : "The child workflow, written in line",
+        }]});
+        if (!this.hasStateOverlay()) return declared();
+        if (step.forEach) {
+            const shown = this.expandedIterations(step.id);
+            if (!shown) return declared();
+            return {kind: "lanes", body, hidden: shown.hidden, lanes: shown.items.map(item => ({
+                key: "item-" + item.index, live: true, index: item.index,
+                title: item.itemLabel || "item " + item.index,
+                state: item.state, childProcessId: item.childProcessId, states: item.body ?? {},
+                tip: iterationTip(item),
+            }))};
+        }
+        if (!ov?.childProcessId) return declared();
+        return {kind: "lanes", body, hidden: 0, lanes: [{
+            key: "run", live: true, title: "child run", state: ov.state, childProcessId: ov.childProcessId,
+            states: ov.body ?? {}, tip: "Double-click to open the child process",
+        }]};
     }
 
     /** The iterations an expanded node draws (and how many it leaves out), or null when it is not expanded. */
@@ -2310,7 +2456,10 @@ export class MateuWorkflowElk extends LitElement {
     }
 
     private currentExpansionSignature(): string {
-        return [...this.expanded].sort().map(id => `${id}:${this.sizeOfStepById(id).h}`).join("|");
+        return [...this.expanded].sort().map(id => {
+            const sz = this.sizeOfStepById(id);
+            return `${id}:${sz.w}x${sz.h}`;
+        }).join("|");
     }
 
     private sizeOfStepById(id: string) {
@@ -2327,10 +2476,21 @@ export class MateuWorkflowElk extends LitElement {
      * own, opened by double clicking that iteration. On a plain PROCESS step it opens the child run.
      */
     private onNodeDblClick(e: MouseEvent, id: string) {
-        if (!this.hasStateOverlay()) return;
         const step = (this.wf.steps ?? []).find(s => s.id === id);
+        if (!step) return;
+        // An inline PROCESS body opens in line, wherever there is nothing to edit — a run, or a
+        // definition shown read-only. Its node has no one child to go to: each lane opens its own.
+        // In the editor the gesture stays as it was; the body shows there as the node's badge.
+        if (hasInlineBody(step)) {
+            if (this.hasStateOverlay() || this.readOnly) {
+                e.stopPropagation();
+                this.toggleExpanded(id);
+            }
+            return;
+        }
+        if (!this.hasStateOverlay()) return;
         const ov = this.overlayData[id];
-        if (!step || !ov) return;
+        if (!ov) return;
         if (step.forEach) {
             if (this.expanded.has(id) || (ov.iterations?.items?.length ?? 0) > 0) {
                 e.stopPropagation();
@@ -2342,6 +2502,11 @@ export class MateuWorkflowElk extends LitElement {
             e.stopPropagation();
             this.openProcess(ov.childProcessId, id);
         }
+    }
+
+    private onLaneDblClick(e: MouseEvent, stepId: string, lane: BodyLane) {
+        e.stopPropagation();
+        if (lane.childProcessId) this.openProcess(lane.childProcessId, stepId, lane.index);
     }
 
     private onIterationDblClick(e: MouseEvent, stepId: string, item: IterationItem) {
@@ -2419,9 +2584,9 @@ export class MateuWorkflowElk extends LitElement {
             const y = rowY(i);
             const state = (item.state ?? "NOT_STARTED").toLowerCase();
             const mark = ITERATION_MARKS[item.state ?? ""] ?? "";
-            const tip = [`item ${item.index}`, item.reason, item.error && item.error !== item.reason ? item.error : "",
-                item.attempt ? `attempt ${item.attempt + 1}` : "",
-                item.childProcessId ? "Double-click to open its child process" : ""].filter(Boolean).join("\n");
+            const tip = iterationTip(item);
+            const name = item.itemLabel || `item ${item.index}`;
+            const shownName = name.length > 28 ? name.slice(0, 27) + "…" : name;
             return svg`
                 ${fan(y + ITER_H / 2)}
                 <g class="iter-node st-${state} ${item.childProcessId ? "has-child" : ""}" data-iteration="${item.index}"
@@ -2429,7 +2594,7 @@ export class MateuWorkflowElk extends LitElement {
                    @dblclick="${(e: MouseEvent) => this.onIterationDblClick(e, step.id, item)}">
                     <title>${tip}</title>
                     <rect width="${cw}" height="${ITER_H}" rx="6"/>
-                    <text class="iter-label" x="9" y="${ITER_H / 2 + 4}">item ${item.index}</text>
+                    <text class="iter-label" x="9" y="${ITER_H / 2 + 4}">${shownName}</text>
                     ${item.childProcessId ? svg`<text class="iter-child" x="${cw - 26}" y="${ITER_H / 2 + 4}" text-anchor="middle">↗</text>` : nothing}
                     <text class="iter-mark" x="${cw - 10}" y="${ITER_H / 2 + 4}" text-anchor="middle">${mark}</text>
                 </g>`;
@@ -2451,6 +2616,94 @@ export class MateuWorkflowElk extends LitElement {
             <text class="node-title" x="14" y="20">${label}</text>
             <text class="node-id" x="14" y="34">${step.id} · double-click to collapse</text>
             ${cards}
+            ${more}`;
+    }
+
+    /**
+     * The expanded frame of an inline PROCESS body: title, then one lane per run — its label and
+     * state in the header, the body's steps inside coloured by how they stand in that run — on the
+     * same fan in and out as the iteration cards. A lane not live (a definition, or no run yet) draws
+     * the body once with no state.
+     */
+    private renderLanesShape(step: WorkflowStep, view: {lanes: BodyLane[]; hidden: number; body: BodyLayout},
+                             w: number, h: number, st: {fill: string; stroke: string; symbol: string}) {
+        const label = step.name.length > NODE_LABEL_CHARS ? step.name.slice(0, NODE_LABEL_CHARS - 1) + "…" : step.name;
+        const badge = badgeOf(step);
+        const badgeText = badge.length > NODE_BADGE_CHARS ? badge.slice(0, NODE_BADGE_CHARS - 1) + "…" : badge;
+        const lw = w - 2 * EXP_SIDE;
+        const lh = laneSize(view.body).h;
+        const laneY = (i: number) => EXP_HEAD + i * (lh + LANE_GAP);
+        const midY = h / 2;
+        const fan = (y: number) => svg`
+            <path class="iter-fan" d="M 0 ${midY} C ${EXP_SIDE * 0.7} ${midY}, ${EXP_SIDE * 0.3} ${y}, ${EXP_SIDE} ${y}"/>
+            <path class="iter-fan" d="M ${w - EXP_SIDE} ${y} C ${w - EXP_SIDE * 0.3} ${y}, ${w - EXP_SIDE * 0.7} ${midY}, ${w} ${midY}"/>`;
+        // Centred in the lane's width when the frame is wider than the body (a short body, a long title).
+        const bodyX = LANE_PAD_X + Math.max(0, (lw - laneSize(view.body).w) / 2);
+        const at = new Map(view.body.nodes.map(n => [n.step.id, {
+            x: bodyX + n.col * (BODY_W + BODY_COL_GAP),
+            y: LANE_HEAD + n.row * (BODY_H + BODY_ROW_GAP),
+        }]));
+        const lanes = view.lanes.map((lane, i) => {
+            const y = laneY(i);
+            const laneState = lane.live ? (lane.state ?? "NOT_STARTED").toLowerCase() : "declared";
+            const mark = lane.live ? (ITERATION_MARKS[lane.state ?? ""] ?? "") : "";
+            const title = lane.title.length > 34 ? lane.title.slice(0, 33) + "…" : lane.title;
+            const edges = view.body.edges.map(e => {
+                const a = at.get(e.from), b = at.get(e.to);
+                if (!a || !b) return nothing;
+                const x1 = a.x + BODY_W, y1 = a.y + BODY_H / 2, x2 = b.x, y2 = b.y + BODY_H / 2;
+                const mx = (x1 + x2) / 2;
+                return svg`<path class="body-edge" d="M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2 - 3} ${y2}"/>
+                           <path class="body-arrow" d="M ${x2 - 6} ${y2 - 3} L ${x2} ${y2} L ${x2 - 6} ${y2 + 3} Z"/>`;
+            });
+            const nodes = view.body.nodes.map(n => {
+                const p = at.get(n.step.id)!;
+                const s = lane.live ? lane.states[n.step.id] : undefined;
+                const cls = lane.live ? (s ?? "NOT_STARTED").toLowerCase() : "declared";
+                const name = n.step.name || n.step.id;
+                const shown = name.length > BODY_LABEL_CHARS ? name.slice(0, BODY_LABEL_CHARS - 1) + "…" : name;
+                const tint = styleOf(n.step.type).stroke;
+                return svg`
+                    <g class="iter-node body-node st-${cls}" transform="translate(${p.x}, ${p.y})" style="--ec-tint: ${tint}">
+                        <title>${name} (${n.step.id}) · ${n.step.type}${lane.live ? " — " + (s ?? "not reached") : ""}</title>
+                        <rect width="${BODY_W}" height="${BODY_H}" rx="6"/>
+                        <text class="iter-label" x="8" y="${BODY_H / 2 + 4}">${shown}</text>
+                        ${lane.live && s ? svg`<text class="iter-mark" x="${BODY_W - 9}" y="${BODY_H / 2 + 4}" text-anchor="middle">${ITERATION_MARKS[s] ?? ""}</text>` : nothing}
+                    </g>`;
+            });
+            return svg`
+                ${fan(y + lh / 2)}
+                <g class="body-lane st-${laneState} ${lane.childProcessId ? "has-child" : ""}" data-lane="${lane.key}"
+                   transform="translate(${EXP_SIDE}, ${y})">
+                    <rect class="lane-box" width="${lw}" height="${lh}" rx="8"/>
+                    <g class="lane-head" @dblclick="${(e: MouseEvent) => this.onLaneDblClick(e, step.id, lane)}">
+                        <title>${lane.tip}</title>
+                        <rect class="lane-head-hit" width="${lw}" height="${LANE_HEAD - 2}" rx="8"/>
+                        <text class="lane-title" x="10" y="15">${title}</text>
+                        ${lane.childProcessId ? svg`<text class="iter-child" x="${lw - 26}" y="15" text-anchor="middle">↗</text>` : nothing}
+                        <text class="lane-mark" x="${lw - 10}" y="15" text-anchor="middle">${mark}</text>
+                    </g>
+                    ${edges}
+                    ${nodes}
+                </g>`;
+        });
+        const more = view.hidden > 0 ? svg`
+            ${fan(laneY(view.lanes.length) + ITER_H / 2)}
+            <g class="iter-more" transform="translate(${EXP_SIDE}, ${laneY(view.lanes.length)})">
+                <title>The Steps tab lists every iteration.</title>
+                <rect width="${lw}" height="${ITER_H}" rx="6"/>
+                <text x="${lw / 2}" y="${ITER_H / 2 + 4}" text-anchor="middle">+${view.hidden} more</text>
+            </g>` : nothing;
+        return svg`
+            <text class="node-badge" x="2" y="-7">${badgeText}</text>
+            <rect class="node-shape node-expanded" width="${w}" height="${h}" rx="12"
+                  fill="${st.fill}" stroke="${st.stroke}" stroke-width="1.4" style="--ec-tint: ${st.stroke}"/>
+            <g class="node-symbol" transform="translate(${w - 23}, 9)"
+               fill="none" stroke="${st.stroke}" stroke-width="1.1" style="--ec-tint: ${st.stroke}"
+               stroke-linejoin="round">${SYMBOLS[st.symbol] ?? svg``}</g>
+            <text class="node-title" x="14" y="20">${label}</text>
+            <text class="node-id" x="14" y="34">${step.id}${step.forEach ? " · ×" + (this.overlayData[step.id]?.iterations?.total ?? "N") : ""} · double-click to collapse</text>
+            ${lanes}
             ${more}`;
     }
 
@@ -3935,8 +4188,10 @@ export class MateuWorkflowElk extends LitElement {
                 <polygon class="node-shape gateway" points="${pts}" fill="${st.fill}" stroke="${st.stroke}" style="--ec-tint: ${st.stroke}"/>
                 ${glyph}
                 <text class="node-caption" x="${w / 2}" y="${h + 15}" text-anchor="middle">${label}</text>`;
-        } else if (this.expandedIterations(step.id)) {
-            shape = this.renderExpandedShape(step, this.expandedIterations(step.id)!, w, h, st);
+        } else if (this.expandedView(step)) {
+            const view = this.expandedView(step)!;
+            shape = view.kind === "cards" ? this.renderExpandedShape(step, view, w, h, st)
+                : this.renderLanesShape(step, view, w, h, st);
         } else {
             // BPMN task: rounded card with a corner glyph, an uppercase caption, title + id.
             const badge = badgeOf(step);
@@ -4082,7 +4337,7 @@ export class MateuWorkflowElk extends LitElement {
         const linkCls = `${(this.linkHoverId === step.id || this.paletteHoverNode === step.id) ? "link-target" : ""} ${this.linkingFrom === step.id ? "link-source" : ""}`;
         // An expanded forEach is never dimmed: it was opened to be read, and its iterations carry
         // their own states (the container may still read PENDING while they run).
-        const monDim = this.hasStateOverlay() && !this.isVisited(step.id) && !this.expandedIterations(step.id) ? "mon-dim" : "";
+        const monDim = this.hasStateOverlay() && !this.isVisited(step.id) && !this.expandedView(step) ? "mon-dim" : "";
         const focusDim = this.focusPaint && !this.focusPaint.nodes.has(step.id) ? "focus-dim" : "";
         return svg`
             <g class="node ${sel} ${ovCls} ${linkCls} ${monDim} ${focusDim} ${heatOn ? "heat-on" : ""}"
@@ -5170,6 +5425,25 @@ export class MateuWorkflowElk extends LitElement {
         :host([dark]) .iter-node.st-not_started text {fill: var(--ec-text-faint);}
         @media (prefers-reduced-motion: reduce) {.iter-node rect {animation: none !important;}}
         .iter-more rect {fill: none; stroke: var(--ec-border); stroke-dasharray: 3 3;}
+        /* An expanded inline PROCESS body: one lane per run, the body's steps inside it. */
+        .body-lane .lane-box {fill: var(--ec-surface, #fff); fill-opacity: .55; stroke: var(--ec-border, #cbd5e1); stroke-width: 1.1;}
+        .body-lane.st-completed .lane-box {stroke: #16a34a;}
+        .body-lane.st-error .lane-box, .body-lane.st-timeout .lane-box {stroke: #dc2626; stroke-width: 1.8;}
+        .body-lane.st-running .lane-box, .body-lane.st-review_required .lane-box {stroke: #d97706;}
+        .body-lane.st-cancelled .lane-box {opacity: .7;}
+        .body-lane.st-declared .lane-box, .body-lane.st-not_started .lane-box {stroke-dasharray: 4 3;}
+        .body-lane .lane-head-hit {fill: transparent;}
+        .body-lane.has-child .lane-head {cursor: pointer;}
+        .body-lane.has-child .lane-head:hover .lane-head-hit {fill: var(--ec-primary, #2563eb); fill-opacity: .08;}
+        .body-lane .lane-title {font-size: 11px; font-weight: 700; fill: var(--ec-text, #1e293b); user-select: none;}
+        .body-lane .lane-mark {font-size: 11px; font-weight: 700; fill: var(--ec-text-dim, #475569);}
+        .body-lane.st-completed .lane-mark {fill: #16a34a;}
+        .body-lane.st-error .lane-mark, .body-lane.st-timeout .lane-mark {fill: #dc2626;}
+        .body-lane .iter-child {fill: var(--ec-primary); font-weight: 700; font-size: 11px;}
+        .body-edge {fill: none; stroke: var(--ec-edge, #94a3b8); stroke-width: 1.1;}
+        .body-arrow {fill: var(--ec-edge, #94a3b8);}
+        .body-node text {font-size: 10.5px;}
+        .body-node.st-declared rect {stroke: var(--ec-tint); fill: var(--ec-surface, #fff);}
         .iter-more text {font-size: 10.5px; fill: var(--ec-text-dim); font-style: italic;}
         .loop-section {border-top: 1px dashed var(--ec-border, #e2e8f0); padding-top: 6px; margin-top: 4px;}
         .pair {display: flex; gap: 6px;}
