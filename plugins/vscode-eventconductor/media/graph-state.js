@@ -6,6 +6,26 @@
     return value;
   }
   const signature = value => JSON.stringify(canonical(value));
+  /**
+   * The engine's REST graph carries no child process ids (each child is authorised on its own), so
+   * the host stamps them from the child-process page it already loaded: a plain PROCESS step gets
+   * its run's id, a forEach iteration the id of the child it started. That is what lets a double
+   * click on a PROCESS node, an iteration card or a lane header open the child (`ec-open-process`).
+   * Only the children on the page shown are linked; the latest run wins when a step ran twice.
+   */
+  function linkChildren(overlay, children) {
+    if (!children || !children.length) return overlay;
+    const linked = JSON.parse(JSON.stringify(overlay || {}));
+    const ordered = [...children].sort((a, b) => (a.iteration ?? 0) - (b.iteration ?? 0));
+    for (const child of ordered) {
+      const entry = linked[child.stepId];
+      if (!entry || typeof child.id !== "string") continue;
+      if (child.itemIndex == null) { entry.childProcessId = child.id; continue; }
+      const item = (entry.iterations?.items || []).find(i => i.index === child.itemIndex);
+      if (item) item.childProcessId = child.id;
+    }
+    return linked;
+  }
   function createGraphProjection() {
     let draft = { name: "New Workflow", steps: [] }, state, mode = "draft", lastId, lastSnapshot;
     const baselines = new Map();
@@ -26,7 +46,7 @@
       view() {
         const graph = state?.graph;
         if (mode === "snapshot" && graph) return {
-          value: JSON.stringify(graph.definition), overlay: JSON.stringify(graph.overlay || {}), readOnly: true,
+          value: JSON.stringify(graph.definition), overlay: JSON.stringify(linkChildren(graph.overlay, state.children?.content)), readOnly: true,
           mode, hasSnapshot: true, notice: "Executed snapshot · read only. Return to Edit draft to keep building the workflow.",
         };
         if (mode === "snapshot" && state) return {
@@ -41,10 +61,10 @@
         let notice = graph ? "Execution states belong to the captured run. Keep editing; changes apply to the next run." : "";
         if (graph && !baseline) notice = "Editing the draft. This execution uses another snapshot; use Executed snapshot to inspect its graph.";
         else if (graph && signature(draft) !== signature(baseline)) notice = "Draft changed since this run. New or modified steps have no execution state; run again to test these changes.";
-        return { value: JSON.stringify(draft), overlay: JSON.stringify(overlay), readOnly: false, mode: "draft", hasSnapshot: !!graph, notice };
+        return { value: JSON.stringify(draft), overlay: JSON.stringify(linkChildren(overlay, state?.children?.content)), readOnly: false, mode: "draft", hasSnapshot: !!graph, notice };
       },
     };
   }
-  if (typeof module !== "undefined" && module.exports) module.exports = { createGraphProjection };
+  if (typeof module !== "undefined" && module.exports) module.exports = { createGraphProjection, linkChildren };
   else root.ecCreateGraphProjection = createGraphProjection;
 })(typeof window !== "undefined" ? window : globalThis);

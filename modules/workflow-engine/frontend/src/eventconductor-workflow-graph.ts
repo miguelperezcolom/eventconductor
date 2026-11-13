@@ -140,6 +140,10 @@ interface WorkflowStep {
     outputVariables?: string[];
     /** PROCESS only: the child workflow written in line, instead of `childWorkflowDefinitionId`. */
     steps?: WorkflowStep[];
+    /** XOR JOIN only: abandon the losing branches and compensate what they completed. */
+    compensateLosers?: boolean;
+    /** END only: compensate what the branches this END cuts short had completed. */
+    compensateAbandoned?: boolean;
     /** LOCK / UNLOCK: the lock domain, and a JEXL expression giving the key locked. */
     lockName?: string;
     lockKey?: string;
@@ -530,9 +534,60 @@ const LANE_PAD_B = 9;
 const LANE_GAP = 8;
 const BODY_LABEL_CHARS = 14;
 
+/** One level up from an inline body being edited: the definition it sits in and how that level was being viewed. */
+interface BodyFrame {
+    stepId: string;
+    wf: WorkflowDefinition;
+    positions: Record<string, NodePos>;
+    elkPositioned: Set<string>;
+    expanded: Set<string>;
+    beforeExpansion: {positions: Record<string, NodePos>; elkPositioned: Set<string>} | null;
+    zoomK: number;
+    panX: number;
+    panY: number;
+    selectedId: string | null;
+    overlayData: Record<string, StepOverlay>;
+}
+
 /** A PROCESS step that writes its child in line (`steps:`), rather than naming one. */
 function hasInlineBody(step: WorkflowStep): boolean {
     return step.type === "PROCESS" && (step.steps?.length ?? 0) > 0;
+}
+
+/** The values of a forEach's `onIterationFailure` (the engine's LoopRules.ON_ITERATION_FAILURE); absent = failFast. */
+const ON_ITERATION_FAILURE = ["failFast", "continue", "compensateAll"] as const;
+
+/** What definition-analysis (LoopRules) would say about a forEach's failure policy, or "" when nothing. */
+function forEachFailureProblem(fe: ForEachSpec | undefined): string {
+    const policy = fe?.onIterationFailure?.trim();
+    if (!fe || !policy) return "";
+    const known = ON_ITERATION_FAILURE.find(p => p.toLowerCase() === policy.toLowerCase());
+    if (!known) return `onIterationFailure '${policy}' is not one of ${ON_ITERATION_FAILURE.join(", ")}.`;
+    const completion = fe.completion?.trim();
+    if (known === "compensateAll" && completion && completion.toLowerCase() !== "all") {
+        return `compensateAll waits for every iteration, which completion '${completion}' would cut short; `
+            + "use completion all (the default), or continue / failFast.";
+    }
+    return "";
+}
+
+/** What definition-analysis (BranchCleanupRules) would say about a step's branch-cleanup flags, or "". */
+function branchCleanupProblem(step: WorkflowStep): string {
+    if (step.compensateLosers === true && !(step.type === "JOIN" && step.joinType === "XOR")) {
+        return "compensateLosers is only allowed on a JOIN with joinType XOR.";
+    }
+    if (step.compensateAbandoned === true && step.type !== "END") {
+        return "compensateAbandoned is only allowed on an END.";
+    }
+    return "";
+}
+
+/** The smallest body a PROCESS gets when it is switched to "written in line": a START and an END. */
+function starterBody(): WorkflowStep[] {
+    return [
+        {id: "start", type: "START", name: "Start"} as WorkflowStep,
+        {id: "end", type: "END", name: "End", preconditionStepId: "start"} as WorkflowStep,
+    ];
 }
 
 /** The body's steps placed for a lane: columns by dependency depth, START/END and compensations left out. */
@@ -1503,6 +1558,15 @@ export class MateuWorkflowElk extends LitElement {
      * including the positions a file declares.
      */
     private beforeExpansion: {positions: Record<string, NodePos>; elkPositioned: Set<string>} | null = null;
+    /**
+     * The inline PROCESS bodies being edited, outermost first. Editing a body swaps it in as the
+     * graph (`wf` becomes the body's steps) so every tool — palette, links, panel, delete — works on
+     * it unchanged; each frame keeps the level it came from (its definition and its view) to go back
+     * to. `emit` puts the edited body back into its PROCESS step, frame by frame, so the host only
+     * ever sees the whole definition.
+     */
+    private bodyFrames: BodyFrame[] = [];
+    @state() private bodyPath: string[] = [];
     /** The sizes the current layout was computed for; a change (iterations arriving) relays it out. */
     private expansionSignature = "";
     @state() private layoutReady = false;
@@ -1636,7 +1700,8 @@ export class MateuWorkflowElk extends LitElement {
     updated(changed: Map<string, unknown>) {
         if (changed.has("value")) {
             try {
-                const parsed: WorkflowDefinition = JSON.parse(this.value);
+                const root: WorkflowDefinition = JSON.parse(this.value);
+                const parsed = (this.bodyFrames?.length ?? 0) ? this.reopenBodiesIn(root) : root;
                 // Detect if the step list changed so we re-run ELK
                 const oldIds = new Set((this.wf.steps ?? []).map(s => s.id));
                 const newIds = new Set((parsed.steps ?? []).map(s => s.id));
@@ -1656,7 +1721,7 @@ export class MateuWorkflowElk extends LitElement {
                 // step injected into a running process.
                 // While a forEach is expanded the file's arrangement is set aside (it is restored on
                 // collapse) — re-pinning it here, on every poll, would pull the expanded layout apart.
-                if (this.expanded.size === 0) this.adoptLayout(this.wf.layout);
+                if (this.expanded.size === 0 && (this.bodyFrames?.length ?? 0) === 0) this.adoptLayout(this.wf.layout);
                 if (structureChanged || !this.layoutReady) {
                     this.didInitialFit = false;   // re-fit the new graph in view
                     this.runElkLayout();
@@ -1676,11 +1741,15 @@ export class MateuWorkflowElk extends LitElement {
             this.refreshFlowPaths();
         }
         if (changed.has("overlay")) {
+            let data: Record<string, StepOverlay> = {};
             try {
-                this.overlayData = this.overlay ? JSON.parse(this.overlay) : {};
+                data = this.overlay ? JSON.parse(this.overlay) : {};
             } catch {
-                this.overlayData = {};
+                data = {};
             }
+            // Keyed by the outer level's step ids: inside a body it would paint the wrong nodes.
+            if ((this.bodyFrames?.length ?? 0)) this.bodyFrames[0].overlayData = data;
+            else this.overlayData = data;
             // An expanded forEach is as tall as its iterations: when they arrive (or the node stops
             // having any), the boxes changed size and the layout has to make room again.
             if (this.expanded.size > 0 && this.layoutReady && this.currentExpansionSignature() !== this.expansionSignature) {
@@ -1922,7 +1991,7 @@ export class MateuWorkflowElk extends LitElement {
     // ── Mutation helpers ──────────────────────────────────────────────────────
 
     private emit() {
-        const json = JSON.stringify(this.wf, null, 2);
+        const json = JSON.stringify(this.composeRoot(), null, 2);
         this.dispatchEvent(new CustomEvent("value-changed", {detail: {value: json}, bubbles: true, composed: true}));
     }
 
@@ -2199,12 +2268,17 @@ export class MateuWorkflowElk extends LitElement {
      * from under someone editing its name would be the worst possible reading of the key.
      */
     private onKeyDown(e: KeyboardEvent) {
-        if (this.readOnly || (e.key !== "Delete" && e.key !== "Backspace")) return;
         const target = e.composedPath()[0] as HTMLElement | undefined;
         const tag = target?.tagName?.toLowerCase();
         if (tag === "input" || tag === "textarea" || tag === "select" || target?.isContentEditable) {
             return;
         }
+        if (e.key === "Escape" && (this.bodyFrames?.length ?? 0) && !this.palettePlacing && !this.linkCursor) {
+            e.preventDefault();
+            this.leaveBody();
+            return;
+        }
+        if (this.readOnly || (e.key !== "Delete" && e.key !== "Backspace")) return;
         if (this.selectedEdge) {
             e.preventDefault();
             this.deleteEdge(this.selectedEdge);
@@ -2482,10 +2556,9 @@ export class MateuWorkflowElk extends LitElement {
         // definition shown read-only. Its node has no one child to go to: each lane opens its own.
         // In the editor the gesture stays as it was; the body shows there as the node's badge.
         if (hasInlineBody(step)) {
-            if (this.hasStateOverlay() || this.readOnly) {
-                e.stopPropagation();
-                this.toggleExpanded(id);
-            }
+            e.stopPropagation();
+            if (this.hasStateOverlay() || this.readOnly) this.toggleExpanded(id);
+            else this.enterBody(id);
             return;
         }
         if (!this.hasStateOverlay()) return;
@@ -2526,6 +2599,120 @@ export class MateuWorkflowElk extends LitElement {
             bubbles: true, composed: true,
         }));
     }
+
+    // ── Editing an inline PROCESS body ───────────────────────────────────────
+
+    /** The whole definition: the body being edited put back into its PROCESS step, level by level. */
+    private composeRoot(): WorkflowDefinition {
+        let child: WorkflowDefinition = this.wf;
+        for (let i = (this.bodyFrames?.length ?? 0) - 1; i >= 0; i--) {
+            const frame = this.bodyFrames[i];
+            const steps = child.steps ?? [];
+            frame.wf = {...frame.wf, steps: (frame.wf.steps ?? []).map(s => s.id === frame.stepId ? {...s, steps} : s)};
+            child = frame.wf;
+        }
+        return child;
+    }
+
+    /**
+     * The body to show for an incoming definition while one is open: the frames are re-pointed at it,
+     * and when the path no longer leads to an inline body (the host replaced the file, the step was
+     * renamed away) every body is closed and the definition is shown as it is.
+     */
+    private reopenBodiesIn(root: WorkflowDefinition): WorkflowDefinition {
+        let level = root;
+        const levels: WorkflowDefinition[] = [];
+        for (const frame of this.bodyFrames) {
+            const step = (level.steps ?? []).find(s => s.id === frame.stepId);
+            if (!step || !hasInlineBody(step)) {
+                this.closeAllBodies(root);
+                return root;
+            }
+            levels.push(level);
+            level = {name: step.name || step.id, steps: step.steps!};
+        }
+        levels.forEach((wf, i) => this.bodyFrames[i].wf = wf);
+        return level;
+    }
+
+    /** Swaps the inline body of `stepId` in as the graph being edited (double click, or the panel's Edit ▸). */
+    private enterBody(stepId: string) {
+        const step = (this.wf.steps ?? []).find(s => s.id === stepId);
+        if (!step || !hasInlineBody(step)) return;
+        this.bodyFrames = [...this.bodyFrames, {
+            stepId, wf: this.wf, positions: this.positions, elkPositioned: this.elkPositioned,
+            expanded: this.expanded, beforeExpansion: this.beforeExpansion,
+            zoomK: this.zoomK, panX: this.panX, panY: this.panY, selectedId: this.selectedId,
+            overlayData: this.overlayData,
+        }];
+        this.bodyPath = this.bodyFrames.map(f => f.stepId);
+        this.wf = {name: step.name || step.id, steps: step.steps!};
+        this.overlayData = {};
+        this.expanded = new Set();
+        this.beforeExpansion = null;
+        this.selectedId = null;
+        this.selectedEdge = null;
+        this.positions = {};
+        this.elkPositioned = new Set();
+        this.layoutReady = false;
+        this.didInitialFit = false;
+        void this.runElkLayout();
+    }
+
+    /** Back out of the innermost `levels` bodies, to where each was opened from — positions, zoom and selection as they were. */
+    private leaveBody(levels = 1) {
+        if ((this.bodyFrames?.length ?? 0) === 0) return;
+        const root = this.composeRoot();
+        let frame: BodyFrame | undefined;
+        for (let i = 0; i < levels && (this.bodyFrames?.length ?? 0); i++) frame = this.bodyFrames.pop();
+        this.bodyFrames = [...this.bodyFrames];
+        this.bodyPath = this.bodyFrames.map(f => f.stepId);
+        const f = frame!;
+        // The level we are back on, with the edits made below it: composeRoot synced every frame.
+        this.wf = (this.bodyFrames?.length ?? 0) ? f.wf : root;
+        this.positions = f.positions;
+        this.elkPositioned = f.elkPositioned;
+        this.expanded = f.expanded;
+        this.beforeExpansion = f.beforeExpansion;
+        this.zoomK = f.zoomK; this.panX = f.panX; this.panY = f.panY;
+        this.selectedId = f.selectedId;
+        this.selectedEdge = null;
+        this.overlayData = f.overlayData;
+        this.layoutReady = true;
+        // A body that changed size (its badge, an expanded view of it) keeps its place; ELK only
+        // places what has no position yet.
+        void this.runElkLayout();
+    }
+
+    private closeAllBodies(root?: WorkflowDefinition) {
+        if ((this.bodyFrames?.length ?? 0) === 0) return;
+        const outer = this.bodyFrames[0];
+        this.bodyFrames = [];
+        this.bodyPath = [];
+        this.wf = root ?? outer.wf;
+        this.positions = outer.positions;
+        this.elkPositioned = outer.elkPositioned;
+        this.expanded = outer.expanded;
+        this.beforeExpansion = outer.beforeExpansion;
+        this.zoomK = outer.zoomK; this.panX = outer.panX; this.panY = outer.panY;
+        this.selectedId = null;
+        this.selectedEdge = null;
+        this.overlayData = outer.overlayData;
+    }
+
+    /** Switches a PROCESS between naming its child and writing it in line; the side switched away from is kept for this session. */
+    private setProcessKind(step: WorkflowStep, kind: "named" | "inline") {
+        if (kind === (hasInlineBody(step) ? "inline" : "named")) return;
+        const stash = this.processKindStash.get(step.id) ?? {};
+        if (kind === "inline") {
+            this.processKindStash.set(step.id, {...stash, childWorkflowDefinitionId: step.childWorkflowDefinitionId});
+            this.updateStep(step.id, {childWorkflowDefinitionId: undefined, steps: stash.steps?.length ? stash.steps : starterBody()});
+        } else {
+            this.processKindStash.set(step.id, {...stash, steps: step.steps});
+            this.updateStep(step.id, {steps: undefined, childWorkflowDefinitionId: stash.childWorkflowDefinitionId});
+        }
+    }
+    private processKindStash = new Map<string, {steps?: WorkflowStep[]; childWorkflowDefinitionId?: string}>();
 
     private toggleExpanded(id: string) {
         const next = new Set(this.expanded);
@@ -3646,11 +3833,12 @@ export class MateuWorkflowElk extends LitElement {
             <div class="root ${this.fullscreen ? "fullscreen" : ""}"
                  tabindex="0" @keydown="${this.onKeyDown}">
                 ${this.readOnly ? nothing : this.renderToolbar()}
-                ${this.showMeta ? this.renderMeta() : ""}
+                ${this.showMeta && (this.bodyFrames?.length ?? 0) === 0 ? this.renderMeta() : ""}
                 ${this.layoutError ? html`<div class="error">⚠ ${this.layoutError}</div>` : ""}
                 <div class="workspace">
                     ${this.readOnly ? nothing : this.renderPalette()}
                     <div class="canvas-wrap">
+                        ${this.renderBodyCrumbs()}
                         ${this.renderViewbar()}
                         <svg width="100%" height="100%" class="canvas ${this.panning ? "panning" : ""}"
                              @mousedown="${this.onCanvasMouseDown}">
@@ -3700,6 +3888,24 @@ export class MateuWorkflowElk extends LitElement {
                     </div>` : nothing}
             </div>
         `;
+    }
+
+    /** Where the graph is while an inline body is being edited: the definition › each PROCESS › …, each one a way back. */
+    private renderBodyCrumbs() {
+        if ((this.bodyFrames?.length ?? 0) === 0) return nothing;
+        const names = this.bodyFrames.map((f, i) => {
+            const step = (f.wf.steps ?? []).find(s => s.id === f.stepId);
+            return {label: i === 0 ? (f.wf.name || "workflow") : "", step: step?.name || f.stepId};
+        });
+        const depth = (this.bodyFrames?.length ?? 0);
+        return html`
+            <div class="body-crumbs" role="navigation" aria-label="Inline body path">
+                <button class="crumb" title="Back to the workflow" @click="${() => this.leaveBody(depth)}">${names[0].label}</button>
+                ${names.map((n, i) => html`<span class="crumb-sep">›</span>${i === depth - 1
+                    ? html`<span class="crumb current" title="Editing the inline body of ${n.step}">${n.step} <em>(inline body)</em></span>`
+                    : html`<button class="crumb" @click="${() => this.leaveBody(depth - 1 - i)}">${n.step}</button>`}`)}
+                <button class="crumb-back nbtn" title="Back (Esc)" @click="${() => this.leaveBody()}">↩ Back</button>
+            </div>`;
     }
 
     /** The left rail: one draggable chip per step type. Drag a chip onto the canvas to create it. */
@@ -3803,8 +4009,8 @@ export class MateuWorkflowElk extends LitElement {
         const status = this.declaredState();
         return html`
             <div class="toolbar">
-                <span class="wf-name">${this.wf.name}</span>
-                <span class="badge badge-${status.toLowerCase()}">${status}</span>
+                <span class="wf-name">${(this.bodyFrames?.length ?? 0) ? this.bodyFrames[0].wf.name : this.wf.name}</span>
+                ${(this.bodyFrames?.length ?? 0) ? nothing : html`<span class="badge badge-${status.toLowerCase()}">${status}</span>`}
                 <div style="flex:1"></div>
                 ${this.hostExecution && !this.readOnly ? html`
                     <button class="nbtn run-workflow" ?disabled="${this.hostExecutionStopping}" title="Run this workflow on the configured test engine"
@@ -3821,11 +4027,13 @@ export class MateuWorkflowElk extends LitElement {
                     ${iconSitemap}
                     Re-layout
                 </button>
-                ${!this.readOnly ? html`
+                ${!this.readOnly && (this.bodyFrames?.length ?? 0) === 0 ? html`
                     <button class="nbtn" @click="${() => this.showMeta = !this.showMeta}">
                         ${iconCog}
                         Settings
                     </button>
+                ` : nothing}
+                ${!this.readOnly ? html`
                     <button class="nbtn ${this.showHelp ? "on" : ""}" title="Editing gestures"
                             @click="${() => this.showHelp = !this.showHelp}">
                         <span class="help-q">?</span>
@@ -3855,6 +4063,7 @@ export class MateuWorkflowElk extends LitElement {
                 ${row("Click a line", "edit that link's precondition")}
                 ${row("Delete", "remove the selected step or line")}
                 ${row("Drag a node", "move it · drag the canvas to pan · wheel to zoom")}
+                ${row("Double-click inline PROCESS", "edit its body in place of the graph · Esc goes back")}
             </div>
         `;
     }
@@ -4540,6 +4749,17 @@ export class MateuWorkflowElk extends LitElement {
                             <option value="AND" ?selected="${(step.joinType ?? "AND") === "AND"}">AND — wait for all</option>
                             <option value="XOR" ?selected="${step.joinType === "XOR"}">XOR — any one</option>
                         </select>`) : nothing}
+                    ${step.type === "JOIN" && (step.joinType === "XOR" || step.compensateLosers) ? field("Compensate losers", html`
+                        <input type="checkbox" ?disabled="${ro}" data-compensate-losers="${step.id}"
+                               title="Once the join goes on with the first branch, cancel the others and compensate what they had completed (a cleanup beside the flow, not a rollback)"
+                               ?checked="${step.compensateLosers === true}"
+                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {compensateLosers: (e.target as HTMLInputElement).checked || undefined})}"/>`) : nothing}
+                    ${branchCleanupProblem(step) ? html`<div class="field-problem bc-problem">${branchCleanupProblem(step)}</div>` : nothing}
+                    ${step.type === "END" ? field("Compensate abandoned", html`
+                        <input type="checkbox" ?disabled="${ro}" data-compensate-abandoned="${step.id}"
+                               title="Reaching this END also compensates what the branches it cuts short had completed (a cleanup: the process still completes)"
+                               ?checked="${step.compensateAbandoned === true}"
+                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {compensateAbandoned: (e.target as HTMLInputElement).checked || undefined})}"/>`) : nothing}
                     <!-- Conditions live on connections, not on the step: draw a line to add an
                          incoming link, select a line to set its precondition (the Connection panel),
                          press Delete to remove it. The legacy step-level condition is not edited
@@ -4596,7 +4816,18 @@ export class MateuWorkflowElk extends LitElement {
                                .value="${(step.messageVariables ?? []).join(", ")}"
                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {messageVariables: parseNameList((e.target as HTMLInputElement).value)})}"/>`) : nothing}
                     ${step.type === "PROCESS" ? html`
-                        ${field("Child workflow ID", html`
+                        ${field("Child workflow", html`
+                            <select class="inp proc-kind" ?disabled="${ro}"
+                                    @change="${ro ? nothing : (e: Event) => this.setProcessKind(step, (e.target as HTMLSelectElement).value as "named" | "inline")}">
+                                <option value="named" ?selected="${!hasInlineBody(step)}">a definition, by id</option>
+                                <option value="inline" ?selected="${hasInlineBody(step)}">written in line (steps)</option>
+                            </select>`)}
+                        ${hasInlineBody(step) ? field("Inline body", html`
+                            <div class="pair">
+                                <input class="inp" readonly .value="${step.steps!.length + " steps"}"/>
+                                <button class="nbtn edit-body" title="Edit the body (double-click the node does the same; Esc comes back)"
+                                        @click="${() => this.enterBody(step.id)}">${ro ? "Open ▸" : "Edit ▸"}</button>
+                            </div>`) : field("Child workflow ID", html`
                             <input class="inp" ?readonly="${ro}" .value="${step.childWorkflowDefinitionId ?? ""}"
                                    @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {childWorkflowDefinitionId: (e.target as HTMLInputElement).value || undefined})}"/>`)}
                         ${field("Output variables", html`
@@ -4813,6 +5044,17 @@ export class MateuWorkflowElk extends LitElement {
                         ${field("Output variable", text(step.forEach.output, "results", v => setForEach({output: v}), "fe-output"))}
                         ${field("Output element", text(step.forEach.outputElement, "reservationId", v => setForEach({outputElement: v}), "fe-element"))}
                         ${field("Completion", text(step.forEach.completion, "all | any | condition", v => setForEach({completion: v}), "fe-completion"))}
+                        ${field("On iteration failure", html`
+                            <select class="inp fe-on-failure" ?disabled="${ro}"
+                                    title="failFast: the first iteration that fails for good fails the step. continue: every iteration runs to its end and the step completes, output carrying each one's status. compensateAll: every iteration runs to its end; if any failed, the completed ones are compensated and the step fails."
+                                    @change="${ro ? nothing : (e: Event) => {
+                                        const v = (e.target as HTMLSelectElement).value;
+                                        setForEach({onIterationFailure: v === "failFast" ? undefined : v});
+                                    }}">
+                                ${ON_ITERATION_FAILURE.map(p => html`<option value="${p}" ?selected="${(step.forEach!.onIterationFailure ?? "failFast") === p}">${p}${p === "failFast" ? " (default)" : ""}</option>`)}
+                            </select>`)}
+                        ${forEachFailureProblem(step.forEach) ? html`<div class="field-problem fe-problem">${forEachFailureProblem(step.forEach)}</div>` : nothing}
+                        ${field("Iteration label", text(step.forEach.label, "'Hab. ' + room.number", v => setForEach({label: v}), "fe-label"))}
                     ` : nothing}
                 </div>` : nothing}
             ${repeatable && !step.forEach ? html`
@@ -4958,6 +5200,7 @@ export class MateuWorkflowElk extends LitElement {
             --ec-edge: #94a3b8;
             --ec-primary: #2563eb;
             --ec-hover: #f1f5f9;
+            --ec-danger: #dc2626;
         }
         :host([dark]) {
             --ec-canvas-bg: var(--lumo-shade-5pct, #16181a);
@@ -4969,6 +5212,7 @@ export class MateuWorkflowElk extends LitElement {
             --ec-edge: var(--lumo-tertiary-text-color, #7d838b);
             --ec-primary: var(--lumo-primary-color, #60a5fa);
             --ec-hover: var(--lumo-contrast-10pct, #2a2e34);
+            --ec-danger: var(--lumo-error-text-color, #f87171);
         }
 
         .root {display: flex; flex-direction: column; height: 100%; position: relative; background: var(--ec-surface);}
@@ -5394,6 +5638,14 @@ export class MateuWorkflowElk extends LitElement {
         .mi-badge text {font-size: 10px; fill: #5b21b6; font-weight: 700;}
         .mi-badge.mi-continue rect {fill: #fdf2f8; stroke: #db2777;}
         .mi-badge.mi-continue text {fill: #9d174d;}
+        /* Under a dark host the pastel chips glared as the brightest thing on the board: same hue,
+           sunk into the surface, with a light text of that hue. */
+        :host([dark]) .mi-badge rect, :host([dark]) .loop-chip rect {fill: color-mix(in srgb, #7c3aed 24%, var(--ec-surface));}
+        :host([dark]) .mi-badge text, :host([dark]) .loop-chip text {fill: #c4b5fd;}
+        :host([dark]) .mi-badge.mi-continue rect {fill: color-mix(in srgb, #db2777 24%, var(--ec-surface));}
+        :host([dark]) .mi-badge.mi-continue text {fill: #f9a8d4;}
+        :host([dark]) .timeout-chip rect {fill: color-mix(in srgb, #d97706 22%, var(--ec-surface));}
+        :host([dark]) .timeout-chip text {fill: #fcd34d;}
         .priority-chip rect {fill: var(--ec-surface); stroke: var(--ec-border); stroke-width: 1;}
         .priority-chip text {font-size: 9.5px; font-weight: 700; fill: var(--ec-text);}
         .ov-iterations rect {fill: #7c3aed;}
@@ -5500,7 +5752,7 @@ export class MateuWorkflowElk extends LitElement {
 
         /* properties panel */
         .properties {
-            width: 280px; flex-shrink: 0;
+            width: 280px; flex-shrink: 0; color: var(--ec-text);
             border-left: 1px solid var(--ec-border);
             display: flex; flex-direction: column;
             background: var(--ec-surface);
@@ -5552,6 +5804,18 @@ export class MateuWorkflowElk extends LitElement {
         .check input {margin: 0;}
         .check em {color: var(--ec-text-faint); font-style: normal;}
         .check-empty {font-size: .78rem; color: var(--ec-text-faint);}
+        .body-crumbs {
+            position: absolute; top: 8px; left: 8px; z-index: 4; display: flex; align-items: center; gap: 4px;
+            padding: 3px 6px; border-radius: 8px; background: var(--ec-surface); border: 1px solid var(--ec-border);
+            font-size: .8rem; color: var(--ec-text); box-shadow: 0 1px 3px rgba(0,0,0,.08);
+        }
+        .body-crumbs .crumb {background: none; border: none; padding: 2px 4px; cursor: pointer; color: var(--ec-primary); font: inherit;}
+        .body-crumbs .crumb:hover {text-decoration: underline;}
+        .body-crumbs .crumb.current {color: var(--ec-text); cursor: default;}
+        .body-crumbs .crumb em {color: var(--ec-text-faint); font-style: normal;}
+        .body-crumbs .crumb-sep {color: var(--ec-text-faint);}
+        .body-crumbs .crumb-back {margin-left: 6px;}
+        .field-problem {font-size: .75rem; color: var(--ec-danger); margin: -2px 0 6px;}
     `];
 }
 

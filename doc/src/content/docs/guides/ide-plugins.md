@@ -41,7 +41,22 @@ opening a file shows the graph by default, backed by the underlying text documen
   over (`∥ rooms`, `⇣` when sequential), a `repeat` step carries a `↻ until …` chip, and a
   `loopBack` is a dashed violet back-edge with its condition. The step panel edits all three
   (items, as/index, mode, max concurrency, output, completion; until, max iterations, delay; loop
-  back to, while). See [Loops and Multi-Instance](/guides/loops-and-multi-instance/).
+  back to, while), plus `onIterationFailure` (failFast / continue / compensateAll) and the
+  iteration `label`, flagging the combinations validation refuses. See
+  [Loops and Multi-Instance](/guides/loops-and-multi-instance/).
+- **Inline PROCESS bodies** — a PROCESS step's panel chooses between naming a child definition and
+  writing it **in line** (`steps:`). **Double-click** an inline PROCESS (or **Edit ▸** in its
+  panel) to edit its body with the same tools as the workflow — palette, links, panel, delete —
+  in place of the graph; a breadcrumb shows where you are and **Esc** (or **↩ Back**) goes back up,
+  to the arrangement and zoom you left. Bodies nest. The body is laid out automatically: positions
+  dragged inside a body are not written to the file (the schema has no `layout` for a body).
+- **Branch cleanup** — an XOR join's panel offers **Compensate losers** and an END's **Compensate
+  abandoned** (see [Retries, Timeouts and Compensation](/guides/retries-timeouts-compensation/)).
+- **Watching a run** — in the execution view, double-click a forEach to open it into its
+  iterations (an inline body into one lane per iteration), and double-click a PROCESS node, an
+  iteration or a lane header to follow that child run. Only the children listed on the execution
+  view's current page of child processes can be opened this way; the engine's graph does not carry
+  child ids.
 - **Workflow status** — the graph's **Settings** panel declares whether the workflow is `Active`,
   `Disabled` or `Archived`, written to the `.ec` as `status`. It is a floor the runtime cannot
   lift: an operator can take a workflow out of service, but cannot enable one whose definition
@@ -73,6 +88,9 @@ The plugin (IntelliJ IDEA **2024.2+**) provides a **split editor** for `*.ec` (a
 **Editor / Split / Preview** toolbar toggles switch between text-only, graph-only, or both.
 
 - **Two-way sync** between the graph and the document, same as VS Code.
+- **Same graph editor** as VS Code, inline PROCESS bodies, `onIterationFailure`/`label` and the
+  branch-cleanup flags included. The plugin has no execution view, so there are no runs to expand
+  or child runs to open.
 - **Schema validation** — `.ec` is parsed as YAML (a JSON superset) and validated against the
   workflow-definition schema; the status bar shows the applied schema (**EventConductor**).
   `.ec`, `.ecform`, `.ecrule` and `.ectask` have a file type of their own, **EventConductor**
