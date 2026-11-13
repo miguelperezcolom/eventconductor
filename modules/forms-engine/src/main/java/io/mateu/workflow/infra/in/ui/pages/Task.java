@@ -22,7 +22,7 @@ import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
 import io.mateu.workflow.infra.in.ui.FormsRoutes;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cloud.stream.function.StreamBridge;
+import org.springframework.cloud.stream.function.StreamOperations;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 
@@ -54,7 +54,7 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
 
     final FormExecutionRepository formExecutionRepository;
     final FormRepository formRepository;
-    final StreamBridge streamBridge;
+    final StreamOperations streamBridge;
     final CompleteTaskUseCase completeTaskUseCase;
     final io.mateu.workflow.application.services.TaskAuthorization taskAuthorization;
     final io.mateu.workflow.application.services.TaskCallers taskCallers;

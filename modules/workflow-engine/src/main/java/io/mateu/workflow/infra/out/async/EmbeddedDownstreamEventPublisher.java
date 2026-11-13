@@ -96,6 +96,17 @@ public class EmbeddedDownstreamEventPublisher implements DownstreamEventPublishe
         this.protection = protection;
     }
 
+    /**
+     * Modules in this JVM that serve some tasks themselves — the forms engine's USER_TASKs — asked after
+     * the HTTP workers and before the {@link EmbeddedTaskExecutor}.
+     */
+    private org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.inprocess.InProcessTaskRoute> routes;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void routes(org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.inprocess.InProcessTaskRoute> routes) {
+        this.routes = routes;
+    }
+
     @org.springframework.beans.factory.annotation.Autowired
     void httpWorkers(org.springframework.beans.factory.ObjectProvider<HttpWorkerRouter> httpWorkers) {
         this.httpWorkers = httpWorkers;
@@ -170,6 +181,9 @@ public class EmbeddedDownstreamEventPublisher implements DownstreamEventPublishe
         if (HttpWorkerRouter.taken(httpWorkers, event, topic, protection::sealEvent)) {
             return;
         }
+        if (takenByRoute(event, topic)) {
+            return;
+        }
         // Otherwise topic is ignored, and that is the mode rather than an omission: embedded dispatch has
         // one EmbeddedTaskExecutor and no transport to route over, so every task goes to it
         // whatever its step names. Routing to several in-process pools would be a different
@@ -195,6 +209,13 @@ public class EmbeddedDownstreamEventPublisher implements DownstreamEventPublishe
         }
         pool.execute(new Prioritized(request.effectivePriority(), sequence.getAndIncrement(),
                 () -> executeOffTheCallingThread(request)));
+    }
+
+    private boolean takenByRoute(DomainEvent event, String topic) {
+        if (routes == null) {
+            return false;
+        }
+        return routes.orderedStream().anyMatch(route -> route.take(event, topic));
     }
 
     private final java.util.concurrent.atomic.AtomicLong sequence = new java.util.concurrent.atomic.AtomicLong();

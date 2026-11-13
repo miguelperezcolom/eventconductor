@@ -22,11 +22,15 @@ import java.util.List;
  *     directories:
  *       - /definitions/forms
  * </pre>
+ *
+ * <p>Named {@code Forms…} because the workflow engine has an {@code io.mateu.workflow.infra.config.DirectoryImportProperties}
+ * of its own (for {@code workflow.*}): with both engines in one application, two classes of one name
+ * meant only one was loaded, and these {@code forms.*} settings were silently never read.
  */
 @ConfigurationProperties(prefix = "forms.directory-import")
 @Getter
 @Setter
-public class DirectoryImportProperties {
+public class FormsDirectoryImportProperties {
 
     /** Directories to scan. Each is scanned recursively; a missing one is an error, not a silence. */
     private List<String> directories = new ArrayList<>();

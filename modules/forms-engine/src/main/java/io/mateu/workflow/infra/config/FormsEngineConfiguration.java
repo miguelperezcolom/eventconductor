@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@EnableConfigurationProperties({GitImportProperties.class, DirectoryImportProperties.class})
+@EnableConfigurationProperties({FormsGitImportProperties.class, FormsDirectoryImportProperties.class})
 public class FormsEngineConfiguration {
 
     /**

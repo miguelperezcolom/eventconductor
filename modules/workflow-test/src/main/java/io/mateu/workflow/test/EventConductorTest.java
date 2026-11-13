@@ -53,6 +53,9 @@ import java.lang.annotation.Target;
         "workflow.schedulers.background=false",
         // Tasks run on the calling thread, so a call returns once the engine is done.
         "workflow.embedded.worker-threads=0",
+        // With forms-engine on the classpath, a USER_TASK is still parked here for completeUserTask,
+        // not turned into a task in the forms engine's inbox.
+        "forms.embedded.serve-user-tasks=false",
         "spring.main.web-application-type=none",
         "spring.main.banner-mode=off"
 })

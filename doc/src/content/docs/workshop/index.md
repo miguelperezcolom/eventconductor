@@ -22,7 +22,7 @@ The finished project is in the repository, in [`examples/workshop-hotel-booking`
 
 ```text
 workshop-hotel-booking/
-├── pom.xml                          # the engine, the console, the built-in workers, the test kit
+├── pom.xml                          # the engine, the forms engine, the console, the built-in workers, the test kit
 ├── src/main/java/com/example/hotel/
 │   ├── HotelBookingApplication.java # the app: engine + console in one Spring Boot app
 │   ├── workers/HotelTaskHandlers.java  # the hotel's business logic (the ACTION steps)
@@ -32,7 +32,9 @@ workshop-hotel-booking/
 │   └── workflows/                   # one definition per module: 01-…yaml to 06-…yaml
 ├── src/test/java/…                  # the test-kit tests of Part 9
 ├── src/test/flows/                  # test-only definitions
+├── forms/booking-approval.ecform    # the manager's approval form (module 6)
 ├── scripts/start.sh                 # starts a process over the REST API
+├── scripts/approve.sh               # decides an approval as a manager, through the forms API
 └── ci/github-actions-workflows.yml  # the CI pipeline of Part 9
 ```
 

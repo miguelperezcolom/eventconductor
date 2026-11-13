@@ -1,7 +1,7 @@
 package io.mateu.workflow.infra.in.startup;
 
 import io.mateu.workflow.application.usecases.directoryimport.ImportFormsFromDirectoryUseCase;
-import io.mateu.workflow.infra.config.DirectoryImportProperties;
+import io.mateu.workflow.infra.config.FormsDirectoryImportProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class FormDirectoryImportRunner implements ApplicationRunner {
 
-    final DirectoryImportProperties directoryImportProperties;
+    final FormsDirectoryImportProperties directoryImportProperties;
     final ImportFormsFromDirectoryUseCase importUseCase;
 
     @Override

@@ -107,7 +107,17 @@ The process stops at the approval, drawn yellow; everything after it waits, fade
 
 ## Approve it
 
-In a full deployment the **forms engine** serves the `booking-approval` form (the project has it in `forms/booking-approval.ecform`) and the manager finds it in the **task inbox**. In this single-app workshop the forms engine is not running (see the note below), so you approve as an **operator**: **Complete step**, step `approve`, output variable `approved = true`, and a reason — which goes to the process's audit trail with your name.
+The **forms engine** runs inside the app (the `forms-engine` dependency): it reads the `booking-approval` form from `forms/booking-approval.ecform` at startup (`forms.directory-import.directories` in `application.properties`), takes the USER_TASK from the engine — no broker in between — and puts it in the **task inbox** of the `front-desk-managers` group. A manager claims the task and submits the form; the form's values (`approved`, `comment`) become process variables.
+
+The workshop has no login server, so act as the manager with the script, which calls the forms engine's task API (`/forms/api/tasks`) as *mia*, of `front-desk-managers`:
+
+```bash
+scripts/approve.sh BOOKING-7 true 'Regular guest'
+```
+
+(It finds the booking's open task, claims it and completes it with `{"approved": true, "comment": "Regular guest"}`. The app takes the caller from the token as it comes — `workflow.security.trust-forwarded-token=true`, a laptop-only shortcut for what a gateway does after verifying a real login.)
+
+An operator can also decide it from the console, without the form: **Complete step**, step `approve`, output variable `approved = true`, and a reason — which goes to the process's audit trail with your name. That is the way out when the manager approved by phone (module 7).
 
 ![Completing the approval from the console](/workshop/06-approve-from-console.gif)
 
@@ -115,11 +125,7 @@ The CHOICE takes the approved branch, the rooms are booked at the hotel, the gue
 
 ![Booked: approval, choice, rooms 3/3, guest told](/workshop/06-booked.jpg)
 
-Try one with `approved = false`: the CHOICE takes the default branch, and the run finishes through the *Rejected* end (status *Completed* — rejecting is a normal outcome, not a failure) without touching the hotel.
-
-:::note[Why not the form, here]
-With the engine **embedded** in one application, adding the `forms-engine` dependency currently stops the app from starting (*"HumanTaskEvents required a bean of type StreamBridge"*): the forms engine publishes task events through Spring Cloud Stream, which embedded mode switches off. Until that is fixed, run the forms engine as its own service (the [standalone apps](/guides/deployment-modes/)) to get the form and the task inbox; the definition does not change.
-:::
+Start another one (BOOKING-8) and reject it — `scripts/approve.sh BOOKING-8 false`: the CHOICE takes the default branch, and the run finishes through the *Rejected* end (status *Completed* — rejecting is a normal outcome, not a failure) without touching the hotel.
 
 ## Check
 

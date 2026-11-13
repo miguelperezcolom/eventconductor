@@ -1,7 +1,7 @@
 package io.mateu.workflow.infra.in.rest;
 
 import io.mateu.workflow.application.usecases.gitimport.ImportFormsFromGitUseCase;
-import io.mateu.workflow.infra.config.GitImportProperties;
+import io.mateu.workflow.infra.config.FormsGitImportProperties;
 import io.mateu.workflow.webhook.GitPushPayload;
 import io.mateu.workflow.webhook.GitPushPayloadParser;
 import io.mateu.workflow.webhook.RepositoryUrlMatcher;
@@ -37,7 +37,7 @@ import java.util.List;
 @Slf4j
 public class FormGitImportWebhookController {
 
-    final GitImportProperties gitImportProperties;
+    final FormsGitImportProperties gitImportProperties;
     final ImportFormsFromGitUseCase importUseCase;
     /**
      * One import at a time, a repeat coalesced: two imports of the same source at once race, and the
@@ -133,8 +133,8 @@ public class FormGitImportWebhookController {
         return ResponseEntity.accepted().body("import scheduled for " + toImport.size() + " repository/ies");
     }
 
-    private List<GitImportProperties.GitRepository> selectRepositories(
-            List<GitImportProperties.GitRepository> repositories, GitPushPayload payload) {
+    private List<FormsGitImportProperties.GitRepository> selectRepositories(
+            List<FormsGitImportProperties.GitRepository> repositories, GitPushPayload payload) {
         if (payload.isEmpty()) {
             return List.of();
         }
@@ -144,7 +144,7 @@ public class FormGitImportWebhookController {
                 .toList();
     }
 
-    private boolean matchesRepository(GitImportProperties.GitRepository repo, GitPushPayload payload) {
+    private boolean matchesRepository(FormsGitImportProperties.GitRepository repo, GitPushPayload payload) {
         if (payload.repositoryUrls() == null || payload.repositoryUrls().isEmpty()) {
             return true;
         }
@@ -152,7 +152,7 @@ public class FormGitImportWebhookController {
                 .anyMatch(url -> RepositoryUrlMatcher.sameRepository(url, repo.getUrl()));
     }
 
-    private boolean matchesBranch(GitImportProperties.GitRepository repo, GitPushPayload payload) {
+    private boolean matchesBranch(FormsGitImportProperties.GitRepository repo, GitPushPayload payload) {
         if (payload.branch() == null || payload.branch().isBlank()) {
             return true;
         }

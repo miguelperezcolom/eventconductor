@@ -4,8 +4,8 @@ import io.mateu.workflow.application.out.FormRepository;
 import io.mateu.workflow.application.out.FormsMetrics;
 import io.mateu.workflow.application.usecases.directoryimport.ImportFormsFromDirectoryUseCase;
 import io.mateu.workflow.domain.Form;
-import io.mateu.workflow.infra.config.DirectoryImportProperties;
-import io.mateu.workflow.infra.config.GitImportProperties;
+import io.mateu.workflow.infra.config.FormsDirectoryImportProperties;
+import io.mateu.workflow.infra.config.FormsGitImportProperties;
 import io.mateu.workflow.webhook.InMemoryImportedDefinitionsRegistry;
 import org.eclipse.jgit.api.Git;
 import org.junit.jupiter.api.Test;
@@ -33,9 +33,9 @@ class ImportFormsFromGitUseCaseTest {
     final FormRepository forms = mock(FormRepository.class);
     final FormsMetrics metrics = mock(FormsMetrics.class);
     final ImportFormsFromDirectoryUseCase directoryImport = new ImportFormsFromDirectoryUseCase(
-            new DirectoryImportProperties(), forms, metrics, new InMemoryImportedDefinitionsRegistry());
+            new FormsDirectoryImportProperties(), forms, metrics, new InMemoryImportedDefinitionsRegistry());
 
-    private ImportFormsFromGitUseCase useCase(GitImportProperties properties) {
+    private ImportFormsFromGitUseCase useCase(FormsGitImportProperties properties) {
         return new ImportFormsFromGitUseCase(properties, metrics, directoryImport);
     }
 
@@ -52,7 +52,7 @@ class ImportFormsFromGitUseCaseTest {
                 {"id": "review", "name": "review", "fields": [{"id": "ok", "label": "OK", "dataType": "bool"}]}
                 """);
         commit(repo);
-        var properties = new GitImportProperties();
+        var properties = new FormsGitImportProperties();
         var configured = repository(repo);
         // Credentials are handed to the clone; a file: remote ignores them, a hosted one needs them.
         configured.setUsername("ci");
@@ -75,7 +75,7 @@ class ImportFormsFromGitUseCaseTest {
         var configured = repository(repo);
         configured.setDirectory("forms");
 
-        var result = useCase(new GitImportProperties()).handle(List.of(configured));
+        var result = useCase(new FormsGitImportProperties()).handle(List.of(configured));
 
         assertThat(result.errors()).isEmpty();
         assertThat(savedIds()).containsExactly("approve");
@@ -88,7 +88,7 @@ class ImportFormsFromGitUseCaseTest {
         var configured = repository(repo);
         configured.setDirectory("nope");
 
-        var result = useCase(new GitImportProperties()).handle(List.of(configured));
+        var result = useCase(new FormsGitImportProperties()).handle(List.of(configured));
 
         assertThat(result.imported()).isEmpty();
         assertThat(result.errors()).singleElement().satisfies(error ->
@@ -98,10 +98,10 @@ class ImportFormsFromGitUseCaseTest {
 
     @Test
     void aRepositoryThatCannotBeClonedIsAnErrorAndNotACrash(@TempDir Path nowhere) {
-        var missing = new GitImportProperties.GitRepository();
+        var missing = new FormsGitImportProperties.GitRepository();
         missing.setUrl(nowhere.resolve("does-not-exist").toUri().toString());
 
-        var result = useCase(new GitImportProperties()).handle(List.of(missing));
+        var result = useCase(new FormsGitImportProperties()).handle(List.of(missing));
 
         assertThat(result.imported()).isEmpty();
         assertThat(result.errors()).singleElement().satisfies(error -> assertThat(error).startsWith("Repository "));
@@ -110,8 +110,8 @@ class ImportFormsFromGitUseCaseTest {
 
     // ── the repository under test ─────────────────────────────────────────────────────────────
 
-    private static GitImportProperties.GitRepository repository(Path repo) {
-        var configured = new GitImportProperties.GitRepository();
+    private static FormsGitImportProperties.GitRepository repository(Path repo) {
+        var configured = new FormsGitImportProperties.GitRepository();
         configured.setUrl(repo.toUri().toString());
         configured.setBranch("main");
         return configured;

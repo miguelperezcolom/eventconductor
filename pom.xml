@@ -37,6 +37,7 @@
       <module>modules/workflow-e2e</module>
       <module>modules/workflow-test</module>
       <module>modules/forms-engine</module>
+      <module>modules/forms-embedded-e2e</module>
       <module>modules/rule-runtime</module>
       <module>modules/rule-engine</module>
       <module>modules/workflow-maven-plugin</module>

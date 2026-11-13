@@ -46,7 +46,9 @@
   `${businessKey}` as the parent's. Under `forEach` a child also gets `as`/`indexAs`, the item read as
   structure in its templates (`${room.number}`).
 - **USER_TASK** needs forms-engine with the form loaded from `forms.directory-import.directories` or git —
-  forms are NOT read from the classpath. In tests, `completeUserTask` needs no forms-engine.
+  forms are NOT read from the classpath. Embedded: forms-engine in the same app takes the USER_TASK in
+  process (no broker, no StreamBridge; up to 2.39.0 the app failed to start). In tests, `completeUserTask`
+  needs no forms-engine (the kit sets `forms.embedded.serve-user-tasks=false` when it is there).
 - **Secrets in definitions** — literal HTTP credentials, `${secret:}` outside an inline `auth` block, or an
   LLM key in a definition fail validation.
 - **Embedded `topic`** — ignored; one `EmbeddedTaskExecutor` gets every task (no per-topic beans).

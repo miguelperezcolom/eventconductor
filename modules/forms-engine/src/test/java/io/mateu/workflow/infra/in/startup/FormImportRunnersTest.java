@@ -3,8 +3,8 @@ package io.mateu.workflow.infra.in.startup;
 import io.mateu.workflow.application.usecases.directoryimport.ImportFormsFromDirectoryUseCase;
 import io.mateu.workflow.application.usecases.gitimport.ImportFormsFromGitUseCase;
 import io.mateu.workflow.application.usecases.gitimport.ImportFormsFromGitUseCase.ImportFormsResult;
-import io.mateu.workflow.infra.config.DirectoryImportProperties;
-import io.mateu.workflow.infra.config.GitImportProperties;
+import io.mateu.workflow.infra.config.FormsDirectoryImportProperties;
+import io.mateu.workflow.infra.config.FormsGitImportProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.DefaultApplicationArguments;
 
@@ -23,13 +23,13 @@ class FormImportRunnersTest {
     @Test
     void withoutDirectoriesTheDirectoryImportDoesNotRun() {
         var useCase = mock(ImportFormsFromDirectoryUseCase.class);
-        new FormDirectoryImportRunner(new DirectoryImportProperties(), useCase).run(args);
+        new FormDirectoryImportRunner(new FormsDirectoryImportProperties(), useCase).run(args);
         verify(useCase, never()).handle();
     }
 
     @Test
     void withDirectoriesTheyAreImportedAtStartupWhateverTheOutcome() {
-        var properties = new DirectoryImportProperties();
+        var properties = new FormsDirectoryImportProperties();
         properties.setDirectories(List.of("/forms"));
         var useCase = mock(ImportFormsFromDirectoryUseCase.class);
         when(useCase.handle()).thenReturn(new ImportFormsFromDirectoryUseCase.ImportFormsResult(List.of("A [a]"), List.of("bad.yml: x"),
@@ -43,14 +43,14 @@ class FormImportRunnersTest {
     @Test
     void withoutRepositoriesTheGitImportDoesNotRun() {
         var useCase = mock(ImportFormsFromGitUseCase.class);
-        new FormGitImportRunner(new GitImportProperties(), useCase).run(args);
+        new FormGitImportRunner(new FormsGitImportProperties(), useCase).run(args);
         verify(useCase, never()).handle();
     }
 
     @Test
     void withRepositoriesTheyAreImportedAtStartup() {
-        var properties = new GitImportProperties();
-        var repository = new GitImportProperties.GitRepository();
+        var properties = new FormsGitImportProperties();
+        var repository = new FormsGitImportProperties.GitRepository();
         repository.setUrl("https://example.com/forms.git");
         properties.setRepositories(List.of(repository));
         var useCase = mock(ImportFormsFromGitUseCase.class);

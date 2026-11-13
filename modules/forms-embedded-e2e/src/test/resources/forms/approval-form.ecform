@@ -1,0 +1,9 @@
+id: approval-form
+name: Approve the booking
+description: Read from forms.directory-import, as an application loads its forms.
+fields:
+  - id: decision
+    label: Decision
+    dataType: string
+    stereotype: regular
+    required: true
