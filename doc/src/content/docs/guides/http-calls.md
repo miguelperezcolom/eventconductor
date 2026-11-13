@@ -53,6 +53,130 @@ The engine renders the request — URL/path, query, headers and body are [payloa
 - **`retryOn`** decides which failures the step's `retries` apply to: `5xx`, `4xx`, `io`, or specific codes. The default `[5xx, io]` means **a 4xx is not retried** — a 400 does not fix itself — and the saga's compensation runs at once.
 - Every retry of a step sends the same **`Idempotency-Key`** (the step execution id), so a server that honours it applies a retried charge once. A connection can rename the header or turn it off (`idempotency-header: none`).
 
+## Not creating duplicates in the target system
+
+Delivery is **at least once**: a step can reach the target more than once — a retry after a
+timeout, a worker that dies after the call but before reporting, a broker redelivery. And a
+response from an attempt the engine has already given up on is dropped, so the target may have
+created the resource without the process knowing. Whether that ends in a duplicate is up to the
+target; the step's job is to give it what it needs to recognise a repeat. Two patterns, both plain
+`HTTP_CALL`s — no worker code.
+
+### Pattern 1 — an idempotency key
+
+If the target honours an idempotency key (or a unique external reference), send one. The engine
+already sends the step execution id as `Idempotency-Key` on every call, the same on each retry of
+the step. That covers retries, but not a step that runs again as a new execution (a retry from an
+earlier step, a restarted process) or the same business request arriving as a second process. For
+those, derive the key from the business data instead — a header with the **same name** replaces the
+automatic one (the match is exact, case included):
+
+```yaml
+- id: create
+  name: Create the room booking
+  type: HTTP_CALL
+  retries: 3
+  http:
+    connection: hotel
+    method: POST
+    path: /bookings
+    headers:
+      Idempotency-Key: "${businessKey}-${room.number}"   # replaces the step-execution-id key
+    body:
+      externalRef: "${businessKey}-${room.number}"       # also stored, for lookups and cancellation
+      room: "${room.number}"
+    output:
+      roomBookingId: "body.id"
+```
+
+| Key | Step retries | Retry-from-step / restart | Same request as a new process |
+|---|---|---|---|
+| automatic (step execution id) | ✅ | ❌ new execution, new key | ❌ |
+| business key (e.g. `businessKey` + room) | ✅ | ✅ | ✅ |
+
+The business key only works if its parts are stable and unique: the process's `businessKey` set to
+the source booking's id, and a per-item field that cannot repeat within it (a line id is safer
+than a room number if one booking can hold the same room twice). To stop the same request from
+starting a second process in the first place, start it through a
+[synchronous invocation](/guides/synchronous-invocation/), whose `Idempotency-Key` joins the
+existing process instead.
+
+### Pattern 2 — look up before creating
+
+If the target has no idempotency key but can be searched by an external reference, look first and
+create only when nothing is there. `successStatus` makes a 404 an answer rather than a failure, and
+a [`CHOICE`](/reference/step-types/#choice) takes the branch:
+
+```yaml
+- id: lookup
+  name: Look up the room booking
+  type: HTTP_CALL
+  http:
+    connection: hotel
+    method: GET
+    path: "/bookings/by-ref/${businessKey}-${room.number}"
+    successStatus: [200, 404]
+    output:
+      found: "status == 200 ? 'true' : 'false'"
+      roomBookingId: "status == 200 ? body.id : ''"
+
+- id: exists
+  name: Already booked?
+  type: CHOICE
+  preconditionStepId: lookup
+
+- id: create                      # not there yet → create it
+  name: Create the room booking
+  type: HTTP_CALL
+  preconditions: [ { stepId: exists, expression: "found == 'false'" } ]
+  http:
+    connection: hotel
+    method: POST
+    path: /bookings
+    body: { externalRef: "${businessKey}-${room.number}", room: "${room.number}" }
+    output:
+      roomBookingId: "body.id"
+
+- id: confirm                     # already there, or just created
+  name: Confirm the room booking
+  type: ACTION
+  topic: confirm-booking
+  preconditions:
+    - { stepId: exists, expression: "found == 'true'" }
+    - { stepId: create }
+  joinType: XOR
+```
+
+There is a window: two attempts running *at the same time* can both see "not found" and both
+create. Sequential retries — the normal case — do not open it. When the target supports both
+patterns, prefer the key: one call, no window.
+
+### Compensation must be idempotent too
+
+The undo step is retried and redelivered like any other, and it may run for a creation whose
+response the process never saw. So, for a `cancelRoom` compensation:
+
+- cancelling twice succeeds;
+- cancelling something that does not exist succeeds (the create may never have arrived) — list
+  `404` in its `successStatus`;
+- it addresses the resource by the **business key** (`externalRef`), not only by the id the
+  create returned — that id is missing when the create's response was lost.
+
+```yaml
+- id: cancelRoom
+  name: Cancel the room booking
+  type: HTTP_CALL
+  http:
+    connection: hotel
+    method: DELETE
+    path: "/bookings/by-ref/${businessKey}-${room.number}"
+    successStatus: [200, 204, 404]
+```
+
+With a [`forEach`](/guides/loops-and-multi-instance/) over the rooms, each iteration renders its own
+`room`, so every room gets its own key; the compensation runs once per completed iteration and sees
+that iteration's `room` and everything it reported.
+
 ## Waiting for a callback
 
 When the response only acknowledges the request and the real answer comes later — a webhook, a callback, an event — give the step an `awaitReply` (`messageName`, `correlationExpression` and an optional `onEvent`, as on a `WAIT_FOR_MESSAGE`). The wait is armed before the task is dispatched, so a callback sent even before the response is caught. A 2xx records `output` and the step keeps waiting; the reply completes it — and a reply that comes before the response completes it on its own, the late response then ignored. See [Asynchronous Request/Response](/guides/request-response/#the-same-with-an-http-request).

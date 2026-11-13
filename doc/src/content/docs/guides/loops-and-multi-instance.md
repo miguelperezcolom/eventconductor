@@ -94,6 +94,10 @@ just that iteration, and the process ends `COMPENSATED` again. Late answers for 
 compensation are ignored. Your worker should still be idempotent, and your compensation must
 tolerate the work it undoes having completed late.
 
+Each iteration — and each compensation — can reach the target system more than once, so give it a
+per-item key it can recognise: see
+[Not creating duplicates in the target system](/guides/http-calls/#not-creating-duplicates-in-the-target-system).
+
 **Empty list, limits.** An empty list completes the step at once, with `output` `[]`. A list longer
 than `workflow.foreach.max-items` (default 1000) fails the step at start.
 
