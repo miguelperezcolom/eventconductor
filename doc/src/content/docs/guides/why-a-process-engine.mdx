@@ -15,6 +15,7 @@ This page follows one ordinary process from the first version to the one that su
 - **You write less code** — the process is a short declaration; what remains in code is the business work itself.
 - **The hard parts come for free** — retries, timeouts, sagas and compensation, parallel fan-out, timers, human tasks, crash recovery, versioning.
 - **It can be operated** — every run can be found, inspected and repaired, by people and by tools.
+- **It saves time** — not only writing the first version, but in every change, deployment, diagnosis and repair after it.
 
 ## It starts as a method
 
@@ -173,6 +174,25 @@ Hand-written processes get operational tooling after the first incident, if ever
 - incidents that say what failed and why, instead of a stack trace in a log;
 - metrics and tracing out of the box ([Observability](/reference/observability/));
 - an [MCP interface](/guides/mcp-overview/), so an AI assistant can answer "where is booking 123?" or "retry everything that failed last night" in natural language.
+
+### It saves time — at every stage, not just the first
+
+Time is the metric that sums up the others, and the first version is the smallest part of it. A process lives for years; most of its cost is in what happens after it ships.
+
+| Stage | Written by hand | With EventConductor |
+|---|---|---|
+| **First version** | The business steps *plus* the plumbing under the waterline, built and tested from scratch | The definition and the workers; the plumbing is already there |
+| **Each change** | Touch the state table, the status values, the sweeper, the compensation path, the admin screen — and re-test all of them | Edit one block of the definition; the [IDE plugins](/guides/ide-plugins/) and the [Maven plugin](/reference/maven-plugin/) validate it as you type and in CI |
+| **Review** | Reconstruct the flow from code spread across classes | Read the definition, or its graph, in the pull request |
+| **Deploy** | Rebuild and redeploy the service; decide what happens to the runs in flight | Merge to the definitions repository: the engine [imports it from Git](/guides/workflow-definitions/#importing-from-git) on the webhook, records a new version, and running processes keep the one they started with — no service redeploy. Workers deploy on their own schedule |
+| **Test** | Spin up the service and its dependencies, or mock the plumbing | The [test kit](/guides/testing-workflows/) runs the definition in memory, with stubbed workers and [simulated time](/guides/testing-workflows/#moving-time) — a three-day timer passes without waiting three days |
+| **Diagnose** | Correlate logs across services to rebuild what one run did | Open the run: its graph, steps, variables, errors and history are on one screen |
+| **Repair** | Write a one-off script, get it reviewed, run it against production | Retry from a step, set a variable, or run a batch operation — audited |
+| **Next process** | Copy the skeleton, or build a second one | Write another definition; everything above applies to it on day one |
+
+The pattern in that table is that the hand-written cost is paid **again** at every stage and for every process, while the engine's is paid **once**. That is also why the gap widens with time instead of closing: the first process is where hand-written code is closest to an engine, not furthest.
+
+Being fair about it: the first hours with an engine are slower, because the team is learning it — and for the very first, very simple process, writing it by hand may well be quicker. The comparison that matters is the second change, the first incident and the third process.
 
 ## What it costs
 
