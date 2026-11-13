@@ -28,6 +28,8 @@ recording (493 frames played at 1.25×).
 
 ## YouTube chapters
 
+Published at https://youtu.be/ZFVvhcsp-28 (public, 2026-11-13). The home page embeds it.
+
 ```
 0:00 Your process is three steps — production adds the rest
 0:23 Declare it
