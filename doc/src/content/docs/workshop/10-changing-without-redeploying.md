@@ -91,11 +91,11 @@ scripts/start.sh hotel-booking BOOKING-9 '{"guest": "Gus", "rooms": [{"number": 
 
 ![The definition, now with the Draft the confirmation email step; two runs waiting at the approval](/workshop/10-definition-v3.jpg)
 
-and its **Versions** tab, every version with the processes running on it:
+and its **Versions** tab, every version with the processes that run, or ran, on it:
 
-![Versions: one running process on each of the last two versions](/workshop/10-versions.jpg)
+![Versions: BOOKING-8 on v2, BOOKING-9 on v3](/workshop/10-versions.jpg)
 
-BOOKING-8 keeps running the version it started on; BOOKING-9 runs the new one. Nothing was interrupted. (The extra row is an artefact of this setup: the app imported the same file twice, once from its classpath and once from Git.)
+BOOKING-8 kept the version it started on — it finished on v2 once its approval was decided — while BOOKING-9 runs the new one. Nothing was interrupted. (The extra row is an artefact of this setup: the app imported the same file twice, once from its classpath and once from Git.)
 
 To move the older bookings onto the new version — so they too draft the email — use **Migrate instances…** on the definition, or **Migrate…** on one run. `check-migration` in CI has already told you whether that is safe: see [Part 9 · Automate it](/workshop/testing/automate/) and [Migrating running processes](/guides/migrating-running-processes/).
 
