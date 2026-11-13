@@ -13,7 +13,9 @@ import java.util.Map;
  * What a payload template sees — the same for a REPLY, a PUBLISH_EVENT and an HTTP_CALL: every
  * process variable by name; {@code process} ({@code id}, {@code businessKey},
  * {@code workflowDefinitionId}, {@code version}); {@code step} ({@code id}, {@code name},
- * {@code executionId}); {@code now} (ISO instant); and {@code businessKey}. Plain maps, not the
+ * {@code executionId}); {@code now} (ISO instant); and {@code businessKey} — inside an inline PROCESS
+ * body, the business key of the process that owns the body (see {@link Process#templateBusinessKey()}).
+ * A child started for one forEach item reads that item as structure. Plain maps, not the
  * aggregates: a template gets these values and nothing it could navigate from them.
  */
 public final class TemplateContext {
@@ -28,7 +30,9 @@ public final class TemplateContext {
      */
     public static Map<String, Object> of(Process process, Step step, String stepExecutionId, Map<String, Object> scope) {
         var context = new HashMap<String, Object>();
-        process.getVariables().forEach(variable -> context.put(variable.name(), variable.value()));
+        // Strings, except what came from a forEach iteration into a child process: structure there, as
+        // in the iteration of any other step (see Process#structuredVariables).
+        context.putAll(process.expressionVariables());
         if (scope != null) {
             context.putAll(scope);
         }
@@ -44,8 +48,9 @@ public final class TemplateContext {
         stepInfo.put("executionId", stepExecutionId);
         context.put("step", stepInfo);
         context.put("now", EngineClock.instant().toString());
-        // Last, so the canonical value wins over a variable of the same name.
-        context.put("businessKey", process.getBusinessKey());
+        // Last, so the canonical value wins over a variable of the same name. Inside an inline PROCESS
+        // body, the key of the process that owns the body (process.businessKey stays the child's own).
+        context.put("businessKey", process.templateBusinessKey());
         return context;
     }
 

@@ -1,0 +1,45 @@
+# forEach + an inline PROCESS body whose HTTP_CALLs (and the compensation inside the body) read the
+# item, its index and the business key of the booking (InlineBodyVariables*E2eTest). The HTTP_CALLs are
+# served by the test worker, which records the request the engine rendered.
+id: inline-body-vars
+name: Book every room, one child per room
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: rooms
+    type: PROCESS
+    name: Book every room
+    preconditionStepId: start
+    forEach:
+      items: rooms
+      as: room
+      indexAs: position
+      output: roomBookings
+      outputElement: roomBookingId
+    outputVariables: [roomBookingId]
+    steps:
+      - { id: start, type: START, name: Start }
+      - id: create
+        type: HTTP_CALL
+        name: Create the room booking
+        preconditionStepId: start
+        compensable: true
+        compensationStepId: release
+        http:
+          url: "https://hotel.example.com/bookings"
+          method: POST
+          headers: { Idempotency-Key: "${businessKey}-${room.number}" }
+          body: { room: "${room.number}", position: "${position}" }
+      - id: check
+        type: ACTION
+        name: Check the room
+        preconditionStepId: create
+        topic: check-room
+      - { id: end, type: END, name: End, preconditionStepId: check }
+      - id: release
+        type: HTTP_CALL
+        name: Release the room
+        http:
+          url: "https://hotel.example.com/holds/${businessKey}-${room.number}-${position}"
+          method: DELETE
+  - { id: end, type: END, name: End, preconditionStepId: rooms }

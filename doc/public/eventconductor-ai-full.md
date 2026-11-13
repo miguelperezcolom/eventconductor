@@ -361,8 +361,12 @@ the child definition `<workflowId>.<stepId>` (nested: `booking.rooms.extras`): v
 with the parent, inheriting its `sensitiveVariables`, `requiredScopes`/`requiredRoles` and tags, and
 **not startable on its own** (REST, MCP, console, events and cron answer "unknown definition").
 Semantics are those of any PROCESS (all parent variables in, `outputVariables` back). Validation
-covers the body as a workflow of its own, errors located `booking.rooms: …`. With `forEach` it is a
-**dynamic fork**: one child run of the body per item, each with its own variables:
+covers the body as a workflow of its own, errors located `booking.rooms: …`. Inside the body,
+templates and guards read `${businessKey}` as the **parent's** business key (the child keeps its own
+`parent:<id>` as `process.businessKey`); a named child reads its own. With `forEach` it is a
+**dynamic fork**: one child run of the body per item, each with its own variables — the item (`as`)
+and index (`indexAs`) among them, the item read as structure (`${room.number}` works in the body's
+HTTP_CALLs and compensations):
 ```yaml
 - id: rooms
   type: PROCESS

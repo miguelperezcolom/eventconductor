@@ -108,6 +108,30 @@ public class ProcessEntity {
     @Column(length = 255)
     private String rollbackReason;
 
+    /** An inline body's child: the business key its templates read as businessKey (V62). */
+    @Column(length = 255)
+    private String inheritedBusinessKey;
+    /** A forEach child: the variables, comma separated, that templates read as structure (V62). */
+    @Column(length = 1024)
+    private String structuredVariables;
+
+    /** The row before inline bodies inherited the item and the business key: neither. */
+    public ProcessEntity(String id, String businessKey, String name, String variables, String status,
+                         int completionPercentage, String log, String workflowDefinitionId,
+                         int workflowDefinitionVersion, String workflowDefinitionJson,
+                         LocalDateTime created, LocalDateTime started, LocalDateTime finished,
+                         LocalDateTime pausedAt, String parentStepExecutionId, Integer version,
+                         String replyStepId, String replyJson, String replyOutcome, String replyCompensation,
+                         String replyError, LocalDateTime repliedAt, String continuedFromProcessId,
+                         String continuedAsProcessId, String releasedBusinessKey, String initiatingActor,
+                         boolean testRun, String testRunRequestDigest, String rollbackReason) {
+        this(id, businessKey, name, variables, status, completionPercentage, log, workflowDefinitionId,
+                workflowDefinitionVersion, workflowDefinitionJson, created, started, finished, pausedAt,
+                parentStepExecutionId, version, replyStepId, replyJson, replyOutcome, replyCompensation,
+                replyError, repliedAt, continuedFromProcessId, continuedAsProcessId, releasedBusinessKey,
+                initiatingActor, testRun, testRunRequestDigest, rollbackReason, null, null);
+    }
+
     /** The row before engine-requested rollbacks: none. */
     public ProcessEntity(String id, String businessKey, String name, String variables, String status,
                          int completionPercentage, String log, String workflowDefinitionId,

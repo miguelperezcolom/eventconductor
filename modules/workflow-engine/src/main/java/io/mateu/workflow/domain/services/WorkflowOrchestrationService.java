@@ -860,11 +860,12 @@ public class WorkflowOrchestrationService {
         var variables = new HashMap<String, Object>();
         variables.put("process", process);
         variables.put("step", step);
-        process.getVariables().forEach(variable -> variables.put(variable.name(), variable.value()));
+        variables.putAll(process.expressionVariables());
         // Seeded AFTER the variables so the canonical value always wins: JEXL runs with
         // RESTRICTED permissions (no introspection of domain classes), so businessKey must
         // be available as a plain context variable — `process.businessKey` cannot evaluate.
-        variables.put("businessKey", process.getBusinessKey());
+        // Inside an inline PROCESS body it is the owner's, as in the body's templates.
+        variables.put("businessKey", process.templateBusinessKey());
         return variables;
     }
 

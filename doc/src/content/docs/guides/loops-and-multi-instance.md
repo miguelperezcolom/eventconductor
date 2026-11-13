@@ -187,6 +187,10 @@ It is exactly a PROCESS step with a child workflow, written where it is used —
 [PROCESS with an inline body](/reference/step-types/#inline-body). A branch never writes the parent's
 variables while it runs: what it reports reaches the parent through `outputVariables` and `output`.
 
+Inside the body, each branch reads its item as structure — `${room.number}` in an `HTTP_CALL`, its
+compensation or a guard — and `${businessKey}` is the parent's business key, not the branch's own
+`parent:<id>`; so `Idempotency-Key: "${businessKey}-${room.number}"` gives one stable key per room.
+
 ## repeat — one step until a condition
 
 ```yaml

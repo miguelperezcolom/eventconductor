@@ -42,7 +42,9 @@
 - **forEach outputs are not on the process** — read the `output` variable.
 - **`maxIterations` is required** on `repeat`/`loopBack`; exceeding any cap fails the step.
 - **PROCESS children** get ALL parent variables and return only `outputVariables`; their business key is
-  `parent:<stepExecutionId>`.
+  `parent:<stepExecutionId>` — but inside an **inline body** (`steps:`) templates and guards read
+  `${businessKey}` as the parent's. Under `forEach` a child also gets `as`/`indexAs`, the item read as
+  structure in its templates (`${room.number}`).
 - **USER_TASK** needs forms-engine with the form loaded from `forms.directory-import.directories` or git —
   forms are NOT read from the classpath. In tests, `completeUserTask` needs no forms-engine.
 - **Secrets in definitions** — literal HTTP credentials, `${secret:}` outside an inline `auth` block, or an

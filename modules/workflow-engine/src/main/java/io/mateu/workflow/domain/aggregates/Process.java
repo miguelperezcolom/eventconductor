@@ -132,6 +132,77 @@ public class Process extends AggregateRoot implements Identifiable {
     @Hidden
     private String rollbackReason;
 
+    /**
+     * Set on a child an inline PROCESS body ({@code steps:}) became: the business key its templates and
+     * guards read as {@code businessKey} — the one of the process that owns the body (itself inherited,
+     * for a body inside a body). The child keeps its own key ({@code parent:<id>}, {@link #businessKey})
+     * for everything else. Null for every other process, which reads its own. See
+     * {@link #templateBusinessKey()}.
+     */
+    @Hidden
+    private String inheritedBusinessKey;
+
+    /**
+     * Set on a child a PROCESS step started for one item of its {@code forEach}: the names, comma
+     * separated, of the variables that came from the iteration's scope (its {@code as} and
+     * {@code indexAs}, and those its parent had itself). Templates and guards read them as structure — a
+     * variable holding a JSON object or array is that object or array, so {@code ${room.number}} works
+     * in the child as it does in an iteration of any other step. Null for every other process.
+     */
+    @Hidden
+    private String structuredVariables;
+
+    /** Source compatibility for processes created before inline bodies inherited the item and the key. */
+    public Process(String id, String name, String workflowDefinitionId, int workflowDefinitionVersion,
+                   String workflowDefinitionJson, String businessKey, List<Variable> variables,
+                   ProcessStatus status, int completionPercentage, LocalDateTime created,
+                   LocalDateTime started, LocalDateTime finished, LocalDateTime pausedAt,
+                   String parentStepExecutionId, Integer version, ProcessReply reply,
+                   String continuedFromProcessId, String continuedAsProcessId, boolean businessKeyReleased,
+                   String initiatingActor, boolean testRun, String testRunRequestDigest, String rollbackReason) {
+        this(id, name, workflowDefinitionId, workflowDefinitionVersion, workflowDefinitionJson, businessKey,
+                variables, status, completionPercentage, created, started, finished, pausedAt,
+                parentStepExecutionId, version, reply, continuedFromProcessId, continuedAsProcessId,
+                businessKeyReleased, initiatingActor, testRun, testRunRequestDigest, rollbackReason, null, null);
+    }
+
+    /**
+     * What a template or a guard reads as {@code businessKey}: inside an inline PROCESS body, the key of
+     * the process that owns the body (see {@link #inheritedBusinessKey}); this process's own otherwise.
+     */
+    public String templateBusinessKey() {
+        return inheritedBusinessKey != null ? inheritedBusinessKey : businessKey;
+    }
+
+    /** The names in {@link #structuredVariables}; empty for a process that has none. */
+    public java.util.Set<String> structuredVariableNames() {
+        if (structuredVariables == null || structuredVariables.isBlank()) {
+            return java.util.Set.of();
+        }
+        var names = new java.util.LinkedHashSet<String>();
+        for (var name : structuredVariables.split(",")) {
+            if (!name.isBlank()) {
+                names.add(name.strip());
+            }
+        }
+        return names;
+    }
+
+    /**
+     * The process variables as templates and guards see them: by name, each one's value — read as
+     * structure for the variables in {@link #structuredVariables}, as the string it is for the rest.
+     */
+    public java.util.Map<String, Object> expressionVariables() {
+        var structured = structuredVariableNames();
+        var values = new java.util.HashMap<String, Object>();
+        if (variables != null) {
+            variables.forEach(variable -> values.put(variable.name(), structured.contains(variable.name())
+                    ? io.mateu.workflow.domain.services.MultiInstance.structured(variable.value())
+                    : variable.value()));
+        }
+        return values;
+    }
+
     /** Source compatibility for processes created before engine-requested rollbacks. */
     public Process(String id, String name, String workflowDefinitionId, int workflowDefinitionVersion,
                    String workflowDefinitionJson, String businessKey, List<Variable> variables,
@@ -143,7 +214,7 @@ public class Process extends AggregateRoot implements Identifiable {
         this(id, name, workflowDefinitionId, workflowDefinitionVersion, workflowDefinitionJson, businessKey,
                 variables, status, completionPercentage, created, started, finished, pausedAt,
                 parentStepExecutionId, version, reply, continuedFromProcessId, continuedAsProcessId,
-                businessKeyReleased, initiatingActor, testRun, testRunRequestDigest, null);
+                businessKeyReleased, initiatingActor, testRun, testRunRequestDigest, null, null, null);
     }
 
     /** Whether the engine asked this process to roll back (see {@link #rollbackReason}). */

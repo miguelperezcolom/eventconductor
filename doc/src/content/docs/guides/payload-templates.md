@@ -37,11 +37,11 @@ bodyTemplate: "<order id=\"${orderId}\" total=\"${amount}\"/>"
 
 | name | value |
 |---|---|
-| each process variable | its value (a string) |
+| each process variable | its value (a string) — except, in a child a `forEach` started, the item and its index (`as`, `indexAs`), read as structure: `${room.number}` |
 | `process` | `id`, `businessKey`, `workflowDefinitionId`, `version` |
 | `step` | `id`, `name`, `executionId` |
 | `now` | the current instant, ISO-8601 |
-| `businessKey` | the process's business key |
+| `businessKey` | the process's business key — inside an [inline PROCESS body](/reference/step-types/#inline-body), the business key of the process that owns the body |
 
 Nothing else — no environment, no secrets.
 
