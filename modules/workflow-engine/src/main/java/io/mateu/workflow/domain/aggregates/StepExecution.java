@@ -233,6 +233,28 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      */
     private String outputJson;
 
+    /**
+     * For a forEach iteration, what the forEach's {@code label} made of its item — "Hab. 101" — evaluated
+     * once, when the iteration was materialised; null without one (the console then says "item N").
+     */
+    private String itemLabel;
+
+    /** Source compatibility for the constructor shape before {@code itemLabel}. */
+    public StepExecution(String id, String processId, String workflowDefinitionId, String stepId,
+            String stepJson, List<Variable> variables, StepExecutionStatus status, String workerId,
+            long order, LocalDateTime startedAt, LocalDateTime finishedAt, int attemptCount,
+            LocalDateTime deadlineAt, String awaitingMessageName, String awaitingCorrelationKey, Integer version,
+            String injectedByStepExecutionId, String invocationId, String agentRequest, String agentHoldReason,
+            Long lastAgentStateSequence, boolean failureNonRetryable, int dispatchCount, int iteration,
+            boolean superseded, String loopDecision, String parentExecutionId, Integer itemIndex,
+            String scopeJson, String outputJson) {
+        this(id, processId, workflowDefinitionId, stepId, stepJson, variables, status, workerId,
+                order, startedAt, finishedAt, attemptCount, deadlineAt, awaitingMessageName, awaitingCorrelationKey, version,
+                injectedByStepExecutionId, invocationId, agentRequest, agentHoldReason, lastAgentStateSequence,
+                failureNonRetryable, dispatchCount, iteration, superseded, loopDecision, parentExecutionId, itemIndex,
+                scopeJson, outputJson, null);
+    }
+
     public static final String LOOP_EXITED = "EXITED";
     public static final String LOOP_LOOPED = "LOOPED";
     public static final String LOOP_EXHAUSTED = "EXHAUSTED";
@@ -781,7 +803,12 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
                 return this;
             }
         } else if (StepType.PROCESS.equals(step.type())) {
-            if (step.childWorkflowDefinitionId() == null || step.childWorkflowDefinitionId().isBlank()) {
+            // The child workflow is the one the step names, or the one its inline body becomes inside
+            // this step's own definition (see EmbeddedProcessDefinitions) — which CreateProcessUseCase
+            // builds from this process's snapshot, as nothing in the repository holds it.
+            var childDefinitionId = io.mateu.workflow.domain.services.EmbeddedProcessDefinitions
+                    .childDefinitionIdOf(process.getWorkflowDefinitionId(), step);
+            if (childDefinitionId == null) {
                 send(new TaskLogEmitted(id, MessageType.Error,
                         "Step " + step.name() + " has no child workflow definition id defined."));
                 // updateStatus (not a bare assignment) so the normal failure pipeline
@@ -793,13 +820,13 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             // NotifyParentStepService completes it when the child process reaches a terminal
             // status. The deterministic businessKey "parent:<stepExecutionId>" makes
             // redeliveries idempotent (CreateProcessUseCase dedupes by businessKey).
-            send(new ProcessCreationRequested(step.childWorkflowDefinitionId(), "parent:" + id,
+            send(new ProcessCreationRequested(childDefinitionId, "parent:" + id,
                     variables.stream()
                             .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
                             .toList(),
                     id));
             send(new TaskLogEmitted(id, MessageType.Info,
-                    "Started child process of workflow '" + step.childWorkflowDefinitionId()
+                    "Started child process of workflow '" + childDefinitionId
                             + "' for step " + step.name() + "."));
         } else if (StepType.RULE.equals(step.type())) {
             if (step.ruleId() == null || step.ruleId().isEmpty()) {
@@ -1287,6 +1314,12 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     /** A new iteration of {@code container}, CREATED, with its own id and scope. */
     public static StepExecution iterationOf(StepExecution container, String stepJson, int index,
                                             java.util.Map<String, String> scope) {
+        return iterationOf(container, stepJson, index, scope, null);
+    }
+
+    /** A new iteration of {@code container}, CREATED, with its own id, scope and label (null for none). */
+    public static StepExecution iterationOf(StepExecution container, String stepJson, int index,
+                                            java.util.Map<String, String> scope, String label) {
         return StepExecution.builder()
                 .id(UUID.randomUUID().toString())
                 .processId(container.getProcessId())
@@ -1301,6 +1334,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
                 .parentExecutionId(container.getId())
                 .itemIndex(index)
                 .scopeJson(io.mateu.workflow.domain.services.MultiInstance.toJson(scope))
+                .itemLabel(label)
                 .build();
     }
 

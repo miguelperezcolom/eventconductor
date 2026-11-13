@@ -157,7 +157,9 @@ public class InboundEventService {
                 start(entry.definition(), entry.trigger(), event, context, paused, acted, duplicates);
             }
         }
-        deliver(definitions, event, context, acted, duplicates);
+        // A step waiting inside a PROCESS step's inline body hears events as any other does.
+        deliver(io.mateu.workflow.domain.services.EmbeddedProcessDefinitions.withEmbedded(definitions),
+                event, context, acted, duplicates);
         acted.forEach(receipt -> count(event, receipt.outcome().name()));
         duplicates.forEach(receiver -> count(event, "DUPLICATE"));
         if (acted.isEmpty() && duplicates.isEmpty()) {

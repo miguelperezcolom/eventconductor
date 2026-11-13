@@ -25,6 +25,14 @@ package io.mateu.workflow.domain.aggregates;
  *                       reported
  * @param completion     {@code all} (default), {@code any}, or a JEXL condition checked after each
  *                       completed iteration — see {@link #completionCondition()}
+ * @param onIterationFailure what an iteration that fails for good does to the container (see
+ *                       {@link #failurePolicy()}): {@code failFast} (the default — absent means it), {@code continue}
+ *                       or {@code compensateAll}. Left out of the JSON when absent, so a forEach that declares none
+ *                       hashes into a definition version exactly as before.
+ * @param label          JEXL over the process variables with {@code as}/{@code indexAs} laid over them, evaluated once
+ *                       per iteration when it is materialised, naming it in the console and the API ("Hab. 101"
+ *                       instead of "item 2"); cut to {@link #MAX_LABEL_LENGTH} characters. Absent, or evaluating to
+ *                       nothing or failing: no label — never a failed iteration. Left out of the JSON when absent.
  */
 public record ForEach(
         String items,
@@ -34,8 +42,49 @@ public record ForEach(
         Integer maxConcurrency,
         String output,
         String outputElement,
-        String completion
+        String completion,
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        String onIterationFailure,
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        String label
 ) {
+
+    /** The longest label an iteration keeps; a longer one is cut, with an ellipsis. */
+    public static final int MAX_LABEL_LENGTH = 80;
+
+    /**
+     * The first iteration that fails for good fails the container at once: what has not finished is
+     * cancelled, and the saga compensates the iterations that completed. As forEach always behaved.
+     */
+    public static final String FAIL_FAST = "failFast";
+    /**
+     * A failed iteration does not stop the others: the container waits for every iteration and then
+     * COMPLETES, whatever failed; {@code output} then carries one {@code {status, value | error}} object
+     * per item (see {@code MultiInstance#output}), so what follows can tell which items made it.
+     */
+    public static final String CONTINUE = "continue";
+    /**
+     * All or nothing, decided at the end: the container waits for every iteration; if any failed, it fails
+     * — and the saga compensates every iteration that completed — and if none did, it completes as usual.
+     */
+    public static final String COMPENSATE_ALL = "compensateAll";
+    public static final java.util.List<String> FAILURE_POLICIES = java.util.List.of(FAIL_FAST, CONTINUE, COMPENSATE_ALL);
+
+    /** {@link #onIterationFailure} as one of {@link #FAILURE_POLICIES} (case-insensitive), {@link #FAIL_FAST} when absent or unknown. */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public String failurePolicy() {
+        if (onIterationFailure == null || onIterationFailure.isBlank()) {
+            return FAIL_FAST;
+        }
+        return FAILURE_POLICIES.stream().filter(p -> p.equalsIgnoreCase(onIterationFailure.trim()))
+                .findFirst().orElse(FAIL_FAST);
+    }
+
+    /** Whether a failed iteration leaves the others running ({@code continue} or {@code compensateAll}). */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public boolean waitsForEveryIteration() {
+        return !FAIL_FAST.equals(failurePolicy());
+    }
 
     public static final String DEFAULT_AS = "item";
     public static final String DEFAULT_INDEX_AS = "index";
@@ -96,6 +145,6 @@ public record ForEach(
      * unit of work to undo, one at a time, every one of them.
      */
     public static ForEach compensation() {
-        return new ForEach(null, null, null, SEQUENTIAL, 1, null, null, ALL);
+        return new ForEach(null, null, null, SEQUENTIAL, 1, null, null, ALL, null, null);
     }
 }

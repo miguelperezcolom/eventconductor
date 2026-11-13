@@ -48,6 +48,8 @@ class LoopsAndForEachJpaE2eTest extends AbstractJpaE2eTest {
             assertThat(i.getOutputJson()).contains("reservationId");
         });
         assertThat(iterations.get(2).scope()).containsEntry("room", "103").containsEntry("roomIndex", "2");
+        // forEach label (V60): evaluated once per iteration and read back from its row.
+        assertThat(iterations).extracting(StepExecution::getItemLabel).containsExactly("Hab. 101", "Hab. 102", "Hab. 103");
     }
 
     @Test

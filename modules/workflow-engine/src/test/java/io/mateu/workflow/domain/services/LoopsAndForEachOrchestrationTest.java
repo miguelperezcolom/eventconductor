@@ -279,7 +279,7 @@ class LoopsAndForEachOrchestrationTest {
 
     @Test
     void multiInstanceHelpersReadStructureFromVariables() {
-        var forEach = new io.mateu.workflow.domain.aggregates.ForEach("order.lines", null, null, null, null, null, null, null);
+        var forEach = new io.mateu.workflow.domain.aggregates.ForEach("order.lines", null, null, null, null, null, null, null, null, null);
         var p = Process.builder().id("x").variables(List.of(new Variable("order", "{\"lines\":[1,2]}"))).build();
         assertThat(MultiInstance.items(forEach, p)).containsExactly(1, 2);
         assertThat(MultiInstance.asVariableValue(java.util.Map.of("a", 1))).isEqualTo("{\"a\":1}");
@@ -289,12 +289,19 @@ class LoopsAndForEachOrchestrationTest {
         assertThat(MultiInstance.stringMap("not json")).isEmpty();
         assertThat(MultiInstance.overlay(List.of(new Variable("item", "old"), new Variable("x", "1")),
                 java.util.Map.of("item", "new"))).containsExactlyInAnyOrder(new Variable("x", "1"), new Variable("item", "new"));
-        var array = new io.mateu.workflow.domain.aggregates.ForEach("'[3,4]'", null, null, "sequential", null, null, null, "any");
+        var array = new io.mateu.workflow.domain.aggregates.ForEach("'[3,4]'", null, null, "sequential", null, null, null, "any", null, null);
         assertThat(MultiInstance.items(array, p)).containsExactly(3, 4);
         assertThat(array.concurrency()).isEqualTo(1);
         assertThat(array.completesOnAny()).isTrue();
         assertThat(array.completionCondition()).isNull();
-        var broken = new io.mateu.workflow.domain.aggregates.ForEach("'[3,'", null, null, null, null, null, null, null);
+        assertThat(array.failurePolicy()).isEqualTo("failFast");
+        assertThat(array.waitsForEveryIteration()).isFalse();
+        var tolerant = new io.mateu.workflow.domain.aggregates.ForEach("l", null, null, null, null, null, null, null, "Continue", null);
+        assertThat(tolerant.failurePolicy()).isEqualTo("continue");
+        assertThat(tolerant.waitsForEveryIteration()).isTrue();
+        // Absent, it is left out of the JSON: a forEach without one hashes into a version as before.
+        assertThat(io.mateu.core.infra.JsonSerializer.toJson(array)).doesNotContain("onIterationFailure");
+        var broken = new io.mateu.workflow.domain.aggregates.ForEach("'[3,'", null, null, null, null, null, null, null, null, null);
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> MultiInstance.items(broken, p))
                 .isInstanceOf(MultiInstance.ItemsException.class);
     }

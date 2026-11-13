@@ -17,6 +17,7 @@ steps:
       indexAs: roomIndex
       output: reservations
       outputElement: reservationId
+      label: "'Hab. ' + room"
   - { id: confirm, type: ACTION, name: Confirm, topic: work, preconditionStepId: reserve }
   - { id: release, type: ACTION, name: Release a room, topic: work }
   - { id: end, type: END, name: End, preconditionStepId: confirm }

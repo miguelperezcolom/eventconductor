@@ -1,0 +1,23 @@
+id: nested-inline
+name: An inline body inside an inline body
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: outer
+    type: PROCESS
+    name: Outer
+    preconditionStepId: start
+    outputVariables: [result]
+    steps:
+      - { id: start, type: START, name: Start }
+      - id: inner
+        type: PROCESS
+        name: Inner
+        preconditionStepId: start
+        outputVariables: [result]
+        steps:
+          - { id: start, type: START, name: Start }
+          - { id: work, type: ACTION, name: Work, topic: deep-work, preconditionStepId: start }
+          - { id: end, type: END, name: End, preconditionStepId: work }
+      - { id: end, type: END, name: End, preconditionStepId: inner }
+  - { id: end, type: END, name: End, preconditionStepId: outer }

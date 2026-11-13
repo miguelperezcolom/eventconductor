@@ -1,0 +1,20 @@
+id: rooms-compensate-all
+name: Reserve every room, onIterationFailure compensateAll
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: reserve
+    type: ACTION
+    name: Reserve a room
+    topic: reserve-room
+    preconditionStepId: start
+    compensable: true
+    compensationStepId: release
+    forEach:
+      items: rooms
+      as: room
+      output: reservations
+      outputElement: reservationId
+      onIterationFailure: compensateAll
+  - { id: release, type: ACTION, name: Release a room, topic: release-room }
+  - { id: end, type: END, name: End, preconditionStepId: reserve }

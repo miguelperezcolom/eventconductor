@@ -148,7 +148,8 @@ public class CreateProcessUseCase {
         // repository instead would let an editor round-trip bake the default in permanently.
         var workflowDefinition = StepTimeoutDefaults.applyTo(
                 command.definition() != null ? command.definition()
-                        : workflowDefinitionRepository.findById(command.workflowDefinitionId())
+                        : embeddedDefinition(command)
+                        .or(() -> workflowDefinitionRepository.findById(command.workflowDefinitionId()))
                         .orElseThrow(() -> new UnknownWorkflowDefinitionException(command.workflowDefinitionId())),
                 defaultStepTimeoutMillis);
 
@@ -312,6 +313,50 @@ public class CreateProcessUseCase {
      * @throws FlowAuthorizationDeniedException if the caller is missing anything the definition requires
      */
     /** A creation a PROCESS step asked for, under the deterministic key of its first child. */
+    /**
+     * The definition of a child whose PROCESS step writes its workflow in line (see
+     * {@link io.mateu.workflow.domain.services.EmbeddedProcessDefinitions}), built from the parent
+     * process's snapshot — empty for every other creation.
+     *
+     * <p>Only the step that owns the body can ask for it: the request must come from that PROCESS step
+     * execution, under one of its child keys, and name the id its body becomes. Anything else — an
+     * upstream record naming {@code booking.rooms}, the console, MCP — goes to the repository, which
+     * holds no such definition, and is refused as unknown. That is what keeps an inline body from being
+     * started on its own.
+     */
+    private java.util.Optional<io.mateu.workflow.domain.aggregates.WorkflowDefinition> embeddedDefinition(
+            CreateProcessCommand command) {
+        var parentStepExecutionId = command.parentStepExecutionId();
+        if (parentStepExecutionId == null || parentStepExecutionId.isBlank() || command.businessKey() == null
+                || !command.businessKey().startsWith(ChildProcesses.firstKey(parentStepExecutionId))) {
+            return java.util.Optional.empty();
+        }
+        var parentExecution = stepExecutionRepository.findById(parentStepExecutionId).orElse(null);
+        if (parentExecution == null || parentExecution.getStepJson() == null) {
+            return java.util.Optional.empty();
+        }
+        var step = io.mateu.core.infra.JsonSerializer.pojoFromJson(parentExecution.getStepJson(),
+                io.mateu.workflow.domain.aggregates.Step.class);
+        if (!io.mateu.workflow.domain.services.EmbeddedProcessDefinitions.isInlineProcess(step)) {
+            return java.util.Optional.empty();
+        }
+        var parentProcess = processRepository.findById(parentExecution.getProcessId()).orElse(null);
+        if (parentProcess == null) {
+            return java.util.Optional.empty();
+        }
+        var parentDefinition = parentProcess.getWorkflowDefinitionJson() == null ? null
+                : io.mateu.core.infra.JsonSerializer.pojoFromJson(parentProcess.getWorkflowDefinitionJson(),
+                        io.mateu.workflow.domain.aggregates.WorkflowDefinition.class);
+        if (parentDefinition == null) {
+            return java.util.Optional.empty();
+        }
+        var embedded = io.mateu.workflow.domain.services.EmbeddedProcessDefinitions.of(parentDefinition, step);
+        if (!embedded.id().equals(command.workflowDefinitionId())) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.of(embedded);
+    }
+
     private static boolean isAPROCESSStepsChild(CreateProcessCommand command) {
         return command.parentStepExecutionId() != null && !command.parentStepExecutionId().isBlank()
                 && ChildProcesses.firstKey(command.parentStepExecutionId()).equals(command.businessKey());

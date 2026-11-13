@@ -3330,6 +3330,10 @@ components:
           format: int32
           description: "For a forEach iteration, its 0-based position in the list;\
             \ null otherwise."
+        itemLabel:
+          type: string
+          description: "For a forEach iteration, what the forEach's label made of\
+            \ its item (\"Hab. 101\"); null without one, and for every other execution."
         iteration:
           type: integer
           format: int32

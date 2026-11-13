@@ -425,7 +425,8 @@ variables, and the parent step waits `PENDING` until the child reaches a termina
 ```
 
 **Required fields:** `childWorkflowDefinitionId` — must be different from the workflow's own
-id (direct self-recursion is rejected at load).
+id (direct self-recursion is rejected at load) — **or** an inline body under `steps:` (below); a
+step declares exactly one of the two.
 
 **Optional fields:** `outputVariables` — an array of child-process variable names copied back
 into the parent when the child completes. Empty or absent means **none**: child state is never
@@ -453,6 +454,43 @@ Cancellation propagates from parent to child: when the parent `PROCESS` step end
 `ERROR` or `TIMEOUT` (retries exhausted), a still-running child process is cancelled too — and
 the cascade continues to grandchildren. While retries remain, the child is left running: a
 retried `PROCESS` step re-attaches to the same child through the deterministic business key.
+
+### Inline body {#inline-body}
+
+Instead of naming a child workflow, a PROCESS step can write it **in line**: `steps:` holds the
+child's steps, with the same syntax as a definition's.
+
+```yaml
+- id: rooms
+  type: PROCESS
+  name: Book one room
+  preconditionStepId: start
+  outputVariables: [roomBookingId]
+  forEach: { items: rooms, as: room, output: roomBookings, outputElement: roomBookingId }
+  steps:
+    - { id: start, type: START, name: Start }
+    - { id: create, type: ACTION, name: Create, topic: create-booking, preconditionStepId: start }
+    - { id: end, type: END, name: End, preconditionStepId: create }
+```
+
+It runs exactly as a named child does — every rule above applies, and with a `forEach` each item
+starts a child of its own (a dynamic fork; see
+[Loops and Multi-Instance](/guides/loops-and-multi-instance/#a-dynamic-fork-foreach-over-an-inline-process)).
+What differs is where the child's definition comes from:
+
+- **Its id is `<workflow id>.<step id>`** — `booking.rooms`. Child processes show it as their
+  workflow; a body inside a body composes: `booking.rooms.extras`.
+- **It is part of the parent's version.** The body is in the parent's steps, so it changes, is
+  versioned and is migrated with the parent; its children carry the parent's version number. A
+  running child keeps the body it started with.
+- **It cannot be started on its own.** It is not a definition in the repository — not listed, not
+  startable over REST, MCP, the console, an event or a cron. Only its PROCESS step starts it.
+- **It inherits** the parent's `sensitiveVariables`, `requiredScopes`/`requiredRoles` and tags,
+  since its children hold the parent's variables.
+- **It is validated as a workflow of its own** — at load and by `eventconductor:validate` — and
+  its problems say where they are: `booking.rooms: Step 'confirm' has no preconditions …`.
+- Steps inside it that wait for a message or an event (`WAIT_FOR_MESSAGE`, `onEvent`, `awaitReply`)
+  are routed as any other's.
 
 ---
 
@@ -921,6 +959,7 @@ parent step waiting until the last run of the chain ends.
 | `preconditionExpression` | string | — | JEXL expression; step skipped if evaluates to `false` |
 | `parallel` | boolean | `false` | **Deprecated and ignored** — every eligible step runs concurrently; kept only so old files keep deserializing |
 | `outputVariables` | string[] | — | PROCESS: child variables copied back into the parent on completion; empty/absent = none. Any step: the names `sensitiveOutputs` marks sensitive |
+| `steps` | step[] | — | PROCESS: the child workflow in line, instead of `childWorkflowDefinitionId` (exactly one of the two). See [Inline body](#inline-body) |
 | `sensitiveOutputs` | boolean | — | `true`: this step's `outputVariables` are [sensitive](/guides/sensitive-data-and-encryption/) — encrypted at rest and in transit, masked in the console, REST and MCP. Requires `outputVariables`. Part of the version |
 | `timeout` | integer (ms) | `0` | Max execution time; `0` = no timeout |
 | `retries` | integer | `0` | Auto-retry attempts on ERROR or TIMEOUT |
@@ -931,7 +970,7 @@ parent step waiting until the last run of the chain ends.
 | `awaitReply` | object | — | HTTP_CALL and PUBLISH_EVENT only: `{messageName, correlationExpression, onEvent?}` — the reply the step waits for after sending its request, armed in the same transaction that sends it. See [PUBLISH_EVENT](#publish_event) and [HTTP_CALL](#http_call) |
 | `onEvent` | object | — | WAIT_FOR_MESSAGE only: `{destination, type, correlationKey?, filter?, variables?}` — a domain event that becomes the step's message. See [Starting on and waiting for domain events](/guides/domain-event-triggers/) |
 | `maxSuccessfulExecutions` | integer | `0` | Cap on how many times this step may successfully run within one process instance (backstop against runaway loops). `0` inherits the workflow-level `defaultMaxStepExecutions`; both `0` = only the loop's own `maxIterations` and `workflow.loops.max-iterations` bound it. Enforced when a `repeat` or `loopBack` would run the step again: the step fails instead |
-| `forEach` | object | — | ACTION, USER_TASK, PROCESS, HTTP_CALL, LLM_CALL, RULE: run the step once per item — `{items, as?, indexAs?, mode?, maxConcurrency?, output?, outputElement?, completion?}`. See [Loops and Multi-Instance](/guides/loops-and-multi-instance/#foreach--once-per-item) |
+| `forEach` | object | — | ACTION, USER_TASK, PROCESS, HTTP_CALL, LLM_CALL, RULE: run the step once per item — `{items, as?, indexAs?, mode?, maxConcurrency?, output?, outputElement?, completion?, onIterationFailure?, label?}`. See [Loops and Multi-Instance](/guides/loops-and-multi-instance/#foreach--once-per-item) |
 | `repeat` | object | — | Same types: run the step again until a condition holds — `{until, maxIterations, delay?}`. See [repeat](/guides/loops-and-multi-instance/#repeat--one-step-until-a-condition) |
 | `priority` | integer | `50` | ACTION, HTTP_CALL, LLM_CALL, RULE: 0–100, higher first. Honoured by the HTTP worker queue, the embedded worker pool and the rate-limit queue; a Kafka topic keeps its own order. See [Flow control](/guides/flow-control/#task-priority) |
 | `loopBack` | object | — | Any step but START/END/REPLY: when it completes and `while` holds, run every step from `to` to here again — `{to, while?, maxIterations, delay?}`. See [loopBack](/guides/loops-and-multi-instance/#loopback--run-a-section-again) |

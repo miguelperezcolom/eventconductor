@@ -57,6 +57,25 @@ class LoopRulesTest {
     }
 
     @Test
+    void onIterationFailureTakesItsThreeValuesAndCompensateAllNeedsEveryIteration() {
+        var good = LoopRules.analyze(flow(
+                forEach("a", "ACTION", map("items", "l", "onIterationFailure", "continue", "completion", "any"), "start"),
+                forEach("b", "ACTION", map("items", "l", "onIterationFailure", "compensateAll", "mode", "sequential"), "a"),
+                forEach("c", "ACTION", map("items", "l", "onIterationFailure", "failFast", "completion", "any"), "b")));
+        assertThat(good.errors()).isEmpty();
+
+        var bad = LoopRules.analyze(flow(
+                forEach("a", "ACTION", map("items", "l", "onIterationFailure", "ignore"), "start"),
+                forEach("b", "ACTION", map("items", "l", "onIterationFailure", "compensateAll", "completion", "any"), "a"),
+                forEach("c", "ACTION", map("items", "l", "onIterationFailure", "compensateAll",
+                        "completion", "completedIterations >= 2"), "b")));
+        assertThat(bad.errors())
+                .anySatisfy(e -> assertThat(e).contains("onIterationFailure 'ignore' is not one of failFast, continue, compensateAll"))
+                .anySatisfy(e -> assertThat(e).contains("which completion 'any' would cut short"))
+                .anySatisfy(e -> assertThat(e).contains("which completion 'completedIterations >= 2' would cut short"));
+    }
+
+    @Test
     void forEachShapeErrors() {
         var report = LoopRules.analyze(flow(
                 forEach("a", "TIMER", map("mode", "random", "maxConcurrency", 0, "as", "1x", "indexAs", "x y",
