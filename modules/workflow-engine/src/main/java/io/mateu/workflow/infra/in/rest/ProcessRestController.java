@@ -103,6 +103,14 @@ public class ProcessRestController {
     private final MessageApiProperties apiProperties;
     private final ObjectProvider<CallerResolver> callerResolver;
 
+    /** Readiness, to tell "not imported yet" (503) from "no such definition" (404); absent when built by hand. */
+    private org.springframework.boot.availability.ApplicationAvailability availability;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setApplicationAvailability(org.springframework.boot.availability.ApplicationAvailability availability) {
+        this.availability = availability;
+    }
+
     public ProcessRestController(ProcessOperationsService processes, MessageApiProperties apiProperties,
                                  ObjectProvider<CallerResolver> callerResolver) {
         this.processes = processes;
@@ -130,6 +138,8 @@ public class ProcessRestController {
             @ApiResponse(responseCode = "400", description = "No definitionId, or over the engine's input limits.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "403", description = "The caller may not start the definition.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "404", description = "No such definition.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "503", description = "The engine is still starting and the definition is not imported yet"
+                    + " (a git import still running); Retry-After says when to try again.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "409", description = "The key is taken by another definition's process, or the definition accepts no new processes.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))})
     public ResponseEntity<?> start(
             @Parameter(hidden = true) @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
@@ -473,8 +483,8 @@ public class ProcessRestController {
     }
 
     @ExceptionHandler(UnknownWorkflowDefinitionException.class)
-    ProblemDetail onUnknownDefinition(UnknownWorkflowDefinitionException e) {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
+    ResponseEntity<ProblemDetail> onUnknownDefinition(UnknownWorkflowDefinitionException e) {
+        return UnknownDefinitionResponses.of(e, availability);
     }
 
     @ExceptionHandler(ProcessStateConflictException.class)

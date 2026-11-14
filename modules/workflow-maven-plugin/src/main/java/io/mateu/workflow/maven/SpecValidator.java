@@ -3,8 +3,7 @@ package io.mateu.workflow.maven;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.networknt.schema.InputFormat;
 import com.networknt.schema.Schema;
-import com.networknt.schema.SchemaRegistry;
-import com.networknt.schema.SpecificationVersion;
+import io.mateu.workflow.analysis.DefinitionSchemas;
 import org.apache.commons.jexl3.JexlBuilder;
 import org.apache.commons.jexl3.JexlEngine;
 import org.springframework.scheduling.support.CronExpression;
@@ -73,7 +72,7 @@ public class SpecValidator {
             if (stream == null) {
                 throw new IllegalStateException("Bundled schema not found on classpath: " + resource);
             }
-            return SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_7).getSchema(stream);
+            return DefinitionSchemas.registry().getSchema(stream);
         } catch (IOException e) {
             throw new UncheckedIOException("Could not load schema " + resource, e);
         }

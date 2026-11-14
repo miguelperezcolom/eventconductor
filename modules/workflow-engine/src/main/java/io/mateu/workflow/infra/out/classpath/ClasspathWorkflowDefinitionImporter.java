@@ -7,10 +7,9 @@ import io.mateu.workflow.application.services.DefinitionFileFormat;
 import io.mateu.workflow.application.services.WorkflowDefinitionValidator;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
+import io.mateu.workflow.infra.in.startup.StartupDefinitionImport;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
@@ -23,7 +22,8 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 /**
  * Imports workflow definitions from every {@code workflows/} directory on the classpath (see
  * {@link ClasspathDefinitionFiles}, which also says which copy wins when an id is in two of them) into the JPA repository at startup.
- * Active only when workflow.persistence=jpa. Runs before other ApplicationRunners (@Order(0)).
+ * Active only when workflow.persistence=jpa. A {@link StartupDefinitionImport}: done before the web server
+ * accepts requests (@Order(0): after the task-contract imports, before the directory import).
  * Definitions already present in the DB are skipped (idempotent).
  */
 @Service
@@ -31,7 +31,7 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 @RequiredArgsConstructor
 @Order(0)
 @Slf4j
-public class ClasspathWorkflowDefinitionImporter implements ApplicationRunner {
+public class ClasspathWorkflowDefinitionImporter implements StartupDefinitionImport {
 
     private static final ObjectMapper YAML_MAPPER = new YAMLMapper();
     private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
@@ -41,7 +41,7 @@ public class ClasspathWorkflowDefinitionImporter implements ApplicationRunner {
     final io.mateu.workflow.application.services.TaskReferenceResolver taskReferenceResolver;
 
     @Override
-    public void run(ApplicationArguments args) {
+    public void importDefinitions() {
         try {
             // Every workflows/ directory on the classpath; the same id in two of them: the first on
             // the classpath wins (ClasspathDefinitionFiles).

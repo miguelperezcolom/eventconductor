@@ -4,8 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.networknt.schema.InputFormat;
 import com.networknt.schema.Schema;
-import com.networknt.schema.SchemaRegistry;
-import com.networknt.schema.SpecificationVersion;
+import io.mateu.workflow.analysis.DefinitionSchemas;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -53,7 +52,7 @@ public class WorkflowDefinitionValidator {
     private synchronized Schema schema() throws IOException {
         if (schema == null) {
             try (var stream = new ClassPathResource(SCHEMA_RESOURCE).getInputStream()) {
-                schema = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_7).getSchema(stream);
+                schema = DefinitionSchemas.registry().getSchema(stream);
                 log.debug("Loaded workflow definition JSON schema from classpath:{}", SCHEMA_RESOURCE);
             }
         }
