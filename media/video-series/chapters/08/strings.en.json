@@ -10,6 +10,7 @@
   "wait.n2": "`correlationExpression` — the message names **the booking**",
   "wait.n3": "`deadline` — day before check-in, 12:00",
   "wait.n4": "`onTimeoutStepId` — a route, **not a failure**",
+  "wait.n5": "grace period, then **the front desk decides**",
   "between.n1": "correlated by **room**, not by booking",
   "between.n2": "step `timeout: PT2H` + its own route",
   "between.n3": "the sender: `room-cleaning` → `SEND_MESSAGE`",
