@@ -10,23 +10,23 @@ const here = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const [chapter, out] = process.argv.slice(2);
 const json = (p) => JSON.parse(readFileSync(p, 'utf8'));
 const script = json(resolve(here, `chapters/${chapter}/script.json`));
-const sha = execSync('git rev-parse --short HEAD', { cwd: here }).toString().trim();
-const lastTag = execSync('git describe --tags --abbrev=0 --match "v*"', { cwd: here }).toString().trim();
+// The release the series is recorded on (one place: scenes/release.json); code links point at its tag.
+const recordedOn = json(resolve(here, 'scenes/release.json')).recordedOn;
 const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const DOCS = 'https://eventconductor.mateu.io/';
 const docsUrl = DOCS + script.docs;
-const codeUrl = `https://github.com/miguelperezcolom/eventconductor/tree/${sha}/${script.code}`;
+const codeUrl = `https://github.com/miguelperezcolom/eventconductor/tree/v${recordedOn}/${script.code}`;
 const N = script.chapter;
 
 const L = {
   en: {
     master: 'English master', chapters: 'Chapters', docs: 'Docs', code: 'Code',
-    rec: (v) => `Recorded on EventConductor (main at ${sha}, after ${v}). Every screen is the real product running; ${script.standIns.en}. Voice: synthetic (Kokoro, local). Open source, MIT.`,
+    rec: (v) => `Recorded on EventConductor ${v}. Every screen is the real product running; ${script.standIns.en}. Voice: synthetic (Kokoro, local). Open source, MIT.`,
     playlist: 'Playlist', vis: 'Visibility', subs: 'Subtitles', audio: 'Audio language', lang: 'English',
   },
   es: {
     master: 'Máster en español', chapters: 'Capítulos', docs: 'Documentación', code: 'Código',
-    rec: (v) => `Grabado sobre EventConductor (main en ${sha}, posterior a ${v}). Cada pantalla es el producto real funcionando; ${script.standIns.es}. Voz: sintética (Kokoro, local). Código abierto, licencia MIT.`,
+    rec: (v) => `Grabado sobre EventConductor ${v}. Cada pantalla es el producto real funcionando; ${script.standIns.es}. Voz: sintética (Kokoro, local). Código abierto, licencia MIT.`,
     playlist: 'Lista', vis: 'Visibilidad', subs: 'Subtítulos', audio: 'Idioma del audio', lang: 'Español',
   },
 };
@@ -38,7 +38,8 @@ function description(textLang, tl) {
   for (let i = 1; i < marks.length; i++) if (marks[i].t - marks[i - 1].t < 10) console.warn(`! youtube chapter "${marks[i - 1].label}" is under 10 s (${tl.lang})`);
   const x = L[textLang];
   return [script.hook[textLang], '', script.about[textLang], '', `${x.chapters}:`, ...marks.map((m) => `${mmss(m.t)} ${m.label}`), '',
-    `${x.docs}: ${docsUrl}`, `${x.code}: ${codeUrl}`, '', x.rec(lastTag)].join('\n');
+    `${x.docs}: ${docsUrl}`, `${x.code}: ${codeUrl}`, '', x.rec(recordedOn),
+  ].join('\n');
 }
 
 let md = `# Chapter ${N} — ${script.title.en}\n\nNothing is uploaded by the pipeline: these are the texts for the owner's review.\n`;

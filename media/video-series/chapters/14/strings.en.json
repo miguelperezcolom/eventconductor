@@ -2,14 +2,47 @@
   "eyebrow": "EventConductor · Chapter 14",
   "title": "Secure and observable **by default**",
   "sub": "Refusals · secrets · metrics · traces",
-  "flow": [["anonymous → 401 / 403", "bad", "c0"], ["secrets by name", "az", "c0"], ["metrics", "good", "c1"], ["traces (opt-in)", "amb", "c1"]],
-  "page.main": "guides/security-defaults.md — on main, published after 2.41.0 · the defaults themselves: since 2.27 / 2.28 / 2.32",
+  "flow": [
+    [
+      "anonymous → 401 / 403",
+      "bad",
+      "c0"
+    ],
+    [
+      "secrets by name",
+      "az",
+      "c0"
+    ],
+    [
+      "metrics",
+      "good",
+      "c1"
+    ],
+    [
+      "traces (opt-in)",
+      "amb",
+      "c1"
+    ]
+  ],
+  "page.main": "guides/security-defaults.md · the defaults themselves: since 2.27 / 2.28 / 2.32",
   "optin.head": "On by default · opt-in",
   "optin.items": [
-    ["on by default", "2.27 · 2.28", "anonymous API, console and MCP callers refused · `${secret:…}` only from `workflow.http.secrets` · credentials bound to hosts · unsigned Git webhooks refused", "c0"],
-    ["opt-in", "", "tracing (sampling `0.0`) · metrics over OTLP · MCP · sensitive-variable encryption · sharding · process index · analytics rollups", "c1"]
+    [
+      "on by default",
+      "2.27 · 2.28",
+      "anonymous API, console and MCP callers refused · `${secret:…}` only from `workflow.http.secrets` · credentials bound to hosts · unsigned Git webhooks refused",
+      "c0"
+    ],
+    [
+      "opt-in",
+      "",
+      "tracing (sampling `0.0`) · metrics over OTLP · MCP · sensitive-variable encryption · sharding · process index · analytics rollups",
+      "c1"
+    ]
   ],
-  "optin.strip": ["metrics need only a `MeterRegistry`: Actuator + Prometheus → `/actuator/prometheus`, prefix `eventconductor_`"],
+  "optin.strip": [
+    "metrics need only a `MeterRegistry`: Actuator + Prometheus → `/actuator/prometheus`, prefix `eventconductor_`"
+  ],
   "close.line": "Secure until told otherwise, **observable when you ask.**",
   "close.next": "The series · eventconductor.mateu.io",
   "close.docs": "eventconductor.mateu.io · Secure by default",

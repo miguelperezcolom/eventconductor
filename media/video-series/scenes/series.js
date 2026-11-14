@@ -200,7 +200,10 @@
     root.dataset.id = sc.id;
     const view = VIEWS[sc.view];
     if (!view) throw new Error(`no view ${sc.view} for scene ${sc.id}`);
-    return { sc, root, draw: view(root, sc, H) };
+    const draw = view(root, sc, H);
+    // code, terminal and live draw their own labels; give every other view (title, diagrams, close) spec.pills too
+    const pills = ['code', 'terminal', 'live'].includes(sc.view) || !(sc.spec?.pills?.length) ? null : pillEls(root, sc);
+    return { sc, root, draw: pills ? (t) => { draw(t); pills(t); } : draw };
   });
   const FADE = 0.4;
   window.DURATION = D.duration;
