@@ -1,0 +1,23 @@
+{
+  "eyebrow": "EventConductor · Chapter 2",
+  "title": "Your **first process**",
+  "sub": "Dependencies · configuration · definition · worker · run",
+  "pieces": [["pom.xml", "2 dependencies"], ["application.properties", "2 properties"], ["01-first-booking.ec.yaml", "3 steps"], ["HotelTaskHandlers.java", "1 bean"], ["POST /workflow/api/processes", "1 call"]],
+  "pom.n1": "`workflow-engine` — the engine",
+  "pom.n2": "`builtin-workers` — HTTP and LLM calls, and **your task handlers**, in process",
+  "pom.n3": "the workshop app also adds the console (Mateu), JPA and H2",
+  "props.n1": "`embedded` — the engine runs **inside your app**",
+  "props.n2": "`jpa` — every run stored; H2 in memory here",
+  "props.n3": "`allow-anonymous` — **laptop only**: the API refuses anonymous callers by default (since 2.27)",
+  "def.n0": "`workflows/*.ec.yaml` — loaded at startup",
+  "def.n1": "`START` → `ACTION` → `END`",
+  "def.n2": "`preconditionStepId` — what a step waits for; **the graph is derived**",
+  "recap.items": [["Declare", "the process, in a file", "01-first-booking.ec.yaml"], ["Implement", "the work, in plain Java", "TaskRegistration bean"], ["Run", "the engine does the rest", "steps · state · console"]],
+  "close.line": "One file, one bean, **one call.**",
+  "close.next": "Next · Definitions: YAML, graph and IDE",
+  "close.docs": "eventconductor.mateu.io",
+  "close.workshop": "Workshop · module 1",
+  "close.license": "Open source · MIT",
+  "thumb.title": "Your **first process**",
+  "thumb.sub": "From a Spring Boot app to a running process"
+}
