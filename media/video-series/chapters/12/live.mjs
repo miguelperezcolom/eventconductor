@@ -5,7 +5,7 @@
 const DEF = 'src/main/resources/workflows/06-hotel-booking.ec.yaml';
 
 export async function run(c) {
-  c.term('iterations-src', "grep -n 'iterations(' src/test/java/com/example/hotel/RealHandlersTest.java", { cache: true });
+  c.term('iterations-src', "grep -n -B3 'iterations(' src/test/java/com/example/hotel/RealHandlersTest.java", { cache: true });
   c.term('mvn-test', 'mvn -B test', { cache: true, keep: /Tests run: .* -- in com|Tests run: \d+, Failures: \d+, Errors: \d+, Skipped: \d+$|BUILD (SUCCESS|FAILURE)/ });
   c.term('coverage', 'cat target/eventconductor-coverage/coverage.txt', { cache: true });
   c.term('verify-gap', `perl -pi -e 's/^(\\s+- id: )approve$/\${1}manager-approval/; s/(preconditionStepId): approve$/$1: manager-approval/' ${DEF} && mvn -B eventconductor:verify -Deventconductor.migration.from=HEAD; git checkout -- ${DEF}`,

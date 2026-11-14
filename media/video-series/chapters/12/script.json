@@ -204,7 +204,7 @@
         "en": [
           "Two days pass: the approval is still open, and its one-day escalation fired.",
           "One more day: the approval times out, and no room is booked.",
-          "Since 2.41 a test can also check what was compensated, and each forEach iteration by its label: only room 900 failed; 101 and 102 were undone."
+          "Since 2.41 a test can also check what was compensated, and each forEach iteration by its label: here the guest answers cancel, then only room 900 failed, and 101 and 102 were undone."
         ],
         "es": [
           "Pasan dos días: la aprobación sigue abierta, y su escalado de un día se disparó.",
