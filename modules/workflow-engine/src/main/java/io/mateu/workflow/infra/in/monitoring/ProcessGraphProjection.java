@@ -113,8 +113,7 @@ public final class ProcessGraphProjection {
      */
     public static String rowName(StepExecution se) {
         if (se.isIteration()) {
-            return se.getStepId() + " · " + (se.getItemLabel() != null && !se.getItemLabel().isBlank() ? se.getItemLabel()
-                    : "item " + (se.getItemIndex() == null ? "?" : se.getItemIndex()))
+            return se.getStepId() + " · " + se.iterationName()
                     + (se.getIteration() > 0 ? " (run " + (se.getIteration() + 1) + ")" : "");
         }
         if (se.getIteration() > 0) {

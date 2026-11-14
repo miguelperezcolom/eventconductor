@@ -1,0 +1,19 @@
+id: rooms-compensate-labelled
+name: Reserve every room, each named by its room, and undo them all when one fails
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: reserve
+    type: ACTION
+    name: Reserve a room
+    topic: reserve-labelled-room
+    preconditionStepId: start
+    compensable: true
+    compensationStepId: release
+    forEach:
+      items: rooms
+      as: room
+      label: "'Room ' + room"
+      onIterationFailure: compensateAll
+  - { id: release, type: ACTION, name: Release a room, topic: release-labelled-room }
+  - { id: end, type: END, name: End, preconditionStepId: reserve }

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Diagram minimap folds away.** The minimap's **×** folds it into a small map button (remembered per browser); the button brings it back. Styled with the graph's `--ec-*` tokens, so it reads the same in the VS Code and IntelliJ webviews.
+- **Workshop: approve in the browser.** The workshop console mounts the forms engine's `FormsOperationsMenu` beside `WorkflowMenu`, so a manager's approval is **Forms → Tasks → Run → Claim → Complete**. A laptop-only user switch, `GET /dev/act-as/manager` (and `/dev/act-as/nobody`), makes the browser *mia* of `front-desk-managers` by leaving an unsigned token in the console's sign-in cookie; it answers only with `workflow.security.trust-forwarded-token=true` and only to a loopback address. Module 6 shows the form path; `scripts/approve.sh` stays as the alternative.
+
+### Fixed
+- **Compensation rows read `item 0`, `item 1`.** The runs of a compensation that undoes a forEach's iterations now carry the label of the iteration they undo — the Steps tab reads `cancel-room-booking · Room 101`, and so do the diagram's lanes and the Errors tab. Messages, the *Complete step* picker and the migration log name an iteration by its label too (`Iteration 1 (Room 102)`, `first failure: Room 102`).
+- **The minimap covered nodes.** At 1280×720 the fitted graph put its right-most step (the END) under the minimap. Fit now keeps every step clear of the minimap — or of its folded button — fitting the graph beside or above it when a centred fit would not.
+- **A task's form answered "Not found." in a console mounted at the root.** An embedded application whose `@UI("")` mounts `FormsOperationsMenu`/`FormsMenu` as `forms` listed its tasks at `/forms/tasks`, but **Run** led to `/forms/task/{id}`, registered only under `/_forms` and `/_forms-admin`. The root mount now resolves both.
+- **Task inbox:** the *Overdue* column drew an empty dot on every task that is not overdue or escalated; it is blank now.
+
 ## [2.41.0] - 2026-11-14
 
 ### Added

@@ -1,7 +1,7 @@
 import {customElement, property, state} from "lit/decorators.js";
 import {css, html, LitElement, nothing, svg} from "lit";
 import type {ELK, ElkNode, ElkExtendedEdge} from "elkjs/lib/elk.bundled.js";
-import {neutralButtonStyles, iconCog, iconSitemap, iconFit, iconDownload} from "./neutralChrome";
+import {neutralButtonStyles, iconCog, iconSitemap, iconFit, iconDownload, iconMinimap} from "./neutralChrome";
 
 // ── Clipboard bridge ─────────────────────────────────────────────────────────
 //
@@ -502,6 +502,21 @@ interface Box { x: number; y: number; w: number; h: number; }
 const NODE_W = 176;
 const NODE_H = 60;
 const PAD = 60;
+
+/** The minimap's largest box, its distance from the canvas edges, and its collapsed button. */
+const MINIMAP_W = 168, MINIMAP_H = 116, MINIMAP_MARGIN = 10, MINIMAP_BUTTON = 30;
+const MINIMAP_COLLAPSED_KEY = "ec-graph-minimap-collapsed";
+
+/** The minimap's size for a graph's bounds: the graph scaled to fit {@link MINIMAP_W}×{@link MINIMAP_H}. */
+function minimapSize(b: {w: number; h: number}) {
+    const scale = Math.min(MINIMAP_W / b.w, MINIMAP_H / b.h);
+    return {w: b.w * scale, h: b.h * scale, scale};
+}
+
+/** Whether the reader folded the minimap away last time; false when storage cannot be read. */
+function readMinimapCollapsed(): boolean {
+    try { return window.localStorage.getItem(MINIMAP_COLLAPSED_KEY) === "1"; } catch { return false; }
+}
 
 // An expanded forEach (process view, double click): the node opens into a frame with one small card
 // per iteration, stacked, fanning out of the frame's left edge and back into its right one — so the
@@ -1694,6 +1709,8 @@ export class MateuWorkflowElk extends LitElement {
     private panStart = {x: 0, y: 0, panX: 0, panY: 0};
     /** True while dragging inside the minimap to scrub the viewport. */
     private miniDrag = false;
+    /** The minimap folded away to a button — the reader's choice, remembered per browser. */
+    @state() private minimapCollapsed = readMinimapCollapsed();
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -2923,19 +2940,56 @@ export class MateuWorkflowElk extends LitElement {
 
     private clampZoom(k: number) { return Math.max(0.1, Math.min(2.5, k)); }
 
-    /** Scale + centre the whole graph so it all fits inside the visible canvas area. */
+    /**
+     * Scale + centre the whole graph so it all fits inside the visible canvas area — and clear of
+     * the minimap. Fitted to the whole canvas first; when that puts a node under the minimap (at
+     * 1280×720 the right-most END sat beneath it), fitted again beside it or above it, whichever
+     * keeps the graph larger. A collapsed minimap is a small button and is cleared the same way.
+     */
     private fitToView = () => {
         const b = this.graphBounds();
         if (!b || this.viewW === 0 || this.viewH === 0) return;
-        const raw = Math.min(this.viewW / b.w, this.viewH / b.h);
-        // Embedded, start from the standard size (1:1) and only shrink to fit — never enlarge past
-        // natural size to fill an empty panel. Expanded (fullscreen), the point is to use the whole
-        // screen, so scale up to fill too. Either way, centre it in the viewport.
-        const k = this.clampZoom(this.fullscreen ? raw : Math.min(1, raw));
-        this.zoomK = k;
-        this.panX = (this.viewW - k * b.w) / 2 - k * b.minX;
-        this.panY = (this.viewH - k * b.h) / 2 - k * b.minY;
+        const fitIn = (w: number, h: number) => {
+            const raw = Math.min(Math.max(1, w) / b.w, Math.max(1, h) / b.h);
+            // Embedded, start from the standard size (1:1) and only shrink to fit — never enlarge past
+            // natural size to fill an empty panel. Expanded (fullscreen), the point is to use the whole
+            // screen, so scale up to fill too. Either way, centre it in the area given.
+            const k = this.clampZoom(this.fullscreen ? raw : Math.min(1, raw));
+            return {k, panX: (w - k * b.w) / 2 - k * b.minX, panY: (h - k * b.h) / 2 - k * b.minY};
+        };
+        let fit = fitIn(this.viewW, this.viewH);
+        const mini = this.minimapRect(b);
+        if (mini && this.nodeUnder(mini, fit.k, fit.panX, fit.panY)) {
+            const gap = 2 * MINIMAP_MARGIN;
+            const beside = fitIn(this.viewW - mini.w - gap, this.viewH);
+            const above = fitIn(this.viewW, this.viewH - mini.h - gap);
+            fit = beside.k >= above.k ? beside : above;
+        }
+        this.zoomK = fit.k;
+        this.panX = fit.panX;
+        this.panY = fit.panY;
     };
+
+    /** The minimap's box on screen (canvas coords, margin included), or null when none is drawn. */
+    private minimapRect(b = this.graphBounds()): {x: number; y: number; w: number; h: number} | null {
+        if (!b || !this.showsMinimap()) return null;
+        const size = this.minimapCollapsed ? {w: MINIMAP_BUTTON, h: MINIMAP_BUTTON} : minimapSize(b);
+        const w = size.w + 2, h = size.h + 2;   // + its border
+        return {x: this.viewW - MINIMAP_MARGIN - w, y: this.viewH - MINIMAP_MARGIN - h, w, h};
+    }
+
+    /** Whether any node (caption included) lands on {@code r} at zoom {@code k} and pan. */
+    private nodeUnder(r: {x: number; y: number; w: number; h: number}, k: number, panX: number, panY: number): boolean {
+        const slack = 6;
+        return (this.wf.steps ?? []).some(s => {
+            const p = this.positions[s.id];
+            if (!p) return false;
+            const sz = this.sizeOfStep(s);
+            const x1 = p.x * k + panX, y1 = p.y * k + panY;
+            const x2 = (p.x + sz.w) * k + panX, y2 = (p.y + sz.h + 18) * k + panY;
+            return x2 > r.x - slack && x1 < r.x + r.w + slack && y2 > r.y - slack && y1 < r.y + r.h + slack;
+        });
+    }
 
     /**
      * The whole graph as a standalone SVG document: everything at 1:1 regardless of the current
@@ -3673,13 +3727,31 @@ export class MateuWorkflowElk extends LitElement {
                          x2="${this.linkCursor.x}" y2="${this.linkCursor.y}"/>`;
     }
 
-    /** A modux-style minimap: the whole graph in miniature with the current viewport framed. */
+    /** Whether the graph is big enough to have a minimap at all (collapsed or not). */
+    private showsMinimap(): boolean {
+        return (this.wf.steps ?? []).length >= 2 && this.viewW > 0 && !!this.graphBounds();
+    }
+
+    /** Collapses or restores the minimap, remembered per browser (best effort: storage may be off). */
+    private toggleMinimap(collapsed: boolean) {
+        this.minimapCollapsed = collapsed;
+        try { window.localStorage.setItem(MINIMAP_COLLAPSED_KEY, collapsed ? "1" : "0"); } catch { /* not remembered */ }
+    }
+
+    /**
+     * A modux-style minimap: the whole graph in miniature with the current viewport framed. It can
+     * be collapsed to a small button (and the fit clears whichever of the two is drawn).
+     */
     private renderMinimap() {
         const b = this.graphBounds();
-        if (!b || (this.wf.steps ?? []).length < 2 || this.viewW === 0) return nothing;
-        const MW = 168, MH = 116;
-        const scale = Math.min(MW / b.w, MH / b.h);
-        const mw = b.w * scale, mh = b.h * scale;
+        if (!b || !this.showsMinimap()) return nothing;
+        if (this.minimapCollapsed) {
+            return html`
+                <button class="minimap-open" title="Show the minimap"
+                        @mousedown="${(e: MouseEvent) => e.stopPropagation()}"
+                        @click="${(e: MouseEvent) => { e.stopPropagation(); this.toggleMinimap(false); }}">${iconMinimap}</button>`;
+        }
+        const {w: mw, h: mh, scale} = minimapSize(b);
         // The scene rectangle currently visible on screen, in scene coords.
         const vx = -this.panX / this.zoomK, vy = -this.panY / this.zoomK;
         const vw = this.viewW / this.zoomK, vh = this.viewH / this.zoomK;
@@ -3704,6 +3776,9 @@ export class MateuWorkflowElk extends LitElement {
                     })}
                     <rect class="mini-view" x="${vx - b.minX}" y="${vy - b.minY}" width="${vw}" height="${vh}"/>
                 </svg>
+                <button class="minimap-close" title="Hide the minimap"
+                        @mousedown="${(e: MouseEvent) => e.stopPropagation()}"
+                        @click="${(e: MouseEvent) => { e.stopPropagation(); this.toggleMinimap(true); }}">×</button>
             </div>`;
     }
 
@@ -5391,6 +5466,22 @@ export class MateuWorkflowElk extends LitElement {
             backdrop-filter: blur(2px);
         }
         .minimap svg {display: block;}
+        .minimap-close {
+            position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; padding: 0;
+            display: flex; align-items: center; justify-content: center;
+            border: none; border-radius: 4px; cursor: pointer; font-size: 14px; line-height: 1;
+            background: color-mix(in srgb, var(--ec-surface) 70%, transparent); color: var(--ec-text-dim);
+        }
+        .minimap-close:hover {background: var(--ec-hover); color: var(--ec-text);}
+        .minimap-open {
+            position: absolute; right: 10px; bottom: 10px; z-index: 5;
+            width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center;
+            border: 1px solid var(--ec-border); border-radius: 8px; cursor: pointer;
+            background: color-mix(in srgb, var(--ec-surface) 88%, transparent); color: var(--ec-text-dim);
+            box-shadow: 0 2px 8px #0000001a;
+        }
+        .minimap-open:hover {background: var(--ec-hover); color: var(--ec-text);}
+        .minimap-open svg {width: 16px; height: 16px;}
         .minimap .mini-view {
             fill: color-mix(in srgb, var(--ec-primary) 12%, transparent);
             stroke: var(--ec-primary); stroke-width: 2; vector-effect: non-scaling-stroke;
