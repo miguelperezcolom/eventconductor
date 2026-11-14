@@ -245,6 +245,7 @@ class AiReferenceExamplesTest {
             "doc/src/content/docs/guides/testing-workflows.md",
             "doc/src/content/docs/guides/request-response.md",
             "doc/src/content/docs/guides/why-a-process-engine.mdx",
+            "doc/src/content/docs/guides/loops-and-multi-instance.md",
             "doc/src/content/docs/workshop/00-setup.md",
             "doc/src/content/docs/workshop/01-first-flow.md",
             "doc/src/content/docs/workshop/02-one-booking-per-room.md",
@@ -273,7 +274,11 @@ class AiReferenceExamplesTest {
             list.filter(p -> p.getFileName().toString().matches("eventconductor-ai-.*\\.md")).sorted().forEach(files::add);
         }
         DOC_PAGES.stream().map(REPO::resolve).forEach(files::add);
-        return files;
+        // The workshop, every page of it (the ones listed above and any added later).
+        try (Stream<Path> walk = Files.walk(REPO.resolve("doc/src/content/docs/workshop"))) {
+            walk.filter(p -> p.toString().endsWith(".md") || p.toString().endsWith(".mdx")).sorted().forEach(files::add);
+        }
+        return files.stream().map(Path::normalize).distinct().toList();
     }
 
     static List<Example> examples(Path file) throws IOException {

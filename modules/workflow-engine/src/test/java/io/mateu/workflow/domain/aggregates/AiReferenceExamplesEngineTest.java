@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * The engine's half of {@code AiReferenceExamplesTest} (workflow-maven-plugin): every whole workflow
  * definition shown in the Claude Code skills ({@code .claude/skills/**}) and the published AI reference
- * files ({@code doc/public/eventconductor-ai-*.md}) and a set of doc pages must be accepted by the engine as it loads a file —
+ * files ({@code doc/public/eventconductor-ai-*.md}) a set of doc pages and every workshop page must be accepted by the engine as it loads a file —
  * the schema on the document as written, then binding and {@link WorkflowDefinition#checkInvariants()} —
  * so an example cannot teach an assistant something the engine would refuse at import.
  */
@@ -87,9 +87,13 @@ class AiReferenceExamplesEngineTest {
             "doc/src/content/docs/guides/testing-workflows.md",
             "doc/src/content/docs/guides/request-response.md",
             "doc/src/content/docs/guides/why-a-process-engine.mdx",
+            "doc/src/content/docs/guides/loops-and-multi-instance.md",
             "doc/src/content/docs/reference/step-types.md",
             "doc/src/content/docs/reference/maven-plugin.md",
             "doc/src/content/docs/reference/configuration.md");
+
+    /** Every page under it is checked. */
+    static final String WORKSHOP = "doc/src/content/docs/workshop";
 
     private static List<Path> aiFiles() throws IOException {
         List<Path> files = new ArrayList<>();
@@ -103,6 +107,10 @@ class AiReferenceExamplesEngineTest {
             list.filter(p -> p.getFileName().toString().matches("eventconductor-ai-.*\\.md")).sorted().forEach(files::add);
         }
         DOC_PAGES.stream().map(REPO::resolve).forEach(files::add);
-        return files;
+        // The workshop, every page of it: readers copy its definitions as they are.
+        try (Stream<Path> walk = Files.walk(REPO.resolve(WORKSHOP))) {
+            walk.filter(p -> p.toString().endsWith(".md") || p.toString().endsWith(".mdx")).sorted().forEach(files::add);
+        }
+        return files.stream().distinct().toList();
     }
 }
