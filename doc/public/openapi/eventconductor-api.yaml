@@ -662,6 +662,13 @@ paths:
                 $ref: "#/components/schemas/ProblemDetail"
           description: The definition's startPolicy throttle dropped the start; Retry-After
             says when a window has room.
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The engine is still starting and the definition is not imported
+            yet (a git import still running); Retry-After says when to try again.
       summary: Start a process
       tags:
       - Processes
