@@ -314,6 +314,117 @@ the process from the engine when it runs, and a failure prints its steps and var
 A retried step is one step execution with several attempts, so `stepExecutions("charge")` has one
 element after two retries; count dispatches with `runtime.invocationsOf("charge")`.
 
+## Scenarios as data
+
+A test case can be a file instead of a method: what to start, how its tasks, HTTP calls, model calls and agents answer, what happens next and how it must end. Someone who does not write Java can then add a case — and review one — as easily as a definition.
+
+<!-- ec-example: skip -->
+```yaml
+# src/test/scenarios/booking.yaml
+workflow: booking-saga                 # shared by every scenario of the file
+tasks:
+  reserve-room: { complete: { reservationId: R-1 } }
+  refund: { complete: {} }
+  release-room: { complete: {} }
+
+scenarios:
+  - name: the payment is captured after the cooling-off period
+    variables: { amount: 120 }
+    tasks:
+      charge-card: { complete: { chargeId: ch_1 } }
+      capture-payment: { complete: {} }
+    then:
+      - advanceTime: P3D
+    expect:
+      status: COMPLETED
+      passedSteps: [reserve, charge, capture]
+      variables: { chargeId: ch_1 }
+
+  - name: a declined card releases the room
+    variables: { amount: 120 }
+    tasks:
+      charge-card: { fail: CARD_DECLINED, retryable: false }
+    expect:
+      status: COMPENSATED
+      passedSteps: [release]
+      notPassedSteps: [capture]
+```
+
+Run every scenario of a directory as a test of its own — each with fresh mocks — from a parameterized test:
+
+```java
+@EventConductorTest
+class BookingScenariosTest {
+
+    @ParameterizedTest(name = "{0}")
+    @ScenarioSource("src/test/scenarios")          // files or directories; classpath: works too
+    void scenario(Scenario scenario, WorkflowTestRuntime runtime) {
+        runtime.run(scenario);                     // returns the TestProcess, for more assertions
+    }
+}
+```
+
+or from a `@TestFactory`, `return runtime.scenarios("src/test/scenarios");`. A file is an object with `scenarios` (its other keys are defaults its scenarios share), a list of scenarios, or one scenario; YAML or JSON. Maps a scenario shares with its file (`variables`, `tasks`, `steps`, `http` …) are merged one level deep: the scenario adds entries and overrides them by key.
+
+| Key | What it says |
+|---|---|
+| `name` | How the test is called (default: `scenario <n>`) |
+| `workflow` | The definition to start (required) |
+| `businessKey` | The process's business key (default: generated) |
+| `variables` | The start variables; non-text values are stored as JSON |
+| `tasks` / `steps` | Task answers by task id or topic (`whenTask`) / by step id (`whenStep`) |
+| `http` / `llm` / `agents` | `HTTP_CALL` / `LLM_CALL` / `AGENT` answers, by step id |
+| `then` | What happens after the start, in order |
+| `expect` | How it must end |
+
+**Answers.** One answer, or a list. A list is given in order — the *n*-th dispatch gets the *n*-th answer and the last one repeats, as with `thenComplete(…).thenFail(…)` — unless an answer has a `when`: then each dispatch gets the first answer whose `when` (JEXL, over the variables the task was sent; JSON values as structure) holds, and an answer without one is the fallback.
+
+| Kind | Answers |
+|---|---|
+| task / step | `{complete: {var: value}}` (`${…}` in a value is filled in from the task's variables) · `{fail: CODE, retryable: false}` (`retryable` defaults to true) · `{timeout: true}` (never answers) |
+| `http` | `{status: 201, body: {…} or "text", headers: {…}}` (`status` defaults to 200) · `{ioError: true}` |
+| `llm` | `{answer: "text" or {…}}` (an object is answered as JSON) · `{fail: CODE, retryable: false}` |
+| `agents` | `{output: … }` · `{fail: CODE, message: …}` · `{reviewRequired: true}` · `{cancelled: true}` |
+
+**`then`** — each item one action: `advanceTime: P3D` · `sendMessage: {name, correlationKey, variables}` (the correlation key defaults to the business key) · `completeTask: {step, variables}` · `failTask: {step, code, retryable}` · `completeUserTask: {step, values}` · `publishEvent: {destination, type, data}` · `update: {name, payload}` · `cancel: true` · `runUntilIdle: true`.
+
+**`expect`** — `status` (a `ProcessStatus`: `COMPLETED`, `COMPENSATED`, `ERROR`, `RUNNING` …) · `passedSteps` · `notPassedSteps` · `waitingAt` · `variables` (compared as `hasVariable` compares) · `missingVariables` · `publishedEvents` (CloudEvents types) · `reply` (JSON) · `invocations: {step: count}` (dispatches of the step in this process).
+
+A key the format does not know is a mistake, reported with the scenario's name and file — as is an expectation that does not hold, which fails the test like the assertion it stands for.
+
+## Workflow coverage
+
+Every `@EventConductorTest` test records what its processes did. After each one, `target/eventconductor-coverage/` holds the coverage of the run so far, for **every definition the engine knows** — one no test starts shows as 0%:
+
+```text
+EventConductor workflow coverage — 20 test(s), 11 definition(s)
+
+definition                    steps              branches           edges
+hotel-booking                 8/8 (100.0%)       3/3 (100.0%)       7/7 (100.0%)
+rooms-booking-tolerant        3/4 (75.0%)        0/1 (0.0%)         2/3 (66.7%)
+…
+TOTAL                         46/47 (97.9%)      5/6 (83.3%)        35/36 (97.2%)
+
+Not covered:
+  rooms-booking-tolerant
+    step cancel-room-booking
+    compensation rooms → cancel-room-booking
+```
+
+| Counted | Covered when, in one process … |
+|---|---|
+| a step | it ran (started, whatever it ended in) |
+| a `choice` branch — a link out of a CHOICE | the CHOICE completed and the step ran |
+| a `guard` — a link with a condition | its source completed and the step ran |
+| a `timeout` route (`onTimeoutStepId`) | the step and its timeout target ran |
+| a `compensation` | the step completed and its compensation ran |
+| a `loopBack` | the step completed and its target ran more than once |
+| a `sequence` — any other link | its source completed and the step ran |
+
+*Branches* are every route but the plain `sequence` links (which follow from the steps); *edges* are all of them. Inline `PROCESS` bodies are definitions of their own (`hotel-booking.rooms`). `coverage.txt` is for reading; `coverage.json` is what [`eventconductor:verify`](/reference/maven-plugin/#everything-at-once-the-verify-goal) reads to fail the build under a floor (`minStepCoverage`, `minBranchCoverage`). In a test, `WorkflowCoverage.current().report()` returns the same numbers.
+
+System properties (Surefire's `systemPropertyVariables`): `eventconductor.coverage.enabled=false` turns it off, `eventconductor.coverage.directory` writes elsewhere. The report covers one JVM: with several Surefire forks, each overwrites it.
+
 ## Running your real task handlers
 
 By default the test boots the engine alone. To have your `TaskHandler`s answer the tasks no mock

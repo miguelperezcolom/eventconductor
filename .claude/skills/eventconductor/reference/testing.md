@@ -32,6 +32,11 @@ clock you move. Canonical: `doc/src/content/docs/guides/testing-workflows.md`,
 - Before shipping a new version of a running workflow:
   `mvn eventconductor:check-migration -Dfrom=<git ref|path|current> [-Dto=...] [-Dmapping=migration.yaml] [-Dworkflow=<id>]`
   fails when a step a process can be waiting in has no counterpart (see [operations.md](operations.md#migration)).
+- One goal for CI: `eventconductor:verify` (bound to `verify`, after the tests) = `validate` + `check-migration`
+  (when `-Deventconductor.migration.from=<ref>`) + coverage floors (`minStepCoverage`, `minBranchCoverage`,
+  or `-Deventconductor.coverage.minSteps|minBranches`, read from `target/eventconductor-coverage/coverage.json`).
+  With `validate` also bound earlier, give the `verify` execution `<skipValidation>true</skipValidation>`.
+  CI then runs `mvn -B verify -Deventconductor.migration.from=origin/main`.
 
 Output on failure:
 ```
@@ -151,6 +156,21 @@ always waits unless answered; forms-engine not needed).
 `hasVariable(name, value)` `hasVariables(map)` `doesNotHaveVariable(name)` · `hasReplied(json)` ·
 `hasPublishedEvent(type)` · `hasAppliedUpdates(...)`. On an `UpdateOutcome`: `isCompleted()`,
 `isRefusedWith(text)`, `hasResult(json)`…
+
+### Scenarios as data, coverage
+
+- A scenario file (YAML/JSON) is a test case without Java: `workflow`, `variables`, answers by `tasks` (task id /
+  topic), `steps` (step id), `http`, `llm`, `agents`; `then` actions (`advanceTime: P3D`, `sendMessage`,
+  `completeUserTask: {step, values}`, `completeTask`, `failTask`, `publishEvent`, `update`, `cancel`); `expect`
+  (`status`, `passedSteps`, `notPassedSteps`, `waitingAt`, `variables`, `missingVariables`, `publishedEvents`,
+  `reply`, `invocations: {step: n}`). Answers: `{complete: {...}}` (`${…}` from the task's variables),
+  `{fail: CODE, retryable: false}`, `{timeout: true}`; a list is in order, unless answers carry `when: <JEXL>`
+  (first match). File-level keys are defaults; `scenarios:` lists the cases.
+- Run them: `@ParameterizedTest(name = "{0}") @ScenarioSource("src/test/scenarios") void s(Scenario s,
+  WorkflowTestRuntime runtime) { runtime.run(s); }` — or `@TestFactory` returning `runtime.scenarios(dir)`.
+- Coverage is recorded by every kit test, written to `target/eventconductor-coverage/coverage.{json,txt}`:
+  steps run, and branches taken (CHOICE branches, guards, timeout routes, compensations, loop-backs).
+  `WorkflowCoverage.current().report()` in a test; `eventconductor:verify` enforces floors.
 
 ### Rules of the kit
 

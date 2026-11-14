@@ -62,7 +62,7 @@ Two properties select the topology: `workflow.mode` (`embedded` | `kafka`, defau
 - [Configuration](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/reference/configuration.md): all properties; HTTP security; consumer redelivery
 - [Processes REST API](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/reference/processes-rest-api.md): /workflow/api/processes and friends
 - [HTTP Worker API](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/reference/http-worker-api.md): the long-poll worker protocol
-- [Maven Plugin](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/reference/maven-plugin.md): validate, check-migration, generate-worker-sources
+- [Maven Plugin](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/reference/maven-plugin.md): validate, check-migration, verify (all checks + coverage floors, for CI), generate-worker-sources
 - [Task Contracts](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/reference/task-contracts.md): the .ectask format and the wire protocol
 - [Kafka Topics](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/reference/kafka-topics.md): topics, consumer groups, redelivery and offsets
 - [Observability](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/reference/observability.md): metrics and tracing

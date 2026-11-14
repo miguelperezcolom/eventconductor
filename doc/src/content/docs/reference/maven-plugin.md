@@ -137,6 +137,50 @@ mvn eventconductor:check-migration -Dfrom=released/workflows -Dmapping=src/main/
 | `failOnError` | `eventconductor.migration.failOnError` | `true` | Fail the build on errors (otherwise warn). |
 | `skip` | `eventconductor.migration.skip` | `false` | Skip the check. |
 
+## Everything at once: the `verify` goal
+
+`verify` is what CI runs: `validate`, then `check-migration` (when `migrationFrom` says what processes run now), then the [workflow coverage](/guides/testing-workflows/#workflow-coverage) the test kit recorded against its floors (when any is set). Every check runs, and the build fails once, listing what each found.
+
+```xml
+<execution>
+  <id>eventconductor-verify</id>
+  <goals><goal>verify</goal></goals>          <!-- binds to the verify phase, after the tests -->
+  <configuration>
+    <minStepCoverage>90</minStepCoverage>
+    <minBranchCoverage>75</minBranchCoverage>
+  </configuration>
+</execution>
+```
+
+```bash
+mvn verify -Deventconductor.migration.from=origin/main      # one command for CI
+mvn eventconductor:verify -Deventconductor.migration.from=v3 -Deventconductor.coverage.minBranches=80
+```
+
+```text
+[INFO] EventConductor workflow coverage: steps 45/47 (95.7%), branches 4/6 (66.7%), edges 34/36 (94.4%)
+[ERROR] EventConductor verify failed:
+[ERROR]
+[ERROR] [coverage] branches coverage is 66.7%, below the minimum of 75.0%
+[ERROR] Not covered:
+[ERROR]   rooms-booking-http: step cancel-room, compensation rooms → cancel-room
+```
+
+Bound to the `verify` phase it runs after the tests, which is when the coverage report exists; a floor with no report fails (the tests did not run, or ran without `workflow-test`). With `validate` also bound to an earlier phase, set `skipValidation` on the `verify` execution so the definitions are not validated twice.
+
+| Parameter | Property | Default | Description |
+|---|---|---|---|
+| `workflowsDirectory`, `formsDirectory`, `rulesDirectory`, `tasksDirectory` | | as for `validate` | What `validate` and `check-migration` read. |
+| `failOnMissing` | `eventconductor.validate.failOnMissing` | `false` | As for `validate`. |
+| `skipValidation` | `eventconductor.verify.skipValidation` | `false` | Leave `validate` out. |
+| `migrationFrom` | `eventconductor.migration.from` | | The version processes run now (a git ref, a path, `current`). Unset: no migration check. |
+| `migrationTo` | `eventconductor.migration.to` | `current` | The version to move them to. |
+| `migrationMapping` | `eventconductor.migration.mapping` | | The step mapping file, as `check-migration`'s `mapping`. |
+| `coverageReport` | `eventconductor.coverage.report` | `${project.build.directory}/eventconductor-coverage/coverage.json` | The report `workflow-test` writes. |
+| `minStepCoverage` | `eventconductor.coverage.minSteps` | | The lowest share of steps (percent) the tests must run. Unset: no floor. |
+| `minBranchCoverage` | `eventconductor.coverage.minBranches` | | The lowest share of branches (percent) — CHOICE branches, guarded links, timeout routes, compensations, loop-backs — the tests must take. Unset: no floor. |
+| `skip` | `eventconductor.verify.skip` | `false` | Skip every check. |
+
 ## Generating worker types: the `generate-worker-sources` goal
 
 The second goal turns task contracts into the Java a worker developer implements against — records,
