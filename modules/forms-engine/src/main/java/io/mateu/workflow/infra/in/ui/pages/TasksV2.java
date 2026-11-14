@@ -66,7 +66,7 @@ import static io.mateu.core.infra.JsonSerializer.listFromJson;
  */
 @Service
 @Slf4j
-@Title("Tasks v2")
+@Title("Task inbox")
 @RequiredArgsConstructor
 public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHandler, ActionSupplier,
         ValidationSupplier, RestSourceSupplier {

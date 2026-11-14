@@ -277,7 +277,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         this.steps = StepHistory.visible(stepExecutions, process.getStatus()).stream()
                 .map(entry -> {
                     var se = entry.execution();
-                    return new Step(id, se.id(), rowName(se), stepRowStatus(entry),
+                    return new Step(id, se.id(), rowName(se), stepRowStatus(entry), Step.attempts(se),
                             Step.format(se.getStartedAt()), Step.format(se.getFinishedAt()));
                 })
                 .toList();

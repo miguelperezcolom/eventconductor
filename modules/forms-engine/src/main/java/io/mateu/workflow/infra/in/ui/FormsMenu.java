@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.in.ui;
 
+import io.mateu.uidl.annotations.Label;
 import io.mateu.uidl.annotations.Menu;
 import io.mateu.workflow.infra.in.ui.pages.FormExecutions;
 import io.mateu.workflow.infra.in.ui.pages.Forms;
@@ -26,6 +27,10 @@ public class FormsMenu {
     @Menu
     Tasks tasks;
 
+    // Labelled: Mateu humanises the field name, and "tasksV2" came out as "Tasks v 2" — a version
+    // number in a menu, beside a "Tasks" entry it reads as a duplicate of. The field name stays, so
+    // the route (/forms/tasksV2) does not move.
     @Menu
+    @Label("Task inbox")
     TasksV2 tasksV2;
 }
