@@ -570,4 +570,66 @@ class SimpleProcessViewModelTest {
         assertThat(view.openProcess(graphEvent("not an object"))).isInstanceOf(io.mateu.uidl.data.State.class);
         assertThat(SimpleProcessViewModel.openedProcessId(null)).isNull();
     }
+
+    private static io.mateu.workflow.domain.aggregates.LogMessage error(String id, String stepExecutionId, String message,
+                                                                        java.time.LocalDateTime at) {
+        return io.mateu.workflow.domain.aggregates.LogMessage.builder().id(id).stepExecutionId(stepExecutionId)
+                .messageType("Error").message(message).timestamp(at).build();
+    }
+
+    private StepExecution named(String id, String stepId, StepExecutionStatus status) {
+        var se = se(stepId, status);
+        when(se.id()).thenReturn(id);
+        return se;
+    }
+
+    /** The reason a forEach iteration failed is in its child run's log: the parent's Errors tab lists it too. */
+    @Test
+    void theErrorsTabCarriesTheFailedChildRunsReason() {
+        var processes = mock(io.mateu.workflow.application.out.ProcessRepository.class);
+        var steps = mock(io.mateu.workflow.application.out.StepExecutionRepository.class);
+        var logs = mock(io.mateu.workflow.application.out.LogMessageRepository.class);
+        var view = new SimpleProcessViewModel(null, processes, steps, null, logs, null, null, null, null, null);
+        var t0 = java.time.LocalDateTime.of(2026, 11, 14, 8, 0);
+
+        var iteration = named("se-900", "rooms", StepExecutionStatus.ERROR);
+        when(iteration.isIteration()).thenReturn(true);
+        when(iteration.getItemLabel()).thenReturn("Room 900");
+        var child = mock(Process.class);
+        when(child.id()).thenReturn("child-1");
+        when(processes.findChildIdsByParentStepExecutionIds(java.util.Set.of("se-900")))
+                .thenReturn(java.util.Map.of("se-900", "child-1"));
+        when(processes.findById("child-1")).thenReturn(Optional.of(child));
+        var childStep = named("c-1", "create-room-booking", StepExecutionStatus.ERROR);
+        when(steps.findByProcess(child)).thenReturn(List.of(childStep));
+        when(logs.findByProcessId("child-1")).thenReturn(List.of(
+                error("l-2", "c-1", "SOLD_OUT: Room 900 (penthouse) is sold out", t0)));
+
+        var rows = view.errorRows("parent", List.of(
+                error("l-1", "se-900", "1 of 2 iterations of step rooms failed", t0.plusSeconds(1))), List.of(iteration));
+
+        assertThat(rows).extracting(io.mateu.workflow.infra.in.ui.pages.process.childcruds.Error::step)
+                .containsExactly("rooms · Room 900", "rooms · Room 900 › create-room-booking");
+        assertThat(rows.get(1).message()).contains("sold out");
+        assertThat(rows).allSatisfy(row -> assertThat(row.processId()).isEqualTo("parent"));
+    }
+
+    /** The toolbar is part of the component: a refresh whose actions differ re-renders the view, not just its state. */
+    @Test
+    void aRefreshRedrawsTheViewWhenTheActionsOnOfferChange() {
+        var view = view(null);
+        view.status = new io.mateu.uidl.data.Status(io.mateu.uidl.data.StatusType.WARNING, "Running");
+        view.processStatus = io.mateu.workflow.domain.aggregates.ProcessStatus.RUNNING;
+        var running = view.toolbarSignature();
+        assertThat(running).contains("cancelProcess", "completeStep").doesNotContain("resumeProcess");
+
+        view.status = new io.mateu.uidl.data.Status(io.mateu.uidl.data.StatusType.SUCCESS, "Completed");
+        view.processStatus = io.mateu.workflow.domain.aggregates.ProcessStatus.COMPLETED;
+        view.toolbar = view.toolbarSignature();
+
+        assertThat(view.toolbar).isEmpty();
+        assertThat(SimpleProcessViewModel.toolbarChanged(running, view)).isTrue();
+        assertThat(SimpleProcessViewModel.toolbarChanged("", view)).isFalse();
+        assertThat(SimpleProcessViewModel.toolbarChanged(running, "not a view")).isFalse();
+    }
 }

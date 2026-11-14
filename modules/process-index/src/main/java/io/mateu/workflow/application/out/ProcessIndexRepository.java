@@ -81,6 +81,26 @@ public interface ProcessIndexRepository {
         return Optional.empty();
     }
 
+    /**
+     * The same, and with {@code topLevelOnly} only the processes no other process started — not the child
+     * runs of PROCESS steps, whose business key is {@code parent:<step execution>}. A store that cannot
+     * tell them apart answers empty (the default), and the listing is answered from the write side.
+     */
+    default Optional<ProcessIndexPage> search(String searchText, boolean onlyErrors,
+                                              List<io.mateu.workflow.search.SearchAttributeFilter> attributes,
+                                              boolean topLevelOnly, int page, int size) {
+        if (!topLevelOnly) {
+            return search(searchText, onlyErrors, attributes, page, size);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * The business key every child run of a PROCESS step is started with: {@code parent:} and the id of
+     * the step execution that started it (and {@code #2}, {@code #3}… for its later runs).
+     */
+    String CHILD_BUSINESS_KEY_PREFIX = "parent:";
+
     /** One page of {@link #search}, with the total the filter matched and the page actually served. */
     record ProcessIndexPage(List<ProcessIndexRow> content, long totalElements,
                             int pageNumber, int pageSize) {

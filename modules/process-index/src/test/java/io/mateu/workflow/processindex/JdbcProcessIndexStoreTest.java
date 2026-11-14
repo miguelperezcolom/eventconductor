@@ -172,6 +172,19 @@ class JdbcProcessIndexStoreTest {
                 .isEqualTo(10);
     }
 
+    /** The child runs of PROCESS steps carry the business key {@code parent:<step execution>}: left out when asked. */
+    @Test
+    void theTopLevelListingLeavesOutTheRunsAProcessStarted() {
+        store.upsert(row("parent", "BOOKING-1", "ERROR", 0, T0, "s0"));
+        store.upsert(row("child", "parent:se-1", "ERROR", 0, T0.plusSeconds(1), "s0"));
+        store.upsert(row("nokey", null, "RUNNING", 0, T0.plusSeconds(2), "s0"));
+
+        assertThat(store.search(null, false, java.util.List.of(), true, 0, 10).orElseThrow().content())
+                .extracting(ProcessIndexRow::processId).containsExactlyInAnyOrder("parent", "nokey");
+        assertThat(store.search(null, false, java.util.List.of(), false, 0, 10).orElseThrow().totalElements())
+                .isEqualTo(3);
+    }
+
     private static ProcessIndexRow row(String processId, String businessKey, String status,
                                        int completion, LocalDateTime updatedAt, String shardId) {
         return new ProcessIndexRow(processId, businessKey, "a process", "order-fulfilment", 1, status, completion,

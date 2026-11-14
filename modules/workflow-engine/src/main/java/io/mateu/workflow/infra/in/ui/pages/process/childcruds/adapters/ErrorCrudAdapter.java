@@ -46,7 +46,7 @@ public class ErrorCrudAdapter  {
             public List<Error> findAll() {
                 return repository.findAllByProcessId(processId).stream()
                         .filter(entity -> io.mateu.workflow.dtos.MessageType.isError(entity.getMessageType()))
-                        .map(entity -> new Error(processId, entity.getId(), entity.getTimestamp(), entity.getMessage()))
+                        .map(entity -> new Error(processId, entity.getId(), entity.getTimestamp(), null, entity.getMessage()))
                         .toList();
             }
 

@@ -381,7 +381,9 @@ public class ProcessDBRepository implements ProcessRepository {
     @Override
     public ProcessSummaryPage searchSummaries(
             io.mateu.workflow.application.out.ProcessListingFilter filter, int page, int size) {
-        if (filter.normalisedSearchAttributes() != null) {
+        // The fixed query has a slot per field it was written with; attribute conditions and the
+        // top-level toggle are answered by the query built per filter, with the same conditions.
+        if (filter.normalisedSearchAttributes() != null || filter.topLevelOnly()) {
             return searchWithAttributes(filter, page, size);
         }
         var searchText = filter.normalisedSearchText();

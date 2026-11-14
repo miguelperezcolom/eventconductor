@@ -83,7 +83,9 @@ public class ProcessListingService {
         // empty rather than a page it had to load whole or that ignores half the filter.
         var attributes = filter.normalisedSearchAttributes();
         var index = processIndex.getIfAvailable();
-        var answer = attributes == null
+        var answer = filter.topLevelOnly()
+                ? index.search(filter.normalisedSearchText(), filter.onlyErrors(), attributes, true, page, size)
+                : attributes == null
                 ? index.search(filter.normalisedSearchText(), filter.onlyErrors(), page, size)
                 : index.search(filter.normalisedSearchText(), filter.onlyErrors(), attributes, page, size);
         return answer

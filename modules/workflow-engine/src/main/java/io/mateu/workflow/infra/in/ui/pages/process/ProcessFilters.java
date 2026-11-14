@@ -24,6 +24,7 @@ import java.util.Set;
  * every bookmark and every habit to save one redundant field.
  *
  * @param onlyErrors           the pre-existing toggle
+ * @param includeChildren      also list the child runs PROCESS steps started; unset or false lists top-level processes only
  * @param workflowDefinitionId which definition, chosen from the ones actually loaded
  * @param status               one or more statuses (multi-select); a process matches if its status is any of them
  * @param businessKey          the business identifier, matched as a case-insensitive substring
@@ -33,6 +34,10 @@ import java.util.Set;
  */
 public record ProcessFilters(
         @MainFilter @Label("Only errors") Boolean onlyErrors,
+        @MainFilter @Label("Include child processes")
+        @Help("The runs PROCESS steps start — one per item of a forEach over PROCESS — are listed under "
+                + "their parent (its Steps and Diagram tabs) and left out of this list. Tick to list them too.")
+        Boolean includeChildren,
         @MainFilter @Label("Definition")
         @Lookup(search = WorkflowDefinitionIdOptionsSupplier.class,
                 label = WorkflowDefinitionIdLabelSupplier.class)

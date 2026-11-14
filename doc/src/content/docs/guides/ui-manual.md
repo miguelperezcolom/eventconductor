@@ -117,8 +117,12 @@ The processes list shows all process instances with their ID, workflow name, sta
 | **Search** | Filter by ID or name |
 | **View** | Open the process detail |
 
-**Filters**: **Only errors**, **Definition**, **Tag** (the processes of every definition carrying the
+**Filters**: **Only errors**, **Include child processes**, **Definition**, **Tag** (the processes of every definition carrying the
 tag — see the definition's `tags`), **Status**, **Business key** and the creation date range.
+
+The list shows top-level processes, with their **Business key**. The runs a PROCESS step starts — one per
+item of a forEach over PROCESS, keyed `parent:<step execution>` — are read from their parent (its Steps,
+Errors and Diagram tabs); tick **Include child processes** to list them too.
 
 Both re-run buttons apply to whatever is ticked, and the engine decides: a process that is not
 `ERROR` or `CANCELLED` is left alone and says so in the log, rather than the list guessing which
@@ -136,7 +140,7 @@ rows qualify from a page that may already be out of date.
 | `Error` | A step failed after exhausting retries, and the process did not (or could not) fully roll back |
 | `Cancelled` | Process was cancelled |
 
-Clicking **View** on a row opens the process detail, showing all step executions, their individual statuses, variables, and the full audit log. The detail is organised in tabs: **Steps**, **Messages**, **Errors** and **Resources**.
+Clicking **View** on a row opens the process detail, showing all step executions, their individual statuses, variables, and the full audit log. The detail is organised in tabs: **Steps**, **Messages**, **Errors** and **Resources**. The **Errors** tab lists the process's own error lines and those of the child runs its failed PROCESS steps started, against the step that started them (`rooms · Room 900 › create-room-booking`): why an iteration failed is read on the parent.
 
 #### Reading the diagram
 

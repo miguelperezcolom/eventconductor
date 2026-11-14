@@ -150,6 +150,20 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @Hidden
     String returnTo;
 
+    /**
+     * Which toolbar actions this render offers, as one string. Plumbing for {@link #refresh}: the toolbar
+     * is part of the component, not of its state, so a refresh answered with a {@code State} kept the
+     * buttons of the render before — "Complete step" and "Cancel process" still offered on a process
+     * that had just completed. When this changes, the refresh answers with the whole view instead.
+     */
+    @Hidden
+    String toolbar;
+
+    /** The toolbar actions {@link #isHidden} decides on, in the order they are listed. */
+    static final List<String> TOOLBAR_ACTIONS = List.of("cancelProcess", "pauseProcess", "resumeProcess",
+            "retryProcess", "restartProcess", "setVariables", "revealVariable", "completeStep", "retryFromStep",
+            "migrate");
+
     // Explicit tab names: since mateu 379440d83 consecutive @Tab annotations with the SAME
     // value (and bare @Tab means value "") are merged into one tab, which stacked these four
     // lists vertically. Distinct values keep one tab per list.
@@ -281,12 +295,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
                 .limit(50)
                 .map(msg -> new Message(id, msg.id(), msg.getTimestamp(), msg.getMessage()))
                 .toList();
-        this.errors = logs.stream()
-                .filter(msg -> MessageType.isError(msg.getMessageType()))
-                .sorted(Comparator.comparing(LogMessage::getTimestamp).reversed())
-                .limit(10)
-                .map(msg -> new Error(id, msg.id(), msg.getTimestamp(), msg.getMessage()))
-                .toList();
+        this.errors = errorRows(id, logs, stepExecutions);
         this.resources = resourceRepository.findByProcessId(id).stream()
                 .map(r -> new Resource(id, r.id(), r.getName(), r.getUrl()))
                 .toList();
@@ -302,6 +311,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         this.updates = updateEntries(id, processUpdateRepository,
                 io.mateu.workflow.application.services.SensitiveVariableMasking.namesOf(process));
         this.returnTo = httpRequest.getParameterValue("returnTo");
+        this.toolbar = toolbarSignature();
 
         if (ProcessStatus.COMPLETED.equals(process.getStatus())) {
             var returnTo = (String) httpRequest.runActionRq().componentState().get("returnTo");
@@ -315,6 +325,73 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
             }
         }
         return this;
+    }
+
+    /** How many error lines the Errors tab shows: the process's own, and as many again from the runs it started. */
+    static final int ERROR_ROWS = 10;
+    /** How deep the Errors tab follows child runs (a child's child, …), and how many children it reads per level. */
+    static final int CHILD_ERROR_DEPTH = 3;
+    static final int CHILD_ERROR_RUNS = 20;
+
+    /**
+     * The Errors tab: the process's own error lines, and those of the child runs its failed steps started.
+     *
+     * <p>A PROCESS step — a forEach over PROCESS above all — fails because a run it started failed, and the
+     * parent's own log only says that much ("1 of 2 iterations of step rooms failed"). Why the run failed is
+     * in the child's log. Listing it here, against the parent step that started it, answers the question on
+     * the page the operator opened, without hunting for the child among the processes.
+     */
+    List<Error> errorRows(String processId, List<LogMessage> logs, List<StepExecution> stepExecutions) {
+        var rows = new ArrayList<Error>();
+        var stepNames = new HashMap<String, String>();
+        stepExecutions.forEach(se -> stepNames.put(se.id(), rowName(se)));
+        logs.stream()
+                .filter(msg -> MessageType.isError(msg.getMessageType()))
+                .sorted(Comparator.comparing(LogMessage::getTimestamp, Comparator.nullsFirst(Comparator.naturalOrder())).reversed())
+                .limit(ERROR_ROWS)
+                .map(msg -> new Error(processId, msg.id(), msg.getTimestamp(), stepNames.get(msg.getStepExecutionId()),
+                        msg.getMessage()))
+                .forEach(rows::add);
+        var fromChildren = new ArrayList<Error>();
+        childErrors(processId, "", stepExecutions, 1, fromChildren);
+        fromChildren.stream()
+                .sorted(Comparator.comparing(Error::time, Comparator.nullsFirst(Comparator.naturalOrder())).reversed())
+                .limit(ERROR_ROWS)
+                .forEach(rows::add);
+        rows.sort(Comparator.comparing(Error::time, Comparator.nullsFirst(Comparator.naturalOrder())).reversed());
+        return rows;
+    }
+
+    /** The error lines of the runs the failed steps among {@code stepExecutions} started, and of theirs. */
+    private void childErrors(String rootId, String prefix, List<StepExecution> stepExecutions, int depth, List<Error> into) {
+        if (depth > CHILD_ERROR_DEPTH) {
+            return;
+        }
+        var failed = new HashMap<String, StepExecution>();
+        stepExecutions.stream()
+                .filter(se -> se.getStatus() == StepExecutionStatus.ERROR || se.getStatus() == StepExecutionStatus.TIMEOUT)
+                .forEach(se -> failed.put(se.id(), se));
+        if (failed.isEmpty()) {
+            return;
+        }
+        var children = processRepository.findChildIdsByParentStepExecutionIds(failed.keySet());
+        children.entrySet().stream().limit(CHILD_ERROR_RUNS).forEach(link -> {
+            var child = processRepository.findById(link.getValue()).orElse(null);
+            if (child == null) {
+                return;
+            }
+            var where = prefix + rowName(failed.get(link.getKey())) + " › ";
+            var childSteps = stepExecutionRepository.findByProcess(child);
+            var childStepNames = new HashMap<String, String>();
+            childSteps.forEach(se -> childStepNames.put(se.id(), rowName(se)));
+            logMessageRepository.findByProcessId(child.id()).stream()
+                    .filter(msg -> MessageType.isError(msg.getMessageType()))
+                    .map(msg -> new Error(rootId, msg.id(), msg.getTimestamp(),
+                            where + java.util.Objects.requireNonNullElse(childStepNames.get(msg.getStepExecutionId()), "child run"),
+                            msg.getMessage()))
+                    .forEach(into::add);
+            childErrors(rootId, where, childSteps, depth + 1, into);
+        });
     }
 
     /**
@@ -720,15 +797,33 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
 
     @Action
     public Object refresh(HttpRequest httpRequest) {
-        var id = (String) httpRequest.runActionRq().componentState().get("id");
+        var state = httpRequest.runActionRq().componentState();
+        var id = (String) state.get("id");
         if (id != null) {
+            var shown = state.get("toolbar");
             var loaded = load(id, httpRequest);
             if (loaded instanceof URI uri) {
                 return uri;
             }
+            if (toolbarChanged(shown, loaded)) {
+                // The view itself, not its state: the toolbar is part of the component, and a State
+                // would leave the buttons of the previous render on screen.
+                return loaded;
+            }
             return new State(loaded);
         }
         return new State(this);
+    }
+
+    /** Whether the actions on offer differ from the ones the page shows ({@code shown}, from its state). */
+    static boolean toolbarChanged(Object shown, Object loaded) {
+        return loaded instanceof SimpleProcessViewModel model && model.toolbar != null
+                && !model.toolbar.equals(shown);
+    }
+
+    /** The toolbar actions this render offers, comma-separated (see {@link #toolbar}). */
+    String toolbarSignature() {
+        return String.join(",", TOOLBAR_ACTIONS.stream().filter(action -> !isHidden(action, null)).toList());
     }
 
 

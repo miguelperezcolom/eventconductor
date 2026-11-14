@@ -31,6 +31,9 @@ final class ProcessListingJpql {
         if (filter.onlyErrors()) {
             text.append(" and p.status = 'ERROR'");
         }
+        if (filter.topLevelOnly()) {
+            text.append(" and p.parentStepExecutionId is null");
+        }
         var searchText = filter.normalisedSearchText();
         if (searchText != null) {
             text.append(" and lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, p.releasedBusinessKey, ''))) like :pattern");
