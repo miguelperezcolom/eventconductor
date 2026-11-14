@@ -28,7 +28,6 @@ scenarios:
       invocations: { check: 2, standard: 2 }
 
   - name: a check that never answers escalates
-    businessKey: COVERAGE-TIMEOUT
     variables: { tier: gold }
     tasks:
       check: { timeout: true }

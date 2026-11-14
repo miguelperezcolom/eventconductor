@@ -38,7 +38,8 @@ class TimeTest {
         assertThat(booking).isWaitingAt("approve");
 
         runtime.advanceTime(Duration.ofDays(2));
-        assertThat(booking).isWaitingAt("approve");                       // escalated, still open
+        assertThat(booking).isWaitingAt("approve")                        // still open…
+                .hasEscalated("approve", 1);                              // …and the one-day escalation fired
 
         runtime.advanceTime(Duration.ofDays(1).plusMinutes(1));
         assertThat(booking).hasStepStatus("approve", StepExecutionStatus.TIMEOUT)

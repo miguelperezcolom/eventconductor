@@ -74,7 +74,7 @@ $ mvn verify
 [ERROR] FailurePathsTest.compensateAllCancelsEveryRoomThatWasBooked:34 Expected process … (rooms-booking-safe, businessKey FAIL-1) to be COMPENSATED but it is COMPLETED.
 [ERROR] ScenariosTest.scenario:16 [scenario 'a sold-out penthouse undoes the rooms that were booked' (src/test/scenarios/rooms-booking.yaml)] Expected process … to be COMPENSATED but it is COMPLETED.
 …
-[ERROR] Tests run: 20, Failures: 6, Errors: 0, Skipped: 0
+[ERROR] Tests run: 21, Failures: 6, Errors: 0, Skipped: 0
 [INFO] BUILD FAILURE
 ```
 
@@ -97,7 +97,7 @@ $ mvn verify -Deventconductor.migration.from=HEAD
 
 ```text
 $ mvn verify
-[INFO] Tests run: 19, Failures: 0, Errors: 0, Skipped: 0
+[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0
 [INFO] EventConductor workflow coverage: steps 45/47 (95.7%), branches 4/6 (66.7%), edges 34/36 (94.4%)
 [ERROR] EventConductor verify failed:
 [ERROR]
@@ -110,7 +110,7 @@ $ mvn verify
 Every test of the kit records which steps its processes ran and which routes they took; after the tests, `target/eventconductor-coverage/` holds the result — `coverage.txt` to read, `coverage.json` for the goal:
 
 ```text
-EventConductor workflow coverage — 20 test(s), 11 definition(s)
+EventConductor workflow coverage — 21 test(s), 11 definition(s)
 
 definition                    steps              branches           edges
 hotel-booking                 8/8 (100.0%)       3/3 (100.0%)       7/7 (100.0%)
@@ -132,7 +132,7 @@ With everything fixed, all four pass:
 ```text
 $ mvn verify -Deventconductor.migration.from=HEAD
 [INFO] EventConductor: 6 definition(s) validated successfully.
-[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0
+[INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0
 [INFO] EventConductor migration check HEAD → current: 6 workflow(s), 0 error(s), 0 warning(s).
 [INFO] EventConductor workflow coverage: steps 46/47 (97.9%), branches 5/6 (83.3%), edges 35/36 (97.2%)
 [INFO] EventConductor verify: every check passed.

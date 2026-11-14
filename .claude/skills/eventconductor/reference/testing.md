@@ -123,14 +123,15 @@ the Spring context (and its processes) is shared across tests.
 | Call | Matches / does |
 |---|---|
 | `whenStep("charge")` | that step id (wins over everything) |
-| `whenTask("charge-card")` | a step whose `task` is `charge-card`, else whose id or `topic` is `charge-card` |
+| `whenTask("charge-card")` | a step whose `task` is `charge-card`, else whose id or `topic` is `charge-card` (a USER_TASK / HTTP_CALL names no task: `whenTask("approve")` matches it by id) |
 | `.thenComplete()` / `.thenComplete(Map)` | completes, writing variables (non-text as JSON) |
 | `.thenFail(code)` / `.thenFail(code, retryable)` | fails; retryable spends `retries`, final fails at once |
 | `.thenTimeout()` | never answers; the step's `timeout` fires under `advanceTime` |
 | `.thenAnswer(inv -> TaskOutcome.complete(...))` | decide from `inv.variable("x")`, `inv.attempt()` |
-| chain `.thenFail("X").thenComplete()` | consecutive answers; the last repeats |
+| chain `.thenFail("X").thenComplete()` | consecutive answers; the last repeats. Counted per stub across ALL processes and forEach iterations (not per item); calling `whenStep(id)` again APPENDS answers, it does not replace them |
 | `whenHttpCall("step").thenRespond(status, body)` / `.thenIoError()` | stubs HTTP_CALL (`body` a JSON/text `String`; unstubbed calls fail); `.lastRequest()`. No `worker-http`/`worker-embedded` or `workflow.http.connections` needed in tests — those are runtime-only |
-| `whenLlmCall("step").thenAnswer(text)` | stubs LLM_CALL |
+| `whenHttpCall("step").whenIteration(1)` / `.whenItemHas("number", "102")` / `.whenItem(pred)` / `.whenRequest(pred)` | a scoped stub with its own answers for one forEach iteration / item / request; others get the stub's own answers |
+| `whenLlmCall("step").thenAnswer(text)` | stubs LLM_CALL; the answer is validated against `responseSchema` — a refused stub fails the test (`LLM_STUB_INVALID`). `.thenInvalidAnswer(text)` = a bad model answer on purpose (`LLM_INVALID_OUTPUT`, retried) |
 | `whenAgent("step").thenOutput(json)` / `.thenReviewRequired()` / `.thenFail(code, msg)` / `.thenCancelled()` / `.thenNoReply()` | stubs AGENT (one answer per invocation; a forEach has one per item); every reference is taken as published, no catalogue is contacted; `resolveAgentReview(process, step)` reconciles a held invocation with the next answer; `.lastRequest()` |
 
 Unmocked tasks wait (or run your real `TaskHandler`s if booted: `@EventConductorTest(classes = {MyApp.class})`
@@ -154,7 +155,13 @@ always waits unless answered; forms-engine not needed).
 `hasStatus(s)` · `hasPassedSteps(...)` `hasNotPassedSteps(...)` · `isWaitingAt(step)` ·
 `hasStepStatus(step, StepExecutionStatus.TIMEOUT)` · `stepExecutions(step).hasSize(n)` ·
 `hasVariable(name, value)` `hasVariables(map)` `doesNotHaveVariable(name)` · `hasReplied(json)` ·
-`hasPublishedEvent(type)` · `hasAppliedUpdates(...)`. On an `UpdateOutcome`: `isCompleted()`,
+`hasPublishedEvent(type)` · `hasAppliedUpdates(...)` · `hasCompensated(steps...)` `hasNotCompensated(...)`
+`hasCompensatedInOrder("charge", "reserve")` (compensated step ids, newest first) `hasNoCompensations()` ·
+`hasEscalated(step[, levels])` `hasNotEscalated(step)` (USER_TASK escalation) ·
+`iterations(step)` → `hasSize(n)` `allCompleted()` `hasCompleted(...)` `hasFailed(...)` `hasOnlyFailed(...)`
+`hasNoFailures()` `hasCompensated(...)` `hasCompensatedInOrder(...)` `hasNoneCompensated()` `iteration(ref)` →
+`isCompleted()` `isFailed()` `hasOutput(name, v)` `hasItem(item)` `wasCompensated()`; an iteration ref is its index
+(`Integer`), its `forEach.label` text (`"Room 102"`) or its item. Messages name iterations `#2 "Room 900"`. On an `UpdateOutcome`: `isCompleted()`,
 `isRefusedWith(text)`, `hasResult(json)`…
 
 ### Scenarios as data, coverage

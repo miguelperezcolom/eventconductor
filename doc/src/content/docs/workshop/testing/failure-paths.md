@@ -27,12 +27,15 @@ class FailurePathsTest {
                 Map.of("guest", "Bob", "rooms", Rooms.WITH_A_PENTHOUSE));
 
         assertThat(booking).isCompensated()
-                .hasPassedSteps("register-booking", "cancel-room-booking")
+                .hasCompensated("rooms")                                  // the rollback undid the rooms
                 .hasNotPassedSteps("notify-guest");
-        // The compensation ran once per room that was booked, and saw that room's booking id:
-        var cancelled = runtime.invocationsOf("cancel-room-booking").stream()
-                .map(task -> task.variable("roomBookingId")).toList();
-        assertThat(cancelled).containsExactlyInAnyOrder("RB-101", "RB-102");
+        assertThat(booking).iterations("rooms")                           // room by room, by label
+                .hasOnlyFailed("Room 900")
+                .hasCompensated("Room 101", "Room 102");
+        // Each cancellation saw the booking id of the room it undid:
+        assertThat(runtime.invocationsOf("cancel-room-booking"))
+                .extracting(task -> task.variable("roomBookingId"))
+                .containsExactlyInAnyOrder("RB-101", "RB-102");
     }
 
     @Test
@@ -42,13 +45,21 @@ class FailurePathsTest {
         var booking = runtime.start("rooms-booking-tolerant", "FAIL-2",
                 Map.of("guest", "Bob", "rooms", Rooms.WITH_A_PENTHOUSE));
 
-        assertThat(booking).isCompleted();                                // the step completes anyway
-        assertThat(runtime.invocationsOf("cancel-room-booking")).isEmpty();
-        assertThat(booking.variable("roomBookings"))                      // and says how each room went
+        assertThat(booking).isCompleted()                                 // the step completes anyway
+                .hasNoCompensations();
+        assertThat(booking).iterations("rooms")
+                .hasOnlyFailed("Room 900")
+                .hasNoneCompensated()
+                .iteration("Room 101").hasOutput("roomBookingId", "RB-101");
+        assertThat(booking.variable("roomBookings"))                      // and the output says how each room went
                 .contains("{\"status\":\"COMPLETED\",\"value\":\"RB-101\"}", "{\"status\":\"FAILED\",\"error\":\"ERROR\"}");
     }
 }
 ```
+
+- **`hasCompensated("rooms")`** says the rollback undid the step; **`hasNotPassedSteps`** that the guest was never told.
+- **`iterations("rooms")`** asserts room by room. An iteration is named by its **label** — the forEach's `label`, `'Room ' + room.number` — by its index (`2`) or by its item; `hasOnlyFailed("Room 900")` means that room failed *and no other did*, and `hasCompensated("Room 101", "Room 102")` that the rollback undid exactly those two. When one of them fails, the message names the rooms the same way (`#2 "Room 900"`), never by an execution id.
+- `invocationsOf("cancel-room-booking")` is still the way to check what each compensation was *sent*.
 
 The second test runs a **test-only** variant of module 3 with `onIterationFailure: continue`, from `src/test/flows/rooms-booking-tolerant.yaml` — the same flow, best effort instead of all or none. Writing both tests is how a team *decides* which behaviour a booking should have, and keeps it.
 

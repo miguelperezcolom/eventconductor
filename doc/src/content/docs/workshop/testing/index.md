@@ -19,10 +19,10 @@ $ mvn verify
 [INFO] Tests run: 1, Failures: 0, Errors: 0 -- in com.example.hotel.HappyPathTest
 [INFO] Tests run: 2, Failures: 0, Errors: 0 -- in com.example.hotel.FailurePathsTest
 [INFO] Tests run: 3, Failures: 0, Errors: 0 -- in com.example.hotel.RealHandlersTest
-[INFO] Tests run: 3, Failures: 0, Errors: 0 -- in com.example.hotel.IntegrationsTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0 -- in com.example.hotel.IntegrationsTest
 [INFO] Tests run: 2, Failures: 0, Errors: 0 -- in com.example.hotel.TimeTest
 [INFO] Tests run: 9, Failures: 0, Errors: 0 -- in com.example.hotel.ScenariosTest
-[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0
+[INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0
 [INFO] EventConductor workflow coverage: steps 46/47 (97.9%), branches 5/6 (83.3%), edges 35/36 (97.2%)
 [INFO] BUILD SUCCESS
 ```

@@ -106,7 +106,7 @@ class BookingSagaTest {
         runtime.advanceTime(Duration.ofDays(3));
 
         assertThat(booking).isCompensated()
-                .hasPassedSteps("reserve", "charge", "refund", "release")
+                .hasCompensatedInOrder("charge", "reserve")      // the newest step is undone first
                 .hasNotPassedSteps("capture");
         assertThat(runtime.invocationsOf("refund").getFirst().variable("chargeId")).isEqualTo("ch_2");
     }
@@ -190,7 +190,7 @@ has permits again.
 | Mock | Matches |
 |---|---|
 | `whenStep("charge")` | the step with that id — wins over everything else |
-| `whenTask("charge-card")` | a step whose `task` is `charge-card` (any version), or — for a step with no `task` — whose id is `charge-card`, or whose `topic` is `charge-card` |
+| `whenTask("charge-card")` | a step whose `task` is `charge-card` (any version), or — for a step with no `task` — whose id is `charge-card`, or whose `topic` is `charge-card`. A `USER_TASK`, `HTTP_CALL` or other built-in step names no task of its own either, so `whenTask("approve")` matches the `USER_TASK` `approve` (`whenTask("complete-form")` matches every `USER_TASK`) |
 
 Each mock is a list of answers, consumed in order; the last one repeats:
 
@@ -206,6 +206,18 @@ one (see below); otherwise it waits, like a step whose worker has not answered y
 hand with `completeTask(process, stepId, variables)` or `failTask(process, stepId, code, retryable)`.
 A `USER_TASK` always waits unless mocked; complete it with
 `completeUserTask(process, stepId, submittedValues)`.
+
+Two things that differ from Mockito:
+
+- **Stubbing the same step or task again adds answers; it does not replace them.** `whenStep("charge")`
+  returns the same stub each time, so a helper's `thenComplete()` followed by a test's own
+  `thenFail(…)` answers the first dispatch with the helper's answer and the following ones with the
+  test's. Give each test the answers it needs, or decide in one `thenAnswer(…)`.
+- **The answers are counted per stub, across every process and every forEach iteration of the test.**
+  `whenStep("reserve").thenFail("BUSY").thenComplete()` over three rooms fails the *first dispatch* —
+  whichever room it is for — not each room's first attempt. To answer per item, decide from what the
+  task was sent: `thenAnswer(task -> "102".equals(task.variable("room")) ? … : …)`; an `HTTP_CALL` has
+  [per-iteration stubs](#http-and-llm-calls).
 
 `invocations()` and `invocationsOf(stepId)` list every dispatch the test saw — process, step, task
 id, topic, attempt, the variables it was sent and the engine time it happened.
@@ -229,9 +241,42 @@ assertThat(payments.lastRequest()).containsEntry("method", "POST");
 
 The request is rendered by the engine exactly as in production, and the stubbed response goes
 through the step's own `successStatus`, `retryOn` and `output` mapping — a `404` fails the step for
-good, a `503` or `thenIoError()` is retried. `whenLlmCall("triage").thenAnswer("{\"category\":\"noise\"}")`
-does the same for a model: `outputVariable`, `usageVariable` and `output` expressions over `text`,
-`json`, `usage` and `model` are applied (the `responseSchema` itself is not validated).
+good, a `503` or `thenIoError()` is retried.
+
+**One iteration, item or request apart.** A forEach `HTTP_CALL` makes one call per item; a *scoped*
+stub answers some of them differently, with answers of its own (consumed and repeated on their own,
+so each scope can have its own retries). The first scope that matches a call answers it; any other
+call gets the stub's own answers:
+
+```java
+var hotel = runtime.whenHttpCall("book").thenRespond(201, "{\"id\":\"H-1\"}");  // every room…
+hotel.whenIteration(1).thenRespond(409, "sold out");                             // …but the second
+hotel.whenItemHas("number", "900").thenRespond(503, "busy").thenRespond(201, "{\"id\":\"H-9\"}");
+hotel.whenRequest(request -> String.valueOf(request.get("body")).contains("VIP")).thenRespond(201, "{\"id\":\"V\"}");
+```
+
+`whenIteration(index)` (0-based) and `whenItem(predicate)` / `whenItemHas(field, value)` read the
+iteration from the step's own `forEach`; for an `HTTP_CALL` inside an inline `PROCESS` body, match the
+rendered request with `whenRequest(…)`. Each scope records its own `requests()`; the stub's
+`requests()` has every call.
+
+`whenLlmCall("triage").thenAnswer("{\"category\":\"noise\"}")` does the same for a model:
+`outputVariable`, `usageVariable` and `output` expressions over `text`, `json`, `usage` and `model` are
+applied. **The answer is validated against the step's `responseSchema`**, as the built-in task
+validates a real model's: an answer the schema refuses is a mistake in the test, so the step fails
+(`LLM_STUB_INVALID`, not retried) and **the test fails**, with what the schema says —
+
+```text
+The test's stubs answered what their steps cannot take:
+  LLM_CALL step 'triage': the stubbed answer does not match the step's responseSchema —
+  /category: does not have a value in the enumeration ["noise", "cleaning", "other"]; : required
+  property 'urgent' not found. Fix the stub, or stub it with thenInvalidAnswer(…) to test an
+  invalid model answer. Answer: {"category": "party"}
+```
+
+— and a failed process assertion lists it under *Stub problems*. To test what the step does with a
+model that answers badly, say so: `thenInvalidAnswer(text)` fails the call with `LLM_INVALID_OUTPUT`
+and the schema's errors, retryably, as in production (`runtime.stubProblems()` stays empty).
 
 ### Agents
 
@@ -313,6 +358,75 @@ the process from the engine when it runs, and a failure prints its steps and var
 | `hasReplied()` / `hasReplied(json)` / `hasReplyOutcome(outcome)` | A `REPLY` step answered (compared as JSON), or the engine answered for the process |
 | `hasPublishedEvent(type)` | A `PUBLISH_EVENT` step published an event of that type |
 | `hasAppliedUpdates("a", "b")` | The process applied exactly these [updates](#updates), in this order |
+| `hasCompensated("charge", "reserve")` / `hasNotCompensated(...)` | The saga undid each step — the compensation it declares ran and completed — or none of them |
+| `hasCompensatedInOrder("charge", "reserve")` / `hasNoCompensations()` | The saga undid exactly these steps, in this order (the newest first), or ran no compensation at all |
+| `hasEscalated("approve")` / `hasEscalated("approve", 2)` / `hasNotEscalated("approve")` | A `USER_TASK`'s `escalation` fired — at least one level, exactly *n* levels, or none yet |
+| `iterations("rooms")` | The [iterations of a forEach](#foreach-iterations), item by item |
+
+A failure message lists the process's steps, a forEach's iterations under their step named by index
+and label (or item), and its variables:
+
+```text
+Expected process 7c311a8e-… (rooms-booking-safe, businessKey FAIL-1) to be COMPLETED but it is COMPENSATED.
+Steps:
+  start                    COMPLETED
+  register-booking         COMPLETED
+  rooms                    ERROR
+    #0 "Room 101"          COMPLETED
+    #1 "Room 102"          COMPLETED
+    #2 "Room 900"          ERROR
+  notify-guest             CANCELLED
+  done                     CANCELLED
+  cancel-room-booking      COMPLETED
+    #0 room={"number":"102","type":"double"} COMPLETED
+    #1 room={"number":"101","type":"double"} COMPLETED
+Variables: {…}
+```
+
+The compensation assertions name the **compensated** steps, not their compensations, and read the
+order from the order the compensations' tasks were dispatched; a failure shows every compensation
+that ran:
+
+```text
+Expected process … to have compensated [reserve, charge], in this order, but it compensated [charge, reserve].
+Compensations, in the order they ran:
+  refund                   undoing charge               COMPLETED
+  release                  undoing reserve              COMPLETED
+```
+
+### forEach iterations
+
+`assertThat(process).iterations("rooms")` asserts on each item of a forEach. Name an iteration by
+its 0-based **index** (`1`), its **label** — what the forEach's `label` made of its item
+(`"Room 102"`) — or its **item** itself (`"2"`, `Map.of("number", "102")`, compared as JSON):
+
+```java
+assertThat(booking).iterations("rooms")
+        .hasSize(3)
+        .hasOnlyFailed("Room 900")                      // that one failed, no other did
+        .hasCompensated("Room 101", "Room 102");        // and the rollback undid the others
+
+assertThat(booking).iterations("rooms").iteration("Room 101")
+        .isCompleted().hasOutput("roomBookingId", "RB-101").wasCompensated();
+```
+
+| Assertion | Passes when |
+|---|---|
+| `hasSize(n)` | The forEach ran *n* iterations |
+| `allCompleted()` / `hasCompleted(...)` | Every iteration completed, or each of these did |
+| `hasFailed(...)` / `hasOnlyFailed(...)` / `hasNoFailures()` | Each of these failed (`ERROR` or `TIMEOUT`); these failed and no other; none failed |
+| `hasCompensated(...)` / `hasCompensatedInOrder(...)` / `hasNoneCompensated()` | The saga undid exactly these iterations (in any order, or in this one — newest first), or none |
+| `iteration(ref)` | One iteration: `hasStatus(s)`, `isCompleted()`, `isFailed()`, `isCancelled()`, `hasOutput(name, value)`, `hasItem(item)`, `wasCompensated()`, `wasNotCompensated()` |
+
+Failure messages name iterations the same way — `#2 "Room 900"`, or `#1 room=2` without a label —
+and list every iteration with its status, what it reported and whether it was undone:
+
+```text
+Expected only [#0 "Room 101"] of step 'book' of process … to have failed, but [#2 "Room 103"] failed:
+  #0 "Room 101"                COMPLETED (compensated) {bookingId=H-1}
+  #1 "Room 102"                COMPLETED (compensated) {bookingId=H-1}
+  #2 "Room 103"                ERROR
+```
 
 A retried step is one step execution with several attempts, so `stepExecutions("charge")` has one
 element after two retries; count dispatches with `runtime.invocationsOf("charge")`.
@@ -400,7 +514,7 @@ A key the format does not know is a mistake, reported with the scenario's name a
 Every `@EventConductorTest` test records what its processes did. After each one, `target/eventconductor-coverage/` holds the coverage of the run so far, for **every definition the engine knows** — one no test starts shows as 0%:
 
 ```text
-EventConductor workflow coverage — 20 test(s), 11 definition(s)
+EventConductor workflow coverage — 21 test(s), 11 definition(s)
 
 definition                    steps              branches           edges
 hotel-booking                 8/8 (100.0%)       3/3 (100.0%)       7/7 (100.0%)

@@ -143,6 +143,7 @@ scenarios:
 
   - name: a task waits for its worker
     workflow: approval
+    businessKey: SCENARIO-WAITING          # business keys are unique per engine: one run only
     expect:
       status: RUNNING
       waitingAt: approve

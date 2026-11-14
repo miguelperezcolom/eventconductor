@@ -16,6 +16,7 @@ steps:
     forEach:
       items: rooms
       as: room
+      label: "'Room ' + room.number"
       onIterationFailure: continue
       output: roomBookings
       outputElement: roomBookingId
