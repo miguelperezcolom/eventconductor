@@ -44,8 +44,13 @@ public class FormsRoutes implements RouteEntrySupplier {
      * The mounts that serve these routes: Mateu's route table is ABSOLUTE (since 3.0-beta.63 a
      * route is looked up only under the mount that was asked, never across mounts), so a code
      * supplier names the mount in front of each route — the links stay mount-relative.
+     *
+     * <p>The root mount ({@code ""}) is one of them: an embedded application whose own console is
+     * {@code @UI("")} and mounts {@link FormsOperationsMenu} (or {@link FormsMenu}) as {@code forms}
+     * — the workshop's, the testbenches' — reaches its task list at {@code /forms/tasks}, and its
+     * Run lands on {@code /forms/task/{id}}, which without this entry answered "Not found.".
      */
-    static final List<String> FRONT_DOORS = List.of("/_forms", "/_forms-admin");
+    static final List<String> FRONT_DOORS = List.of("", "/_forms", "/_forms-admin");
 
     @Override
     public List<RouteEntry> routes() {

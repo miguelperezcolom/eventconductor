@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
-/** {@code compensateLosers} / {@code compensateAbandoned}: where they may go, and that they never move a version hash. */
+/** {@code compensateLosers} / {@code compensateAbandoned} / {@code compensate}: where they may go, and that they never move a version hash. */
 class BranchCleanupDeclarationTest {
 
     private static WorkflowDefinition definition(String extraOnJoin, String extraOnEnd) {
@@ -50,10 +50,22 @@ class BranchCleanupDeclarationTest {
     }
 
     @Test
+    void compensateIsAcceptedOnAnEndAndRefusedElsewhereOrBesideCompensateAbandoned() {
+        var def = definition("", ",\"compensate\":true");
+        assertThatCode(def::checkInvariants).doesNotThrowAnyException();
+        assertThat(def.steps().get(5).compensates()).isTrue();
+        assertThat(def.steps().get(4).compensates()).isFalse();
+        assertThatThrownBy(() -> definition(",\"compensate\":true", "").checkInvariants())
+                .hasMessageContaining("step 'first'").hasMessageContaining("compensate is only allowed on an END");
+        assertThatThrownBy(() -> definition("", ",\"compensate\":true,\"compensateAbandoned\":true").checkInvariants())
+                .hasMessageContaining("compensate and compensateAbandoned");
+    }
+
+    @Test
     void absentOrFalseLeavesTheJsonAsItWas() {
         var without = toJson(definition("", "").steps());
-        var withFalse = toJson(definition(",\"compensateLosers\":false", ",\"compensateAbandoned\":false").steps());
-        assertThat(without).doesNotContain("compensateLosers").doesNotContain("compensateAbandoned");
+        var withFalse = toJson(definition(",\"compensateLosers\":false", ",\"compensateAbandoned\":false,\"compensate\":false").steps());
+        assertThat(without).doesNotContain("compensateLosers").doesNotContain("compensateAbandoned").doesNotContain("\"compensate\"");
         assertThat(withFalse).isEqualTo(without);
     }
 }

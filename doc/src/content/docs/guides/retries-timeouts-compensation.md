@@ -214,6 +214,58 @@ any step fails after exhausting its retries:
 If nothing compensable had completed when the step failed (for instance `reserve-hotel` itself
 fails), there is nothing to roll back: no compensation runs and the process stays in plain `ERROR`.
 
+### Compensation on a business decision
+
+**Compensation is the mechanism; who decides to trigger it is your business rule.** Everything above
+triggers it automatically, on a failure. That is right when the steps are one technical
+all-or-nothing unit — charging the card and reserving the stock for one request: half of it is worth
+nothing, and nobody needs to be asked.
+
+It is wrong when undoing is a decision somebody should make. A hotel that cannot book one room of
+three does not silently cancel the other two: it tells the guest, proposes another room, and cancels
+only if the guest says so. Write that as a flow, and let the cancel branch end with an `END` that
+compensates:
+
+```yaml
+id: booking-the-guest-decides
+name: Booking where the guest decides
+steps:
+  - { id: start, type: START, name: Start }
+  - id: rooms
+    type: ACTION
+    name: Book a room
+    preconditionStepId: start
+    compensable: true
+    compensationStepId: cancel-room
+    forEach:
+      items: rooms
+      as: room
+      onIterationFailure: continue      # keep what was booked; the step completes anyway
+      output: roomBookings
+  - { id: ask-guest, type: ACTION, name: Ask the guest, preconditionStepId: rooms }
+  - { id: guest-decision, type: CHOICE, name: What did the guest say, preconditionStepId: ask-guest }
+  - id: cancelled-by-guest
+    type: END
+    name: Cancelled by the guest
+    compensate: true                    # undo what was booked, because the guest decided so
+    preconditions:
+      - { stepId: guest-decision, expression: "decision == 'cancel'" }
+  - { id: confirm, type: ACTION, name: Confirm the booking, preconditionStepId: guest-decision }
+  - { id: done, type: END, name: Booked, preconditionStepId: confirm }
+  - { id: cancel-room, type: ACTION, name: Cancel the room }
+```
+
+Reaching `cancelled-by-guest` cancels whatever is still in flight and runs the compensations of every
+compensable step that completed, newest first — one per room that was booked, none for the room that
+was not — and the process ends `COMPENSATED`. It is the same rollback a failure starts, with three
+differences: nothing failed, so no step is `ERROR` and the process is not counted as failed; the
+reason is recorded on the process (`rollbackReason`) and in the `END`'s log; and it is written where
+the decision is, so it reads as one. In a child process it fails the parent's `PROCESS` step, which
+may roll the parent back in turn. See [`END` → `compensate`](/reference/step-types/#compensate).
+
+Don't get the same effect by failing a step on purpose: that is an incident in the Errors tab, a
+failed process in the metrics, and a flow that says the opposite of what happened.
+
 ### A cancelled step whose work completes anyway
 
 The engine cancels steps that are still running: at the end of a rollback (a sibling branch failed),
@@ -266,10 +318,15 @@ that is how they have always behaved. Two opt-ins undo it:
 
 | Where | Field | What it compensates |
 |---|---|---|
-| an `XOR` `JOIN` | `compensateLosers: true` | The losing branches are cancelled as the join fires, and their completed compensable steps are compensated. |
+| an `XOR` `JOIN` | `compensateLosers: true` | The losing branches are cancelled as the join fires, and their completed compensable steps are compensated. Exactly one branch wins — the first whose link step completed (ties: the first listed in `preconditionStepIds`) — so a branch that completed too before the join was evaluated still loses, and is compensated. |
 | an `END` | `compensateAbandoned: true` | The completed compensable steps of the branches this `END` cut short (not on the way to it, with a step after them it cancelled). |
 
 Work that completed **late** — after the cancellation — is compensated with or without them.
+
+With `compensateLosers`, a losing branch's outputs are **discarded**: once another branch has reached
+the join, what a step of a losing branch reports is kept on its own run (its compensation sees it — the
+booking id to cancel) and is not written to the process variables, so it never overwrites the
+winner's. Without `compensateLosers` a losing branch runs on and its outputs are written as always.
 
 These compensations are a **cleanup beside the flow**, not a rollback:
 

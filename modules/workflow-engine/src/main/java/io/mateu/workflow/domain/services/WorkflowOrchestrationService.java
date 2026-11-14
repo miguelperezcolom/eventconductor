@@ -310,7 +310,7 @@ public class WorkflowOrchestrationService {
         boolean waitsForEveryIteration = !compensation && forEach.waitsForEveryIteration();
         if (failedIteration != null && !waitsForEveryIteration) {
             cancelIterations(iterations, pass);
-            container.failIterations(failedIteration.getStatus(), "Iteration " + failedIteration.getItemIndex()
+            container.failIterations(failedIteration.getStatus(), failedIteration.iterationPhrase()
                     + " of step " + container.getStepId() + " ended " + failedIteration.getStatus()
                     + (compensation ? "; the compensation cannot go on." : "; the step fails."));
             pass.save(container);
@@ -327,7 +327,7 @@ public class WorkflowOrchestrationService {
             if (ForEach.COMPENSATE_ALL.equals(forEach.failurePolicy())) {
                 container.failIterations(failedIteration == null ? StepExecutionStatus.ERROR : failedIteration.getStatus(), failed + " of " + total + " iterations of step "
                         + container.getStepId() + " failed or were cancelled"
-                        + (failedIteration == null ? "" : " (first failure: iteration " + failedIteration.getItemIndex() + ")")
+                        + (failedIteration == null ? "" : " (first failure: " + failedIteration.iterationName() + ")")
                         + "; onIterationFailure compensateAll: the step fails and the " + completed
                         + " completed ones are compensated.");
                 pass.save(container);
@@ -935,6 +935,13 @@ public class WorkflowOrchestrationService {
                         .withFinishedAt(now))
                 .forEach(stepsToSave::add);
 
+        var compensating = endSteps.stream()
+                .filter(stepExecution -> getStep(stepExecution, cache).compensates())
+                .findFirst().orElse(null);
+        if (compensating != null) {
+            return handleCompensatingEnd(pass, stepExecutions, endSteps, compensating, stepsToSave, cache);
+        }
+
         // Cancel all remaining uncompleted steps — but not a cleanup compensation of an abandoned
         // branch: it undoes work already done, and must finish whatever ends the flow (see
         // AbandonedBranchService).
@@ -965,6 +972,69 @@ public class WorkflowOrchestrationService {
         Process updatedProcess = completeProcess(process);
         boolean processCompleted = process.getStatus() != ProcessStatus.COMPLETED;
         return new TransitionResult(updatedProcess, pass.saved(stepsToSave), processCompleted, false, pass.followUp);
+    }
+
+    /**
+     * An END with {@code compensate: true}: the flow decided to undo what the process did — a business
+     * decision ("the guest cancelled"), not a failure. The process is rolled back exactly as the engine
+     * rolls back a process it cut short from outside ({@link Process#getRollbackReason()}): it is marked
+     * ERROR with the reason, which holds its flow and starts the saga rollback in
+     * StepExecutionStatusUpdatedEventHandler — every compensable step that completed is compensated,
+     * newest first, and the process ends COMPENSATED (COMPENSATION_FAILED if a compensation fails), also
+     * when there was nothing to undo. Not counted as a failed process.
+     *
+     * <p>What is still waiting or in flight is cancelled, as an END cancels it — except the compensation
+     * steps, which are the rollback itself (they wait CREATED for it to start them), a cleanup already
+     * running, and an agent's invocation, which is left to reach a known outcome first (as in
+     * RollBackProcessUseCase). A cancelled step whose work completes anyway is compensated by the
+     * rollback, and a cancelled PROCESS step's child is rolled back (CancelChildProcessService reads the
+     * rollback off this process).
+     */
+    private TransitionResult handleCompensatingEnd(Pass pass, List<StepExecution> stepExecutions,
+                                                   List<StepExecution> endSteps, StepExecution end,
+                                                   List<StepExecution> stepsToSave, Map<String, Step> cache) {
+        var compensationStepIds = new java.util.HashSet<String>();
+        for (var execution : stepExecutions) {
+            var step = getStep(execution, cache);
+            if (step != null && step.compensationStepId() != null && !step.compensationStepId().isBlank()) {
+                compensationStepIds.add(step.compensationStepId());
+            }
+        }
+        stepExecutions.stream()
+                .filter(execution -> !endSteps.contains(execution))
+                .filter(execution -> !execution.isCleanupCompensation() && execution.compensatedStepId() == null)
+                .filter(execution -> !compensationStepIds.contains(execution.getStepId()))
+                .filter(execution -> execution.getInvocationId() == null)
+                .filter(execution -> List.of(StepExecutionStatus.PENDING,
+                                StepExecutionStatus.CREATED,
+                                StepExecutionStatus.RUNNING,
+                                StepExecutionStatus.AWAITING_RETRY,
+                                StepExecutionStatus.WAITING_ON_LOCK)
+                        .contains(execution.getStatus()))
+                .map(execution -> execution.withStatus(StepExecutionStatus.CANCELLED))
+                .forEach(stepsToSave::add);
+        stepsToSave.stream()
+                .filter(execution -> StepExecutionStatus.CANCELLED.equals(execution.getStatus()) && execution.isContainer())
+                .toList()
+                .forEach(container -> StepExecutions.iterationsOf(container, pass.working).stream()
+                        .filter(iteration -> iteration.getStatus() == StepExecutionStatus.CREATED
+                                || iteration.getStatus().keepsTheProcessInFlight())
+                        .map(iteration -> iteration.withStatus(StepExecutionStatus.CANCELLED))
+                        .forEach(stepsToSave::add));
+        var reason = "the flow reached END '" + end.getStepId() + "', which compensates what the process did";
+        stepsToSave.stream().filter(execution -> execution.getId().equals(end.getId())).findFirst()
+                .ifPresent(completed -> {
+                    completed.logInfo("Rolling the process back on purpose: " + reason + ".");
+                    // Completed here by a plain status flip, which announces nothing: announced, so the
+                    // handler of status changes looks at the process and starts its rollback.
+                    completed.announceStatusAgain();
+                });
+        var process = pass.process;
+        var rollingBack = process.withRollbackReason(reason).withStatus(ProcessStatus.ERROR);
+        if (rollingBack.getStarted() == null) {
+            rollingBack = rollingBack.withStarted(EngineClock.now());
+        }
+        return new TransitionResult(rollingBack, pass.saved(stepsToSave), false, false, pass.followUp);
     }
 
     private TransitionResult handleStandardOrImplicitCompletionTransition(Pass pass, List<StepExecution> stepExecutions, List<StepExecution> executableSteps, Map<String, Step> cache) {

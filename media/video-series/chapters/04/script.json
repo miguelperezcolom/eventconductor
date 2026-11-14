@@ -1,196 +1,782 @@
 {
   "chapter": 4,
-  "slug": "sagas-and-compensation",
+  "slug": "the-guest-decides",
   "app": "examples/workshop-hotel-booking",
   "docs": "guides/retries-timeouts-compensation/",
   "code": "examples/workshop-hotel-booking",
-  "title": { "en": "All rooms or none: sagas and compensation", "es": "Todas las habitaciones o ninguna: sagas y compensación" },
+  "title": {
+    "en": "When a room can't be booked: the guest decides",
+    "es": "Cuando no se puede reservar una habitación: decide el cliente"
+  },
   "hook": {
-    "en": "A booking for three rooms: two are booked, the third is sold out. What happens to the two that were booked?",
-    "es": "Una reserva de tres habitaciones: dos se reservan y la tercera está agotada. ¿Qué pasa con las dos que ya se reservaron?"
+    "en": "A booking for three rooms: two are booked, the third is sold out. Should the hotel cancel the two that were booked, on its own? No: it asks the guest.",
+    "es": "Una reserva de tres habitaciones: dos se reservan y la tercera está agotada. ¿Debe el hotel cancelar por su cuenta las dos reservadas? No: pregunta al cliente."
   },
   "about": {
-    "en": "How EventConductor undoes work when part of a process fails: a forEach saga declared in YAML, retries and timeouts, a worker's non-retryable failure, the compensated run in the console (diagram, lanes per room, Errors tab), the same saga over HTTP with idempotency keys, the three onIterationFailure policies, and the test that proves it. Recorded on the workshop app (examples/workshop-hotel-booking).",
-    "es": "Cómo deshace EventConductor el trabajo cuando falla parte de un proceso: una saga con forEach declarada en YAML, reintentos y timeouts, el fallo no reintentable de un worker, la ejecución compensada en la consola (diagrama, carriles por habitación, pestaña de errores), la misma saga por HTTP con claves de idempotencia, las tres políticas de onIterationFailure y el test que lo demuestra. Grabado sobre la app del taller (examples/workshop-hotel-booking)."
+    "en": "Sagas and compensation, the realistic way: a forEach that keeps what it booked when a room is sold out (onIterationFailure: continue), retries and timeouts for what is technical, the guest asked and waited for (WAIT_FOR_MESSAGE with a deadline that goes to the front desk, never to a cancellation), and the guest's cancel as an END with compensate: true that undoes every booked room, newest first. The same over HTTP, with the hotel offering an alternative room; when automatic compensation (compensateAll) is the right call; and the test that proves it. Recorded on the workshop app (examples/workshop-hotel-booking).",
+    "es": "Sagas y compensación, de forma realista: un forEach que conserva lo reservado cuando una habitación está agotada (onIterationFailure: continue), reintentos y timeouts para lo técnico, el cliente al que se pregunta y se espera (WAIT_FOR_MESSAGE con un plazo que acaba en recepción, nunca en una cancelación) y la cancelación del cliente como un END con compensate: true que deshace cada habitación reservada, de la más reciente a la más antigua. Lo mismo por HTTP, con el hotel ofreciendo una habitación alternativa; cuándo es correcta la compensación automática (compensateAll); y el test que lo demuestra. Grabado sobre la app del taller (examples/workshop-hotel-booking)."
   },
-  "standIns": { "en": "the hotel is a local stand-in served by the workshop app", "es": "el hotel es un sustituto local que sirve la propia app del taller" },
+  "standIns": {
+    "en": "the hotel is a local stand-in served by the workshop app",
+    "es": "el hotel es un sustituto local que sirve la propia app del taller"
+  },
   "youtubeChapters": [
-    { "at": "title", "en": "The problem", "es": "El problema" },
-    { "at": "declare", "en": "Declaring the saga", "es": "Declarar la saga" },
-    { "at": "worker", "en": "The worker's failure", "es": "El fallo del worker" },
-    { "at": "run", "en": "Running it", "es": "Ejecutarla" },
-    { "at": "http", "en": "The same saga over HTTP", "es": "La misma saga por HTTP" },
-    { "at": "policies", "en": "Three policies", "es": "Tres políticas" },
-    { "at": "tested", "en": "Tested", "es": "Probado" }
+    {
+      "at": "title",
+      "en": "The problem",
+      "es": "El problema"
+    },
+    {
+      "at": "declare",
+      "en": "Keep what was booked",
+      "es": "Conservar lo reservado"
+    },
+    {
+      "at": "decide",
+      "en": "The guest decides",
+      "es": "Decide el cliente"
+    },
+    {
+      "at": "run",
+      "en": "Running it",
+      "es": "Ejecutarlo"
+    },
+    {
+      "at": "cancel",
+      "en": "The guest cancels: compensation",
+      "es": "El cliente cancela: compensación"
+    },
+    {
+      "at": "http",
+      "en": "Over HTTP: an alternative room",
+      "es": "Por HTTP: una habitación alternativa"
+    },
+    {
+      "at": "policies",
+      "en": "Who decides to undo",
+      "es": "Quién decide deshacer"
+    },
+    {
+      "at": "tested",
+      "en": "Tested",
+      "es": "Probado"
+    }
   ],
   "scenes": [
     {
-      "id": "title", "view": "title",
-      "spec": { "eyebrow": "eyebrow", "title": "title", "sub": "sub", "subAt": "c3", "top": 120, "visual": "rooms", "size": 112 },
-      "narration": {
-        "en": ["A booking for three rooms.", "Two are booked, the third is sold out.", "What happens to the two that were booked?", { "text": "This chapter: sagas and compensation in EventConductor.", "say": "This chapter: sagas and compensation in Event Conductor." }],
-        "es": ["Una reserva de tres habitaciones.", "Dos se reservan y la tercera está agotada.", "¿Qué pasa con las dos que ya se reservaron?", { "text": "En este capítulo: sagas y compensación en EventConductor.", "say": "En este capítulo: sagas y compensación en Event Conductor." }]
-      }
-    },
-    {
-      "id": "byhand", "view": "checklist",
-      "spec": { "head": "byhand.head", "items": "byhand.items", "from": "c0+0.8", "to": "e1" },
-      "narration": {
-        "en": ["Written by hand, this is where things go wrong.", "You have to remember which rooms were booked, undo them in reverse order, retry with backoff without booking twice, give up on a hotel that never answers — and cope with an answer that arrives after you gave up."],
-        "es": ["Escrito a mano, aquí es donde las cosas salen mal.", "Tienes que recordar qué habitaciones se reservaron, deshacerlas en orden inverso, reintentar con espera creciente sin reservar dos veces, rendirte con un hotel que no contesta… y lidiar con una respuesta que llega después de haberte rendido."]
-      }
-    },
-    {
-      "id": "declare", "view": "code",
-      "code": { "file": "examples/workshop-hotel-booking/src/main/resources/workflows/03-rooms-booking-safe.ec.yaml" },
+      "id": "title",
+      "view": "title",
       "spec": {
-        "geom": { "x": 70, "y": 50, "w": 1250, "h": 980 }, "fontSize": 22,
+        "eyebrow": "eyebrow",
+        "title": "title",
+        "sub": "sub",
+        "subAt": "c3",
+        "top": 120,
+        "visual": "rooms",
+        "size": 112
+      },
+      "narration": {
+        "en": [
+          "A booking for three rooms.",
+          "Two are booked, the third is sold out.",
+          "Should the hotel cancel the two that were booked, on its own? No: it asks the guest.",
+          {
+            "text": "This chapter: sagas and compensation in EventConductor — and who decides to use them.",
+            "say": "This chapter: sagas and compensation in Event Conductor — and who decides to use them."
+          }
+        ],
+        "es": [
+          "Una reserva de tres habitaciones.",
+          "Dos se reservan y la tercera está agotada.",
+          "¿Debe el hotel cancelar por su cuenta las dos reservadas? No: pregunta al cliente.",
+          {
+            "text": "En este capítulo: sagas y compensación en EventConductor, y quién decide usarlas.",
+            "say": "En este capítulo: sagas y compensación en Event Conductor, y quién decide usarlas."
+          }
+        ]
+      }
+    },
+    {
+      "id": "byhand",
+      "view": "checklist",
+      "spec": {
+        "head": "byhand.head",
+        "items": "byhand.items",
+        "from": "c0+0.8",
+        "to": "e1"
+      },
+      "narration": {
+        "en": [
+          "Written by hand, this is where things go wrong.",
+          "You have to remember which rooms were booked, ask the guest and wait days for the answer, remind them, hand it to a person when they never answer, undo in reverse order only if they cancel — and retry all of it without booking twice."
+        ],
+        "es": [
+          "Escrito a mano, aquí es donde las cosas salen mal.",
+          "Tienes que recordar qué habitaciones se reservaron, preguntar al cliente y esperar días su respuesta, recordárselo, pasárselo a una persona si nunca contesta, deshacer en orden inverso solo si cancela… y reintentarlo todo sin reservar dos veces."
+        ]
+      }
+    },
+    {
+      "id": "declare",
+      "view": "code",
+      "code": {
+        "file": "examples/workshop-hotel-booking/src/main/resources/workflows/03-rooms-booking-safe.ec.yaml"
+      },
+      "spec": {
+        "geom": {
+          "x": 70,
+          "y": 50,
+          "w": 1250,
+          "h": 980
+        },
+        "fontSize": 22,
         "emphasis": [
-          { "at": "c1", "match": ["^  - id: rooms", "forEach:", "items: rooms", "as: room", "label:", "^    steps:"] },
-          { "at": "c2", "match": ["compensable: true", "compensationStepId"] },
-          { "at": "c2+3.2", "match": ["^  - id: cancel-room-booking", "name: Cancel the room"] },
-          { "at": "c3", "match": ["onIterationFailure"] }
+          {
+            "at": "c1",
+            "match": [
+              "^  - id: rooms",
+              "forEach:",
+              "items: rooms",
+              "as: room",
+              "label:",
+              "^    steps:"
+            ]
+          },
+          {
+            "at": "c2",
+            "match": [
+              "onIterationFailure: continue",
+              "output: roomBookings"
+            ]
+          },
+          {
+            "at": "c3",
+            "match": [
+              "compensable: true",
+              "compensationStepId"
+            ]
+          },
+          {
+            "at": "c3+3.2",
+            "match": [
+              "^  - id: cancel-room-booking",
+              "name: Cancel the room"
+            ]
+          }
         ],
         "notes": [
-          { "at": "c1", "key": "declare.n1" },
-          { "at": "c2", "key": "declare.n2" },
-          { "at": "c3", "key": "declare.n3" }
+          {
+            "at": "c1",
+            "key": "declare.n1"
+          },
+          {
+            "at": "c2",
+            "key": "declare.n2"
+          },
+          {
+            "at": "c3",
+            "key": "declare.n3"
+          }
         ]
       },
       "narration": {
-        "en": ["In EventConductor it is declared.", "The rooms step runs once per room, each room a small flow of its own.", "Compensable, with a compensation step: if the booking fails, every room that was booked is cancelled.", "And on iteration failure, compensate all: let every room finish, and if one failed, undo the rest."],
-        "es": ["En EventConductor se declara.", "El paso de habitaciones se ejecuta una vez por habitación, cada una con su pequeño flujo.", "Compensable, con un paso de compensación: si la reserva falla, se cancela cada habitación reservada.", "Y ante el fallo de una iteración, compensarlo todo: deja que terminen todas y, si una falló, deshaz las demás."]
+        "en": [
+          "In EventConductor it is declared.",
+          "The rooms step runs once per room, each room a small flow of its own.",
+          "On iteration failure, continue: a sold-out room stops nothing, and what was booked stays booked.",
+          "Compensable, with a compensation step: this is how a booked room is undone — if someone decides to undo it."
+        ],
+        "es": [
+          "En EventConductor se declara.",
+          "El paso de habitaciones se ejecuta una vez por habitación, cada una con su pequeño flujo.",
+          "Ante el fallo de una iteración, continuar: una habitación agotada no detiene nada y lo reservado sigue reservado.",
+          "Compensable, con un paso de compensación: así se deshace una habitación reservada, si alguien decide deshacerla."
+        ]
       }
     },
     {
-      "id": "retries", "view": "code",
-      "code": { "file": "examples/workshop-hotel-booking/src/main/resources/workflows/03-rooms-booking-safe.ec.yaml" },
+      "id": "retries",
+      "view": "code",
+      "code": {
+        "file": "examples/workshop-hotel-booking/src/main/resources/workflows/03-rooms-booking-safe.ec.yaml"
+      },
       "spec": {
-        "geom": { "x": 70, "y": 50, "w": 1250, "h": 980 }, "fontSize": 22, "startScroll": 14,
+        "geom": {
+          "x": 70,
+          "y": 50,
+          "w": 1250,
+          "h": 980
+        },
+        "fontSize": 22,
+        "startScroll": 14,
         "emphasis": [
-          { "at": "c0", "match": ["^      - id: create-room-booking", "name: Book the room"] },
-          { "at": "c1", "match": ["retries: 2"] },
-          { "at": "c2", "match": ["timeout: PT30S"] }
+          {
+            "at": "c0",
+            "match": [
+              "^      - id: create-room-booking",
+              "name: Book the room"
+            ]
+          },
+          {
+            "at": "c1",
+            "match": [
+              "retries: 2"
+            ]
+          },
+          {
+            "at": "c2",
+            "match": [
+              "timeout: PT30S"
+            ]
+          }
         ],
         "notes": [
-          { "at": "c1", "key": "retries.n1" },
-          { "at": "c2", "key": "retries.n2" }
+          {
+            "at": "c1",
+            "key": "retries.n1"
+          },
+          {
+            "at": "c2",
+            "key": "retries.n2"
+          }
         ]
       },
       "narration": {
-        "en": ["Inside each room, two more lines.", "Retries: a technical failure is retried twice, with exponential backoff.", "Timeout: a worker that never answers fails the attempt after thirty seconds — and that is retried too."],
-        "es": ["Dentro de cada habitación, dos líneas más.", "Reintentos: un fallo técnico se reintenta dos veces, con espera exponencial.", "Timeout: un worker que nunca responde hace fallar el intento a los treinta segundos, y ese intento también se reintenta."]
+        "en": [
+          "Inside each room, two more lines.",
+          "Retries: a technical failure is retried twice, with exponential backoff.",
+          "Timeout: a worker that never answers fails the attempt after thirty seconds — and that is retried too."
+        ],
+        "es": [
+          "Dentro de cada habitación, dos líneas más.",
+          "Reintentos: un fallo técnico se reintenta dos veces, con espera exponencial.",
+          "Timeout: un worker que nunca responde hace fallar el intento a los treinta segundos, y ese intento también se reintenta."
+        ]
       }
     },
     {
-      "id": "worker", "view": "code",
-      "code": { "file": "examples/workshop-hotel-booking/src/main/java/com/example/hotel/workers/HotelTaskHandlers.java", "from": "public record CreateRoomBookingInput", "to": "record CancelRoomBookingInput" },
+      "id": "decide",
+      "view": "code",
+      "code": {
+        "file": "examples/workshop-hotel-booking/src/main/resources/workflows/03-rooms-booking-safe.ec.yaml"
+      },
       "spec": {
-        "geom": { "x": 70, "y": 50, "w": 1780, "h": 980 }, "fontSize": 22,
+        "geom": {
+          "x": 70,
+          "y": 50,
+          "w": 1250,
+          "h": 980
+        },
+        "fontSize": 22,
+        "startScroll": 42,
         "emphasis": [
-          { "at": "c0", "match": ["throw new TaskFailure", "is sold out\", false"] },
-          { "at": "c1", "match": ["record CancelRoomBookingInput"] }
+          {
+            "at": "c0",
+            "match": [
+              "^  - id: all-booked",
+              "^  - id: ask-guest",
+              "FAILED"
+            ]
+          },
+          {
+            "at": "c1",
+            "match": [
+              "^  - id: wait-for-guest",
+              "type: WAIT_FOR_MESSAGE",
+              "messageName: guest-answer",
+              "correlationExpression: businessKey"
+            ]
+          },
+          {
+            "at": "c2",
+            "match": [
+              "timeout: P2D",
+              "onTimeoutStepId: tell-front-desk",
+              "^  - id: tell-front-desk"
+            ]
+          },
+          {
+            "at": "c3",
+            "match": [
+              "^  - id: cancelled-by-guest",
+              "compensate: true",
+              "answer == 'cancel'"
+            ]
+          }
+        ],
+        "notes": [
+          {
+            "at": "c1",
+            "key": "decide.n1"
+          },
+          {
+            "at": "c2",
+            "key": "decide.n2"
+          },
+          {
+            "at": "c3",
+            "key": "decide.n3"
+          }
         ]
       },
       "narration": {
-        "en": ["The worker says why it failed, with a business code, and says the failure is final: retrying will not make the penthouse free.", "The compensation receives the room and the booking id it has to cancel."],
-        "es": ["El worker dice por qué falló, con un código de negocio, y que el fallo es definitivo: reintentar no va a liberar el ático.", "La compensación recibe la habitación y el identificador de la reserva que tiene que cancelar."]
+        "en": [
+          "If a room failed, the guest is told and asked.",
+          "The process waits for the answer, a message correlated by the booking's business key — for days if it must, without holding a thread.",
+          "No answer in two days is not a cancellation: the front desk is told, and a person follows up.",
+          "And cancel is an END with compensate: true. The guest's decision runs the compensation."
+        ],
+        "es": [
+          "Si falló una habitación, se avisa al cliente y se le pregunta.",
+          "El proceso espera la respuesta, un mensaje correlacionado por la clave de negocio de la reserva; días si hace falta, sin ocupar un hilo.",
+          "Que no conteste en dos días no es una cancelación: se avisa a recepción y una persona hace el seguimiento.",
+          "Y cancelar es un END con compensate: true. Es la decisión del cliente la que lanza la compensación."
+        ]
       }
     },
     {
-      "id": "run", "view": "terminal",
-      "spec": { "geom": { "x": 140, "y": 170, "w": 1640, "h": 700 }, "title": "examples/workshop-hotel-booking", "items": [{ "id": "booking-3", "at": 0.3 }], "opts": { "cps": 90 } },
+      "id": "worker",
+      "view": "code",
+      "code": {
+        "file": "examples/workshop-hotel-booking/src/main/java/com/example/hotel/workers/HotelTaskHandlers.java",
+        "from": "public record CreateRoomBookingInput",
+        "to": "record CancelRoomBookingInput"
+      },
+      "spec": {
+        "geom": {
+          "x": 70,
+          "y": 50,
+          "w": 1780,
+          "h": 980
+        },
+        "fontSize": 22,
+        "emphasis": [
+          {
+            "at": "c0",
+            "match": [
+              "throw new TaskFailure",
+              "is sold out\", false"
+            ]
+          },
+          {
+            "at": "c1",
+            "match": [
+              "record CancelRoomBookingInput"
+            ]
+          }
+        ]
+      },
+      "narration": {
+        "en": [
+          "The worker says why it failed, with a business code, and says the failure is final: retrying will not make the penthouse free.",
+          "The compensation receives the room and the booking id it has to cancel."
+        ],
+        "es": [
+          "El worker dice por qué falló, con un código de negocio, y que el fallo es definitivo: reintentar no va a liberar el ático.",
+          "La compensación recibe la habitación y el identificador de la reserva que tiene que cancelar."
+        ]
+      }
+    },
+    {
+      "id": "run",
+      "view": "terminal",
+      "spec": {
+        "geom": {
+          "x": 140,
+          "y": 170,
+          "w": 1640,
+          "h": 700
+        },
+        "title": "examples/workshop-hotel-booking",
+        "items": [
+          {
+            "id": "booking-3",
+            "at": 0.3
+          }
+        ],
+        "opts": {
+          "cps": 90
+        }
+      },
       "extra": 1.2,
       "narration": {
-        "en": ["Let's run it.", { "text": "Booking three: rooms 101 and 102, and the penthouse, 900.", "say": "Booking three: rooms one-oh-one and one-oh-two, and the penthouse, nine hundred." }],
-        "es": ["Vamos a ejecutarlo.", "Reserva tres: las habitaciones 101 y 102, y el ático, la 900."]
+        "en": [
+          "Let's run it.",
+          {
+            "text": "Booking three: rooms 101 and 102, and the penthouse, 900.",
+            "say": "Booking three: rooms one-oh-one and one-oh-two, and the penthouse, nine hundred."
+          }
+        ],
+        "es": [
+          "Vamos a ejecutarlo.",
+          "Reserva tres: las habitaciones 101 y 102, y el ático, la 900."
+        ]
       }
     },
     {
-      "id": "diagram", "view": "live",
+      "id": "diagram",
+      "view": "live",
       "spec": {},
       "narration": {
-        "en": ["The process ends Compensated.", "Book every room is red: two of three.", "The dashed red edge leads to Cancel the room, drawn amber because it undid work instead of doing it — two of two, one cancellation per room that had been booked.", "Tell the guest never ran."],
-        "es": ["El proceso termina compensado.", { "text": "«Book every room» está en rojo: dos de tres.", "say": "«Buk évri rum» está en rojo: dos de tres." }, { "text": "La línea roja discontinua lleva a «Cancel the room», en ámbar porque deshizo trabajo en lugar de hacerlo: dos de dos, una cancelación por cada habitación reservada.", "say": "La línea roja discontinua lleva a «Cáncel de rum», en ámbar porque deshizo trabajo en lugar de hacerlo: dos de dos, una cancelación por cada habitación reservada." }, { "text": "A «Tell the guest» nunca se llegó.", "say": "A «Tel de guest» nunca se llegó." }]
+        "en": [
+          "The process is waiting for the guest.",
+          "Book every room: two of three, and the step completed anyway.",
+          "Nothing has been cancelled: Cancel the room has not run.",
+          "The guest has been asked, and the process waits for the answer."
+        ],
+        "es": [
+          "El proceso está esperando al cliente.",
+          {
+            "text": "«Book every room»: dos de tres, y el paso se completó igualmente.",
+            "say": "«Buk évri rum»: dos de tres, y el paso se completó igualmente."
+          },
+          {
+            "text": "No se ha cancelado nada: «Cancel the room» no se ha ejecutado.",
+            "say": "No se ha cancelado nada: «Cáncel de rum» no se ha ejecutado."
+          },
+          "Se ha preguntado al cliente y el proceso espera su respuesta."
+        ]
       }
     },
     {
-      "id": "lanes", "view": "live",
+      "id": "lanes",
+      "view": "live",
       "spec": {},
       "extra": 0.8,
       "narration": {
-        "en": [{ "text": "Double-click the step and it opens into one lane per room: 101 and 102 completed, 900 failed.", "say": "Double-click the step and it opens into one lane per room: one-oh-one and one-oh-two completed, nine hundred failed." }, "The Errors tab says why, down to the child run: sold out, not retryable."],
-        "es": ["Con doble clic, el paso se abre en un carril por habitación: la 101 y la 102 completadas, la 900 fallida.", "La pestaña de errores dice por qué, hasta la ejecución hija: agotada, sin reintento."]
+        "en": [
+          {
+            "text": "Double-click the step and it opens into one lane per room: 101 and 102 completed, 900 failed.",
+            "say": "Double-click the step and it opens into one lane per room: one-oh-one and one-oh-two completed, nine hundred failed."
+          },
+          "The Errors tab says why, down to the child run: sold out, not retryable."
+        ],
+        "es": [
+          "Con doble clic, el paso se abre en un carril por habitación: la 101 y la 102 completadas, la 900 fallida.",
+          "La pestaña de errores dice por qué, hasta la ejecución hija: agotada, sin reintento."
+        ]
       }
     },
     {
-      "id": "http", "view": "code",
-      "code": { "file": "examples/workshop-hotel-booking/src/main/resources/workflows/04-rooms-booking-http.ec.yaml" },
+      "id": "cancel",
+      "view": "live",
       "spec": {
-        "geom": { "x": 70, "y": 50, "w": 1250, "h": 980 }, "fontSize": 22,
+        "terms": [
+          {
+            "items": [
+              {
+                "id": "answer-3",
+                "at": 0.2,
+                "prompt": "$"
+              }
+            ],
+            "opts": {
+              "cps": 80
+            },
+            "from": 0,
+            "to": "c1-0.2",
+            "x": 220,
+            "y": 600,
+            "w": 1480,
+            "h": 240
+          }
+        ]
+      },
+      "extra": 0.8,
+      "narration": {
+        "en": [
+          "The guest answers: cancel.",
+          "The process ends Compensated: Cancelled by the guest, and Cancel the room ran two of two — newest first, one per room that had been booked.",
+          "The sold-out room had nothing to undo. Compensated is not an error: the process did what the guest decided."
+        ],
+        "es": [
+          "El cliente responde: cancelar.",
+          {
+            "text": "El proceso termina compensado: «Cancelled by the guest», y «Cancel the room» se ejecutó dos de dos, de la más reciente a la más antigua, una por cada habitación reservada.",
+            "say": "El proceso termina compensado: «Cánselt bai de guest», y «Cáncel de rum» se ejecutó dos de dos, de la más reciente a la más antigua, una por cada habitación reservada."
+          },
+          "La habitación agotada no tenía nada que deshacer. Compensado no es un error: el proceso hizo lo que decidió el cliente."
+        ]
+      }
+    },
+    {
+      "id": "http",
+      "view": "code",
+      "code": {
+        "file": "examples/workshop-hotel-booking/src/main/resources/workflows/04-rooms-booking-http.ec.yaml"
+      },
+      "spec": {
+        "geom": {
+          "x": 70,
+          "y": 50,
+          "w": 1250,
+          "h": 980
+        },
+        "fontSize": 22,
         "emphasis": [
-          { "at": "c0", "match": ["^  - id: rooms", "^    type: HTTP_CALL", "connection: hotel\\s+#"] },
-          { "at": "c1", "match": ["forEach:", "Idempotency-Key"] },
-          { "at": "c2", "match": ["^  - id: cancel-room", "method: DELETE", "by-ref", "successStatus"] }
+          {
+            "at": "c0",
+            "match": [
+              "^  - id: rooms",
+              "^    type: HTTP_CALL",
+              "connection: hotel\\s+#",
+              "Idempotency-Key"
+            ]
+          },
+          {
+            "at": "c1",
+            "match": [
+              "^  - id: find-alternatives",
+              "path: /alternatives",
+              "^  - id: book-alternatives",
+              "answer == 'accept'"
+            ]
+          },
+          {
+            "at": "c2",
+            "match": [
+              "^  - id: cancel-room",
+              "method: DELETE",
+              "by-ref",
+              "successStatus"
+            ]
+          }
         ],
         "notes": [
-          { "at": "c0", "key": "http.n1" },
-          { "at": "c1", "key": "http.n2" },
-          { "at": "c2", "key": "http.n3" }
+          {
+            "at": "c0",
+            "key": "http.n1"
+          },
+          {
+            "at": "c1",
+            "key": "http.n2"
+          },
+          {
+            "at": "c2",
+            "key": "http.n3"
+          }
         ]
       },
       "narration": {
-        "en": ["The same saga works when the hotel is an HTTP API and there is no worker to write.", "One call per room, with a stable idempotency key per room, so a retry never books twice.", { "text": "The compensation is a DELETE — and a 404 counts as success, because cancelling is idempotent too.", "say": "The compensation is a DELETE — and a four-oh-four counts as success, because cancelling is idempotent too." }],
-        "es": [{ "text": "La misma saga funciona cuando el hotel es una API HTTP y no hay worker que escribir.", "say": "La misma saga funciona cuando el hotel es una API hache te te pe y no hay worker que escribir." }, "Una llamada por habitación, con una clave de idempotencia estable por habitación, así que un reintento nunca reserva dos veces.", { "text": "La compensación es un DELETE, y un 404 cuenta como éxito, porque cancelar también es idempotente.", "say": "La compensación es un delete, y un cuatro cero cuatro cuenta como éxito, porque cancelar también es idempotente." }]
+        "en": [
+          "The same story works when the hotel is an HTTP API and there is no worker to write — one call per room, with a stable idempotency key, so a retry never books twice.",
+          "For a room it refused, the hotel is asked what it can offer instead; if the guest accepts, the alternative is booked.",
+          {
+            "text": "The compensation is a DELETE — and a 404 counts as success, because cancelling is idempotent too.",
+            "say": "The compensation is a DELETE — and a four-oh-four counts as success, because cancelling is idempotent too."
+          }
+        ],
+        "es": [
+          {
+            "text": "La misma historia funciona cuando el hotel es una API HTTP y no hay worker que escribir: una llamada por habitación, con una clave de idempotencia estable, así que un reintento nunca reserva dos veces.",
+            "say": "La misma historia funciona cuando el hotel es una API hache te te pe y no hay worker que escribir: una llamada por habitación, con una clave de idempotencia estable, así que un reintento nunca reserva dos veces."
+          },
+          "Por cada habitación rechazada se pregunta al hotel qué puede ofrecer a cambio; si el cliente acepta, se reserva la alternativa.",
+          {
+            "text": "La compensación es un DELETE, y un 404 cuenta como éxito, porque cancelar también es idempotente.",
+            "say": "La compensación es un delete, y un cuatro cero cuatro cuenta como éxito, porque cancelar también es idempotente."
+          }
+        ]
       }
     },
     {
-      "id": "hotel", "view": "live",
+      "id": "hotel",
+      "view": "live",
       "spec": {
         "terms": [
-          { "items": [{ "id": "booking-4", "at": 0.2, "prompt": "$" }], "opts": { "cps": 110 }, "from": 0, "to": "c1-0.2", "x": 260, "y": 560, "w": 1400, "h": 300 },
-          { "items": [{ "id": "hotel-bookings", "at": "c1+0.9", "prompt": "$" }], "opts": { "cps": 40 }, "from": "c1+0.5", "to": "end", "x": 260, "y": 640, "w": 1400, "h": 220 }
+          {
+            "items": [
+              {
+                "id": "booking-4",
+                "at": 0.2,
+                "prompt": "$"
+              },
+              {
+                "id": "answer-4",
+                "at": "c1-1.2",
+                "prompt": "$"
+              }
+            ],
+            "opts": {
+              "cps": 110
+            },
+            "from": 0,
+            "to": "c2-0.2",
+            "x": 260,
+            "y": 520,
+            "w": 1400,
+            "h": 340
+          },
+          {
+            "items": [
+              {
+                "id": "hotel-bookings",
+                "at": "c2+0.9",
+                "prompt": "$"
+              }
+            ],
+            "opts": {
+              "cps": 40
+            },
+            "from": "c2+0.5",
+            "to": "end",
+            "x": 260,
+            "y": 600,
+            "w": 1400,
+            "h": 260
+          }
         ],
-        "pills": [{ "key": "standin.hotel", "from": "c1+0.5", "right": 130, "y": 900, "cls": "amber" }]
+        "pills": [
+          {
+            "key": "standin.hotel",
+            "from": "c2+0.5",
+            "right": 130,
+            "y": 900,
+            "cls": "amber"
+          }
+        ]
       },
       "extra": 1.0,
       "narration": {
-        "en": ["Run it with the penthouse.", "And ask the hotel what it holds: nothing.", "The room that was booked has been cancelled at the hotel."],
-        "es": ["Lánzalo con el ático.", "Y pregunta al hotel qué tiene: nada.", "La habitación que se reservó se ha cancelado en el hotel."]
+        "en": [
+          "Run it with the penthouse: the hotel offers suite 901 instead.",
+          "The guest accepts.",
+          "Ask the hotel what it holds: room 201 and the suite. Nothing was cancelled, and nothing was booked twice."
+        ],
+        "es": [
+          "Lánzalo con el ático: el hotel ofrece a cambio la suite 901.",
+          "El cliente acepta.",
+          "Pregunta al hotel qué tiene: la habitación 201 y la suite. No se canceló nada y no se reservó nada dos veces."
+        ]
       }
     },
     {
-      "id": "policies", "view": "policies",
+      "id": "policies",
+      "view": "policies",
       "spec": {},
       "narration": {
-        "en": ["Compensate all is one of three policies.", "Fail fast, the default, stops at the first failure.", "Continue books what it can and reports the rest.", "And compensated is not an error: the process did what it was written to do.", { "text": "Since 2.39, the losing branches of a race and the branches an END cuts short can be undone too — both opt-in.", "say": "Since two point thirty-nine, the losing branches of a race and the branches an END cuts short can be undone too — both opt-in." }],
-        "es": ["Compensarlo todo es una de tres políticas.", "Fallo rápido, la de por defecto, se detiene en el primer fallo.", "Continuar reserva lo que puede e informa del resto.", "Y compensado no es un error: el proceso hizo lo que se le pidió.", { "text": "Desde la 2.39, también se pueden deshacer las ramas perdedoras de una carrera y las que un END deja a medias; ambas cosas son opcionales.", "say": "Desde la dos punto treinta y nueve, también se pueden deshacer las ramas perdedoras de una carrera y las que un «end» deja a medias; ambas cosas son opcionales." }]
+        "en": [
+          "Continue is one of three policies.",
+          "Fail fast, the default, stops at the first failure.",
+          "Compensate all lets every room finish and, if one failed, undoes the rest on its own — right when the steps are one technical unit, worth nothing in part, with nobody to ask.",
+          "Compensation is the mechanism; who decides to trigger it is your business rule.",
+          "A failure for good still rolls back on its own; an END with compensate: true does it on a decision; and the branches a race loses or an END cuts short can be undone too — all opt-in."
+        ],
+        "es": [
+          "Continuar es una de tres políticas.",
+          "Fallo rápido, la de por defecto, se detiene en el primer fallo.",
+          "Compensarlo todo deja terminar todas y, si una falló, deshace las demás por su cuenta: lo correcto cuando los pasos son una unidad técnica, que no vale nada a medias, sin nadie a quien preguntar.",
+          "La compensación es el mecanismo; quién decide lanzarla es tu regla de negocio.",
+          {
+            "text": "Un fallo definitivo sigue deshaciendo por su cuenta; un END con compensate: true lo hace por una decisión; y también se pueden deshacer las ramas que pierden una carrera o que un END deja a medias; todo opcional.",
+            "say": "Un fallo definitivo sigue deshaciendo por su cuenta; un «end» con compensate true lo hace por una decisión; y también se pueden deshacer las ramas que pierden una carrera o que un «end» deja a medias; todo opcional."
+          }
+        ]
       }
     },
     {
-      "id": "tested", "view": "code",
-      "code": { "file": "examples/workshop-hotel-booking/src/test/java/com/example/hotel/FailurePathsTest.java", "from": 27, "to": 44 },
+      "id": "tested",
+      "view": "code",
+      "code": {
+        "file": "examples/workshop-hotel-booking/src/test/java/com/example/hotel/FailurePathsTest.java",
+        "from": 46,
+        "to": 65
+      },
       "spec": {
-        "geom": { "x": 70, "y": 40, "w": 1780, "h": 740 }, "fontSize": 22,
+        "geom": {
+          "x": 70,
+          "y": 40,
+          "w": 1780,
+          "h": 740
+        },
+        "fontSize": 22,
         "emphasis": [
-          { "at": "c1", "match": ["isCompensated", "hasCompensated\\(\"rooms\"\\)"] },
-          { "at": "c2", "match": ["hasOnlyFailed", "hasCompensated\\(\"Room 101\""] },
-          { "at": "c3", "match": ["invocationsOf", "extracting", "containsExactlyInAnyOrder"] }
+          {
+            "at": "c1",
+            "match": [
+              "sendMessage\\(\"guest-answer\"",
+              "isCompensated",
+              "hasPassedSteps\\(\"cancelled-by-guest\"\\)"
+            ]
+          },
+          {
+            "at": "c2",
+            "match": [
+              "hasOnlyFailed",
+              "hasCompensated\\(\"Room 101\""
+            ]
+          },
+          {
+            "at": "c3",
+            "match": [
+              "invocationsOf",
+              "extracting",
+              "containsExactlyInAnyOrder"
+            ]
+          }
         ],
-        "term": { "geom": { "x": 70, "y": 800, "w": 1780, "h": 250 }, "from": "c1", "items": [{ "id": "failure-paths-test", "at": "c1+0.3" }], "opts": { "cps": 45, "lineGap": 0.2 } }
+        "term": {
+          "geom": {
+            "x": 70,
+            "y": 800,
+            "w": 1780,
+            "h": 250
+          },
+          "from": "c1",
+          "items": [
+            {
+              "id": "failure-paths-test",
+              "at": "c1+0.3"
+            }
+          ],
+          "opts": {
+            "cps": 45,
+            "lineGap": 0.2
+          }
+        }
       },
       "narration": {
-        "en": ["And it is tested.", "The test kit runs the saga in memory — no server, no broker, no database — and asserts it room by room:", { "text": "only 900 failed, 101 and 102 were compensated,", "say": "only nine hundred failed, one-oh-one and one-oh-two were compensated," }, "and each cancellation saw the booking id of its room."],
-        "es": ["Y está probado.", "El kit de test ejecuta la saga en memoria —sin servidor, sin broker, sin base de datos— y la comprueba habitación por habitación:", "solo falló la 900, la 101 y la 102 se compensaron,", "y cada cancelación recibió el identificador de su reserva."]
+        "en": [
+          "And it is tested.",
+          "The test kit runs the saga in memory — no server, no broker, no database — sends the guest's answer, and asserts it room by room:",
+          {
+            "text": "only 900 failed, 101 and 102 were compensated,",
+            "say": "only nine hundred failed, one-oh-one and one-oh-two were compensated,"
+          },
+          "and each cancellation saw the booking id of its room."
+        ],
+        "es": [
+          "Y está probado.",
+          "El kit de test ejecuta la saga en memoria —sin servidor, sin broker, sin base de datos—, envía la respuesta del cliente y la comprueba habitación por habitación:",
+          "solo falló la 900, la 101 y la 102 se compensaron,",
+          "y cada cancelación recibió el identificador de su reserva."
+        ]
       }
     },
     {
-      "id": "close", "view": "close",
-      "spec": { "line": "close.line", "next": "close.next", "links": ["close.docs", "close.workshop", "close.license"] },
+      "id": "close",
+      "view": "close",
+      "spec": {
+        "line": "close.line",
+        "next": "close.next",
+        "links": [
+          "close.docs",
+          "close.workshop",
+          "close.license"
+        ]
+      },
       "extra": 1.5,
       "narration": {
-        "en": ["Sagas without the bookkeeping.", "Next: calling the outside world over HTTP.", "Module 3 of the workshop is linked below."],
-        "es": ["Sagas sin llevar la cuenta a mano.", "Próximo capítulo: llamar al mundo exterior por HTTP.", "El módulo 3 del taller está enlazado abajo."]
+        "en": [
+          "Sagas without the bookkeeping — and without cancelling behind the guest's back.",
+          "Next: calling the outside world over HTTP.",
+          "Module 3 of the workshop is linked below."
+        ],
+        "es": [
+          "Sagas sin llevar la cuenta a mano, y sin cancelar a espaldas del cliente.",
+          "Próximo capítulo: llamar al mundo exterior por HTTP.",
+          "El módulo 3 del taller está enlazado abajo."
+        ]
       }
     }
   ]

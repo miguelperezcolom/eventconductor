@@ -605,9 +605,21 @@ branches running: they finish on their own, and what they did stands. With `comp
 the join **abandons** them the moment it goes on: their steps still waiting or running are cancelled,
 and every [compensable](/guides/retries-timeouts-compensation/#branches-the-flow-abandons) step of
 theirs that completed is compensated, newest first, as a *cleanup* beside the flow — the process
-carries on down the winning branch. A losing branch is what leads into the join only through a link
-that was not satisfied when it fired; a step that also feeds some other part of the flow is not part
-of it. `compensateLosers` on any other step is a validation error.
+carries on down the winning branch. `compensateLosers` on any other step is a validation error.
+
+There is **exactly one winner**: the incoming branch whose link step **completed first** (earliest
+completion time; at the same instant, the one listed first in `preconditionStepIds`). Every other
+branch is a loser — also one that had completed too by the time the join was evaluated, which is what
+routinely happens when both answer quickly (on the embedded engine's default single worker thread, it
+always does). A losing branch is what leads into the join only through a losing link; a step that also
+feeds some other part of the flow is not part of it.
+
+**A loser's outputs are discarded.** Once a branch has reached the join first, what a step of a losing
+branch reports (worker variables, an `HTTP_CALL`'s `output`, a message payload) is **not** written to
+the process: it is kept on that step's own run, where its compensation reads it (the booking id to
+cancel), and the winner's variables stand. What a losing branch wrote *before* the winner reached the
+join — while the race was still open — is not rolled back from the variables; give the branches'
+outputs the same names only where the winner's value is the one the flow should keep.
 
 ```yaml
 - { id: first, type: JOIN, name: First answer, joinType: XOR, compensateLosers: true, preconditionStepIds: [fast, quote] }
@@ -723,6 +735,37 @@ compensations run after it as a cleanup.
 ```yaml
 - { id: done, type: END, name: Done, compensateAbandoned: true, preconditionStepId: quick }
 ```
+
+### An END that rolls back: `compensate` {#compensate}
+
+With **`compensate: true`** (default `false`, `END` only) reaching the `END` **rolls the process back
+on purpose**. It is for a business decision to undo — the guest cancelled — where nothing failed:
+
+- what is still waiting or in flight is cancelled, as any `END` cancels it (a running child `PROCESS`
+  is rolled back, not just cancelled);
+- every compensable step that **completed** is compensated, newest first, exactly as in a
+  [saga rollback](/guides/retries-timeouts-compensation/#compensation-saga-pattern) — a forEach's
+  completed iterations once each, its failed ones not at all; work that completes after it was
+  cancelled is undone too;
+- the process ends **`COMPENSATED`** (`COMPENSATION_FAILED` if a compensation fails), also when there
+  was nothing to undo. It is not counted as a failed process; the reason is on the process
+  (`rollbackReason`) and in the `END`'s log.
+
+In a child process, the parent's `PROCESS` step fails when the child ends `COMPENSATED` — the child did
+not do its job — and the parent's own saga takes it from there. `compensate` cannot be combined with
+`compensateAbandoned`: it already undoes every branch. The graph draws it with BPMN's compensation
+marker (⏪).
+
+```yaml
+- id: cancelled-by-guest
+  type: END
+  name: Cancelled by the guest
+  compensate: true
+  preconditions:
+    - { stepId: guest-decision, expression: "decision == 'cancel'" }
+```
+
+See [Compensation on a business decision](/guides/retries-timeouts-compensation/#compensation-on-a-business-decision).
 
 ---
 

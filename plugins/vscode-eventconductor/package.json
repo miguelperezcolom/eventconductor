@@ -222,7 +222,7 @@
         },
         {
           "command": "eventconductor.runWorkflow",
-          "when": "resourceExtname == .ec && isWorkspaceTrusted",
+          "when": "resourceFilename =~ /\\.(ec|workflow\\.ya?ml|ec\\.ya?ml)$/i && isWorkspaceTrusted",
           "group": "eventconductor@1"
         }
       ],
@@ -299,15 +299,18 @@
     "compile": "npm run sync-assets && tsc -p ./",
     "watch": "tsc -watch -p ./",
     "vscode:prepublish": "npm run compile",
-    "test": "npm run compile && node --test test/*.test.cjs"
+    "test": "npm run compile && node --test test/*.test.cjs",
+    "bundle-intellij": "node scripts/bundle-intellij.js"
   },
   "dependencies": {
-    "js-yaml": "^4.3.2"
+    "js-yaml": "^4.3.2",
+    "yaml": "2.9.1"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.84.0",
+    "esbuild": "0.28.2",
     "typescript": "^5.4.0"
   }
 }

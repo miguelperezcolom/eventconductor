@@ -1,6 +1,6 @@
 # Chapter 6 — a race: the first taxi company to confirm wins (XOR JOIN), the other is cancelled (compensateLosers).
 # The kit answers each call on the spot, so City Cabs (dispatched first) always wins here and Airport Express is
-# cancelled before it is sent. The race on real threads — the loser booked, then undone — is SeriesAppEndToEndTest's.
+# cancelled before it is sent. The race over real HTTP — the loser booked, then undone — is SeriesAppEndToEndTest's.
 workflow: airport-transfer
 variables: { guest: Erin, flight: IB3456 }
 steps:

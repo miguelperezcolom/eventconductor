@@ -1,36 +1,75 @@
 {
   "eyebrow": "EventConductor · Capítulo 4",
-  "title": "Todas **o ninguna**",
-  "sub": "Sagas y compensación",
-  "rooms.items": [["101", "doble"], ["102", "doble"], ["900", "ático"]],
+  "title": "Cuando una habitación **no se puede reservar**",
+  "sub": "Decide el cliente · sagas y compensación",
+  "rooms.items": [
+    [
+      "101",
+      "doble"
+    ],
+    [
+      "102",
+      "doble"
+    ],
+    [
+      "900",
+      "ático"
+    ]
+  ],
   "rooms.booked": "reservada",
   "rooms.soldout": "agotada",
-  "rooms.question": "¿deshacer?",
+  "rooms.question": "preguntar",
   "byhand.head": "Escrito a mano, también escribes…",
-  "byhand.items": ["recordar qué se reservó", "deshacerlo en orden inverso", "reintentar con espera creciente", "no reservar nunca dos veces", "rendirte con un hotel que no contesta", "lidiar con una respuesta que llega tarde"],
+  "byhand.items": [
+    "recordar qué se reservó",
+    "preguntar al cliente y esperar días",
+    "recordárselo y pasárselo a una persona",
+    "deshacer en orden inverso, solo si cancela",
+    "reintentar sin reservar dos veces",
+    "lidiar con una respuesta que llega tarde"
+  ],
   "declare.n1": "`forEach` — una ejecución por habitación, cada una con su pequeño flujo",
-  "declare.n2": "`compensable` + `compensationStepId` — se cancela cada habitación reservada",
-  "declare.n3": "`compensateAll` — deja que terminen todas; si una falló, **deshaz las demás**",
+  "declare.n2": "`continue`: una habitación agotada no detiene nada, **se conserva lo reservado**",
+  "declare.n3": "`compensable` + `compensationStepId`: cómo se deshace una habitación, **si alguien lo decide**",
   "retries.n1": "`retries: 2` — fallos técnicos, **espera exponencial**",
   "retries.n2": "`timeout: PT30S` — sin respuesta, el intento falla y también se reintenta",
   "http.n1": "`HTTP_CALL` — sin worker que escribir; la URL base está en la configuración",
-  "http.n2": "`Idempotency-Key` — la misma clave en cada intento: un reintento nunca reserva dos veces",
+  "http.n2": "`find-alternatives`: lo que el hotel ofrece a cambio; `accept` lo reserva",
   "http.n3": "`DELETE` — y un **404** cuenta como éxito: cancelar también es idempotente",
   "standin.hotel": "hotel falso: sustituto local",
   "pol.head": "onIterationFailure",
-  "pol.items": [["failFast", "por defecto", "se detiene en el primer fallo"], ["continue", "", "reserva lo que puede e informa del resto"], ["compensateAll", "", "deja que terminen todas; si una falló, deshace las demás"]],
+  "pol.items": [
+    [
+      "failFast",
+      "por defecto",
+      "se detiene en el primer fallo"
+    ],
+    [
+      "continue",
+      "",
+      "conserva lo reservado e informa del resto"
+    ],
+    [
+      "compensateAll",
+      "",
+      "todo o nada, por su cuenta: para una unidad técnica"
+    ]
+  ],
   "pol.compensated": "Compensated",
   "pol.error": "Error",
   "pol.notError": "no es un",
-  "pol.notErrorTail": "el proceso hizo lo que se le pidió",
-  "pol.since": "desde la 2.39 · opcional",
-  "pol.opt1": "`compensateLosers` — join XOR: las ramas perdedoras",
-  "pol.opt2": "`compensateAbandoned` — END: las ramas que deja a medias",
+  "pol.notErrorTail": "el proceso hizo lo que se decidió",
+  "pol.since": "la compensación es el mecanismo · quién la lanza es tu regla · opcional",
+  "pol.opt1": "`END` + `compensate: true`: deshacer por una **decisión de negocio**",
+  "pol.opt2": "`compensateLosers` (join XOR) · `compensateAbandoned` (END): las ramas que se quedan atrás",
   "close.line": "Sagas sin llevar la cuenta a mano.",
   "close.next": "Próximo · Llamar al mundo exterior",
   "close.docs": "eventconductor.mateu.io",
   "close.workshop": "Taller · módulo 3",
   "close.license": "Código abierto · MIT",
-  "thumb.title": "Todas **o ninguna**",
-  "thumb.sub": "Sagas y compensación"
+  "thumb.title": "Cuando una habitación **no se puede reservar**",
+  "thumb.sub": "Decide el cliente · sagas y compensación",
+  "decide.n1": "`WAIT_FOR_MESSAGE`: la respuesta del cliente, correlacionada por la clave de negocio",
+  "decide.n2": "`timeout: P2D` → recepción, **nunca una cancelación automática**",
+  "decide.n3": "`END` + `compensate: true`: la cancelación del cliente **lanza la compensación**"
 }

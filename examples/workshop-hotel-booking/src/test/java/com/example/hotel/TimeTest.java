@@ -16,10 +16,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TimeTest {
 
     @Test
-    void aHotelThatNeverAnswersIsRetriedThenGivenUpOn(WorkflowTestRuntime runtime) {
+    void aHotelThatNeverAnswersIsRetriedThenTheGuestIsAsked(WorkflowTestRuntime runtime) {
         runtime.whenStep("register-booking").thenComplete();
         runtime.whenStep("create-room-booking").thenTimeout();            // the worker never answers
-        runtime.whenStep("cancel-room-booking").thenComplete();
+        runtime.whenStep("ask-guest").thenComplete();
 
         var booking = runtime.start("rooms-booking-safe", "TIME-1",
                 Map.of("guest", "Carol", "rooms", "[{\"number\": \"101\", \"type\": \"double\"}]"));
@@ -28,7 +28,29 @@ class TimeTest {
         runtime.advanceTime(Duration.ofMinutes(5));                       // 30 s timeout, 2 retries
 
         assertThat(runtime.invocationsOf("create-room-booking")).hasSize(3);   // 1 + 2 retries
-        assertThat(booking).isFailed().hasNotPassedSteps("notify-guest");   // nothing was booked: nothing to undo
+        assertThat(booking).isWaitingAt("wait-for-guest")                 // given up on: the guest is asked
+                .hasNotPassedSteps("notify-guest");
+    }
+
+    @Test
+    void aGuestWhoNeverAnswersIsRemindedThenTheFrontDeskCalls(WorkflowTestRuntime runtime) {
+        var hotel = runtime.whenHttpCall("rooms").thenRespond(201, "{\"id\": \"H-1\"}");
+        hotel.whenItemHas("number", "103").thenRespond(409, "sold out");
+        runtime.whenHttpCall("find-alternatives").thenRespond(200, "[{\"number\": \"104\", \"type\": \"suite\"}]");
+        runtime.whenStep("ask-guest").thenComplete();
+        runtime.whenStep("remind-guest").thenComplete();
+
+        var booking = runtime.start("hotel-booking", "TIME-3",
+                Map.of("guest", "Gus", "rooms", Rooms.THREE_DOUBLES));
+        runtime.completeUserTask(booking, "approve", Map.of("approved", true));
+        assertThat(booking).isWaitingAt("wait-for-guest");
+
+        runtime.advanceTime(Duration.ofDays(1).plusMinutes(1));
+        assertThat(booking).isWaitingAt("wait-after-reminder").hasPassedSteps("remind-guest");
+
+        runtime.advanceTime(Duration.ofDays(1));
+        assertThat(booking).isWaitingAt("front-desk")                     // a person decides with the guest…
+                .hasNoCompensations();                                    // …and nothing was cancelled meanwhile
     }
 
     @Test

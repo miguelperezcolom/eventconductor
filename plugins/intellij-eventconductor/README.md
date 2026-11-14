@@ -16,7 +16,18 @@ same document.
   The graph takes keyboard focus when you click in it; if the IDE consumes `Delete` before
   the embedded browser sees it, `Backspace` does the same thing.
 - **`.ec` is JSON *or* YAML**: the format is detected from the file and preserved on graphical
-  edits (conversion happens in the embedded page via js-yaml; the Kotlin host only moves text).
+  edits (conversion happens in the embedded page; the Kotlin host only moves text).
+- **Lossless edits**: graphical edits are written back as the smallest change to the file: only the lines of what
+  changed are touched, so YAML comments, quoting, indentation and blank lines everywhere else stay
+  exactly as they were (a JSON file is rewritten as formatted JSON — it has no comments to keep).
+  Node positions live in the definition's own `layout` block, so everybody who opens the file sees
+  the same picture. It is written only when you drag a node — clicking one to select it, or dropping
+  a new step on an unarranged graph, writes no coordinates. The first drag records every step's
+  position (half an arrangement would let the unrecorded steps land on top of the recorded ones);
+  after that, moving a node changes only that node's `x`/`y` lines. **Re-layout** removes the block.
+  The write-back is the VS Code extension's `src/yamlEdit.ts`, bundled for the webviews as
+  `src/main/resources/webview/ec-yaml-edit.js` (`npm run bundle-intellij` in
+  `plugins/vscode-eventconductor`); the document receives only the span that changed.
 - **Schema validation** for `.ec` (and the compound suffixes above) against the
   workflow-definition JSON schema (works for JSON and, with the bundled YAML support, YAML too).
   `.ec`, `.ecform`, `.ecrule` and `.ectask` are an **EventConductor** file type of their own whose
@@ -39,6 +50,4 @@ gradle wrapper           # first time only, creates ./gradlew
 bundle (`workflow-graph.js`) and the JSON schema from the main repo into the plugin's
 resources (git-ignored). Re-run a build after rebuilding the frontend to pick up changes.
 
-> Note: graphical edits round-trip the definition through the model, so YAML comments and exact
-> formatting aren't preserved when editing in the graph — use the text side to keep them.
 > JCEF must be available in the running IDE (it ships with all recent IntelliJ builds).

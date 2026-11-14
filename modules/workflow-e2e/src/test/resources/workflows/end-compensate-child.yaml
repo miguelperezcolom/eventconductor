@@ -1,0 +1,17 @@
+id: end-compensate-child
+name: A child that rolls itself back fails its parent step
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: deposit, type: ACTION, name: Take a deposit, topic: work, preconditionStepId: start, compensable: true, compensationStepId: refund }
+  - id: stay
+    type: PROCESS
+    name: Arrange the stay
+    preconditionStepId: deposit
+    steps:
+      - { id: start, type: START, name: Start }
+      - { id: hold, type: ACTION, name: Hold a room, topic: work, preconditionStepId: start, compensable: true, compensationStepId: release }
+      - { id: cancelled, type: END, name: Cancelled, compensate: true, preconditionStepId: hold }
+      - { id: release, type: ACTION, name: Release the room, topic: work }
+  - { id: done, type: END, name: Done, preconditionStepId: stay }
+  - { id: refund, type: ACTION, name: Refund the deposit, topic: work }

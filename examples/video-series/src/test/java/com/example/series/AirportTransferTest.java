@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Chapter 6 — the race: whichever company confirms first wins (XOR JOIN) and the other branch is abandoned
- * (compensateLosers). Here City Cabs has not answered when Airport Express confirms; on real threads, where the
+ * (compensateLosers). Here City Cabs has not answered when Airport Express confirms; over real HTTP, where the
  * loser answers a second later and is then cancelled at its company, see SeriesAppEndToEndTest.
  */
 @EventConductorTest(properties = SeriesTests.NO_CRON)

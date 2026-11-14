@@ -1,0 +1,21 @@
+{
+  "eyebrow": "EventConductor · Chapter 7",
+  "title": "People **in the loop**",
+  "sub": "USER_TASK · forms · task inbox · escalation · timeout",
+  "task.n1": "`USER_TASK` + `formId` — a person, through a form",
+  "task.n2": "`candidateGroups` — offered to a group; **anyone in it may claim**",
+  "task.n3": "`escalation` after `P1D` — `notify` (or `reassign`, `escalateTo`)",
+  "task.n4": "`timeout: P3D` — no decision: the step times out",
+  "form.n1": "`forms/booking-approval.ecform` — served by the forms engine",
+  "form.n2": "the submitted values become **process variables**",
+  "token": "signed in as a manager with a test token · trust-forwarded-token: laptop only",
+  "clock.items": [["now", "the task is offered to front-desk-managers"], ["+ 1 day", "escalation 1 · notify — on the process timeline"], ["+ 3 days", "the step ends in **TIMEOUT** · nothing is booked"]],
+  "clock.note": "engine timers, stored with the step — **a restart neither loses nor repeats them**",
+  "close.line": "People decide. **The engine keeps the record.**",
+  "close.next": "Next · Time and messages",
+  "close.docs": "eventconductor.mateu.io",
+  "close.workshop": "Workshop · module 6",
+  "close.license": "Open source · MIT",
+  "thumb.title": "People **in the loop**",
+  "thumb.sub": "USER_TASK, forms and the task inbox"
+}

@@ -1,6 +1,7 @@
-# Module 3 — when a room cannot be booked: retries, a timeout, and all rooms or none.
+# Module 3 — when a room cannot be booked: retries and a timeout for what is technical; for a room
+# that is sold out, the guest decides. Nothing is cancelled unless the guest says so.
 id: rooms-booking-safe
-name: Book every room (all or none)
+name: Book every room (the guest decides)
 steps:
   - id: start
     type: START
@@ -16,14 +17,14 @@ steps:
     name: Book every room
     preconditionStepId: register-booking
     compensable: true
-    compensationStepId: cancel-room-booking  # undoes each room that was booked
+    compensationStepId: cancel-room-booking  # how to undo a room that was booked — if the guest cancels
     outputVariables: [roomBookingId]
     forEach:
       items: rooms
       as: room
       label: "'Room ' + room.number"
-      onIterationFailure: compensateAll      # wait for every room; if one failed, undo the rest
-      output: roomBookings
+      onIterationFailure: continue           # a sold-out room stops nothing: keep what was booked
+      output: roomBookings                   # each room: {"status": "COMPLETED", "value": …} or FAILED
       outputElement: roomBookingId
     steps:
       - id: start
@@ -40,15 +41,69 @@ steps:
         name: End
         preconditionStepId: create-room-booking
 
-  - id: notify-guest
+  - id: all-booked
+    type: CHOICE
+    name: Every room booked?
+    preconditionStepId: rooms
+
+  - id: ask-guest                            # some room could not be booked: tell the guest, ask
+    type: ACTION
+    name: Ask the guest
+    retries: 3
+    preconditions:
+      - stepId: all-booked
+        expression: "roomBookings =~ '.*FAILED.*'"
+
+  - id: wait-for-guest
+    type: WAIT_FOR_MESSAGE
+    name: Wait for the guest's answer
+    preconditionStepId: ask-guest
+    messageName: guest-answer                # {"answer": "keep"} or {"answer": "cancel"}
+    correlationExpression: businessKey
+    timeout: P2D
+    onTimeoutStepId: tell-front-desk         # no answer: nothing is cancelled, a person follows up
+
+  - id: guest-decision
+    type: CHOICE
+    name: What did the guest decide?
+    preconditionStepId: wait-for-guest
+
+  - id: cancelled-by-guest                   # the guest's decision: undo every room that was booked
+    type: END
+    name: Cancelled by the guest
+    compensate: true
+    preconditions:
+      - stepId: guest-decision
+        expression: "answer == 'cancel'"
+
+  - id: confirm-kept                         # the default: the guest keeps the rooms that were booked
+    type: ACTION
+    name: Confirm the rooms kept
+    retries: 3
+    preconditionStepId: guest-decision
+
+  - id: notify-guest                         # the default of all-booked: every room was booked
     type: ACTION
     name: Tell the guest
-    preconditionStepId: rooms
+    retries: 3
+    preconditionStepId: all-booked
 
   - id: done
     type: END
     name: Done
-    preconditionStepId: notify-guest
+    preconditionStepIds: [notify-guest, confirm-kept]   # an END goes on with whichever comes
+
+  - id: tell-front-desk
+    type: ACTION
+    name: Tell the front desk
+    preconditions:
+      - stepId: wait-for-guest
+        expression: "false"                  # reached only through onTimeoutStepId
+
+  - id: held
+    type: END
+    name: Held for the guest
+    preconditionStepId: tell-front-desk
 
   - id: cancel-room-booking                  # the compensation: no preconditions, run by the rollback
     type: ACTION

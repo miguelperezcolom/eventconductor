@@ -191,6 +191,27 @@ public class ProcessDetailPage {
         return new java.util.ArrayList<>((java.util.List<String>) (java.util.List<?>) raw);
     }
 
+    /** Clicks a step's node on the diagram (by step id), the way a reader does. */
+    public void clickDiagramStep(String stepId) {
+        page.locator("eventconductor-workflow-graph").first()
+                .locator(".node[data-node=\"" + stepId + "\"] .node-inner").click();
+    }
+
+    /** Moves the pointer off the diagram, so only a pinned card can still be showing. */
+    public void pointerAway() {
+        page.mouse().move(1, 1);
+    }
+
+    /** The diagnostic card the diagram is showing, as its text — or null when none is. */
+    public String stepCard() {
+        return page.locator("eventconductor-workflow-graph").first().evaluate("""
+                el => {
+                    if (!el.shadowRoot) return null;
+                    const tip = el.shadowRoot.querySelector('.ov-tip');
+                    return tip ? tip.innerText : null;
+                }""") instanceof String text ? text : null;
+    }
+
     /** The full text a guard chip reveals under the pointer, for the first chip on the canvas. */
     public String firstGuardFullText() {
         return page.locator("eventconductor-workflow-graph").first().evaluate("""
@@ -308,5 +329,42 @@ public class ProcessDetailPage {
         var processes = new ProcessesPage(page);
         processes.awaitLoaded();
         return processes;
+    }
+
+    /**
+     * The steps the minimap (or, folded, its button) is drawn on top of, by id — empty when none, or
+     * when the graph has not rendered yet.
+     */
+    @SuppressWarnings("unchecked")
+    public java.util.List<String> nodesUnderMinimap() {
+        var raw = page.locator("eventconductor-workflow-graph").first().evaluate("""
+                el => {
+                    const hits = [];
+                    if (!el.shadowRoot) return hits;
+                    const mini = el.shadowRoot.querySelector('.minimap, .minimap-open');
+                    if (!mini) return hits;
+                    const m = mini.getBoundingClientRect();
+                    el.shadowRoot.querySelectorAll('.node[data-node]').forEach(node => {
+                        const box = (node.querySelector('.node-inner') || node).getBoundingClientRect();
+                        if (m.left < box.right && m.right > box.left && m.top < box.bottom && m.bottom > box.top) {
+                            hits.push(node.getAttribute('data-node'));
+                        }
+                    });
+                    return hits;
+                }""");
+        return new java.util.ArrayList<>((java.util.List<String>) (java.util.List<?>) raw);
+    }
+
+    /** Whether the diagram draws its minimap ("open"), only the button that brings it back ("folded"), or neither. */
+    public String minimapState() {
+        return (String) page.locator("eventconductor-workflow-graph").first().evaluate("""
+                el => !el.shadowRoot ? 'none'
+                    : el.shadowRoot.querySelector('.minimap') ? 'open'
+                    : el.shadowRoot.querySelector('.minimap-open') ? 'folded' : 'none'""");
+    }
+
+    /** Folds the minimap away with its close button. */
+    public void foldMinimap() {
+        page.locator("eventconductor-workflow-graph .minimap-close").first().click();
     }
 }

@@ -15,20 +15,25 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>{@code POST /fake/hotel/bookings} — book a room; a penthouse answers 409 (sold out)</li>
  *   <li>{@code DELETE /fake/hotel/bookings/by-ref/{ref}} — cancel; 404 if there is nothing to cancel</li>
  *   <li>{@code GET /fake/hotel/bookings} — what the hotel holds right now</li>
+ *   <li>{@code GET /fake/hotel/alternatives?booking={ref}} — for each room of a booking the hotel had
+ *       to refuse, one it can offer instead: the suite next door</li>
  * </ul>
  */
 @RestController
-@RequestMapping("/fake/hotel/bookings")
+@RequestMapping("/fake/hotel")
 public class FakeHotelApi {
 
     private final Map<String, Map<String, Object>> byKey = new ConcurrentHashMap<>();
     private final Map<String, Map<String, Object>> byRef = new ConcurrentHashMap<>();
+    /** The rooms the hotel had to refuse, by external reference ({@code BOOKING-7-900}). */
+    private final Map<String, Map<String, Object>> refused = new ConcurrentHashMap<>();
 
-    @PostMapping
+    @PostMapping("/bookings")
     public ResponseEntity<Map<String, Object>> book(
             @RequestHeader(value = "Idempotency-Key", required = false) String key,
             @RequestBody Map<String, Object> body) {
         if ("penthouse".equals(String.valueOf(body.get("type")))) {
+            refused.put(String.valueOf(body.get("externalRef")), body);
             return ResponseEntity.status(409).body(Map.of("error", "sold out"));
         }
         if (key != null && byKey.containsKey(key)) {
@@ -44,7 +49,7 @@ public class FakeHotelApi {
         return ResponseEntity.status(201).body(booking);
     }
 
-    @DeleteMapping("/by-ref/{ref}")
+    @DeleteMapping("/bookings/by-ref/{ref}")
     public ResponseEntity<Void> cancel(@PathVariable String ref) {
         var removed = byRef.remove(ref);
         if (removed == null) {
@@ -54,8 +59,22 @@ public class FakeHotelApi {
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping
+    @GetMapping("/bookings")
     public Collection<Map<String, Object>> list() {
         return byRef.values();
+    }
+
+    /** What the hotel can offer instead of the rooms of {@code booking} it refused: the suite next door. */
+    @GetMapping("/alternatives")
+    public List<Map<String, Object>> alternatives(@RequestParam String booking) {
+        var offers = new ArrayList<Map<String, Object>>();
+        refused.forEach((ref, room) -> {
+            if (ref.startsWith(booking + "-")) {
+                var number = String.valueOf(room.get("number"));
+                var next = number.matches("\\d+") ? String.valueOf(Integer.parseInt(number) + 1) : number + "B";
+                offers.add(new LinkedHashMap<>(Map.of("number", next, "type", "suite", "instead", number)));
+            }
+        });
+        return offers;
     }
 }
