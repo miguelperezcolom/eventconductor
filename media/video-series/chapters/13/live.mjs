@@ -1,13 +1,13 @@
 // Chapter 13 — what is really run and filmed, in order. The workshop app (ENGINE, port 8095) runs on the host: its
 // /fake/hotel is the stand-in the distributed stack calls. The distributed stack is the repository's
 // apps/docker-compose.yml plus this chapter's compose.2.41.0.yml (see its header), started here and taken down at
-// the end. Its orchestrator answers on :8105 with the compose default login (admin / changeme).
+// the end. Its orchestrator answers on :18105 with the compose default login (admin / changeme).
 
 import { spawnSync } from 'node:child_process';
 
 const ROOT = '.', WS = 'examples/workshop-hotel-booking';
 const COMPOSE = 'docker compose -p ec-series -f apps/docker-compose.yml -f media/video-series/chapters/13/compose.2.41.0.yml';
-const DC = 'http://localhost:8105', AUTH = { username: 'admin', password: 'changeme' };
+const DC = 'http://localhost:18105', AUTH = { username: 'admin', password: 'changeme' };
 const ROOMS_13 = '{"guest": "Hana", "rooms": [{"number": "301", "type": "double"}, {"number": "900", "type": "penthouse"}]}';
 // The stack reaches the workshop app's stand-in hotel on the host, on the port the app was started on.
 const HOTEL_URL = `http://host.docker.internal:${new URL(process.env.ENGINE || 'http://localhost:8095').port || 8095}/fake/hotel`;
@@ -28,7 +28,7 @@ export async function run(c) {
 
     // dc-run: the workshop's rooms-booking-http, unchanged, on the orchestrator → the refused room set aside, the run
     // waiting for the guest (the guest-decides story; the cancel path's END compensate: true is after 2.41.0).
-    c.term('booking-13', `ENGINE=http://admin:changeme@localhost:8105 scripts/start.sh rooms-booking-http BOOKING-13 '${ROOMS_13}' | jq '{businessKey, status}'`, { cwd: WS });
+    c.term('booking-13', `ENGINE=http://admin:changeme@localhost:18105 scripts/start.sh rooms-booking-http BOOKING-13 '${ROOMS_13}' | jq '{businessKey, status}'`, { cwd: WS });
     const p = await c.waitFor(async () => {
       const x = (await dc('/workflow/api/processes?businessKey=BOOKING-13'))?.content?.[0];
       if (!x) return false;

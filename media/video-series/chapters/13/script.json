@@ -217,7 +217,7 @@
       "id": "dc-run",
       "view": "live",
       "spec": {
-        "host": "localhost:8105",
+        "host": "localhost:18105",
         "app": "EventConductor console · orchestrator (kafka + jpa)",
         "terms": [
           {
