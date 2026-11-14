@@ -43,7 +43,7 @@ public class ValidateMojo extends AbstractMojo {
 
     /** Directory holding workflow definitions. */
     @Parameter(defaultValue = "${project.basedir}/src/main/resources/workflows")
-    private File workflowsDirectory;
+    File workflowsDirectory;
 
     /**
      * Directory holding form definitions. Validated only: the forms engine never loads forms from the
@@ -51,43 +51,43 @@ public class ValidateMojo extends AbstractMojo {
      * this wherever those read from (the default suits a repository that keeps them beside the workflows).
      */
     @Parameter(defaultValue = "${project.basedir}/src/main/resources/forms")
-    private File formsDirectory;
+    File formsDirectory;
 
     /** Directory holding rule definitions. */
     @Parameter(defaultValue = "${project.basedir}/src/main/resources/rules")
-    private File rulesDirectory;
+    File rulesDirectory;
 
     /** Directory holding task contracts ({@code .ectask}). */
     @Parameter(defaultValue = "${project.basedir}/src/main/resources/tasks")
-    private File tasksDirectory;
+    File tasksDirectory;
 
     /** Validate workflow definitions. */
     @Parameter(property = "eventconductor.validate.workflows", defaultValue = "true")
-    private boolean validateWorkflows;
+    boolean validateWorkflows;
 
     /** Validate form definitions. */
     @Parameter(property = "eventconductor.validate.forms", defaultValue = "true")
-    private boolean validateForms;
+    boolean validateForms;
 
     /** Validate rule definitions. */
     @Parameter(property = "eventconductor.validate.rules", defaultValue = "true")
-    private boolean validateRules;
+    boolean validateRules;
 
     /** Validate task contracts. */
     @Parameter(property = "eventconductor.validate.tasks", defaultValue = "true")
-    private boolean validateTasks;
+    boolean validateTasks;
 
     /** Fail the build when a definition is invalid (otherwise only warn). */
     @Parameter(property = "eventconductor.validate.failOnError", defaultValue = "true")
-    private boolean failOnError;
+    boolean failOnError;
 
     /** Fail the build when a configured directory has no definitions at all. */
     @Parameter(property = "eventconductor.validate.failOnMissing", defaultValue = "false")
-    private boolean failOnMissing;
+    boolean failOnMissing;
 
     /** Skip validation entirely. */
     @Parameter(property = "eventconductor.validate.skip", defaultValue = "false")
-    private boolean skip;
+    boolean skip;
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
