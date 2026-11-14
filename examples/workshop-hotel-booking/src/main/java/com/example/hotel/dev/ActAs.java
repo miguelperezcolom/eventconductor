@@ -61,7 +61,8 @@ public class ActAs {
             cookie = ResponseCookie.from(MATEU_TOKEN_COOKIE, unsignedToken(PEOPLE.get(who)))
                     .path("/").sameSite("Strict").build();   // not HttpOnly: Mateu's frontend reads it
         } else {
-            return ResponseEntity.badRequest().body("Unknown person '" + who + "': use manager or nobody.\n");
+            return ResponseEntity.badRequest().contentType(org.springframework.http.MediaType.TEXT_PLAIN)
+                    .body("Unknown person: use /dev/act-as/manager or /dev/act-as/nobody.\n");
         }
         return ResponseEntity.status(HttpStatus.SEE_OTHER)
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
