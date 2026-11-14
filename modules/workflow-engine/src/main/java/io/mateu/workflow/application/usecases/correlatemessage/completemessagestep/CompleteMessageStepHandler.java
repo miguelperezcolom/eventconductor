@@ -74,8 +74,16 @@ public class CompleteMessageStepHandler {
 
         // The message payload becomes process state before the step completes, so
         // successors already see it when the COMPLETED event steps the flow over.
-        process.updateVariables(command.variables());
-        processRepository.save(process);
+        if (command.variables() != null && !command.variables().isEmpty()
+                && io.mateu.workflow.domain.services.AbandonedBranchService.isOnALosingBranch(stepExecution.getStepId(),
+                        stepExecutionRepository.findByProcessId(stepExecution.getProcessId()))) {
+            // Its branch already lost an XOR join with compensateLosers: the payload stays on this run
+            // instead of overwriting the winner's variables.
+            stepExecution.recordOutput(command.variables());
+        } else {
+            process.updateVariables(command.variables());
+            processRepository.save(process);
+        }
 
         stepExecution.updateStatus(StepExecutionStatus.COMPLETED);
         stepExecutionRepository.save(stepExecution);

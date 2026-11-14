@@ -266,10 +266,15 @@ that is how they have always behaved. Two opt-ins undo it:
 
 | Where | Field | What it compensates |
 |---|---|---|
-| an `XOR` `JOIN` | `compensateLosers: true` | The losing branches are cancelled as the join fires, and their completed compensable steps are compensated. |
+| an `XOR` `JOIN` | `compensateLosers: true` | The losing branches are cancelled as the join fires, and their completed compensable steps are compensated. Exactly one branch wins — the first whose link step completed (ties: the first listed in `preconditionStepIds`) — so a branch that completed too before the join was evaluated still loses, and is compensated. |
 | an `END` | `compensateAbandoned: true` | The completed compensable steps of the branches this `END` cut short (not on the way to it, with a step after them it cancelled). |
 
 Work that completed **late** — after the cancellation — is compensated with or without them.
+
+With `compensateLosers`, a losing branch's outputs are **discarded**: once another branch has reached
+the join, what a step of a losing branch reports is kept on its own run (its compensation sees it — the
+booking id to cancel) and is not written to the process variables, so it never overwrites the
+winner's. Without `compensateLosers` a losing branch runs on and its outputs are written as always.
 
 These compensations are a **cleanup beside the flow**, not a rollback:
 
