@@ -405,7 +405,10 @@ makes it visible). JOIN is the barrier/converge point: its **multiple preconditi
 `joinType: XOR`, the first one to complete. Do not use `parallel: true` — it is deprecated and ignored.
 By default an `XOR` join lets the losing branches run on and keeps what they complete;
 **`compensateLosers: true`** (XOR joins only) cancels them as the join fires and compensates their
-completed compensable steps as a cleanup (see §8).
+completed compensable steps as a cleanup (see §8). Exactly one branch wins: the first whose link step
+completed (ties: the first in `preconditionStepIds`) — a branch that also completed before the join was
+evaluated still loses and is compensated — and a loser's outputs are discarded (kept on its own run for
+its compensation, never written over the winner's variables).
 
 **CHOICE** is the exclusive split: it takes exactly ONE successor — the first whose link guard holds,
 evaluated from the longest guard expression to the shortest; a link with no guard is the default (tried

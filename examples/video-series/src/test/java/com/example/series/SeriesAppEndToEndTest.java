@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * The whole app, as the series records it: the engine on H2, the real task handlers, the stand-ins over real HTTP,
  * the demo agent runtime, the webhook gateway and the MCP server — no test kit in between. What the kit tests
  * stub, this runs: an AGENT step answered by the demo runtime, a signed webhook starting a process through
- * events.yaml, a synchronous invocation answered by REPLY, and the taxi race on real threads.
+ * events.yaml, a synchronous invocation answered by REPLY, and the taxi race over real HTTP.
  */
 @SpringBootTest(classes = VideoSeriesApplication.class, webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT,
         properties = {"server.port=18096", "SERIES_DB_URL=jdbc:h2:mem:series-e2e;DB_CLOSE_DELAY=-1"})
