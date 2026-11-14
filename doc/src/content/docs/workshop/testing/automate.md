@@ -100,12 +100,12 @@ $ mvn verify -Deventconductor.migration.from=HEAD
 EventConductor workflow coverage — 35 test(s), 11 definition(s)
 
 definition                       steps              branches           edges
-hotel-booking                    21/21 (100.0%)     10/13 (76.9%)      24/27 (88.9%)
+hotel-booking                    20/20 (100.0%)     10/13 (76.9%)      23/26 (88.5%)
 rooms-booking-all-or-none        3/4 (75.0%)        1/1 (100.0%)       2/3 (66.7%)
 rooms-booking-http               13/13 (100.0%)     6/7 (85.7%)        12/13 (92.3%)
-rooms-booking-safe               14/14 (100.0%)     6/7 (85.7%)        14/15 (93.3%)
+rooms-booking-safe               13/13 (100.0%)     6/7 (85.7%)        13/14 (92.9%)
 …
-TOTAL                            76/77 (98.7%)      23/28 (82.1%)      70/76 (92.1%)
+TOTAL                            74/75 (98.7%)      23/28 (82.1%)      68/74 (91.9%)
 
 Not covered:
   hotel-booking
@@ -138,7 +138,7 @@ $ mvn verify -Deventconductor.migration.from=HEAD
 [INFO] EventConductor: 6 definition(s) validated successfully.
 [INFO] Tests run: 38, Failures: 0, Errors: 0, Skipped: 0
 [INFO] EventConductor migration check HEAD → current: 6 workflow(s), 0 error(s), 0 warning(s).
-[INFO] EventConductor workflow coverage: steps 76/77 (98.7%), branches 23/28 (82.1%), edges 70/76 (92.1%)
+[INFO] EventConductor workflow coverage: steps 74/75 (98.7%), branches 23/28 (82.1%), edges 68/74 (91.9%)
 [INFO] EventConductor verify: every check passed.
 [INFO] BUILD SUCCESS
 ```

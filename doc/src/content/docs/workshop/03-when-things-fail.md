@@ -93,12 +93,6 @@ steps:
       - stepId: guest-decision
         expression: "answer == 'cancel'"
 
-  - id: confirm-kept                         # the default: the guest keeps the rooms that were booked
-    type: ACTION
-    name: Confirm the rooms kept
-    retries: 3
-    preconditionStepId: guest-decision
-
   - id: notify-guest                         # the default of all-booked: every room was booked
     type: ACTION
     name: Tell the guest
@@ -108,7 +102,7 @@ steps:
   - id: done
     type: END
     name: Done
-    preconditionStepIds: [notify-guest, confirm-kept]   # an END goes on with whichever comes
+    preconditionStepIds: [notify-guest, guest-decision]   # whichever comes: all booked, or the guest keeps them
 
   - id: tell-front-desk
     type: ACTION
@@ -172,7 +166,7 @@ scripts/answer.sh BOOKING-3 cancel
 
 The process takes *Cancelled by the guest*. Its log says *Rolling the process back on purpose: the flow reached END 'cancelled-by-guest', which compensates what the process did.* — and *Cancel the room*, drawn amber because it is a compensation, runs **2/2**: one cancellation per room that had been booked; the penthouse, never booked, is not cancelled. The process ends **Compensated**.
 
-Start another one (BOOKING-3B) and answer `keep` instead: the two rooms are confirmed (*Confirm the rooms kept*) and the process ends *Completed*, with nothing undone. Leave a third one unanswered and nothing happens to it for two days; then the front desk is told — in a test, those two days pass in milliseconds ([Part 9 · Time](/workshop/testing/time/)).
+Start another one (BOOKING-3B) and answer `keep` instead: *What did the guest decide?* takes its default branch straight to *Done*, and the process ends *Completed* with the two rooms booked and nothing undone. Leave a third one unanswered and nothing happens to it for two days; then the front desk is told — in a test, those two days pass in milliseconds ([Part 9 · Time](/workshop/testing/time/)).
 
 ## When undoing on its own is right
 

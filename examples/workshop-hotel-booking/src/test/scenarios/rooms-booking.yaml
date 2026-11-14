@@ -11,7 +11,6 @@ steps:
   ask-guest: { complete: {} }
   tell-front-desk: { complete: {} }
   notify-guest: { complete: {} }
-  confirm-kept: { complete: {} }
 
 scenarios:
   - name: every room is booked and the guest is told
@@ -60,7 +59,7 @@ scenarios:
       - sendMessage: { name: guest-answer, variables: { answer: keep } }
     expect:
       status: COMPLETED
-      passedSteps: [wait-for-guest, guest-decision, confirm-kept, done]
+      passedSteps: [wait-for-guest, guest-decision, done]
       notPassedSteps: [cancelled-by-guest, cancel-room-booking, notify-guest]
 
   - name: a guest who never answers is not cancelled — the front desk follows up

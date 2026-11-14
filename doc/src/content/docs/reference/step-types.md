@@ -700,6 +700,12 @@ fire**; the process then completes implicitly, cancelling the join and everythin
 same mechanism as [*JOIN on a guarded branch*](#join) above). An `XOR` join proceeds on the one
 branch that did run.
 
+A branch can be the join itself: an `XOR` join (or an `END`) may name the `CHOICE` directly — usually
+as its unguarded default — beside its other ways in. That link counts only when the `CHOICE` picks the
+join; when it picks another branch, the join still goes on through its other links (for example
+`preconditionStepIds: [notify-guest, guest-decision]`: everything booked, *or* the guest's default
+answer, *keep*). No step in between is needed.
+
 :::caution[No default branch]
 If every guard is false at runtime and there is **no** unguarded default, a `CHOICE` takes **no**
 branch at all — a valid but easily-unintended dead end. The engine's topology validation and the
