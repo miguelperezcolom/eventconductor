@@ -25,7 +25,11 @@ const plusButton = (page) => page.evaluate(() => {
   const found = [];
   const walk = (r) => { for (const e of r.querySelectorAll('*')) { if (e.tagName === 'VAADIN-BUTTON' && !(e.textContent || '').trim()) { const b = e.getBoundingClientRect(); if (b.width > 0) found.push({ x: b.x, y: b.y, width: b.width, height: b.height }); } if (e.shadowRoot) walk(e.shadowRoot); } };
   walk(document);
-  return found.sort((a, b) => a.y - b.y || a.x - b.x)[0];
+  // below the "Output variables" label (the dialog's close × is an empty button too, above it)
+  let labelY = 0;
+  const find = (r) => { for (const e of r.querySelectorAll('*')) { if (!labelY && e.childElementCount === 0 && (e.textContent || '').trim() === 'Output variables') { const b = e.getBoundingClientRect(); if (b.height) labelY = b.y; } if (e.shadowRoot) find(e.shadowRoot); } };
+  find(document);
+  return found.filter((b) => b.y > labelY).sort((a, b) => a.y - b.y || a.x - b.x)[0];
 });
 
 export async function run(c) {
