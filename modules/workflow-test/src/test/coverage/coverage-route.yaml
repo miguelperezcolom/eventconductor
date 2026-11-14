@@ -1,0 +1,39 @@
+# Every kind of route the coverage report counts: plain links, a CHOICE with a guarded and a default
+# branch, a timeout route, a compensation and a loop-back.
+id: coverage-route
+name: Every kind of route
+steps:
+  - { id: start, type: START, name: Start }
+  - id: reserve
+    type: ACTION
+    name: Reserve
+    topic: reserve
+    preconditionStepId: start
+    compensable: true
+    compensationStepId: release
+  - id: check
+    type: ACTION
+    name: Check
+    topic: check
+    preconditionStepId: reserve
+    retries: 0
+    timeout: PT1H
+    onTimeoutStepId: escalate
+  - { id: route, type: CHOICE, name: Route, preconditionStepId: check }
+  - id: express
+    type: ACTION
+    name: Express
+    topic: express
+    preconditions:
+      - { stepId: route, expression: "tier == 'gold'" }
+  - id: standard
+    type: ACTION
+    name: Standard
+    topic: standard
+    preconditions:
+      - { stepId: route }
+    loopBack: { to: check, while: "again == 'yes'", maxIterations: 3 }
+  - { id: end, type: END, name: End, preconditionStepIds: [express, standard] }
+  - { id: escalate, type: ACTION, name: Escalate, topic: escalate }
+  - { id: escalated, type: END, name: Escalated, preconditionStepId: escalate }
+  - { id: release, type: ACTION, name: Release, topic: release }

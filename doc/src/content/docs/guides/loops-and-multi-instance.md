@@ -221,10 +221,12 @@ a run that completes with the condition still false is repeated.
 ```yaml
 - id: draft
   type: USER_TASK
+  name: Write the draft
   formId: draft-form
   preconditionStepId: start
 - id: review
   type: USER_TASK
+  name: Review the draft
   formId: review-form
   preconditionStepId: draft
 - id: decide

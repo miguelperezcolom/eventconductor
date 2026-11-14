@@ -706,7 +706,8 @@ negation; ≤ 10 conditions.
   {targetVersion?, stepMapping?, variableMapping?}` (plan + problems) and `POST /processes/{id}/migrate {…, reason}`;
   `MigrateProcessUseCase`; batch `MIGRATE`; MCP `dryRunProcessMigration`, `migrateProcess`. In CI:
   `mvn eventconductor:check-migration -Dfrom=<git ref|path|current> [-Dto=…] [-Dmapping=file] [-Dworkflow=id]`
-  fails when a step a process can wait in has no compatible counterpart. Memory persistence has no
+  fails when a step a process can wait in has no compatible counterpart. `eventconductor:verify` runs
+  validate + check-migration (`-Deventconductor.migration.from=…`) + the test kit's coverage floors in one goal. Memory persistence has no
   version history (migrate to the current version only).
 - **Reveal** a sensitive value: `POST /processes/{id}/variables/{name}/reveal {reason}` (§17).
 

@@ -3,11 +3,13 @@
 # In a repository of your own, put this file at .github/workflows/workflows.yml. (It lives in ci/
 # here because this project is a folder inside the EventConductor repository, not a repository root.)
 #
-# On every pull request and every push to main it runs, in this order:
-#   1. mvn verify — eventconductor:validate (schema, references, expressions) on every definition,
-#      then the test-kit tests: happy paths, failure paths, time, simulated integrations;
-#   2. eventconductor:check-migration — could the processes running the previous version move
-#      onto this one? Compared against the PR's base branch (or the previous commit on main).
+# On every pull request and every push to main it runs one command, `mvn verify`, which does, in order:
+#   1. eventconductor:validate (schema, references, expressions) on every definition;
+#   2. the test-kit tests — happy paths, failure paths, time, simulated integrations, the scenarios in
+#      src/test/scenarios — which also record the workflow coverage in target/eventconductor-coverage/;
+#   3. eventconductor:verify — check-migration (could the processes running the previous version move
+#      onto this one? compared against the PR's base branch, or the previous commit on main) and the
+#      coverage floors set in the pom.
 #
 # Protect main (Settings → Branches → require this check to pass): a definition that does not
 # validate, breaks a test or strands running processes can then never be merged — and so never
@@ -33,10 +35,14 @@ jobs:
           java-version: 21
           cache: maven
 
-      - name: Validate the definitions and run the workflow tests
-        run: mvn -B verify
-
-      - name: Check that running processes can move onto this version
-        run: mvn -B eventconductor:check-migration -Dfrom="$FROM"
+      - name: Validate, test, check migrations and coverage
+        run: mvn -B verify -Deventconductor.migration.from="$FROM"
         env:
           FROM: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'HEAD~1' }}
+
+      - name: Keep the coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-coverage
+          path: target/eventconductor-coverage/

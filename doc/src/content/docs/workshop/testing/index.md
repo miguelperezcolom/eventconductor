@@ -5,22 +5,25 @@ description: Part 9 of the workshop — test the hotel booking with the EventCon
 
 A workflow definition is code: it has branches, deadlines, retries and a rollback path, and every one of them deserves a test. This part tests the hotel booking you built, with the **test kit** (`workflow-test`), and ends with the project set up so that **every change is checked automatically** — before it can reach the engine.
 
-The kit runs **your definitions in the real engine, in memory**, inside a JUnit 5 test: no server, no broker, no database. It gives a test three things a running deployment cannot:
+The kit runs **your definitions in the real engine, in memory**, inside a JUnit 5 test: no server, no broker, no database. It gives a test four things a running deployment cannot:
 
 - **mocks instead of workers** — answer each task with a completion, a failure or silence;
 - **a clock you move** — *three days* pass in milliseconds;
-- **assertions on the process** — `assertThat(booking).isCompensated().hasPassedSteps("cancel-room-booking")`.
+- **assertions on the process** — `assertThat(booking).isCompensated().hasPassedSteps("cancel-room-booking")`;
+- **coverage of the flow** — which steps, CHOICE branches, timeout routes and compensations the tests went through.
 
-All the tests on these pages are in the workshop project, in `src/test/java`, and pass:
+All the tests on these pages are in the workshop project, in `src/test/java` — and, written as data, in `src/test/scenarios` — and pass:
 
 ```text
 $ mvn verify
 [INFO] Tests run: 1, Failures: 0, Errors: 0 -- in com.example.hotel.HappyPathTest
 [INFO] Tests run: 2, Failures: 0, Errors: 0 -- in com.example.hotel.FailurePathsTest
 [INFO] Tests run: 3, Failures: 0, Errors: 0 -- in com.example.hotel.RealHandlersTest
-[INFO] Tests run: 3, Failures: 0, Errors: 0 -- in com.example.hotel.IntegrationsTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0 -- in com.example.hotel.IntegrationsTest
 [INFO] Tests run: 2, Failures: 0, Errors: 0 -- in com.example.hotel.TimeTest
-[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0
+[INFO] Tests run: 9, Failures: 0, Errors: 0 -- in com.example.hotel.ScenariosTest
+[INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0
+[INFO] EventConductor workflow coverage: steps 46/47 (97.9%), branches 5/6 (83.3%), edges 35/36 (97.2%)
 [INFO] BUILD SUCCESS
 ```
 
@@ -31,7 +34,7 @@ $ mvn verify
 | [Time](/workshop/testing/time/) | A worker that never answers; an approval nobody gives for three days |
 | [Simulated integrations](/workshop/testing/integrations/) | The hotel's API, the language model and an agent — and the idempotency key actually sent |
 | [The real handlers](/workshop/testing/real-handlers/) | Your Java handlers in the loop, and a mock that still wins |
-| [Automate it](/workshop/testing/automate/) | Validate, test and check migrations in CI, on every pull request |
+| [Automate it](/workshop/testing/automate/) | Validate, test, check migrations and coverage in CI with one command; test cases written as data |
 | [Debugging a failing test](/workshop/testing/debugging-a-failing-test/) | Reading what a failing assertion prints |
 
 ## Set up

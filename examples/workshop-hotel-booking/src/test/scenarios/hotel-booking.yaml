@@ -1,0 +1,44 @@
+# Module 6 — the whole booking, approved and rejected. The manager's decision is a step of the
+# scenario (`then`), the hotel's API a stubbed HTTP call: nothing leaves the test.
+workflow: hotel-booking
+variables:
+  guest: Erin
+  rooms: [ { number: "101", type: double }, { number: "102", type: double } ]
+http:
+  rooms: { status: 201, body: { id: HB-1 } }   # every room, the same answer
+  cancel-room: { status: 204 }
+steps:
+  notify-guest: { complete: {} }
+
+scenarios:
+  - name: an approved booking books every room at the hotel
+    then:
+      - completeUserTask: { step: approve, values: { approved: "true" } }
+    expect:
+      status: COMPLETED
+      passedSteps: [approve, decision, rooms, notify-guest]
+      notPassedSteps: [rejected]
+      variables: { roomBookings: [HB-1, HB-1] }
+      invocations: { rooms: 2 }
+
+  - name: a rejected booking books nothing
+    then:
+      - completeUserTask: { step: approve, values: { approved: "false" } }
+    expect:
+      status: COMPLETED
+      passedSteps: [rejected]
+      notPassedSteps: [rooms, notify-guest]
+      invocations: { rooms: 0 }
+
+  - name: a sold-out room at the hotel cancels the one already booked
+    http:
+      rooms:
+        - { status: 201, body: { id: HB-1 } }
+        - { status: 409, body: { error: sold out } }
+    then:
+      - completeUserTask: { step: approve, values: { approved: "true" } }
+      - advanceTime: PT5M
+    expect:
+      status: COMPENSATED
+      passedSteps: [cancel-room]
+      notPassedSteps: [notify-guest]

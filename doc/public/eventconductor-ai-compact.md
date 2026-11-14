@@ -248,7 +248,8 @@ EmbeddedTaskExecutor taskExecutor(UpdateStepExecutionUseCase update) {
 
 - `mvn eventconductor:validate` (plugin goal `validate`, bound to `process-resources`): schema + engine rules for
   `src/main/resources/{workflows,forms,rules,tasks}`. `mvn eventconductor:check-migration -Dfrom=<git ref>`
-  before shipping a new version of a running workflow.
+  before shipping a new version of a running workflow. For CI, one goal: `eventconductor:verify` (validate +
+  check-migration with `-Deventconductor.migration.from=<ref>` + workflow coverage floors `minStepCoverage`/`minBranchCoverage`).
 - `workflow-test` (`io.mateu.workflow.test`): `@EventConductorTest` boots the engine in memory with a test clock;
   inject `WorkflowTestRuntime`:
 ```java

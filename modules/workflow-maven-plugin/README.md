@@ -44,7 +44,10 @@ src/main/resources/
 ```
 
 Run it directly with `mvn eventconductor:validate`, or let it run in the build
-(`mvn verify`). The plugin also ships the standard auto-generated `help` goal:
+(`mvn verify`). For CI, the `verify` goal runs `validate`, `check-migration`
+(`-Deventconductor.migration.from=<git ref>`) and the workflow-test coverage floors
+(`minStepCoverage`, `minBranchCoverage`) in one goal, bound to the `verify` phase — see
+the [Maven plugin reference](../../doc/src/content/docs/reference/maven-plugin.md#everything-at-once-the-verify-goal). The plugin also ships the standard auto-generated `help` goal:
 `mvn eventconductor:help -Ddetail=true -Dgoal=validate` describes every parameter.
 On any violation the build fails with a per-file report:
 
