@@ -59,7 +59,9 @@ compensable:
 ```
 
 Put it where the engine always looks, `src/test/resources/workflows/booking-saga.json` (or in
-`src/main/resources/workflows/` if it ships with your application). The test:
+`src/main/resources/workflows/` if it ships with your application). Both directories are read; if
+the same definition id is in both, the test one wins (test output is first on the classpath — see
+[Workflow definitions](/guides/workflow-definitions/)). The test:
 
 ```java
 import io.mateu.workflow.test.EventConductorTest;
@@ -127,7 +129,8 @@ persistence**, with:
 - **every task answered on the calling thread.** A call returns once the engine has done all it can
   at the current time, so there is nothing to `await`.
 
-Definitions load from `classpath:/workflows/` as in any embedded application. Add others from files
+Definitions load from `classpath:/workflows/` as in any embedded application — `src/main/resources/workflows/`
+and `src/test/resources/workflows/` both, the test copy winning when an id is in both. Add others from files
 or directories with `@EventConductorTest(definitions = {"src/test/flows", "classpath:extra/order.json"})`,
 or at run time with `runtime.deploy(...)`.
 
