@@ -1,10 +1,12 @@
 package io.mateu.workflow.infra.in.ui.pages.process.operate;
 
 import io.mateu.uidl.annotations.Button;
+import io.mateu.uidl.annotations.Colspan;
 import io.mateu.uidl.annotations.FormLayout;
 import io.mateu.uidl.annotations.Help;
 import io.mateu.uidl.annotations.Hidden;
 import io.mateu.uidl.annotations.Label;
+import io.mateu.uidl.annotations.Section;
 import io.mateu.uidl.annotations.Stereotype;
 import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.uidl.data.Message;
@@ -29,7 +31,7 @@ import java.util.Set;
  * on one version onto another — a MIGRATE batch operation, each process planned and refused on its own, the
  * same mapping for all. Follow it on the Batch operations page.
  */
-@FormLayout(columns = 1)
+@FormLayout(columns = 2)
 public class MigrateInstancesForm implements OptionsSupplier {
 
     @Hidden
@@ -45,22 +47,26 @@ public class MigrateInstancesForm implements OptionsSupplier {
     @Stereotype(FieldStereotype.select)
     String targetVersion;
 
-    @Label("Step mapping")
-    @Help("One source=target per line, the same for every process; source= says no counterpart. Steps left out map"
-            + " to the step of the same id.")
-    @Stereotype(FieldStereotype.textarea)
-    String stepMapping;
-
-    @Label("Variables to set")
-    @Help("One name=value per line")
-    @Stereotype(FieldStereotype.textarea)
-    String variables;
-
+    @Colspan(2)
     @NotEmpty
     @Label("Reason")
     @Help("Mandatory: recorded with your name in each process's audit trail")
     @Stereotype(FieldStereotype.textarea)
     String reason;
+
+    @Section(value = "", frameless = true, style = OperationForms.SCROLLING_SECTION)
+    @Colspan(2)
+    @Label("Variables to set")
+    @Help("One name=value per line")
+    @Stereotype(FieldStereotype.textarea)
+    String variables;
+
+    @Colspan(2)
+    @Label("Step mapping")
+    @Help("One source=target per line, the same for every process; source= says no counterpart. Steps left out map"
+            + " to the step of the same id.")
+    @Stereotype(FieldStereotype.textarea)
+    String stepMapping;
 
     public MigrateInstancesForm forDefinition(String workflowDefinitionId) {
         this.workflowDefinitionId = workflowDefinitionId;
@@ -103,6 +109,6 @@ public class MigrateInstancesForm implements OptionsSupplier {
 
     @Override
     public String toString() {
-        return "Migrate instances";
+        return "";
     }
 }

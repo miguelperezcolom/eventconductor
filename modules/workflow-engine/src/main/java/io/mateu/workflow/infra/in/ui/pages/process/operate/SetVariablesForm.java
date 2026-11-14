@@ -5,6 +5,7 @@ import io.mateu.uidl.annotations.FormLayout;
 import io.mateu.uidl.annotations.Help;
 import io.mateu.uidl.annotations.Hidden;
 import io.mateu.uidl.annotations.Label;
+import io.mateu.uidl.annotations.Section;
 import io.mateu.uidl.annotations.MasterDetail;
 import io.mateu.uidl.annotations.Stereotype;
 import io.mateu.uidl.data.FieldStereotype;
@@ -26,19 +27,20 @@ public class SetVariablesForm {
     @Hidden
     String processId;
 
-    @Label("Variables to set")
-    @MasterDetail(minHeightWhenDetailVisible = "12rem;")
-    List<Variable> set = new ArrayList<>();
-
-    @Label("Variables to remove")
-    @Help("Names, separated by commas")
-    String remove;
-
     @NotEmpty
     @Label("Reason")
     @Help("Mandatory: recorded with your name in the process's audit trail")
     @Stereotype(FieldStereotype.textarea)
     String reason;
+
+    @Label("Variables to remove")
+    @Help("Names, separated by commas")
+    String remove;
+
+    @Section(value = "", frameless = true, style = OperationForms.SCROLLING_SECTION)
+    @Label("Variables to set")
+    @MasterDetail(minHeightWhenDetailVisible = "12rem;")
+    List<Variable> set = new ArrayList<>();
 
     public SetVariablesForm forProcess(String processId) {
         this.processId = processId;
@@ -59,6 +61,6 @@ public class SetVariablesForm {
 
     @Override
     public String toString() {
-        return "Set variables";
+        return "";
     }
 }

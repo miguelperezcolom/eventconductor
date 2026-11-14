@@ -53,6 +53,6 @@ public class RevealVariableForm {
 
     @Override
     public String toString() {
-        return "Reveal variable";
+        return "";
     }
 }
