@@ -57,7 +57,7 @@ class BuiltInTaskStubsTest {
 
     @Test
     void anLlmCallIsAnsweredByItsStub(WorkflowTestRuntime runtime) {
-        var model = runtime.whenLlmCall("triage").thenAnswer("not json").thenAnswer("{\"category\":\"noise\"}");
+        var model = runtime.whenLlmCall("triage").thenInvalidAnswer("not json").thenAnswer("{\"category\":\"noise\"}");
 
         var process = runtime.start("triage", "llm-1", Map.of("guest", "Ann", "complaint", "the party next door"));
         runtime.advanceTime(Duration.ofMinutes(1));

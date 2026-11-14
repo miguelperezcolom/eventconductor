@@ -268,11 +268,15 @@ class BookingSagaTest {
 }
 ```
   `whenTask(task|step id|topic)` / `whenStep(id)` → `thenComplete(map)`, `thenFail(code[, retryable])`,
-  `thenTimeout()`, `thenAnswer(fn)`; `whenHttpCall(step).thenRespond(status, body)`, `whenLlmCall(step).thenAnswer(text)`;
+  `thenTimeout()`, `thenAnswer(fn)`; `whenHttpCall(step).thenRespond(status, body)` (+ `.whenIteration(i)` / `.whenItemHas(field, v)` /
+  `.whenRequest(pred)` scoped stubs per forEach item), `whenLlmCall(step).thenAnswer(text)` (validated against `responseSchema`;
+  `.thenInvalidAnswer(text)` for a bad model answer);
   `whenAgent(step).thenOutput(json)` / `.thenReviewRequired()` (+ `resolveAgentReview(p, step)`) / `.thenFail(code, msg)`;
   `completeUserTask(p, step, values)`,
   `sendMessage`, `publishEvent`, `update`, `updateWithStart`, `advanceTime`. Assertions (`WorkflowAssertions.assertThat`):
-  `isCompleted/isCompensated/isFailed/isWaitingAt/hasPassedSteps/hasVariable/hasReplied/hasPublishedEvent`.
+  `isCompleted/isCompensated/isFailed/isWaitingAt/hasPassedSteps/hasVariable/hasReplied/hasPublishedEvent`,
+  `hasCompensated/hasCompensatedInOrder/hasNoCompensations`, `hasEscalated(step[, n])`,
+  `iterations(step).hasSize/hasOnlyFailed/hasCompensated/iteration(index|label|item)`.
   Unique business key per test; don't run kit tests in parallel in one JVM.
 
 ## Call and operate (REST `/workflow/api`, MCP)

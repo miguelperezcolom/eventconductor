@@ -80,6 +80,22 @@ public final class WorkflowTestRuntime {
         runUntilIdle();
     }
 
+    /**
+     * What the test's stubs got wrong so far — an LLM answer its step's {@code responseSchema} refuses … —
+     * in the order it happened. The test fails on any of them when it ends; a failed process assertion
+     * lists them too.
+     */
+    public List<String> stubProblems() {
+        return executor.stubProblems();
+    }
+
+    /** The stub problems so far, forgotten: a test that provokes one on purpose takes it, and the test does not fail on it. */
+    List<String> takeStubProblems() {
+        var problems = executor.stubProblems();
+        executor.clearStubProblems();
+        return problems;
+    }
+
     /** Called after each test: the engine clock goes back to the system clock. */
     void endTest() {
         EngineClock.reset();

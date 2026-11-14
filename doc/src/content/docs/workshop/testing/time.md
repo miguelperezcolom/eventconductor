@@ -34,7 +34,8 @@ class TimeTest {
         assertThat(booking).isWaitingAt("approve");
 
         runtime.advanceTime(Duration.ofDays(2));
-        assertThat(booking).isWaitingAt("approve");                       // escalated, still open
+        assertThat(booking).isWaitingAt("approve")                        // still open…
+                .hasEscalated("approve", 1);                              // …and the one-day escalation fired
 
         runtime.advanceTime(Duration.ofDays(1).plusMinutes(1));
         assertThat(booking).hasStepStatus("approve", StepExecutionStatus.TIMEOUT)
@@ -49,6 +50,8 @@ Two details the first test shows:
 
 - `thenTimeout()` means *the worker never answers*: the step's own `timeout` (30 s) fails each attempt, and each is retried with the real backoff policy — three dispatches in all.
 - With nothing booked, there is nothing to compensate: the run ends **failed** (`ERROR`), not *compensated*. That is a behaviour worth pinning in a test.
+
+`hasEscalated("approve", 1)` checks that exactly one level of the task's `escalation` fired (`hasEscalated("approve")` for at least one, `hasNotEscalated` for none yet); when it fails, the message lists each level with its `after`, its action and whether it fired.
 
 A timeout fires strictly after its limit, so a step with a three-day timeout is still waiting at exactly three days and has timed out a moment later — hence the `plusMinutes(1)`.
 

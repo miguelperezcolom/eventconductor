@@ -15,33 +15,58 @@ import java.util.concurrent.atomic.AtomicInteger;
  * text here, mapped onto the process the way the built-in {@code llm-call} task maps a real answer:
  * {@code outputVariable}, {@code usageVariable}, and {@code output} expressions over {@code text},
  * {@code json} (the answer parsed, when the step declares a {@code responseSchema} or the text is
- * JSON), {@code usage}, {@code model} and {@code finishReason}. The schema itself is not validated.
+ * JSON), {@code usage}, {@code model} and {@code finishReason}.
+ *
+ * <p>An answer is checked against the step's {@code responseSchema}, as the built-in task checks a
+ * model's: a {@link #thenAnswer} the schema refuses is a mistake in the test — the step fails with
+ * {@code LLM_STUB_INVALID} and the test fails, naming the stub and what the schema says. To exercise
+ * the step's handling of a model that answers badly, say so with {@link #thenInvalidAnswer}: it fails
+ * the call with {@code LLM_INVALID_OUTPUT} and the schema's errors (retryable), as a real one would.
  *
  * <p>Answers are consumed in order and the last one repeats, as for {@link TaskStub}.
  */
 public final class LlmStub {
 
-    private record Answer(String text, TaskOutcome.Fail failure) {
+    private record Answer(String text, TaskOutcome.Fail failure, boolean invalid) {
     }
 
     private final String stepId;
+    private final java.util.function.Consumer<String> problems;
     private final List<Answer> answers = new CopyOnWriteArrayList<>();
     private final List<Map<String, Object>> requests = new CopyOnWriteArrayList<>();
     private final AtomicInteger calls = new AtomicInteger();
 
     LlmStub(String stepId) {
-        this.stepId = stepId;
+        this(stepId, problem -> { });
     }
 
-    /** The model answers {@code text} (a JSON document for a step with a {@code responseSchema}). */
+    LlmStub(String stepId, java.util.function.Consumer<String> problems) {
+        this.stepId = stepId;
+        this.problems = problems;
+    }
+
+    /**
+     * The model answers {@code text} — for a step with a {@code responseSchema}, a JSON document valid
+     * against it: an answer the schema refuses fails the test (see the class comment).
+     */
     public LlmStub thenAnswer(String text) {
-        answers.add(new Answer(text, null));
+        answers.add(new Answer(text, null, false));
+        return this;
+    }
+
+    /**
+     * The model answers {@code text}, which the step's {@code responseSchema} is expected to refuse: the call
+     * fails with {@code LLM_INVALID_OUTPUT} and the schema's errors, retryably — as the built-in task fails
+     * a real model's invalid answer, so the step spends its {@code retries}.
+     */
+    public LlmStub thenInvalidAnswer(String text) {
+        answers.add(new Answer(text, null, true));
         return this;
     }
 
     /** The call fails with {@code code} ({@code LLM_RATE_LIMITED}, {@code LLM_INVALID_OUTPUT} …). */
     public LlmStub thenFail(String code, boolean retryable) {
-        answers.add(new Answer(null, new TaskOutcome.Fail(code, null, retryable)));
+        answers.add(new Answer(null, new TaskOutcome.Fail(code, null, retryable), false));
         return this;
     }
 
@@ -67,8 +92,25 @@ public final class LlmStub {
         var text = answer.text();
         var schema = request.path("responseSchema");
         Object json = Values.parsed(text);
-        if (json instanceof String && schema.isObject() && !schema.isEmpty()) {
-            return TaskOutcome.fail("LLM_INVALID_OUTPUT", "the answer is not a JSON document", true);
+        if (schema.isObject() && !schema.isEmpty()) {
+            var errors = json instanceof String || json == null ? List.of("the answer is not a JSON document")
+                    : io.mateu.workflow.domain.services.JsonSchemas.validate(Values.toMap(schema), Values.text(json));
+            if (!errors.isEmpty()) {
+                var why = "the answer does not match the responseSchema — " + String.join("; ", errors);
+                if (answer.invalid()) {
+                    return TaskOutcome.fail("LLM_INVALID_OUTPUT", why, true);
+                }
+                var problem = "LLM_CALL step '" + stepId + "': the stubbed answer does not match the step's responseSchema — "
+                        + String.join("; ", errors) + ". Fix the stub, or stub it with thenInvalidAnswer(…) to test an"
+                        + " invalid model answer. Answer: " + text;
+                problems.accept(problem);
+                return TaskOutcome.fail("LLM_STUB_INVALID", problem, false);
+            }
+        } else if (answer.invalid()) {
+            var problem = "LLM_CALL step '" + stepId + "' has no responseSchema, so thenInvalidAnswer(…) has nothing to"
+                    + " be invalid against; use thenFail(\"LLM_INVALID_OUTPUT\", true)";
+            problems.accept(problem);
+            return TaskOutcome.fail("LLM_STUB_INVALID", problem, false);
         }
         if (json instanceof String) {
             json = null;

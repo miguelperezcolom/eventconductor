@@ -32,6 +32,22 @@ class IntegrationsTest {
     }
 
     @Test
+    void aRoomTheHotelTurnsDownUndoesTheOthers(WorkflowTestRuntime runtime) {
+        var hotel = runtime.whenHttpCall("rooms").thenRespond(201, "{\"id\": \"H-1\"}");   // every room…
+        hotel.whenItemHas("number", "102").thenRespond(409, "sold out");   // …but 102: a 4xx is final
+        var cancel = runtime.whenHttpCall("cancel-room").thenRespond(204);
+
+        var booking = runtime.start("rooms-booking-http", "HTTP-2", Map.of("rooms", Rooms.THREE_DOUBLES));
+
+        assertThat(booking).isCompensated().hasCompensated("rooms");
+        assertThat(booking).iterations("rooms")
+                .hasOnlyFailed("Room 102")
+                .hasCompensated("Room 101", "Room 103");
+        assertThat(cancel.requests()).extracting(request -> request.get("path"))
+                .containsExactlyInAnyOrder("/bookings/by-ref/HTTP-2-101", "/bookings/by-ref/HTTP-2-103");
+    }
+
+    @Test
     void classifiesTheRequestAndDraftsTheEmail(WorkflowTestRuntime runtime) {
         var classify = runtime.whenLlmCall("classify-request")
                 .thenAnswer("{\"category\": \"accessibility\", \"needsStaff\": true, \"summary\": \"wheelchair\"}");

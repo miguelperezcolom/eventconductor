@@ -27,6 +27,30 @@ void sendsTheSameIdempotencyKeyOnEveryAttempt(WorkflowTestRuntime runtime) {
 
 The hotel is busy once, then books the room. The test checks what matters for not booking twice: **both attempts carried the same `Idempotency-Key`**, built from the business key and the room. `hotel.requests()` is every request the step rendered — method, path, headers, body.
 
+## One room the hotel turns down
+
+The step makes one call per room. A **scoped** stub answers some of them apart from the others — by iteration (`whenIteration(1)`), by item (`whenItemHas("number", "102")`) or by request (`whenRequest(…)`) — with answers of its own:
+
+```java
+@Test
+void aRoomTheHotelTurnsDownUndoesTheOthers(WorkflowTestRuntime runtime) {
+    var hotel = runtime.whenHttpCall("rooms").thenRespond(201, "{\"id\": \"H-1\"}");   // every room…
+    hotel.whenItemHas("number", "102").thenRespond(409, "sold out");   // …but 102: a 4xx is final
+    var cancel = runtime.whenHttpCall("cancel-room").thenRespond(204);
+
+    var booking = runtime.start("rooms-booking-http", "HTTP-2", Map.of("rooms", Rooms.THREE_DOUBLES));
+
+    assertThat(booking).isCompensated().hasCompensated("rooms");
+    assertThat(booking).iterations("rooms")
+            .hasOnlyFailed("Room 102")
+            .hasCompensated("Room 101", "Room 103");
+    assertThat(cancel.requests()).extracting(request -> request.get("path"))
+            .containsExactlyInAnyOrder("/bookings/by-ref/HTTP-2-101", "/bookings/by-ref/HTTP-2-103");
+}
+```
+
+Room 102 is refused, `compensateAll` waits for the other two and then undoes them — over HTTP too: the `DELETE`s went to exactly the two rooms that were booked. Each scope consumes (and repeats) its own answers, so `hotel.whenIteration(0).thenRespond(503, "busy").thenRespond(201, …)` would make *that* room retry while the others are booked at once.
+
 ## The language model
 
 ```java
@@ -47,7 +71,9 @@ void classifiesTheRequestAndDraftsTheEmail(WorkflowTestRuntime runtime) {
 }
 ```
 
-The stubbed answer goes through the step's `output` expressions (`json.category`) — so the test checks the mapping, and `lastRequest()` checks the prompt the engine actually rendered. (The kit does not validate the answer against `responseSchema`.)
+The stubbed answer goes through the step's `output` expressions (`json.category`) — so the test checks the mapping, and `lastRequest()` checks the prompt the engine actually rendered.
+
+The stub is **validated against the step's `responseSchema`**, as a real model's answer is. Stub `{"category": "spa"}` and the test fails, saying what the schema refuses — `category` is not in the enum, `needsStaff` and `summary` are missing — instead of passing on an answer production would never accept. To test what happens when the model *does* answer badly, say so: `thenInvalidAnswer("…")` fails the call with `LLM_INVALID_OUTPUT`, and the step retries as it would in production.
 
 ## An agent, held for review
 

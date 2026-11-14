@@ -22,7 +22,8 @@ class RealHandlersTest {
         var booking = runtime.start("rooms-booking-safe", "REAL-2",
                 Map.of("guest", "Fay", "rooms", Rooms.WITH_A_PENTHOUSE));
 
-        assertThat(booking).isCompensated().hasPassedSteps("cancel-room-booking");
+        assertThat(booking).isCompensated().hasCompensated("rooms");
+        assertThat(booking).iterations("rooms").hasOnlyFailed("Room 900").hasCompensated("Room 101", "Room 102");
     }
 
     @Test

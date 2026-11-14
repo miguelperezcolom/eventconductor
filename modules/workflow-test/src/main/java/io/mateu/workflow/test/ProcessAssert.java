@@ -232,6 +232,105 @@ public class ProcessAssert extends AbstractAssert<ProcessAssert, TestProcess> {
         return this;
     }
 
+    // ---------------------------------------------------------------- compensation
+
+    /**
+     * The saga undid each of {@code stepIds}: the compensation each declares ({@code compensationStepId})
+     * ran and completed. For a forEach step, its compensation ran over the iterations that completed — see
+     * {@link IterationsAssert#hasCompensated} for which.
+     */
+    public ProcessAssert hasCompensated(String... stepIds) {
+        isNotNull();
+        var runs = compensationRuns();
+        var missing = Arrays.stream(stepIds)
+                .filter(stepId -> runs.stream().noneMatch(run -> stepId.equals(run.compensatedStepId()) && run.completed()))
+                .toList();
+        if (!missing.isEmpty()) {
+            failWithMessage("Expected %s to have compensated %s, but it has not compensated %s.%n%s%n%s", actual,
+                    List.of(stepIds), missing, describeCompensations(runs), describe());
+        }
+        return this;
+    }
+
+    /** None of {@code stepIds} was undone: no compensation of theirs completed. */
+    public ProcessAssert hasNotCompensated(String... stepIds) {
+        isNotNull();
+        var runs = compensationRuns();
+        var compensated = Arrays.stream(stepIds)
+                .filter(stepId -> runs.stream().anyMatch(run -> stepId.equals(run.compensatedStepId()) && run.completed()))
+                .toList();
+        if (!compensated.isEmpty()) {
+            failWithMessage("Expected %s not to have compensated %s, but it compensated %s.%n%s", actual,
+                    List.of(stepIds), compensated, describeCompensations(runs));
+        }
+        return this;
+    }
+
+    /**
+     * The saga undid exactly these steps, in this order — a rollback undoes the latest-completed step
+     * first. Names the <b>compensated</b> steps (not their compensations); the order is the order their
+     * compensations' tasks were dispatched.
+     */
+    public ProcessAssert hasCompensatedInOrder(String... stepIds) {
+        isNotNull();
+        var runs = compensationRuns();
+        var order = runs.stream().filter(Executions.CompensationRun::completed)
+                .map(Executions.CompensationRun::compensatedStepId).toList();
+        if (!order.equals(Arrays.asList(stepIds))) {
+            failWithMessage("Expected %s to have compensated %s, in this order, but it compensated %s.%n%s", actual,
+                    List.of(stepIds), order, describeCompensations(runs));
+        }
+        return this;
+    }
+
+    /** No compensation ran at all. */
+    public ProcessAssert hasNoCompensations() {
+        isNotNull();
+        var runs = compensationRuns();
+        if (!runs.isEmpty()) {
+            failWithMessage("Expected %s to have run no compensation, but it ran some.%n%s", actual,
+                    describeCompensations(runs));
+        }
+        return this;
+    }
+
+    // ---------------------------------------------------------------- forEach
+
+    /** The iterations of a forEach step, for assertions on each item: {@code iterations("rooms").hasOnlyFailed("Room 900")}. */
+    public IterationsAssert iterations(String stepId) {
+        isNotNull();
+        return new IterationsAssert(actual, stepId);
+    }
+
+    // ---------------------------------------------------------------- escalation
+
+    /** At least one of the USER_TASK's {@code escalation} levels fired. */
+    public ProcessAssert hasEscalated(String stepId) {
+        isNotNull();
+        var task = escalatable(stepId);
+        if (task.escalationsFired() == 0) {
+            failWithMessage("Expected step '%s' of %s to have escalated, but no escalation fired.%n%s", stepId, actual,
+                    describeEscalations(task));
+        }
+        return this;
+    }
+
+    /** Exactly {@code levels} of the USER_TASK's {@code escalation} levels fired (1 = the first). */
+    public ProcessAssert hasEscalated(String stepId, int levels) {
+        isNotNull();
+        var task = escalatable(stepId);
+        if (task.escalationsFired() != levels) {
+            failWithMessage("Expected step '%s' of %s to have escalated %s time(s), but it escalated %s.%n%s", stepId,
+                    actual, levels, task.escalationsFired(), describeEscalations(task));
+        }
+        return this;
+    }
+
+    /** None of the USER_TASK's escalation levels fired (yet). */
+    public ProcessAssert hasNotEscalated(String stepId) {
+        return hasEscalated(stepId, 0);
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private StepExecution latest(String stepId) {
@@ -242,11 +341,49 @@ public class ProcessAssert extends AbstractAssert<ProcessAssert, TestProcess> {
     }
 
     private String describe() {
-        var lines = new StringBuilder("Steps:");
-        for (var execution : actual.stepExecutions()) {
-            lines.append(String.format("%n  %-24s %s", execution.getStepId(), execution.getStatus()));
+        return Executions.describe(actual);
+    }
+
+    private List<Executions.CompensationRun> compensationRuns() {
+        return Executions.compensationRuns(actual.stepExecutions(), actual.runtime().invocations(), actual.id());
+    }
+
+    private String describeCompensations(List<Executions.CompensationRun> runs) {
+        if (runs.isEmpty()) {
+            return "Compensations: none ran.";
         }
-        lines.append(String.format("%nVariables: %s", actual.variables()));
+        var lines = new StringBuilder("Compensations, in the order they ran:");
+        for (var run : runs) {
+            lines.append(String.format("%n  %-24s undoing %-20s %s", run.compensationStepId(), run.compensatedStepId(),
+                    run.execution().getStatus()));
+        }
+        return lines.toString();
+    }
+
+    /** The latest execution of {@code stepId}, which must be a USER_TASK with an escalation. */
+    private StepExecution escalatable(String stepId) {
+        var task = latest(stepId);
+        if (task == null) {
+            failWithMessage("Expected step '%s' of %s to be a USER_TASK that escalates, but it has not started.%n%s",
+                    stepId, actual, describe());
+        }
+        var step = Executions.step(task);
+        if (step == null || step.type() != io.mateu.workflow.domain.aggregates.StepType.USER_TASK
+                || step.escalations() == null || step.escalations().isEmpty()) {
+            failWithMessage("Step '%s' of %s declares no escalation (only a USER_TASK can escalate)", stepId, actual);
+        }
+        return task;
+    }
+
+    private static String describeEscalations(StepExecution task) {
+        var levels = Executions.step(task).escalations();
+        var lines = new StringBuilder("Escalation levels (task started " + task.getStartedAt() + ", status "
+                + task.getStatus() + "):");
+        for (var i = 0; i < levels.size(); i++) {
+            var level = levels.get(i);
+            lines.append(String.format("%n  %d. after %-8s %-10s %s", i + 1, level.after(), level.effectiveAction(),
+                    i < task.escalationsFired() ? "fired" : "not fired"));
+        }
         return lines.toString();
     }
 }

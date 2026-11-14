@@ -1,0 +1,33 @@
+# One HTTP call per room, all or none, each iteration named by its room (AssertionsForEachTest,
+# PerIterationHttpStubTest): a per-iteration stub makes one room fail, the others are undone.
+id: rooms-http-each
+name: Book every room over HTTP, all or none
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: book
+    type: HTTP_CALL
+    name: Book a room
+    preconditionStepId: start
+    retries: 1
+    compensable: true
+    compensationStepId: unbook
+    forEach:
+      items: rooms
+      as: room
+      label: "'Room ' + room.number"
+      onIterationFailure: compensateAll
+      output: bookings
+      outputElement: bookingId
+    http:
+      url: "https://hotel.example.com/bookings"
+      method: POST
+      body: { number: "${room.number}" }
+      output: { bookingId: "body.id" }
+  - id: unbook
+    type: HTTP_CALL
+    name: Cancel a room
+    http:
+      url: "https://hotel.example.com/bookings/${bookingId}"
+      method: DELETE
+  - { id: end, type: END, name: End, preconditionStepId: book }
