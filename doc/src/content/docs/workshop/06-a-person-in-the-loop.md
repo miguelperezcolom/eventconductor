@@ -256,9 +256,9 @@ An operator can also decide it from the console, without the form: **Complete st
 
 ![Completing the approval from the console](/workshop/06-approve-from-console.gif)
 
-The CHOICE takes the approved branch, the rooms are booked at the hotel, the guest is told:
+The CHOICE takes the approved branch, the rooms are booked at the hotel, every room was booked so the guest is told, and the process ends *Booked*:
 
-![Booked: approval, choice, rooms 3/3, guest told](/workshop/06-booked.jpg)
+![Booked: approval, choice, rooms 3/3, every room booked, guest told](/workshop/06-booked.jpg)
 
 Start another one (BOOKING-8) and reject it — leave *Approve this booking* unticked in the form, or `scripts/approve.sh BOOKING-8 false`: the CHOICE takes the default branch, and the run finishes through the *Rejected* end (status *Completed* — rejecting is a normal outcome, not a failure) without touching the hotel.
 
