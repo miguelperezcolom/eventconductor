@@ -117,7 +117,7 @@ export async function run(c) {
   });
 
   // change: a commit in the definitions repository, then its webhook → the engine imports version 2.
-  c.term('change-def', "perl -pi -e 's/after: P1D/after: PT4H/' hotel-booking.ec.yaml && git commit -qam 'Escalate the approval after 4 hours' && git show HEAD --format='%h %s' -U0 | grep -E '^[0-9a-f]{7}|^[-+] '", { cwd: DEFS });
+  c.term('change-def', "perl -pi -e 's/after: P1D(\\s+)# still open after a day/after: PT4H$1# still open after 4 hours/' hotel-booking.ec.yaml && git commit -qam 'Escalate the approval after 4 hours' && git show HEAD --format='%h %s' -U0 | grep -E '^[0-9a-f]{7}|^[-+] '", { cwd: DEFS });
   c.term('git-webhook', "curl -s -o /dev/null -w '%{http_code}\\n' -X POST $ENGINE/workflow/webhooks/generic -H 'Content-Type: application/json' -d '{}'", { cwd: DEFS, show: shown("curl -s -o /dev/null -w '%{http_code}\\n' -X POST $ENGINE/workflow/webhooks/generic -H 'Content-Type: application/json' -d '{}'") });
   await c.waitFor(async () => { const v = await fetch(`${c.base}/workflow/api/definitions/hotel-booking`).then((r) => r.ok ? r.json() : null).catch(() => null); return v && JSON.stringify(v).includes('PT4H'); }, 'hotel-booking v2 imported', 30000).catch((e) => console.warn('  !', e.message));
 

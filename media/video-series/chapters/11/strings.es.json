@@ -2,20 +2,59 @@
   "eyebrow": "EventConductor · Capítulo 11",
   "title": "Operar **procesos en marcha**",
   "sub": "Búsqueda · incidencias · lotes · migración",
-  "flow": [["encontrar", "az", "c1"], ["por qué", "az", "c1"], ["arreglar — uno o todos", "good", "c1"], ["cambiar, migrar", "amb", "c1"]],
+  "flow": [
+    [
+      "encontrar",
+      "az",
+      "c1"
+    ],
+    [
+      "por qué",
+      "az",
+      "c1"
+    ],
+    [
+      "arreglar — uno o todos",
+      "good",
+      "c1"
+    ],
+    [
+      "cambiar, migrar",
+      "amb",
+      "c1"
+    ]
+  ],
   "standin.cm": "channel manager: sustituto local, con un interruptor de caída",
   "recap.head": "Operar procesos en marcha",
   "recap.items": [
-    ["encontrar", "", "clave de negocio · filtros · pestaña de errores · **incidencias** por causa", "c0"],
-    ["arreglar", "", "reintentar desde el fallo · reiniciar · completar o reintentar un paso · **operaciones por lotes**", "c1"],
-    ["cambiar", "", "versiones en paralelo (JPA) · **Migrate…** con simulación", "c2"]
+    [
+      "encontrar",
+      "",
+      "clave de negocio · filtros · pestaña de errores · **incidencias** por causa",
+      "c0"
+    ],
+    [
+      "arreglar",
+      "",
+      "reintentar desde el fallo · reiniciar · completar o reintentar un paso · **operaciones por lotes**",
+      "c1"
+    ],
+    [
+      "cambiar",
+      "",
+      "versiones en paralelo (JPA) · **Migrate…** con simulación",
+      "c2"
+    ]
   ],
-  "recap.strip": ["cada operación pide un **motivo**, registrado con tu nombre en la auditoría del proceso"],
+  "recap.strip": [
+    "cada operación pide un **motivo**, registrado con tu nombre en la auditoría del proceso"
+  ],
   "close.line": "Los procesos en marcha, **bajo control.**",
   "close.next": "Próximo · Probar los flujos",
   "close.docs": "eventconductor.mateu.io · Operating running processes",
   "close.app": "examples/video-series",
   "close.license": "Código abierto · MIT",
   "thumb.title": "Operar **procesos en marcha**",
-  "thumb.sub": "Búsqueda · incidencias · lotes · migración"
+  "thumb.sub": "Búsqueda · incidencias · lotes · migración",
+  "audit.anon": "esta app de demo no pide login, así que la auditoría dice \"anonymous\""
 }
