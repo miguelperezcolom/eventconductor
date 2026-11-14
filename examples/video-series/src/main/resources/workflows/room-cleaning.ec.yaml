@@ -1,0 +1,26 @@
+# Chapter 8 — the sender. Housekeeping cleans the room, then tells whoever waits for it (SEND_MESSAGE: fire and
+# forget, correlated by the room number, carrying who cleaned it).
+id: room-cleaning
+name: Room cleaning
+steps:
+  - id: start
+    type: START
+    name: Room to clean
+
+  - id: clean-room
+    type: ACTION
+    name: Clean the room
+    preconditionStepId: start
+
+  - id: announce-ready
+    type: SEND_MESSAGE
+    name: Tell the front desk
+    preconditionStepId: clean-room
+    messageName: room-ready
+    correlationExpression: room
+    messageVariables: [cleanedBy]
+
+  - id: done
+    type: END
+    name: Clean
+    preconditionStepId: announce-ready

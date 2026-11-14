@@ -1,0 +1,43 @@
+# Chapter 8 (and long-running processes) — a process that would run forever, as a chain of short runs. Every
+# month the member's points are added; CONTINUE_AS_NEW ends this run and starts the next one under the same
+# business key, carrying only what the next month needs, so no run's history grows without end.
+id: loyalty-statement
+name: Monthly loyalty statement
+steps:
+  - id: start
+    type: START
+    name: Month opens
+
+  - id: add-points
+    type: ACTION
+    name: Add this month's points
+    preconditionStepId: start
+
+  - id: month-end
+    type: TIMER
+    name: Wait for the month to end
+    preconditionStepId: add-points
+    duration: P30D
+
+  - id: more-months
+    type: CHOICE
+    name: Months left this year?
+    preconditionStepId: month-end
+
+  - id: next-month
+    type: CONTINUE_AS_NEW
+    name: Next month
+    preconditions:
+      - stepId: more-months
+        expression: "month < 12"
+    continueAsNew:
+      variables:
+        member: "${member}"
+        month: "${month + 1}"
+        points: "${points}"
+
+  - id: year-closed
+    type: END
+    name: Year closed
+    preconditions:
+      - stepId: more-months                   # default branch: the year is over

@@ -1,0 +1,62 @@
+# Chapter 8 — Time and messages. Three days before check-in, at 09:00 hotel time (a TIMER on a moment computed
+# from the booking), the guest gets a payment link. Then the process waits for the payment message, correlated by
+# the business key, until the day before check-in at 12:00 (a deadline): no payment by then, the room is released.
+id: balance-reminder
+name: Balance payment before check-in
+steps:
+  - id: start
+    type: START
+    name: Booking confirmed
+
+  - id: three-days-before
+    type: TIMER
+    name: 3 days before check-in, 09:00
+    preconditionStepId: start
+    until:
+      date: "${checkIn}"
+      offset: -P3D
+      at: "09:00"
+      zone: Europe/Madrid                     # the hotel's zone, whatever the server's
+
+  - id: send-payment-link
+    type: ACTION
+    name: Send the payment link
+    preconditionStepId: three-days-before
+    timeout: PT30S
+    retries: 2
+
+  - id: wait-payment
+    type: WAIT_FOR_MESSAGE
+    name: Wait for the payment
+    preconditionStepId: send-payment-link
+    messageName: payment-received
+    correlationExpression: businessKey        # the message names the booking
+    deadline:
+      date: "${checkIn}"
+      offset: -P1D
+      at: "12:00"
+      zone: Europe/Madrid
+    onTimeoutStepId: release-room             # no payment by the deadline: this route, not a failure
+
+  - id: confirm-guarantee
+    type: ACTION
+    name: Confirm the booking is guaranteed
+    preconditionStepId: wait-payment
+
+  - id: release-room
+    type: ACTION
+    name: Release the room
+    preconditions:
+      - stepId: wait-payment
+        expression: "false"                   # reached only through onTimeoutStepId
+
+  - id: outcome
+    type: JOIN
+    name: Outcome
+    joinType: XOR
+    preconditionStepIds: [confirm-guarantee, release-room]
+
+  - id: done
+    type: END
+    name: Done
+    preconditionStepId: outcome

@@ -20,16 +20,25 @@ import java.util.Map;
  * event's id, type and destination; 401 for a bad signature, 404 for an unknown endpoint, 400 for a
  * delivery the provider cannot read, 5xx when it could not be published — the sender may redeliver,
  * and the engine uses each delivery once.
+ *
+ * <p>Created by {@link WebhookGatewayAutoConfiguration}. The conditions repeat the auto-configuration's because
+ * this class is also met by component scans of {@code io.mateu.workflow} — the engine's own, beside it in an
+ * embedded application — which would otherwise create it where the auto-configuration is off (a test without a
+ * web server, {@code workflow.webhooks.enabled=false}) and fail the context for want of its properties.
  */
 @RestController
+@org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication(
+        type = org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type.SERVLET)
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = "workflow.webhooks.enabled", havingValue = "true", matchIfMissing = true)
 public class WebhookController {
 
     private final WebhookGatewayProperties properties;
-    private final Map<WebhookGatewayProperties.Provider, WebhookProvider> providers;
+    private final Map<WebhookGatewayProperties.Provider, WebhookDeliveryProvider> providers;
     private final WebhookPublisher publisher;
     private final WebhookMetrics metrics;
 
-    public WebhookController(WebhookGatewayProperties properties, Map<WebhookGatewayProperties.Provider, WebhookProvider> providers,
+    public WebhookController(WebhookGatewayProperties properties, Map<WebhookGatewayProperties.Provider, WebhookDeliveryProvider> providers,
                              WebhookPublisher publisher, WebhookMetrics metrics) {
         this.properties = properties;
         this.providers = providers;
