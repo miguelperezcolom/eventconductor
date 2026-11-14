@@ -158,6 +158,8 @@ scripts/start.sh rooms-booking-safe BOOKING-3 '{"guest": "Bob", "rooms": [
 
 The process does not fail and does not undo anything. `rooms` shows **2/3** — open it (double-click) to see Room 900 failed with `SOLD_OUT` and 101 and 102 completed — *Ask the guest* has run, and the process waits at *Wait for the guest's answer*. The step's log says how the rooms went: *forEach on step rooms completed: 2 of 3 iterations completed, 1 failed (onIterationFailure continue).*
 
+![Waiting for the guest: rooms 2/3 — Room 101 and 102 booked, Room 900 failed — nothing cancelled, the guest asked](/workshop/03-compensated-lanes.jpg)
+
 Now answer as the guest. The hotel's website would send this message when the guest clicks a link in the email; `scripts/answer.sh` sends it to the engine's message API:
 
 ```bash
@@ -165,6 +167,8 @@ scripts/answer.sh BOOKING-3 cancel
 ```
 
 The process takes *Cancelled by the guest*. Its log says *Rolling the process back on purpose: the flow reached END 'cancelled-by-guest', which compensates what the process did.* — and *Cancel the room*, drawn amber because it is a compensation, runs **2/2**: one cancellation per room that had been booked; the penthouse, never booked, is not cancelled. The process ends **Compensated**.
+
+![The guest cancelled: the flow went through What did the guest decide? to Cancelled by the guest, and Cancel the room ran 2/2](/workshop/03-compensated-graph.jpg)
 
 Start another one (BOOKING-3B) and answer `keep` instead: *What did the guest decide?* takes its default branch straight to *Done*, and the process ends *Completed* with the two rooms booked and nothing undone. Leave a third one unanswered and nothing happens to it for two days; then the front desk is told — in a test, those two days pass in milliseconds ([Part 9 · Time](/workshop/testing/time/)).
 
