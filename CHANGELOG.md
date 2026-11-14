@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.42.0] - 2026-11-14
+
+### Changed
+- **Breaking for custom webhook providers:** `io.mateu.workflow.webhook.WebhookProvider` is now `WebhookDeliveryProvider` (see *Fixed*: the webhook gateway can be embedded beside the engine). Rename the interface in your own providers.
+
 ### Added
 - **`compensate: true` on an `END`: compensation on a business decision.** Compensation is the mechanism; who decides to trigger it is your business rule. Until now only a failure triggered a saga rollback, so a flow that had to undo what it did because somebody *decided* so — the guest cancelled — had to fail a step on purpose. An `END` with `compensate: true` rolls the process back where the decision is: what is still in flight is cancelled (a running child `PROCESS` rolled back), every compensable step that completed is compensated newest first (a forEach's completed iterations once each, its failed ones not at all; work that completes after its cancellation too), and the process ends `COMPENSATED` (`COMPENSATION_FAILED` if a compensation fails), also when there was nothing to undo. Not counted as a failed process; the reason is on the process (`rollbackReason`) and in the `END`'s log. A child that ends this way fails its parent's `PROCESS` step. Validated by the engine and `eventconductor:validate` (`END` only, not beside `compensateAbandoned`), in the JSON schema, and in the graph editor's panel (a **Compensate (roll back)** checkbox; the node carries BPMN's compensation marker). See [Retries, Timeouts & Compensation → Compensation on a business decision](doc/src/content/docs/guides/retries-timeouts-compensation.md#compensation-on-a-business-decision).
 - **Diagram minimap folds away.** The minimap's **×** folds it into a small map button (remembered per browser); the button brings it back. Styled with the graph's `--ec-*` tokens, so it reads the same in the VS Code and IntelliJ webviews.
