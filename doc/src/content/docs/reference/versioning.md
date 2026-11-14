@@ -14,7 +14,7 @@ only useful if its boundary is clear.
 
 These are covered by SemVer. A backward-incompatible change to any of them is a MAJOR release.
 
-- **The workflow, rule and form definition formats** — the JSON/YAML (`.ec`) documents you author,
+- **The workflow, rule and form definition formats** — the JSON/YAML (`*.ec.yaml`, `.ec`) documents you author,
   as described by the published JSON Schemas. This is the primary contract: it is both the design an
   analyst reads and the artifact the engine runs. Each format carries a versioned schema `$id`
   (`urn:eventconductor:workflow-definition-schema:1`, `…:rule-schema:1`, `…:form-schema:1`) — see

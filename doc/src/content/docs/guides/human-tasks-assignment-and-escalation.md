@@ -192,7 +192,7 @@ workflow:
 ```
 
 ```yaml
-# notify-task-assignee.yaml
+# notify-task-assignee.ec.yaml
 id: notify-task-assignee
 name: Tell the assignee
 steps:

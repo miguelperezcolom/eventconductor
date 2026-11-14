@@ -48,11 +48,11 @@ Without `-Deventconductor.migration.from` the migration check is skipped; withou
 
 ## Each check, catching something
 
-**A typo in a reference** — `preconditionStepId: register-bookin` in `01-first-booking.yaml`:
+**A typo in a reference** — `preconditionStepId: register-bookin` in `01-first-booking.ec.yaml`:
 
 ```text
 $ mvn eventconductor:validate
-[ERROR] …/workflows/01-first-booking.yaml:
+[ERROR] …/workflows/01-first-booking.ec.yaml:
 [ERROR]   - Step 'done' references unknown precondition step 'register-bookin'.
 [INFO] BUILD FAILURE
 ```
@@ -61,7 +61,7 @@ $ mvn eventconductor:validate
 
 ```text
 $ mvn verify
-[ERROR] …/workflows/03-rooms-booking-safe.yaml:
+[ERROR] …/workflows/03-rooms-booking-safe.ec.yaml:
 [ERROR]   - Step 'cancel-room-booking' has no preconditions and is not a START, a WAIT_FOR_MESSAGE
            or another step's compensation — nothing would ever start it.
 [INFO] BUILD FAILURE

@@ -22,7 +22,7 @@ Take the key from the environment or a secret store — never from a file in the
 
 ## The definition
 
-`05-special-request.yaml`:
+`05-special-request.ec.yaml`:
 
 ```yaml
 id: special-request

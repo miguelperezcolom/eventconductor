@@ -1,12 +1,12 @@
 # EventConductor for VS Code
 
-Edit EventConductor workflow definitions (`.ec` files) as an **interactive graph** or as
+Edit EventConductor workflow definitions (`*.ec.yaml` files — recommended — or `.ec`) as an **interactive graph** or as
 plain **YAML/JSON** with schema validation — both views edit the same file.
 
 ## Features
 
-- **Graph editor** (default): opens any `.ec` file — or `*.workflow.yaml` / `*.ec.yaml` (and
-  `.yml`), for those who keep the `.yaml` extension — as the EventConductor workflow graph.
+- **Graph editor** (default): opens any `*.ec.yaml` file (the recommended name; `.ec.yml`,
+  `.ec` and `*.workflow.yaml` too) as the EventConductor workflow graph.
   Drag nodes, **Shift+drag** to draw precondition lines, click to filter, zoom/pan/fit,
   minimap, and the animated token simulation — the same component used inside the app.
 - **Delete** (or **Backspace**) removes the selected node or connection. Deleting a node

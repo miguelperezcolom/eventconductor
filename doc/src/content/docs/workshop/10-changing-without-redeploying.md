@@ -11,7 +11,7 @@ For the workshop, a local repository will do:
 
 ```bash
 mkdir ~/hotel-definitions && cd ~/hotel-definitions && git init -b main
-cp …/examples/workshop-hotel-booking/src/main/resources/workflows/06-hotel-booking.yaml hotel-booking.yaml
+cp …/examples/workshop-hotel-booking/src/main/resources/workflows/06-hotel-booking.ec.yaml hotel-booking.ec.yaml
 git add . && git commit -m "hotel-booking v1"
 ```
 

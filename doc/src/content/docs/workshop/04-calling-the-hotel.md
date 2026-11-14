@@ -18,7 +18,7 @@ workflow.http.connections.hotel.read-timeout=PT5S
 
 ## The definition
 
-`04-rooms-booking-http.yaml`:
+`04-rooms-booking-http.ec.yaml`:
 
 ```yaml
 id: rooms-booking-http

@@ -41,7 +41,7 @@ clock you move. Canonical: `doc/src/content/docs/guides/testing-workflows.md`,
 Output on failure:
 ```
 EventConductor definition validation found 1 problem(s):
-src/main/resources/workflows/order.yaml:
+src/main/resources/workflows/order.ec.yaml:
   - Step 's1' references unknown precondition step 'nope'.
 ```
 

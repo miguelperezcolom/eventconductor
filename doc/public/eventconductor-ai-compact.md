@@ -46,7 +46,7 @@ workflow.mode=embedded            # embedded | kafka
 workflow.persistence=memory       # memory | jpa
 workflow.message-api.allow-anonymous=true   # LOCAL DEV ONLY — see Security
 ```
-Definitions: `src/main/resources/workflows/<id>.workflow.yaml` (also `.yaml/.yml/.json/.ec`; `events.yaml`
+Definitions: `src/main/resources/workflows/<id>.ec.yaml` (recommended; also `.ec`, `.workflow.yaml`, `.yaml/.yml/.json`; `events.yaml`
 and `cron.yaml` there hold triggers/schedules). Loop: `mvn eventconductor:validate` → `mvn test` → `mvn spring-boot:run`.
 
 ## Deployment modes

@@ -1,6 +1,6 @@
 ---
 title: IDE Plugins (VS Code & IntelliJ)
-description: Edit EventConductor .ec workflow definitions as an interactive graph or as YAML/JSON, with schema validation, in VS Code and IntelliJ IDEA.
+description: Edit EventConductor workflow definitions (*.ec.yaml, .ec) as an interactive graph or as YAML/JSON, with schema validation, in VS Code and IntelliJ IDEA.
 ---
 
 EventConductor ships editor plugins for **VS Code** and **IntelliJ IDEA** that open a workflow
@@ -8,29 +8,37 @@ definition as an **interactive graph** or as plain **YAML/JSON** — both views 
 file. The graph is the exact same component the app renders, so authoring looks the same
 everywhere.
 
-## The `.ec` format
+## File names: `*.ec.yaml` (recommended)
 
-`.ec` is EventConductor's first-class extension for a workflow definition. Its content may be
-**JSON or YAML** — the plugins (and the engine's git import) detect the format from the content
-and preserve it, so you pick whichever you prefer without renaming. An `.ec` file is just a
-[workflow definition](/guides/workflow-definitions/); it is validated against the same
-[JSON schema](/reference/maven-plugin/). A file that is still empty — a `.ec` you have just created — is written as **YAML**, which is what the examples and this documentation use.
+**Name definitions `*.ec.yaml`** — `hotel-booking.ec.yaml`, `order.ec.yaml` (`.ec.yml` works too).
+It keeps the `.yaml` extension every tool already understands, and the `.ec` before it tells the
+plugins the file is a workflow: both open it in the **graph editor** with **workflow-schema
+validation**. A file that is still empty — one you have just created — is written as **YAML**, which
+is what the examples and this documentation use. The file is just a
+[workflow definition](/guides/workflow-definitions/#file-names), validated against the same
+[JSON schema](/reference/maven-plugin/) the Maven plugin uses.
 
-The engine also imports `.ec` files (alongside `.json` / `.yaml` / `.yml`) from configured Git
-repositories and from `classpath:/workflows/` — see [Configuration](/reference/configuration/#git-import-workflowgit-import).
+The engine imports it as the YAML it is — from `classpath:/workflows/`, directories and Git
+repositories (see [Configuration](/reference/configuration/#git-import-workflowgit-import)) — and
+`mvn eventconductor:validate` picks it up as a `.yaml`. The compound suffix is not part of the name:
+a file that declares no `id` is imported as `order`, not `order.ec`.
 
-### `*.workflow.yaml` and `*.ec.yaml`
+Also accepted: `.ec`, `*.workflow.yaml`, and plain `.yaml` / `.yml` / `.json` — see below.
 
-If you would rather keep the `.yaml` extension every tool already understands, name the file
-`order.workflow.yaml` or `order.ec.yaml` (`.yml` works too). Both plugins treat these exactly like
-`.ec` — graph editor and workflow-schema validation — and the engine imports them as the YAML they
-are. The compound suffix is not part of the name: a file that declares no `id` is imported as
-`order`, not `order.workflow`. A plain `order.yaml` is still imported, but the plugins cannot tell
-it is a workflow, so it gets neither the graph nor the schema.
+### `.ec` and `*.workflow.yaml`
+
+`.ec` is EventConductor's own extension for a workflow definition, and stays fully supported. Its
+content may be **JSON or YAML** — the plugins (and the engine's imports) detect the format from the
+content and preserve it. `*.workflow.yaml` (and `.workflow.yml`) is a compound suffix like
+`*.ec.yaml`, treated exactly the same way: graph editor, schema validation, and a derived id of
+`order` for `order.workflow.yaml`.
+
+A plain `order.yaml` (or `.json`) is still imported, but the plugins cannot tell it is a workflow,
+so it gets neither the graph nor the schema.
 
 ## VS Code
 
-The extension registers a **custom editor** for `*.ec` (and `*.workflow.yaml` / `*.ec.yaml`):
+The extension registers a **custom editor** for `*.ec.yaml` (and `*.ec` / `*.workflow.yaml`):
 opening a file shows the graph by default, backed by the underlying text document.
 
 - **Graph editing** — drag nodes, **Shift+drag** from one node to another to draw a precondition
@@ -58,7 +66,7 @@ opening a file shows the graph by default, backed by the underlying text documen
   view's current page of child processes can be opened this way; the engine's graph does not carry
   child ids.
 - **Workflow status** — the graph's **Settings** panel declares whether the workflow is `Active`,
-  `Disabled` or `Archived`, written to the `.ec` as `status`. It is a floor the runtime cannot
+  `Disabled` or `Archived`, written to the definition file as `status`. It is a floor the runtime cannot
   lift: an operator can take a workflow out of service, but cannot enable one whose definition
   disables it.
 - **Deleting** — select a node or a connection and press **Delete** (or **Backspace**). Deleting a
@@ -82,8 +90,8 @@ Install from the Marketplace (search *EventConductor*), or from the `.vsix` in t
 
 ## IntelliJ IDEA
 
-The plugin (IntelliJ IDEA **2024.2+**) provides a **split editor** for `*.ec` (and
-`*.workflow.yaml` / `*.ec.yaml`): the text
+The plugin (IntelliJ IDEA **2024.2+**) provides a **split editor** for `*.ec.yaml` (and
+`*.ec` / `*.workflow.yaml`): the text
 (YAML/JSON) on one side and the interactive graph (embedded via JCEF) on the other. The editor's
 **Editor / Split / Preview** toolbar toggles switch between text-only, graph-only, or both.
 
@@ -91,8 +99,8 @@ The plugin (IntelliJ IDEA **2024.2+**) provides a **split editor** for `*.ec` (a
 - **Same graph editor** as VS Code, inline PROCESS bodies, `onIterationFailure`/`label` and the
   branch-cleanup flags included. The plugin has no execution view, so there are no runs to expand
   or child runs to open.
-- **Schema validation** — `.ec` is parsed as YAML (a JSON superset) and validated against the
-  workflow-definition schema; the status bar shows the applied schema (**EventConductor**).
+- **Schema validation** — `*.ec.yaml` (and `.ec`, parsed as YAML, a JSON superset) is validated
+  against the workflow-definition schema; the status bar shows the applied schema (**EventConductor**).
   `.ec`, `.ecform`, `.ecrule` and `.ectask` have a file type of their own, **EventConductor**
   (language YAML), under *Settings → Editor → File Types*.
 

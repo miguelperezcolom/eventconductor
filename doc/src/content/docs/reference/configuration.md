@@ -99,7 +99,7 @@ never coming.
 
 ## Git import (`workflow.git-import.*`)
 
-Clones Git repositories at startup and imports workflow definition files (`.ec`, `.json`, `.yaml`, `.yml`). `.ec` is EventConductor's first-class extension — its content may be JSON or YAML (detected automatically). Works with either `workflow.persistence`: with `memory` the definitions are held in the heap and imported again at every start; with `jpa` they are stored (with version history), and what each source imported is remembered across restarts so a definition removed from the repository is archived.
+Clones Git repositories at startup and imports workflow definition files (`*.ec.yaml` recommended; also `.ec`, `.json`, `.yaml`, `.yml`). `.ec` is EventConductor's own extension — its content may be JSON or YAML (detected automatically). Works with either `workflow.persistence`: with `memory` the definitions are held in the heap and imported again at every start; with `jpa` they are stored (with version history), and what each source imported is remembered across restarts so a definition removed from the repository is archived.
 
 | Property | Default | Description |
 |---|---|---|

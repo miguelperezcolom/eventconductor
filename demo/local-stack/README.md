@@ -125,7 +125,7 @@ cd e2e && mvn test            # HEADED=1 mvn test to watch it
 
 - `docker-compose.yml` — the stack. `keycloak.local` is a network alias on the keycloak service so the
   token's `iss` claim matches from both the browser (Playwright host-resolver rule) and the containers.
-- `wf-repo/` — git repo of `.ec` workflow defs, git-imported by the orchestrator (`verify-booking-payment`).
+- `wf-repo/` — git repo of `*.ec.yaml` workflow defs, git-imported by the orchestrator (`verify-booking-payment`).
   Edit + commit here, then `docker compose restart orchestrator` to re-import.
 - `forms-repo/` — git repo of form defs (`verify-payment.yaml`), git-imported by forms.
 - `initdb/` — creates the `workflow` (engine) and `demo` (booking) databases.
