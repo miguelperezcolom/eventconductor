@@ -64,7 +64,11 @@ export async function run(c) {
     await s.camera(await s.rowBox(s.page.getByText('BOOKING-7', { exact: true }).first(), { before: 260, span: 1500 }), { zmax: 1.5, dur: 0.9, pad: 40 });
     await s.untilCue(1, -0.4);
     await s.camera('full', { dur: 0.5 });
-    await s.click(s.page.getByText('Run', { exact: true }).last(), { dur: 0.6 });
+    // The Run action is the grid's last column, past the right edge at 1920 px: scroll it in, as a user would.
+    const run = s.page.getByText('Run', { exact: true }).last();
+    await run.scrollIntoViewIfNeeded();
+    await s.settleFrames(6);
+    await s.click(run, { dur: 0.6 });
     await s.settleFrames(16);
     await s.click(s.page.getByText('Claim', { exact: true }).first(), { dur: 0.6 });
     await s.settleFrames(10);
