@@ -46,8 +46,8 @@ marked *verified*, against the workshop app running locally on the 2.41.0 snapsh
 
 App legend: **WS** = `examples/workshop-hotel-booking` (embedded engine, JPA on H2, console at
 `:8095`, fake hotel at `/fake/hotel`, fake OpenAI-compatible model at `/fake/llm`, forms engine,
-MCP over `/sse`); **SA** = the *series app*, WS plus the extra definitions and menus a chapter needs
-(built by a new `prepare-series-app.sh`, the way the promo copies `testbench/workflow-embedded`);
+MCP over `/sse`); **SA** = the *series app*, the new `examples/video-series` (WS's hotel plus the extra step-type
+definitions, the forms menu, a demo agent catalogue/runtime and an observability compose);
 **DC** = `apps/docker-compose.yml` (Postgres + Redpanda + orchestrator/forms/worker/webhook-gateway
 images, `2.41.0` published on Docker Hub); **K** = the Helm chart `charts/eventconductor` (0.2.15 /
 appVersion 2.41.0) on a local `kind`/`k3d` cluster. Routes are the console's (`/workflow/...`); all
@@ -64,19 +64,19 @@ docs paths are under `doc/src/content/docs/`.
 | 7 | **People in the loop** | 3' | `USER_TASK` + `formId: booking-approval` (`forms/booking-approval.ecform`), `assignment.candidateGroups`, `escalation` after P1D, `timeout`; the waiting process (yellow); the manager's form filled in the forms console; the operator's alternative: **Complete step** with a reason in the audit; test kit `advanceTime` + `hasEscalated` | SA (+ FormsMenu) | `guides/user-tasks.md` |
 | 8 | **Time and messages** | 3' | `TIMER` ("3 days before check-in, 09:00 hotel time"), step `timeout` + `onTimeoutStepId`, `WAIT_FOR_MESSAGE` correlated by business key, `SEND_MESSAGE`, schedules page (`/workflow/schedules`: create, pause, run now) | SA (new defs) | `guides/scheduling-and-deadlines.md` |
 | 9 | **Events in, events out** | 3' | Event triggers (`/workflow/eventTriggers`, *Received events*), Git/generic webhooks, `PUBLISH_EVENT` (built-in worker since 2.35.0), request/response with `REPLY` and synchronous invocation | SA, DC for Kafka | `guides/domain-event-triggers.md` |
-| 10 | **AI in the process** | 3.5' | `LLM_CALL` with `responseSchema` and `output` mapping (`05-special-request.yaml`, labelled *local stand-in model*), usage variable, sensitive-variable opt-in; `AGENT` step and its catalogue (see blockers: shown in the editor + test kit only); MCP: the engine's tools called from a real MCP client | WS | `guides/llm-calls.md` (AGENT part also on `guides/workflow-agents.md`, MCP on `guides/mcp-overview.md`) |
+| 10 | **AI in the process** | 3.5' | `LLM_CALL` with `responseSchema` and `output` mapping (`05-special-request.yaml`, labelled *local stand-in model*), usage variable, sensitive-variable opt-in; `AGENT` step running against the demo agent catalogue/runtime (labelled *demo stand-in*); one line on pointing `LLM_CALL` at a real provider; MCP: a scripted, deterministic MCP client making real requests to the engine's endpoint | WS + SA | `guides/llm-calls.md` (AGENT part also on `guides/workflow-agents.md`, MCP on `guides/mcp-overview.md`) |
 | 11 | **Operating running processes** | 4' | `/workflow/processes`: business-key search, filters (*Only errors*, *Include child processes*), Errors tab with child reasons (2.41.0), Retry from failure vs Restart, Pause/Resume, Set variables, Complete step, Retry from step; `/workflow/batchOperations` (progress, skip reasons); Versions tab and *Migrate…* with dry run | WS + SA | `guides/operating-running-processes.md` |
 | 12 | **Testing workflows** | 4' | `@EventConductorTest` + `whenStep(...)`, `advanceTime`, `hasCompensated` / `iterations("rooms")` (2.41.0), scenarios as data (`src/test/scenarios/*.yaml` + `ScenariosTest`), coverage report `target/eventconductor-coverage/coverage.txt`, `mvn verify -Deventconductor.migration.from=…` failing on a gap, then green; the workshop CI workflow on a real PR | WS | `guides/testing-workflows.md` (+ `workshop/testing/automate.md`) |
 | 13 | **From laptop to cluster** | 4' | Same definitions in three topologies: embedded memory → embedded JPA (WS) → distributed Kafka (DC: `docker compose up`, Redpanda console topics `http-calls`, `event-publications`…) → Helm on `k3d` (K); Git import + webhook: change a definition, merge, v2 beside v1 in the Versions tab with no redeploy; standalone apps | WS, DC, K | `guides/deployment-modes.md` (Git part: `workshop/10-changing-without-redeploying.md`) |
-| 14 | **Secure and observable by default** | 3' | Secure defaults since 2.27/2.28: anonymous refused (401 on the API, `allow-anonymous` only for laptops), secrets only from `workflow.http.secrets`, sensitive variables encrypted at rest; `/actuator/prometheus` metrics, OpenTelemetry tracing (**off by default**, opt-in), Analytics page; sharding and the process index named as **opt-in** scale features | DC + tracing overlay | `reference/observability.md` (security: no page yet — see questions) |
+| 14 | **Secure and observable by default** | 3' | Secure defaults since 2.27/2.28: anonymous refused (401 on the API, `allow-anonymous` only for laptops), secrets only from `workflow.http.secrets`, sensitive variables encrypted at rest; `/actuator/prometheus` metrics, OpenTelemetry tracing (**off by default**, opt-in), Analytics page; sharding and the process index named as **opt-in** scale features | DC + SA observability compose | `guides/security-defaults.md` (new, being written; observability part also on `reference/observability.md`) |
 
 Release status: everything above is released by 2.41.0. Opt-in/experimental items that must be said
 so on screen: MCP server (a dependency/config to switch on), tracing (sampling 0.0 by default),
 metrics over OTLP, sharding and message routing, the process index, analytics rollups,
 `compensateLosers` / `compensateAbandoned`, `allowSensitiveVariables`, `workflow.test-runs.enabled`,
 `trust-forwarded-token` / `allow-anonymous` (workshop-only switches — said every time they appear).
-`AGENT_CALL` was removed in 2.34.0 and is not shown; `AGENT` needs an external IA catalogue and agent
-runtime (below).
+`AGENT_CALL` was removed in 2.34.0 and is not shown; `AGENT` runs against the demo catalogue/runtime of
+`examples/video-series` (blocker 1).
 
 ### Recording feasibility
 
@@ -89,9 +89,10 @@ runtime (below).
   `scripts/approve.sh` completes it (room booked at the fake hotel); `special-request` completes on the
   fake model; the forEach lanes open on double-click; `/sse` answers the MCP endpoint event. Covers
   chapters 1, 2, 4, 5, 10 (LLM part), 11, 12 and the embedded half of 13.
-- **SA — to build.** WS plus: definitions for TIMER, WAIT_FOR_MESSAGE/SEND_MESSAGE, FORK/JOIN,
+- **SA — being built** (`examples/video-series` PR). WS plus: definitions for TIMER, WAIT_FOR_MESSAGE/SEND_MESSAGE, FORK/JOIN,
   PUBLISH_EVENT, REPLY, an event trigger and a schedule (each with a scenario in
-  `src/test/scenarios/`), and `FormsMenu` mounted beside `WorkflowMenu` for chapter 7.
+  `src/test/scenarios/`), `FormsMenu` mounted beside `WorkflowMenu` for chapter 7, a demo agent catalogue/runtime for AGENT,
+  and a Prometheus + Grafana compose with tracing on for chapter 14.
 - **DC** — images `2.41.0`/`latest` are on Docker Hub (verified via the registry API); Docker 29 is
   installed. Not started for this plan. **K** — `kind`, `k3d`, `kubectl` are installed; not started.
 - **VS Code** — the editor only exists inside the IDE plugins (the console's definition view is
@@ -101,42 +102,39 @@ runtime (below).
 - `demo/local-stack` and `~/IdeaProjects/ec-demo-local` are **not** used: the former runs 2.1.1 images
   and needs a shell rebuilt for Keycloak; the latter is not on this machine.
 
-### Blockers found
+### Blockers found — all being fixed (owner, 2026-11-14)
 
-1. **AGENT cannot be recorded running.** It needs a published IA catalogue
-   (`WORKFLOW_AGENTS_CATALOGUE_URL` + client credentials) and the durable IA agent runtime serving
-   `run-agent@1` on `agent-calls`; neither is in this repo. The workshop exercises AGENT only in tests,
-   where the test kit plays the catalogue (`src/test/flows/special-request-agent.yaml`). Chapter 10 can
-   show the AGENT node in the editor (drawable offline) and that test, labelled as such — or the owner
-   provides a catalogue environment.
-2. **Compensation iterations are unlabelled.** On BOOKING-3 the Steps tab reads `rooms · Room 101` for
-   the forward iterations but `cancel-room-booking · item 0` / `item 1` for their compensations:
-   `forEach.label` is not applied to compensation iterations. Fix before pilot 4, or keep that tab off
-   screen.
-3. **No browser-hosted editor.** The promo's "draw it" scene used `scenes/editor-harness.html`, a
-   promo-only page hosting the real component. Under rule 1 chapter 3 must record VS Code (new
-   recorder, see above); the promo's "same editor in the browser" line does not match a product surface.
-4. **The approval form is not on screen in WS.** The workshop mounts only `WorkflowMenu`; the manager's
-   decision goes through `scripts/approve.sh`. Chapter 7 needs `FormsMenu` in SA and a way to sign in as
-   the manager (a recorder-injected token under `trust-forwarded-token`, said on screen as a laptop-only
-   shortcut, or a real login).
-5. **Diagram minimap covers nodes at 1280×720** (the *Done* node of `rooms-booking-safe` sits under it).
-   Record console footage at 1600×900 CSS px or collapse the minimap.
-6. **No runnable definitions for several step types** (TIMER, WAIT_FOR_MESSAGE, SEND_MESSAGE,
-   FORK/JOIN, PUBLISH_EVENT, REPLY, schedules, event triggers): WS covers START, ACTION, PROCESS +
-   forEach, HTTP_CALL, LLM_CALL, USER_TASK, CHOICE and the Git webhook. SA must add them, with tests.
-7. **Observability has nothing to look at yet.** No Grafana dashboard or Prometheus/Jaeger overlay in
-   the repo; tracing is off by default. Chapter 14 needs a compose overlay (Prometheus + Grafana +
-   Jaeger/Tempo) built and committed first, or it narrows to `/actuator/prometheus` + Analytics.
-8. **MCP with a real assistant** needs an LLM client (paid, non-deterministic). Rule 1 forbids the
-   promo's staged chat. Options: the official MCP Inspector (browser, recordable) calling WS's `/sse`
-   tools — real calls, no model — or one real assistant session captured by the owner.
-9. **The promo is not rule-compliant as a source**: it has illustrated scenes (MCP chat, PR checks,
-   merge strip) and a music bed. Its HTML/animation code is reused; those scenes are not. A real PR with
-   the workshop CI (`ci/github-actions-workflows.yml`) must be recorded for chapter 12.
-10. **TTS not installed** (`kokoro`, `piper` absent; Kokoro's Spanish needs `espeak-ng`).
-11. **No docs page for security** to host chapter 14 (the material is spread over `reference/processes-rest-api.md#security`,
-    `guides/sensitive-data-and-encryption.md`, `guides/deployment-modes.md`).
+Found while checking feasibility; each is **being fixed**, in the PR named.
+
+1. **AGENT could not be recorded running** — it needs a published agent catalogue and an agent runtime
+   serving `run-agent@1`, neither in the repo (the workshop runs AGENT only in tests). *Being fixed:*
+   a local demo agent catalogue + runtime in a new `examples/video-series` app (**examples/video-series
+   PR**), labelled on screen as a demo stand-in.
+2. **Compensation iterations unlabelled** — the Steps tab reads `cancel-room-booking · item 0/1` where
+   the forward iterations read `rooms · Room 101`; `forEach.label` is not applied to compensations.
+   *Being fixed:* **console fix PR**.
+3. **Diagram minimap covers nodes at 1280×720** (the *Done* node of `rooms-booking-safe`). *Being
+   fixed:* **console fix PR**.
+4. **No forms menu in the workshop console** — the manager's approval only goes through
+   `scripts/approve.sh`. *Being fixed:* **console fix PR** (forms menu); the recorder signs in with an
+   injected test token (decision below).
+5. **No runnable definitions for several step types** (TIMER, WAIT_FOR_MESSAGE, SEND_MESSAGE,
+   FORK/JOIN, PUBLISH_EVENT, REPLY, schedules, event triggers). *Being fixed:* added, each with a
+   scenario test, in the **examples/video-series PR**.
+6. **Nothing to show for observability** — no Prometheus/Grafana in the repo, tracing off by default.
+   *Being fixed:* a Prometheus + Grafana compose with tracing switched on, in the **examples/video-series
+   PR** (the chapter still says tracing is off by default).
+7. **No browser-hosted graph editor** — the promo's `scenes/editor-harness.html` is a promo-only page.
+   *Being fixed:* the pipeline records the editor in real VS Code via Playwright Electron (or
+   `code-server`); IntelliJ appears as a still.
+8. **Kokoro / Piper not installed** (Kokoro's Spanish needs `espeak-ng`). *Being fixed:* installed by
+   the pipeline's setup step.
+9. **No docs page for security defaults** to host chapter 14. *Being fixed:* new
+   `guides/security-defaults.md` in a **docs PR**.
+10. **MCP with a paid assistant** would be non-deterministic. *Resolved by decision:* a scripted,
+    deterministic MCP client making real requests to the real endpoint.
+11. **The promo's illustrated scenes and music bed** don't pass these rules. Its HTML/animation code is
+    reused, those scenes are not; chapter 12 records a real PR running the workshop CI.
 
 ## Pilot 1 · EventConductor in 3 minutes
 
@@ -201,7 +199,7 @@ exercises the hardest console views (lanes, compensation colouring, child-run er
   `compensateAllCancelsEveryRoomThatWasBooked`.
 - Demo data: BOOKING-3 = 101 double, 102 double, 900 penthouse; BOOKING-4 = 201 double, 900 penthouse.
 
-Needs blocker 2 fixed (or the Steps tab kept off screen) and blocker 5 worked around.
+Depends on blockers 2 and 3 (compensation labels, minimap), being fixed in the console fix PR.
 
 ## Pipeline: how it extends `media/promo-video`
 
@@ -212,10 +210,11 @@ narration), `chNN/scenes.html`, `strings.en.json` / `strings.es.json`.
 
 | Step | Script (new unless noted) | What it does |
 |---|---|---|
-| 0 | `prepare-series-app.sh` (from `prepare-app.sh`) | Builds SA from `examples/workshop-hotel-booking` + extra definitions + `FormsMenu`; H2 on file so restarts keep history |
+| 0 | `setup.sh` + `prepare-series-app.sh` (from `prepare-app.sh`) | Installs Kokoro (+ `espeak-ng`), Piper as fallback, the VS Code build for the editor recorder; builds SA (`examples/video-series`) with H2 on file so restarts keep history |
 | 1 | `tts.py` + `tts.mjs` | Kokoro (`kokoro` / `kokoro-onnx`), one WAV **per sentence** per language, 24 kHz; writes `build/chNN/audio/<lang>/<scene>.wav` and `timing.json` (each sentence's start/length) |
 | 2 | `timeline.mjs` | Scene length = `max(EN, ES)` + 0.6 s; one picture timeline for both masters, so both subtitle tracks stay aligned to scenes. Writes `window.TIMELINE` |
 | 3 | `record-console.mjs` (from `record-real.mjs`) | Drives the real console: engine state is prepared first over REST (processes run in real time on the server), then the page is filmed with `page.clock.install()` + `pauseAt()`, advanced 1/30 s per frame (`clock.runFor`), CDP `Animation.setPlaybackRate` slowing CSS animations, one screenshot per frame at `deviceScaleFactor` 2, mouse/keyboard moves scripted per frame |
+| 3b | `record-vscode.mjs` (from `record-editor.mjs`) | Launches real VS Code with `plugins/vscode-eventconductor` through Playwright `_electron` (or `code-server` in Chromium) and drives the graph editor frame by frame, the same paused-clock method |
 | 4 | `render-animated.mjs` (extended) | HTML scenes per language (`--strings`), real footage frames composited by `render(t)`, piped to ffmpeg → `master.<lang>.mp4` (near-lossless) |
 | 5 | `srt.mjs` | Cues from `timing.json`: one sentence per cue, split to ≤ 2 lines × 42 chars; writes `chNN.en.srt`, `chNN.es.srt` |
 | 6 | `assemble-chapter.sh` (from `assemble.sh`) | Lays each scene's WAV at its start, muxes AAC 48 kHz, H.264 high yuv420p CRF 18, 30 fps, faststart, **no music** → `ec-chNN-en.mp4`, `ec-chNN-es.mp4`, thumbnail 1280×720 |
@@ -230,10 +229,10 @@ narration), `chNN/scenes.html`, `strings.en.json` / `strings.es.json`.
 - Numbers and identifiers are written for the ear in `script.json` (`"101"` → "one oh one" where
   needed) while the subtitles keep the digits.
 
-**Production order.** (0) fix blockers 2 and 5, install Kokoro, write steps 1–7 against pilot 4 (all
+**Production order.** (0) blockers being fixed in parallel (console fix PR, examples/video-series PR, docs PR); install Kokoro, write steps 1–7 against pilot 4 (all
 WS, no new definitions); (1) **pilot 4**, then **pilot 1** — owner review fixes voice, pacing, style;
-(2) chapters that WS already covers: 2, 5, 11, 12; (3) SA chapters: 6, 7 (blocker 4), 8, 9; (4) 3
-(VS Code recorder), 10 (blockers 1, 8), 13 (DC/K), 14 (blockers 7, 11).
+(2) chapters that WS already covers: 2, 5, 11, 12; (3) SA / `examples/video-series` chapters: 6, 7, 8, 9; (4) 3
+(VS Code recorder), 10, 13 (DC/K), 14.
 
 **YouTube text template (per video, shown to the owner before upload):**
 
@@ -250,26 +249,27 @@ Description (EN):
   Recorded on EventConductor v{version}. Every screen is the real product running; the hotel {and the
   model} are local stand-ins. Voice: synthetic (Kokoro). Open source, MIT.
 Description (ES): the same, translated (used for the ES master; on the EN master as YouTube's ES translation).
-Playlist: {playlist name}       Visibility: {unlisted until the owner says public}
+Playlist: EventConductor in N minutes       Visibility: unlisted until the docs link is live, then public
 Subtitles: en.srt, es.srt       Language: EN master = English audio; ES master = Spanish audio
 ```
 
-## Open questions for the owner
+## Decisions (2026-11-14)
 
-- **Playlist name** — "EventConductor in N minutes", "EventConductor, one topic at a time", other?
-  One playlist with both languages, or one per language?
-- **ES master as a separate video, or one video with two audio tracks** (YouTube multi-language audio,
-  if the channel has it)?
-- **Chapter 1 vs the promo** (https://youtu.be/QZhz7KwSfUk, embedded on the home page): replace it,
-  or keep the muted promo on the home page and add chapter 1 beside it as the first of the playlist?
-  (The promo's staged scenes would not pass these rules.)
-- **Thumbnails** — the reel's dark style with the chapter number and a frame of real footage?
-- **AGENT** (blocker 1): show it via editor + test kit only, or will you provide a catalogue
-  environment? And for MCP (blocker 8): MCP Inspector, or one real assistant session you record?
-- **LLM_CALL footage**: keep the workshop's stand-in model (labelled), or record against a real model
-  with your key?
-- **Chapter 14's docs home**: write a short "Security defaults" guide, or link it from
-  `reference/observability.md`?
-- **Chapter 7 sign-in**: recorder-injected token under `trust-forwarded-token` (said on screen), or a
-  real Keycloak login?
-- **Visibility on first upload**: unlisted until the docs link is live, then public?
+Defaults agreed with the owner; the owner can override any of them.
+
+- **Playlist:** one, **"EventConductor in N minutes"**, holding both languages. The Spanish version is a
+  separate video (Spanish title, or the EN title with the suffix "(ES)"). EN and ES `.srt` on both.
+- **Chapter 1 and the promo:** chapter 1 lives beside the promo (https://youtu.be/QZhz7KwSfUk). The
+  promo stays on the home page; chapter 1 heads the playlist.
+- **Thumbnails:** the Mateu reel's dark style, chapter number + short title, one template for all.
+- **AGENT:** recorded running against the local demo agent catalogue/runtime shipped in
+  `examples/video-series`, labelled on screen as a demo stand-in.
+- **MCP:** shown with a scripted, deterministic MCP client making real requests to the real endpoint —
+  no paid assistant.
+- **AI chapter:** the workshop's stand-in model, labelled on screen as a stand-in, plus one line on how
+  to point it at a real provider (`workflow.llm.connections.<name>.provider/model/api-key`).
+- **Chapter 14:** lives on the new docs page `guides/security-defaults.md` (being written).
+- **Chapter 7 sign-in:** the recorder injects a test token under `workflow.security.trust-forwarded-token`
+  — laptop-only, and stated as such in the docs and on screen.
+- **Uploads:** unlisted until the docs link is live, then public — and each one only after the owner's
+  OK on the MP4s and texts.
