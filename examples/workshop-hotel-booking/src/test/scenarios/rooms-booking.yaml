@@ -1,0 +1,84 @@
+# Scenarios as data: test cases anyone can add without writing Java. ScenariosTest runs every
+# scenario in this directory, each as a test of its own.
+#
+# The file's settings are shared by its scenarios; a scenario adds to them or overrides them.
+steps:
+  register-booking: { complete: { bookingNumber: BK-1 } }
+  create-room-booking:                    # the first answer whose `when` holds, over what the task was sent
+    - { when: "room.type == 'penthouse'", fail: SOLD_OUT, retryable: false }
+    - { complete: { roomBookingId: "RB-${room.number}" } }
+  cancel-room-booking: { complete: {} }
+  notify-guest: { complete: {} }
+
+scenarios:
+  - name: every room is booked and the guest is told
+    workflow: rooms-booking
+    variables:
+      guest: Alice
+      rooms: [ { number: "101", type: double }, { number: "102", type: double } ]
+    expect:
+      status: COMPLETED
+      passedSteps: [register-booking, rooms, notify-guest]
+      variables:
+        bookingNumber: BK-1
+        roomBookings: [RB-101, RB-102]
+      invocations: { notify-guest: 1 }
+
+  - name: a sold-out penthouse undoes the rooms that were booked
+    workflow: rooms-booking-safe
+    variables:
+      guest: Bob
+      rooms: [ { number: "101", type: double }, { number: "900", type: penthouse } ]
+    expect:
+      status: COMPENSATED
+      passedSteps: [register-booking, cancel-room-booking]
+      notPassedSteps: [notify-guest]
+
+  - name: a safe booking with every room available is booked and the guest told
+    workflow: rooms-booking-safe
+    variables:
+      guest: Dora
+      rooms: [ { number: "101", type: double } ]
+    expect:
+      status: COMPLETED
+      passedSteps: [rooms, notify-guest]
+      notPassedSteps: [cancel-room-booking]
+      variables: { roomBookings: [RB-101] }
+
+  - name: a penthouse the hotel never confirms is retried, then the other room is undone
+    workflow: rooms-booking-safe
+    variables:
+      guest: Carol
+      rooms: [ { number: "101", type: double }, { number: "900", type: penthouse } ]
+    steps:
+      create-room-booking:
+        - { when: "room.type == 'penthouse'", timeout: true }   # 30 s timeout, retried twice
+        - { complete: { roomBookingId: "RB-${room.number}" } }
+    then:
+      - advanceTime: PT10M
+    expect:
+      status: COMPENSATED
+      passedSteps: [cancel-room-booking]
+      notPassedSteps: [notify-guest]
+      invocations: { cancel-room-booking: 1 }
+
+  - name: the first booking is registered
+    workflow: first-booking
+    expect:
+      status: COMPLETED
+      variables: { bookingNumber: BK-1 }
+
+  - name: the hotel's API refuses the second room, so the first is cancelled over HTTP
+    workflow: rooms-booking-http
+    variables:
+      rooms: [ { number: "101", type: double }, { number: "102", type: double } ]
+    http:
+      rooms:                              # in order: the first call books, every later one is refused
+        - { status: 201, body: { id: H-1 } }
+        - { status: 409, body: { error: sold out } }
+      cancel-room: { status: 204 }
+    then:
+      - advanceTime: PT5M                 # the refused room's retries
+    expect:
+      status: COMPENSATED
+      passedSteps: [cancel-room]

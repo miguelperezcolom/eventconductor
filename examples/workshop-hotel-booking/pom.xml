@@ -127,9 +127,13 @@
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>
-            <!-- Validates every workflow under src/main/resources/workflows at build time:
-                 schema, dangling references, unreachable steps, expressions. `mvn verify` fails
-                 on a broken definition; `mvn eventconductor:validate` runs it alone. -->
+            <!-- Every EventConductor check, in `mvn verify`:
+                 - validate (process-resources): every workflow under src/main/resources/workflows —
+                   schema, dangling references, unreachable steps, expressions — before any test runs;
+                 - verify (verify, after the tests): check-migration against the version processes
+                   run now (-Deventconductor.migration.from=<git ref>), and the workflow coverage the
+                   tests reached (target/eventconductor-coverage/) against the floors below.
+                 `mvn eventconductor:verify` runs the second alone (validation included). -->
             <plugin>
                 <groupId>io.mateu.workflow</groupId>
                 <artifactId>workflow-maven-plugin</artifactId>
@@ -139,6 +143,18 @@
                         <goals>
                             <goal>validate</goal>
                         </goals>
+                    </execution>
+                    <execution>
+                        <id>eventconductor-verify</id>
+                        <goals>
+                            <goal>verify</goal>
+                        </goals>
+                        <configuration>
+                            <!-- validate already ran, before the tests -->
+                            <skipValidation>true</skipValidation>
+                            <minStepCoverage>90</minStepCoverage>
+                            <minBranchCoverage>75</minBranchCoverage>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
