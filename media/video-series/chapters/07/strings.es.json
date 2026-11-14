@@ -1,0 +1,21 @@
+{
+  "eyebrow": "EventConductor · Capítulo 7",
+  "title": "Personas **en el proceso**",
+  "sub": "USER_TASK · formularios · bandeja de tareas · escalado · timeout",
+  "task.n1": "`USER_TASK` + `formId` — una persona, con un formulario",
+  "task.n2": "`candidateGroups` — ofrecida a un grupo; **cualquiera puede reclamarla**",
+  "task.n3": "`escalation` a `P1D` — `notify` (o `reassign`, `escalateTo`)",
+  "task.n4": "`timeout: P3D` — sin decisión, el paso vence",
+  "form.n1": "`forms/booking-approval.ecform` — lo sirve el motor de formularios",
+  "form.n2": "los valores enviados pasan a ser **variables del proceso**",
+  "token": "entra como responsable con un token de prueba · trust-forwarded-token: solo en el portátil",
+  "clock.items": [["ahora", "la tarea se ofrece a front-desk-managers"], ["+ 1 día", "escalado 1 · notify — en el historial del proceso"], ["+ 3 días", "el paso termina en **TIMEOUT** · no se reserva nada"]],
+  "clock.note": "temporizadores del motor, guardados con el paso — **un reinicio ni los pierde ni los repite**",
+  "close.line": "Las personas deciden. **El motor lo registra.**",
+  "close.next": "Próximo · Tiempo y mensajes",
+  "close.docs": "eventconductor.mateu.io",
+  "close.workshop": "Taller · módulo 6",
+  "close.license": "Código abierto · MIT",
+  "thumb.title": "Personas **en el proceso**",
+  "thumb.sub": "USER_TASK, formularios y bandeja de tareas"
+}

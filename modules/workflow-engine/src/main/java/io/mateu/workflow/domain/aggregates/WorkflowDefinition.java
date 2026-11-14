@@ -886,7 +886,7 @@ public record WorkflowDefinition(
      * in its prompt without {@code llm.allowSensitiveVariables: true}, and no AGENT may put one in its
      * taskPrompt or input without {@code agent.allowSensitiveVariables: true}.
      */
-    /** {@code compensateLosers} only on an XOR join, {@code compensateAbandoned} only on an END. */
+    /** {@code compensateLosers} only on an XOR join, {@code compensateAbandoned} and {@code compensate} only on an END. */
     private void checkBranchCleanup() {
         if (steps == null) return;
         var violations = new java.util.ArrayList<String>();
@@ -895,7 +895,7 @@ public record WorkflowDefinition(
             violations.addAll(io.mateu.workflow.analysis.BranchCleanupRules.stepViolations(
                     step.type() == null ? null : step.type().name(),
                     step.joinType() == null ? null : step.joinType().name(),
-                    step.compensateLosers(), step.compensateAbandoned(), "step '" + step.id() + "'"));
+                    step.compensateLosers(), step.compensateAbandoned(), step.compensate(), "step '" + step.id() + "'"));
         }
         if (!violations.isEmpty()) {
             throw new IllegalStateException(String.join(" ", violations));

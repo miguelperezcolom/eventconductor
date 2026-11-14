@@ -1,0 +1,23 @@
+{
+  "eyebrow": "EventConductor · Chapter 8",
+  "title": "Time **and messages**",
+  "sub": "TIMER · deadline · WAIT_FOR_MESSAGE · SEND_MESSAGE · schedules",
+  "moments": ["3 days before check-in, 09:00", "until the payment arrives", "when the room is ready"],
+  "timer.n1": "`TIMER` + `until` — a moment of the business",
+  "timer.n2": "`date` − `P3D` (calendar days) `at` 09:00",
+  "timer.n3": "`zone` — the hotel's, not the server's",
+  "wait.n1": "`WAIT_FOR_MESSAGE` — `payment-received`",
+  "wait.n2": "`correlationExpression` — the message names **the booking**",
+  "wait.n3": "`deadline` — day before check-in, 12:00",
+  "wait.n4": "`onTimeoutStepId` — a route, **not a failure**",
+  "between.n1": "correlated by **room**, not by booking",
+  "between.n2": "step `timeout: PT2H` + its own route",
+  "between.n3": "the sender: `room-cleaning` → `SEND_MESSAGE`",
+  "close.line": "Waiting is **a step like any other.**",
+  "close.next": "Next · Events in, events out",
+  "close.docs": "eventconductor.mateu.io",
+  "close.repo": "Guide · Scheduling and deadlines",
+  "close.license": "Open source · MIT",
+  "thumb.title": "Time **and messages**",
+  "thumb.sub": "TIMER · WAIT_FOR_MESSAGE · schedules"
+}

@@ -1,0 +1,613 @@
+{
+ "chapter": 6,
+ "slug": "branches-loops-and-sub-processes",
+ "app": "examples/video-series",
+ "port": 8096,
+ "prompt": "~/video-series $",
+ "docs": "guides/loops-and-multi-instance/",
+ "code": "examples/video-series",
+ "title": {
+  "en": "Branches, loops and sub-processes",
+  "es": "Ramas, bucles y subprocesos"
+ },
+ "hook": {
+  "en": "Decide, run things side by side, repeat, and call a sub-process once per item — all declared, all visible in the console.",
+  "es": "Decidir, hacer cosas a la vez, repetir y llamar a un subproceso una vez por elemento: todo declarado y todo visible en la consola."
+ },
+ "about": {
+  "en": "Control flow in EventConductor on a group arriving at the hotel: CHOICE (the first guard that holds, an unguarded default), FORK with an AND join, a forEach over a named sub-process with labels and onIterationFailure: continue, repeat and loopBack inside the sub-process, named versus inline PROCESS, and a race — FORK plus an XOR join with compensateLosers (opt-in, since 2.39) undoing the slower taxi. Recorded on the series app (examples/video-series).",
+  "es": "El control de flujo en EventConductor, con un grupo que llega al hotel: CHOICE (gana la primera guarda que se cumple; la rama sin guarda es la de por defecto), FORK con un join AND, un forEach sobre un subproceso con nombre, con etiquetas y onIterationFailure: continue, repeat y loopBack dentro del subproceso, PROCESS con nombre frente a PROCESS en línea, y una carrera: FORK más un join XOR con compensateLosers (opcional, desde la 2.39) que deshace el taxi más lento. Grabado sobre la app de la serie (examples/video-series)."
+ },
+ "standIns": {
+  "en": "the taxi companies are local stand-ins served by the series app",
+  "es": "las empresas de taxis son sustitutos locales que sirve la propia app de la serie"
+ },
+ "youtubeChapters": [
+  {
+   "at": "title",
+   "en": "Start",
+   "es": "Inicio"
+  },
+  {
+   "at": "choice",
+   "en": "CHOICE",
+   "es": "CHOICE"
+  },
+  {
+   "at": "fork",
+   "en": "FORK, JOIN and forEach",
+   "es": "FORK, JOIN y forEach"
+  },
+  {
+   "at": "group",
+   "en": "The run",
+   "es": "La ejecución"
+  },
+  {
+   "at": "loops",
+   "en": "repeat and loopBack",
+   "es": "repeat y loopBack"
+  },
+  {
+   "at": "inline",
+   "en": "Named or inline",
+   "es": "Con nombre o en línea"
+  },
+  {
+   "at": "race",
+   "en": "A race",
+   "es": "Una carrera"
+  }
+ ],
+ "scenes": [
+  {
+   "id": "title",
+   "view": "title",
+   "spec": {
+    "eyebrow": "eyebrow",
+    "title": "title",
+    "sub": "sub",
+    "subAt": "c1",
+    "top": 150,
+    "visual": "shapes"
+   },
+   "narration": {
+    "en": [
+     "A group of twelve arrives at the hotel.",
+     "Someone decides who welcomes them, three things are prepared at the same time, every room is prepared on its own — and one room is out of order.",
+     "This chapter: branches, loops and sub-processes."
+    ],
+    "es": [
+     "Llega al hotel un grupo de doce personas.",
+     "Alguien decide quién les da la bienvenida, se preparan tres cosas a la vez, cada habitación se prepara por su cuenta… y una habitación está fuera de servicio.",
+     "En este capítulo: ramas, bucles y subprocesos."
+    ]
+   }
+  },
+  {
+   "id": "choice",
+   "view": "code",
+   "code": {
+    "file": "examples/video-series/src/main/resources/workflows/group-arrival.ec.yaml",
+    "from": "^  - id: group-size",
+    "to": "preconditionStepIds: \\[assign"
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 60,
+     "w": 1250,
+     "h": 960
+    },
+    "fontSize": 23,
+    "emphasis": [
+     {
+      "at": "c0",
+      "match": [
+       "type: CHOICE",
+       "name: Large group"
+      ]
+     },
+     {
+      "at": "c1",
+      "match": [
+       "expression: \"groupSize >= 10\""
+      ]
+     },
+     {
+      "at": "c2",
+      "match": [
+       "unguarded: the CHOICE's default branch"
+      ]
+     },
+     {
+      "at": "c3",
+      "match": [
+       "type: JOIN",
+       "joinType: XOR",
+       "preconditionStepIds"
+      ]
+     }
+    ],
+    "notes": [
+     {
+      "at": "c1",
+      "key": "choice.n1"
+     },
+     {
+      "at": "c2",
+      "key": "choice.n2"
+     },
+     {
+      "at": "c3",
+      "key": "choice.n3"
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     {
+      "text": "A CHOICE is an exclusive decision.",
+      "say": "A choice is an exclusive decision."
+     },
+     "Each branch hangs from it with a guard, and the first guard that holds wins: ten guests or more, assign a coordinator.",
+     "A branch with no guard is the default, taken when no other holds.",
+     "After a choice, an XOR join goes on with the one branch that was taken."
+    ],
+    "es": [
+     {
+      "text": "Un CHOICE es una decisión exclusiva.",
+      "say": "Un chóis es una decisión exclusiva."
+     },
+     "Cada rama cuelga de él con una guarda, y gana la primera que se cumple: diez huéspedes o más, se asigna un coordinador.",
+     "Una rama sin guarda es la de por defecto, la que se toma cuando no se cumple ninguna otra.",
+     {
+      "text": "Después de una decisión, un join XOR sigue con la única rama que se tomó.",
+      "say": "Después de una decisión, un yóin equis or sigue con la única rama que se tomó."
+     }
+    ]
+   }
+  },
+  {
+   "id": "fork",
+   "view": "code",
+   "code": {
+    "file": "examples/video-series/src/main/resources/workflows/group-arrival.ec.yaml",
+    "from": "^  - id: prepare$",
+    "to": "preconditionStepIds: \\[prepare-rooms"
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 50,
+     "w": 1250,
+     "h": 980
+    },
+    "fontSize": 21,
+    "emphasis": [
+     {
+      "at": "c0",
+      "match": [
+       "type: FORK",
+       "preconditionStepId: prepare$"
+      ]
+     },
+     {
+      "at": "c1",
+      "match": [
+       "joinType: AND",
+       "preconditionStepIds: \\[prepare-rooms"
+      ]
+     },
+     {
+      "at": "c2",
+      "match": [
+       "type: PROCESS",
+       "childWorkflowDefinitionId",
+       "forEach:",
+       "items: rooms",
+       "label:"
+      ]
+     },
+     {
+      "at": "c3",
+      "match": [
+       "onIterationFailure: continue"
+      ]
+     }
+    ],
+    "notes": [
+     {
+      "at": "c0",
+      "key": "fork.n1"
+     },
+     {
+      "at": "c1",
+      "key": "fork.n2"
+     },
+     {
+      "at": "c2",
+      "key": "fork.n3"
+     },
+     {
+      "at": "c3",
+      "key": "fork.n4"
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     {
+      "text": "A FORK starts every branch that hangs from it, at the same time: the rooms, the airport transfer and the welcome packs.",
+      "say": "A fork starts every branch that hangs from it, at the same time: the rooms, the airport transfer and the welcome packs."
+     },
+     "An AND join waits for all of them.",
+     "The rooms are a forEach over a sub-process: one run of prepare-room per room, each named by its label.",
+     "And on iteration failure, continue: a room that cannot be prepared does not stop the others, and the step still completes."
+    ],
+    "es": [
+     {
+      "text": "Un FORK arranca a la vez todas las ramas que cuelgan de él: las habitaciones, el traslado desde el aeropuerto y los packs de bienvenida.",
+      "say": "Un fork arranca a la vez todas las ramas que cuelgan de él: las habitaciones, el traslado desde el aeropuerto y los packs de bienvenida."
+     },
+     {
+      "text": "Un join AND espera a todas.",
+      "say": "Un yóin and espera a todas."
+     },
+     {
+      "text": "Las habitaciones son un forEach sobre un subproceso: una ejecución de prepare-room por habitación, cada una con el nombre de su etiqueta.",
+      "say": "Las habitaciones son un for-ich sobre un subproceso: una ejecución de pripér rum por habitación, cada una con el nombre de su etiqueta."
+     },
+     "Y ante el fallo de una iteración, continuar: una habitación que no se puede preparar no detiene a las demás, y el paso se completa igualmente."
+    ]
+   }
+  },
+  {
+   "id": "group",
+   "view": "live",
+   "spec": {
+    "terms": [
+     {
+      "items": [
+       {
+        "id": "group-1",
+        "at": 0.2,
+        "prompt": "$"
+       }
+      ],
+      "opts": {
+       "cps": 150
+      },
+      "from": 0,
+      "to": "c1-0.3",
+      "x": 180,
+      "y": 560,
+      "w": 1560,
+      "h": 300
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     {
+      "text": "Group one: twelve guests, four rooms, and room 304 is out of order.",
+      "say": "Group one: twelve guests, four rooms, and room three-oh-four is out of order."
+     },
+     "The diagram numbers each step in the order it ran: the choice took the large-group branch, and the standard welcome was skipped.",
+     "The fork ran three branches; the join waited for all three.",
+     {
+      "text": "Double-click the rooms: one card per room. Three prepared, 304 failed — and the process still completed.",
+      "say": "Double-click the rooms: one card per room. Three prepared, three-oh-four failed — and the process still completed."
+     }
+    ],
+    "es": [
+     "Grupo uno: doce huéspedes, cuatro habitaciones, y la 304 está fuera de servicio.",
+     "El diagrama numera cada paso en el orden en que se ejecutó: la decisión tomó la rama de grupo grande y la bienvenida estándar se saltó.",
+     {
+      "text": "El fork ejecutó tres ramas; el join esperó a las tres.",
+      "say": "El fork ejecutó tres ramas; el yóin esperó a las tres."
+     },
+     "Doble clic en las habitaciones: una tarjeta por habitación. Tres preparadas, la 304 fallida… y el proceso se completó igualmente."
+    ]
+   }
+  },
+  {
+   "id": "loops",
+   "view": "code",
+   "code": {
+    "file": "examples/video-series/src/main/resources/workflows/prepare-room.ec.yaml",
+    "from": "^  - id: check-housekeeping",
+    "to": "maxIterations: 3"
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 80,
+     "w": 1250,
+     "h": 920
+    },
+    "fontSize": 23,
+    "emphasis": [
+     {
+      "at": "c0",
+      "match": [
+       "repeat:",
+       "until: \"clean",
+       "maxIterations: 5",
+       "delay: PT2S"
+      ]
+     },
+     {
+      "at": "c1",
+      "match": [
+       "loopBack:",
+       "to: inspect-room",
+       "maxIterations: 3"
+      ]
+     }
+    ],
+    "notes": [
+     {
+      "at": "c0",
+      "key": "loops.n1"
+     },
+     {
+      "at": "c1",
+      "key": "loops.n2"
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     "Inside the sub-process, two kinds of loop. repeat runs one step again until a condition holds: ask housekeeping until the room is clean, at most five times, two seconds apart.",
+     "loopBack goes back to an earlier step: after fixing what the inspection found, inspect again — at most three rounds."
+    ],
+    "es": [
+     {
+      "text": "Dentro del subproceso, dos tipos de bucle. repeat vuelve a ejecutar un paso hasta que se cumple una condición: preguntar a limpieza hasta que la habitación esté limpia, cinco veces como mucho, cada dos segundos.",
+      "say": "Dentro del subproceso, dos tipos de bucle. Ripít vuelve a ejecutar un paso hasta que se cumple una condición: preguntar a limpieza hasta que la habitación esté limpia, cinco veces como mucho, cada dos segundos."
+     },
+     {
+      "text": "loopBack vuelve a un paso anterior: después de arreglar lo que encontró la inspección, se inspecciona otra vez, tres vueltas como mucho.",
+      "say": "Lup-bak vuelve a un paso anterior: después de arreglar lo que encontró la inspección, se inspecciona otra vez, tres vueltas como mucho."
+     }
+    ]
+   }
+  },
+  {
+   "id": "child",
+   "view": "live",
+   "spec": {},
+   "narration": {
+    "en": [
+     {
+      "text": "Double-click room 303 and the console opens its own run of prepare-room.",
+      "say": "Double-click room three-oh-three and the console opens its own run of prepare-room."
+     },
+     "The repeat chip sits under the housekeeping step; inspect ran twice, and the dashed violet edge is the loop back that sent it round again."
+    ],
+    "es": [
+     {
+      "text": "Doble clic en la 303 y la consola abre su propia ejecución de prepare-room.",
+      "say": "Doble clic en la 303 y la consola abre su propia ejecución de pripér rum."
+     },
+     {
+      "text": "El chip de repeat está bajo el paso de limpieza; la inspección se ejecutó dos veces, y la línea violeta discontinua es el loopBack que la hizo dar otra vuelta.",
+      "say": "El chip de ripít está bajo el paso de limpieza; la inspección se ejecutó dos veces, y la línea violeta discontinua es el lup-bak que la hizo dar otra vuelta."
+     }
+    ]
+   }
+  },
+  {
+   "id": "inline",
+   "view": "code",
+   "code": {
+    "file": "examples/workshop-hotel-booking/src/main/resources/workflows/02-rooms-booking.ec.yaml",
+    "from": "^  - id: rooms",
+    "to": "preconditionStepId: create-room-booking"
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 80,
+     "w": 1250,
+     "h": 920
+    },
+    "fontSize": 23,
+    "emphasis": [
+     {
+      "at": "c1",
+      "match": [
+       "^    steps:",
+       "^      - id:",
+       "type: START",
+       "type: ACTION",
+       "type: END"
+      ]
+     }
+    ],
+    "notes": [
+     {
+      "at": "c0",
+      "key": "inline.n1"
+     },
+     {
+      "at": "c1",
+      "key": "inline.n2"
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     "A sub-process can be named — a definition of its own, like prepare-room, reused and versioned on its own.",
+     "Or written in line, under steps, where it is used: versioned with its parent, and never started on its own. This one is from the workshop; chapter four opens it into lanes."
+    ],
+    "es": [
+     {
+      "text": "Un subproceso puede tener nombre: una definición propia, como prepare-room, reutilizable y con sus propias versiones.",
+      "say": "Un subproceso puede tener nombre: una definición propia, como pripér rum, reutilizable y con sus propias versiones."
+     },
+     "O escribirse en línea, bajo steps, donde se usa: con las versiones de su padre, y sin poder arrancarse por sí solo. Este es del taller; el capítulo cuatro lo abre en carriles."
+    ]
+   }
+  },
+  {
+   "id": "race-code",
+   "view": "code",
+   "code": {
+    "file": "examples/video-series/src/main/resources/workflows/airport-transfer.ec.yaml",
+    "from": "^  - id: ask-both",
+    "to": "preconditionStepIds: \\[book-city-cabs"
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 50,
+     "w": 1250,
+     "h": 980
+    },
+    "fontSize": 20,
+    "startScroll": 0,
+    "emphasis": [
+     {
+      "at": "c0",
+      "match": [
+       "type: FORK",
+       "name: Book with City Cabs",
+       "name: Book with Airport Express"
+      ]
+     },
+     {
+      "at": "c1",
+      "match": [
+       "joinType: XOR",
+       "compensateLosers: true"
+      ]
+     },
+     {
+      "at": "c2",
+      "match": [
+       "compensable: true",
+       "compensationStepId"
+      ]
+     }
+    ],
+    "notes": [
+     {
+      "at": "c0",
+      "key": "race.n1"
+     },
+     {
+      "at": "c1",
+      "key": "race.n2"
+     },
+     {
+      "at": "c2",
+      "key": "race.n3"
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     "And a race: ask two taxi companies at once, and go on with the first that confirms — an XOR join after a fork.",
+     {
+      "text": "The other company would still send a taxi. compensateLosers, opt-in since 2.39, cancels the losing branch and undoes what it had completed.",
+      "say": "The other company would still send a taxi. compensateLosers, opt-in since two point thirty-nine, cancels the losing branch and undoes what it had completed."
+     },
+     "Here each booking is compensable, with a DELETE that cancels it."
+    ],
+    "es": [
+     {
+      "text": "Y una carrera: pedir taxi a dos empresas a la vez y seguir con la primera que confirme; un join XOR después de un fork.",
+      "say": "Y una carrera: pedir taxi a dos empresas a la vez y seguir con la primera que confirme; un yóin equis or después de un fork."
+     },
+     {
+      "text": "La otra empresa mandaría un taxi igualmente. compensateLosers, opcional desde la 2.39, cancela la rama perdedora y deshace lo que había completado.",
+      "say": "La otra empresa mandaría un taxi igualmente. Compénseit lúsers, opcional desde la dos punto treinta y nueve, cancela la rama perdedora y deshace lo que había completado."
+     },
+     {
+      "text": "Aquí cada reserva es compensable, con un DELETE que la cancela.",
+      "say": "Aquí cada reserva es compensable, con un delete que la cancela."
+     }
+    ]
+   }
+  },
+  {
+   "id": "race",
+   "view": "live",
+   "spec": {
+    "terms": [
+     {
+      "items": [
+       {
+        "id": "transfer-1",
+        "at": 0.2,
+        "prompt": "$"
+       }
+      ],
+      "opts": {
+       "cps": 120
+      },
+      "from": 0,
+      "to": "c0+2.4",
+      "x": 220,
+      "y": 600,
+      "w": 1480,
+      "h": 260
+     }
+    ],
+    "pills": [
+     {
+      "key": "standin.taxis",
+      "from": "c1",
+      "right": 130,
+      "y": 950,
+      "cls": "amber"
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     "City Cabs answers first and wins.",
+     "Airport Express confirmed a second later; its booking is undone — Cancel Airport Express, in amber, once — and the guest gets one taxi."
+    ],
+    "es": [
+     {
+      "text": "City Cabs responde antes y gana.",
+      "say": "Siti Cabs responde antes y gana."
+     },
+     {
+      "text": "Airport Express confirmó un segundo después; su reserva se deshace —«Cancel Airport Express», en ámbar, una vez— y el huésped recibe un solo taxi.",
+      "say": "Érport Expres confirmó un segundo después; su reserva se deshace —«Cáncel érport expres», en ámbar, una vez— y el huésped recibe un solo taxi."
+     }
+    ]
+   }
+  },
+  {
+   "id": "close",
+   "view": "close",
+   "spec": {
+    "line": "close.line",
+    "next": "close.next",
+    "links": [
+     "close.docs",
+     "close.workshop",
+     "close.license"
+    ]
+   },
+   "extra": 1.5,
+   "narration": {
+    "en": [
+     "Control flow, declared — and visible run by run.",
+     "Next: people in the loop.",
+     "The loops and multi-instance guide is linked below."
+    ],
+    "es": [
+     "El control de flujo, declarado y visible ejecución a ejecución.",
+     "Próximo capítulo: personas en el proceso.",
+     "La guía de bucles y multi-instancia está enlazada abajo."
+    ]
+   }
+  }
+ ]
+}

@@ -360,8 +360,50 @@ public record Step(
          */
         @Hidden
         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
-        List<Step> steps
+        List<Step> steps,
+        /**
+         * END only: true makes reaching this END roll the process back on purpose — what is still in
+         * flight is cancelled and every compensable step that completed is compensated, newest first,
+         * exactly as a failed process's saga rollback does; the process ends COMPENSATED
+         * (COMPENSATION_FAILED if a compensation fails). For a business decision to undo ("the guest
+         * cancelled"), where nothing failed. Absent or false: the END completes the process. Left out of
+         * the JSON unless true, so a step without it hashes into a definition version as before.
+         */
+        @HiddenInList
+        @Hidden("state['type'] != 'END'")
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        Boolean compensate
 ) implements Identifiable {
+
+    /** The shape this record had before {@code compensate}, so every caller of the full constructor keeps compiling. */
+    public Step(String id, String workflowDefinitionId, StepType type, String name, String description,
+                String preconditionStepId, List<String> preconditionStepIds, List<Precondition> preconditions,
+                String preconditionExpression, boolean parallel, String topic, String formId, String ruleId,
+                String childWorkflowDefinitionId, List<String> outputVariables, long duration,
+                String untilVariable, String messageName, String correlationExpression,
+                List<String> messageVariables, long timeout, int retries, boolean compensable,
+                String compensationStepId, String onTimeoutStepId, int maxSuccessfulExecutions,
+                JoinType joinType, List<String> requiredScopes, List<String> requiredRoles,
+                String lockName, String lockKey, String task, List<String> replyVariables,
+                String replyExpression, Object replyTemplate, PublishEvent event, HttpCall http,
+                Moment until, Moment deadline, LlmCall llm, EventWait onEvent, AwaitReply awaitReply,
+                ForEach forEach, Repeat repeat, LoopBack loopBack, TaskAssignment assignment,
+                List<Escalation> escalation, Boolean sensitiveOutputs, Integer priority, ContinueAsNew continueAsNew,
+                AgentCall agent, Boolean compensateLosers, Boolean compensateAbandoned, List<Step> steps) {
+        this(id, workflowDefinitionId, type, name, description, preconditionStepId, preconditionStepIds,
+                preconditions, preconditionExpression, parallel, topic, formId, ruleId,
+                childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
+                correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
+                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
+                lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, event, http, until, deadline,
+                llm, onEvent, awaitReply, forEach, repeat, loopBack, assignment, escalation, sensitiveOutputs,
+                priority, continueAsNew, agent, compensateLosers, compensateAbandoned, steps, null);
+    }
+
+    /** Whether this is an END that rolls the process back on purpose (see {@link #compensate}). */
+    public boolean compensates() {
+        return Boolean.TRUE.equals(compensate);
+    }
 
     /** The shape this record had before {@code compensateLosers}/{@code compensateAbandoned} and inline PROCESS bodies, so every caller of the full constructor keeps compiling. */
     public Step(String id, String workflowDefinitionId, StepType type, String name, String description,
@@ -385,7 +427,7 @@ public record Step(
                 onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
                 lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, event, http, until, deadline,
                 llm, onEvent, awaitReply, forEach, repeat, loopBack, assignment, escalation, sensitiveOutputs,
-                priority, continueAsNew, agent, null, null, null);
+                priority, continueAsNew, agent, null, null, null, null);
     }
 
     /** Whether this is an XOR JOIN that abandons, and cleans up after, the branches it does not go on with. */
@@ -419,7 +461,7 @@ public record Step(
                 onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
                 lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, event, http, until, deadline,
                 llm, onEvent, awaitReply, forEach, repeat, loopBack, assignment, escalation, sensitiveOutputs,
-                priority, continueAsNew, null, null, null, null);
+                priority, continueAsNew, null, null, null, null, null);
     }
 
     public Step {
@@ -427,6 +469,7 @@ public record Step(
         // false is the default: kept out of the JSON like absent, so it never changes a version hash.
         if (Boolean.FALSE.equals(compensateLosers)) compensateLosers = null;
         if (Boolean.FALSE.equals(compensateAbandoned)) compensateAbandoned = null;
+        if (Boolean.FALSE.equals(compensate)) compensate = null;
         requiredScopes = requiredScopes == null ? List.of() : List.copyOf(requiredScopes);
         requiredRoles = requiredRoles == null ? List.of() : List.copyOf(requiredRoles);
         steps = steps == null || steps.isEmpty() ? null : java.util.Collections.unmodifiableList(new java.util.ArrayList<>(steps));

@@ -86,11 +86,13 @@
         html += '\n';
         const tOut = t0 + cmd.length / cps + (r.wait ?? 0.35);
         const n = t < tOut ? 0 : Math.floor((t - tOut) / lineGap) + 1;
+        if (n < r.data.lines.length) cursorAt = true;               // output still arriving: no prompt yet
         const lines = r.data.lines.slice(0, n).map((l) => {
           const c = /BUILD SUCCESS|Tests run:.*Failures: 0, Errors: 0|PASS/.test(l) ? 'ok' : /BUILD FAILURE|ERROR|FAIL/.test(l) ? 'bad' : 'out';
           return `<span class="${c}">${esc(r.trim ? r.trim(l) : l)}</span>`;
         });
         html += lines.join('\n') + (lines.length ? '\n' : '');
+        if (cursorAt) break;
       }
       if (!cursorAt && runs.length && t >= at(sc, runs[0].at ?? 0.3)) html += `<span class="ps">${esc(runs[runs.length - 1].prompt ?? D.prompt ?? '~/workshop-hotel-booking $')}</span> <span class="cur"></span>`;
       box.innerHTML = html;
@@ -151,12 +153,14 @@
       return (t) => { draw(t); pills(t); };
     },
 
-    /** The real console, filmed frame by frame; the camera was keyed by the recorder. spec: { pills, terms } */
+    /** The real console (or VS Code), filmed frame by frame; the camera was keyed by the recorder. spec: { pills, terms, title } */
     live(root, sc) {
       const L = D.live[sc.id];
       if (!L) throw new Error(`no live frames for ${sc.id} — run record-live first`);
       const g = { x: 88, y: 22, w: 1744, h: 1036 };
-      const { body, bw, bh } = windowEl(root, { ...g, title: `<b>${esc(sc.spec.host ?? D.host ?? 'localhost:8095')}</b>  ·  ${esc(sc.spec.app ?? 'EventConductor console')}`, cls: 'console' });
+      const title = L.origin === 'vscode' ? '<b>Visual Studio Code</b>  ·  EventConductor extension'
+        : `<b>${esc(sc.spec.host ?? L.origin ?? D.host ?? 'localhost:8095')}</b>  ·  ${esc(sc.spec.app ?? 'EventConductor console')}`;
+      const { body, bw, bh } = windowEl(root, { ...g, title, cls: 'console' });
       const img = el('img', 'frame', null, body);
       const VPW = L.viewport?.w ?? 1920, VPH = L.viewport?.h ?? 1080;
       css(img, { width: VPW, height: VPH });

@@ -1428,6 +1428,13 @@
           ],
           "description": "END only: true also compensates, as a cleanup, the compensable steps that completed on the branches this END cuts short. Absent/false: only work that completed after the END cancelled it is compensated."
         },
+        "compensate": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "END only: true ends the process by rolling it back on purpose — what is still in flight is cancelled and every compensable step that completed is compensated, newest first, as a failed process's saga rollback does; the process ends COMPENSATED (COMPENSATION_FAILED if a compensation fails). For a business decision to undo (the guest cancelled), where nothing failed. Not together with compensateAbandoned. Absent/false: the END completes the process."
+        },
         "joinType": {
           "type": [
             "string",

@@ -65,7 +65,7 @@ export async function run(c) {
   // Scene "hotel": booking 4 over HTTP — Compensated in the list; the stand-in hotel holds nothing.
   c.term('booking-4', `scripts/start.sh rooms-booking-http BOOKING-4 '${ROOMS_4}' | jq '{businessKey, status}'`);
   await c.waitFor(async () => (await c.processByKey('BOOKING-4'))?.status === 'COMPENSATED', 'BOOKING-4 to end compensated');
-  c.term('hotel-bookings', 'curl -s localhost:8095/fake/hotel/bookings');
+  c.term('hotel-bookings', `curl -s localhost:${c.port}/fake/hotel/bookings`);
   await c.shot('hotel', c.open('/workflow/processes', 'text=BOOKING-4'), async (s) => {
     await s.cameraNow('full');
     await s.untilCue(1, -1.4);
