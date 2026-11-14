@@ -1,0 +1,457 @@
+{
+ "chapter": 5,
+ "slug": "calling-the-outside-world",
+ "app": "examples/workshop-hotel-booking",
+ "docs": "guides/http-calls/",
+ "code": "examples/workshop-hotel-booking",
+ "title": {
+  "en": "Calling the outside world",
+  "es": "Llamar al mundo exterior"
+ },
+ "hook": {
+  "en": "Most steps of a real process are a call to someone else's API. EventConductor's HTTP_CALL step makes that call without a worker: the request rendered from the process, the answer mapped back.",
+  "es": "La mayoría de los pasos de un proceso real son una llamada a la API de otro. El paso HTTP_CALL de EventConductor hace esa llamada sin worker: la petición se construye desde el proceso y la respuesta vuelve a él."
+ },
+ "about": {
+  "en": "The HTTP_CALL step on the workshop's hotel: a named connection (the base URL lives in configuration), path, headers and body templated from the process, an Idempotency-Key built from business data, the response mapped into variables, success statuses, which failures are retried (5xx and I/O by default, never a 4xx), a refused room in the Errors tab, and secrets — by reference only, from workflow.http.secrets since 2.27. Recorded on the workshop app (examples/workshop-hotel-booking), module 4.",
+  "es": "El paso HTTP_CALL sobre el hotel del taller: una conexión con nombre (la URL base está en la configuración), ruta, cabeceras y cuerpo construidos desde el proceso, una Idempotency-Key hecha con datos de negocio, la respuesta mapeada a variables, los estados de éxito, qué fallos se reintentan (5xx y E/S por defecto, nunca un 4xx), una habitación rechazada en la pestaña de errores, y los secretos: solo por referencia, desde workflow.http.secrets desde la 2.27. Grabado sobre la app del taller (examples/workshop-hotel-booking), módulo 4."
+ },
+ "standIns": {
+  "en": "the hotel is a local stand-in served by the workshop app",
+  "es": "el hotel es un sustituto local que sirve la propia app del taller"
+ },
+ "youtubeChapters": [
+  {
+   "at": "title",
+   "en": "Why a step for HTTP",
+   "es": "Por qué un paso para HTTP"
+  },
+  {
+   "at": "declare",
+   "en": "Declaring the call",
+   "es": "Declarar la llamada"
+  },
+  {
+   "at": "connection",
+   "en": "Connections",
+   "es": "Conexiones"
+  },
+  {
+   "at": "run",
+   "en": "Running it",
+   "es": "Ejecutarlo"
+  },
+  {
+   "at": "rules",
+   "en": "Success, failure, retries",
+   "es": "Éxito, fallo, reintentos"
+  },
+  {
+   "at": "refused",
+   "en": "A refused request",
+   "es": "Una petición rechazada"
+  },
+  {
+   "at": "secrets",
+   "en": "Secrets",
+   "es": "Secretos"
+  },
+  {
+   "at": "workers",
+   "en": "Workers in any language",
+   "es": "Workers en cualquier lenguaje"
+  }
+ ],
+ "scenes": [
+  {
+   "id": "title",
+   "view": "title",
+   "spec": {
+    "eyebrow": "eyebrow",
+    "title": "title",
+    "sub": "sub",
+    "subAt": "c1",
+    "top": 150,
+    "visual": "wire"
+   },
+   "narration": {
+    "en": [
+     "Most steps of a real process are a call to someone else's API: the hotel, the payment provider, the channel manager.",
+     {
+      "text": "EventConductor has a step for that, so you do not write a worker for each one: HTTP_CALL.",
+      "say": "Event Conductor has a step for that, so you do not write a worker for each one: HTTP call."
+     }
+    ],
+    "es": [
+     {
+      "text": "La mayoría de los pasos de un proceso real son una llamada a la API de otro: el hotel, la pasarela de pago, el gestor de canales.",
+      "say": "La mayoría de los pasos de un proceso real son una llamada a la a pe i de otro: el hotel, la pasarela de pago, el gestor de canales."
+     },
+     {
+      "text": "EventConductor tiene un paso para eso, para que no escribas un worker para cada uno: HTTP_CALL.",
+      "say": "Event Conductor tiene un paso para eso, para que no escribas un uórker para cada uno: hache te te pe col."
+     }
+    ]
+   }
+  },
+  {
+   "id": "declare",
+   "view": "code",
+   "code": {
+    "file": "examples/workshop-hotel-booking/src/main/resources/workflows/04-rooms-booking-http.ec.yaml",
+    "from": 9,
+    "to": 37
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 50,
+     "w": 1250,
+     "h": 980
+    },
+    "fontSize": 22,
+    "emphasis": [
+     {
+      "at": "c0",
+      "match": [
+       "type: HTTP_CALL",
+       "connection: hotel",
+       "method: POST",
+       "path: /bookings"
+      ]
+     },
+     {
+      "at": "c1",
+      "match": [
+       "forEach:",
+       "items: rooms",
+       "as: room",
+       "number: \"\\$\\{room",
+       "type: \"\\$\\{room",
+       "externalRef"
+      ]
+     },
+     {
+      "at": "c2",
+      "match": [
+       "Idempotency-Key"
+      ]
+     },
+     {
+      "at": "c3",
+      "match": [
+       "output:",
+       "roomBookingId: \"body.id\""
+      ]
+     }
+    ],
+    "notes": [
+     {
+      "at": "c0",
+      "key": "declare.n1"
+     },
+     {
+      "at": "c1",
+      "key": "declare.n2"
+     },
+     {
+      "at": "c2",
+      "key": "declare.n3"
+     },
+     {
+      "at": "c3",
+      "key": "declare.n4"
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     "The step names a connection, a method and a path: book a room at the hotel.",
+     "Path, headers and body are templates over the process: here, one call per room, and each call sees its room.",
+     "The Idempotency-Key is built from business data — the booking and the room — so any repeat of the same request carries the same key, and the hotel books the room once.",
+     "And output maps the answer back: the hotel's booking id becomes a process variable."
+    ],
+    "es": [
+     "El paso nombra una conexión, un método y una ruta: reservar una habitación en el hotel.",
+     "La ruta, las cabeceras y el cuerpo son plantillas sobre el proceso: aquí, una llamada por habitación, y cada llamada ve su habitación.",
+     {
+      "text": "La Idempotency-Key se construye con datos de negocio —la reserva y la habitación—, así que cualquier repetición de la misma petición lleva la misma clave y el hotel reserva la habitación una sola vez.",
+      "say": "La aidempótensi ki se construye con datos de negocio —la reserva y la habitación—, así que cualquier repetición de la misma petición lleva la misma clave y el hotel reserva la habitación una sola vez."
+     },
+     {
+      "text": "Y output devuelve la respuesta al proceso: el identificador de reserva del hotel pasa a ser una variable.",
+      "say": "Y áutput devuelve la respuesta al proceso: el identificador de reserva del hotel pasa a ser una variable."
+     }
+    ]
+   }
+  },
+  {
+   "id": "connection",
+   "view": "code",
+   "code": {
+    "file": "examples/workshop-hotel-booking/src/main/resources/application.properties",
+    "from": 27,
+    "to": 31
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 300,
+     "w": 1780,
+     "h": 330
+    },
+    "fontSize": 24,
+    "emphasis": [
+     {
+      "at": "c0",
+      "match": [
+       "connections\\.hotel\\.base-url",
+       "connections\\.hotel\\.read-timeout"
+      ]
+     }
+    ]
+   },
+   "extra": 0.4,
+   "narration": {
+    "en": [
+     "The definition never holds a URL or a credential.",
+     "A connection is configuration: the operator sets its base URL, timeouts and authentication — here, the workshop's stand-in hotel, served by the app itself."
+    ],
+    "es": [
+     {
+      "text": "La definición nunca contiene una URL ni una credencial.",
+      "say": "La definición nunca contiene una u erre ele ni una credencial."
+     },
+     {
+      "text": "Una conexión es configuración: quien opera fija su URL base, sus timeouts y su autenticación; aquí, el hotel sustituto del taller, que sirve la propia app.",
+      "say": "Una conexión es configuración: quien opera fija su u erre ele base, sus taim-auts y su autenticación; aquí, el hotel sustituto del taller, que sirve la propia ap."
+     }
+    ]
+   }
+  },
+  {
+   "id": "run",
+   "view": "live",
+   "spec": {
+    "terms": [
+     {
+      "items": [
+       {
+        "id": "booking-4",
+        "at": 0.2,
+        "prompt": "$"
+       }
+      ],
+      "opts": {
+       "cps": 120
+      },
+      "from": 0,
+      "to": "c1-0.2",
+      "x": 220,
+      "y": 560,
+      "w": 1480,
+      "h": 300
+     },
+     {
+      "items": [
+       {
+        "id": "hotel-holds",
+        "at": "c2+0.4",
+        "prompt": "$"
+       }
+      ],
+      "opts": {
+       "cps": 60,
+       "lineGap": 0.08
+      },
+      "from": "c2",
+      "to": "end",
+      "x": 300,
+      "y": 420,
+      "w": 1320,
+      "h": 500
+     }
+    ],
+    "pills": [
+     {
+      "key": "standin.hotel",
+      "from": "c2",
+      "right": 130,
+      "y": 950,
+      "cls": "amber"
+     }
+    ]
+   },
+   "extra": 1.2,
+   "narration": {
+    "en": [
+     "Book three rooms.",
+     "The process completes, and its variables hold the three ids the hotel answered.",
+     "Ask the hotel: three bookings, each with the key the step sent — the booking's business key and the room number."
+    ],
+    "es": [
+     "Reserva tres habitaciones.",
+     "El proceso se completa, y sus variables guardan los tres identificadores que respondió el hotel.",
+     "Pregúntale al hotel: tres reservas, cada una con la clave que envió el paso, la clave de negocio de la reserva y el número de habitación."
+    ]
+   }
+  },
+  {
+   "id": "rules",
+   "view": "rules",
+   "spec": {},
+   "narration": {
+    "en": [
+     {
+      "text": "What counts as success is a list of statuses — any 2xx unless you say otherwise.",
+      "say": "What counts as success is a list of statuses — any two-hundred status, unless you say otherwise."
+     },
+     "Any other status fails the step, with the start of the response in the Errors tab.",
+     {
+      "text": "Retries apply to server errors and I/O failures by default, with exponential backoff; a 4xx is not retried, because a bad request does not fix itself.",
+      "say": "Retries apply to server errors and I-O failures by default, with exponential backoff; a four-hundred is not retried, because a bad request does not fix itself."
+     },
+     "And when you give no key of your own, every retry of a step sends the same Idempotency-Key anyway: the step execution's id."
+    ],
+    "es": [
+     {
+      "text": "Qué cuenta como éxito es una lista de estados: cualquier 2xx salvo que digas otra cosa.",
+      "say": "Qué cuenta como éxito es una lista de estados: cualquier dos equis equis salvo que digas otra cosa."
+     },
+     "Cualquier otro estado hace fallar el paso, con el principio de la respuesta en la pestaña de errores.",
+     {
+      "text": "Por defecto, los reintentos se aplican a errores del servidor y fallos de E/S, con espera exponencial; un 4xx no se reintenta, porque una petición incorrecta no se arregla sola.",
+      "say": "Por defecto, los reintentos se aplican a errores del servidor y fallos de entrada y salida, con espera exponencial; un cuatro equis equis no se reintenta, porque una petición incorrecta no se arregla sola."
+     },
+     {
+      "text": "Y si no das una clave propia, cada reintento de un paso envía igualmente la misma Idempotency-Key: el identificador de la ejecución del paso.",
+      "say": "Y si no das una clave propia, cada reintento de un paso envía igualmente la misma aidempótensi ki: el identificador de la ejecución del paso."
+     }
+    ]
+   }
+  },
+  {
+   "id": "refused",
+   "view": "live",
+   "spec": {
+    "terms": [
+     {
+      "items": [
+       {
+        "id": "booking-5",
+        "at": 0.2,
+        "prompt": "$"
+       }
+      ],
+      "opts": {
+       "cps": 130
+      },
+      "from": 0,
+      "to": "c1-0.3",
+      "x": 220,
+      "y": 560,
+      "w": 1480,
+      "h": 300
+     }
+    ]
+   },
+   "extra": 0.8,
+   "narration": {
+    "en": [
+     {
+      "text": "Now a booking with the penthouse, which this hotel always refuses with a 409.",
+      "say": "Now a booking with the penthouse, which this hotel always refuses with a four-oh-nine."
+     },
+     "The Errors tab says which room, which status and what the hotel answered — and that it was not retried.",
+     "The two rooms already booked are cancelled with DELETE calls: chapter four tells that part."
+    ],
+    "es": [
+     "Ahora una reserva con el ático, que este hotel rechaza siempre con un 409.",
+     "La pestaña de errores dice qué habitación, qué estado y qué respondió el hotel, y que no se reintentó.",
+     {
+      "text": "Las dos habitaciones ya reservadas se cancelan con llamadas DELETE: eso lo cuenta el capítulo cuatro.",
+      "say": "Las dos habitaciones ya reservadas se cancelan con llamadas delete: eso lo cuenta el capítulo cuatro."
+     }
+    ]
+   }
+  },
+  {
+   "id": "secrets",
+   "view": "secrets",
+   "spec": {},
+   "narration": {
+    "en": [
+     "Credentials stay out of definitions.",
+     "An inline auth block takes a secret only by reference — dollar, secret, and a name — resolved in the worker at call time; a literal fails the build.",
+     {
+      "text": "And since 2.27 that name can only be one listed under workflow.http.secrets: a definition cannot reach any other property or environment variable of the worker.",
+      "say": "And since two point twenty-seven that name can only be one listed under workflow.http.secrets: a definition cannot reach any other property or environment variable of the worker."
+     }
+    ],
+    "es": [
+     "Las credenciales se quedan fuera de las definiciones.",
+     {
+      "text": "Un bloque de autenticación en línea solo acepta un secreto por referencia —dólar, secret y un nombre—, que se resuelve en el worker al hacer la llamada; un literal rompe el build.",
+      "say": "Un bloque de autenticación en línea solo acepta un secreto por referencia —dólar, sícret y un nombre—, que se resuelve en el uórker al hacer la llamada; un literal rompe el bild."
+     },
+     {
+      "text": "Y desde la 2.27 ese nombre solo puede ser uno de los listados en workflow.http.secrets: una definición no puede alcanzar ninguna otra propiedad ni variable de entorno del worker.",
+      "say": "Y desde la dos punto veintisiete ese nombre solo puede ser uno de los listados en uórkflou punto hache te te pe punto sícrets: una definición no puede alcanzar ninguna otra propiedad ni variable de entorno del uórker."
+     }
+    ]
+   }
+  },
+  {
+   "id": "workers",
+   "view": "langs",
+   "spec": {},
+   "narration": {
+    "en": [
+     "When the work is more than one HTTP request, it is a worker — and a worker does not have to be Java.",
+     "The engine can hold the tasks of chosen topics in a queue and serve them over HTTP, so a worker in any language long-polls for its tasks and answers.",
+     "The repository has a Python SDK for that, with no dependencies; it is not on PyPI yet."
+    ],
+    "es": [
+     {
+      "text": "Cuando el trabajo es más que una petición HTTP, es un worker, y un worker no tiene por qué ser Java.",
+      "say": "Cuando el trabajo es más que una petición hache te te pe, es un uórker, y un uórker no tiene por qué ser Java."
+     },
+     {
+      "text": "El motor puede guardar en una cola las tareas de los topics que elijas y servirlas por HTTP, así que un worker en cualquier lenguaje las pide con long-polling y responde.",
+      "say": "El motor puede guardar en una cola las tareas de los tópics que elijas y servirlas por hache te te pe, así que un uórker en cualquier lenguaje las pide con long póling y responde."
+     },
+     {
+      "text": "El repositorio tiene un SDK de Python para eso, sin dependencias; todavía no está en PyPI.",
+      "say": "El repositorio tiene un ese de ka de Páizon para eso, sin dependencias; todavía no está en Pai-pi-ai."
+     }
+    ]
+   }
+  },
+  {
+   "id": "close",
+   "view": "close",
+   "spec": {
+    "line": "close.line",
+    "next": "close.next",
+    "links": [
+     "close.docs",
+     "close.workshop",
+     "close.license"
+    ]
+   },
+   "extra": 1.5,
+   "narration": {
+    "en": [
+     "Integration without the glue code.",
+     "Next: branches, loops and sub-processes.",
+     "Module 4 of the workshop is linked below."
+    ],
+    "es": [
+     "Integración sin código pegamento.",
+     "Próximo capítulo: ramas, bucles y subprocesos.",
+     "El módulo 4 del taller está enlazado abajo."
+    ]
+   }
+  }
+ ]
+}

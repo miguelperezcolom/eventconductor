@@ -60,7 +60,7 @@ function data() {
   for (const s of scenes) if (s.view === 'live') {
     const idx = `${build}/live/${s.id}/index.json`;
     if (!existsSync(idx)) throw new Error(`missing ${idx}: run record-live.mjs ${chapter} ${lang}`);
-    { const ix = json(idx); live[s.id] = { dir: `../build/ch${chapter}/${lang}/live/${s.id}`, viewport: ix.viewport, frames: ix.frames }; }
+    { const ix = json(idx); live[s.id] = { dir: `../build/ch${chapter}/${lang}/live/${s.id}`, viewport: ix.viewport, origin: ix.origin, frames: ix.frames }; }
   }
   return { chapter: script.chapter, lang, strings, logo, duration: tl.duration, scenes, code, term, live };
 }

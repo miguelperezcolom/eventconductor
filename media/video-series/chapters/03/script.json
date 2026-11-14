@@ -1,0 +1,330 @@
+{
+ "chapter": 3,
+ "slug": "definitions-yaml-graph-and-ide",
+ "app": "examples/video-series",
+ "docs": "guides/ide-plugins/",
+ "code": "examples/video-series",
+ "title": {
+  "en": "Definitions: YAML, graph and IDE",
+  "es": "Definiciones: YAML, grafo e IDE"
+ },
+ "hook": {
+  "en": "A workflow definition is a YAML file in your repository — and, in your IDE, a graph you can edit. Both are the same file.",
+  "es": "Una definición de flujo es un fichero YAML en tu repositorio y, en tu IDE, un grafo que puedes editar. Los dos son el mismo fichero."
+ },
+ "about": {
+  "en": "How EventConductor definitions are written and checked: a *.ec.yaml file, plain YAML; the graph editor of the VS Code extension (Marketplace release 0.2.4) — drag a step from the palette, Shift+drag a link, set onIterationFailure in the step panel, the file changing beside the graph, double-click into an inline PROCESS body; mvn eventconductor:validate catching a broken link before anything runs; and the same graph, read-only, in the web console. IntelliJ IDEA has a plugin with the same editor (not recorded here). Recorded in Visual Studio Code and on the series app (examples/video-series).",
+  "es": "Cómo se escriben y se comprueban las definiciones de EventConductor: un fichero *.ec.yaml, YAML sin más; el editor de grafos de la extensión de VS Code (versión 0.2.4 del Marketplace) —arrastrar un paso desde la paleta, Mayús+arrastrar un enlace, fijar onIterationFailure en el panel del paso, el fichero cambiando junto al grafo, doble clic para entrar en el cuerpo de un PROCESS en línea—; mvn eventconductor:validate detectando un enlace roto antes de ejecutar nada; y el mismo grafo, de solo lectura, en la consola web. IntelliJ IDEA tiene un plugin con el mismo editor (no se graba aquí). Grabado en Visual Studio Code y sobre la app de la serie (examples/video-series)."
+ },
+ "standIns": {
+  "en": "the IDE is Visual Studio Code with the EventConductor extension from the Marketplace",
+  "es": "el IDE es Visual Studio Code con la extensión de EventConductor del Marketplace"
+ },
+ "youtubeChapters": [
+  {
+   "at": "title",
+   "en": "A definition is a file",
+   "es": "Una definición es un fichero"
+  },
+  {
+   "at": "open",
+   "en": "The graph in VS Code",
+   "es": "El grafo en VS Code"
+  },
+  {
+   "at": "edit",
+   "en": "Editing the graph",
+   "es": "Editar el grafo"
+  },
+  {
+   "at": "inline",
+   "en": "Inline bodies",
+   "es": "Cuerpos en línea"
+  },
+  {
+   "at": "validate",
+   "en": "Validation",
+   "es": "Validación"
+  },
+  {
+   "at": "console",
+   "en": "In the console",
+   "es": "En la consola"
+  }
+ ],
+ "scenes": [
+  {
+   "id": "title",
+   "view": "title",
+   "spec": {
+    "eyebrow": "eyebrow",
+    "title": "title",
+    "sub": "sub",
+    "subAt": "c1"
+   },
+   "narration": {
+    "en": [
+     "A workflow definition is a file in your repository.",
+     "This chapter: the same definition as YAML, as a graph in your IDE, and checked by your build."
+    ],
+    "es": [
+     "Una definición de flujo es un fichero en tu repositorio.",
+     {
+      "text": "En este capítulo: la misma definición como YAML, como grafo en tu IDE y comprobada por tu build.",
+      "say": "En este capítulo: la misma definición como yámel, como grafo en tu i de e y comprobada por tu bild."
+     }
+    ]
+   }
+  },
+  {
+   "id": "yaml",
+   "view": "code",
+   "code": {
+    "file": "examples/video-series/src/main/resources/workflows/prepare-room.ec.yaml",
+    "from": "^id: prepare-room",
+    "to": "maxIterations: 5"
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 60,
+     "w": 1250,
+     "h": 960
+    },
+    "fontSize": 24,
+    "emphasis": [
+     {
+      "at": "c0",
+      "match": [
+       "^id: prepare-room",
+       "^name:",
+       "^steps:"
+      ]
+     },
+     {
+      "at": "c1",
+      "match": [
+       "preconditionStepId"
+      ]
+     },
+     {
+      "at": "c2",
+      "match": [
+       "repeat:",
+       "until:",
+       "maxIterations"
+      ]
+     }
+    ],
+    "notes": [
+     {
+      "at": "c0",
+      "key": "yaml.n1"
+     },
+     {
+      "at": "c1",
+      "key": "yaml.n2"
+     },
+     {
+      "at": "c2",
+      "key": "yaml.n3"
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     "Name it dot ec dot yaml: plain YAML to every tool, an id, a name and a list of steps.",
+     "Each step says what it waits for, and the graph is derived from that.",
+     "It is reviewed in pull requests, diffed and versioned like the rest of your code."
+    ],
+    "es": [
+     {
+      "text": "Ponle de nombre .ec.yaml: YAML normal para cualquier herramienta, un id, un nombre y una lista de pasos.",
+      "say": "Ponle de nombre punto e ce punto yámel: yámel normal para cualquier herramienta, un aidí, un nombre y una lista de pasos."
+     },
+     "Cada paso dice a qué espera, y el grafo se deduce de eso.",
+     {
+      "text": "Se revisa en pull requests, se compara y se versiona como el resto de tu código.",
+      "say": "Se revisa en pul ricuests, se compara y se versiona como el resto de tu código."
+     }
+    ]
+   }
+  },
+  {
+   "id": "open",
+   "view": "live",
+   "spec": {},
+   "narration": {
+    "en": [
+     {
+      "text": "In Visual Studio Code, with the EventConductor extension from the Marketplace, the same file opens as a graph.",
+      "say": "In Visual Studio Code, with the Event Conductor extension from the Marketplace, the same file opens as a graph."
+     },
+     "It is the same graph component the console draws: a palette of step types on the left, the definition on the canvas."
+    ],
+    "es": [
+     {
+      "text": "En Visual Studio Code, con la extensión de EventConductor del Marketplace, el mismo fichero se abre como un grafo.",
+      "say": "En Visual Studio Code, con la extensión de Event Conductor del márketpleis, el mismo fichero se abre como un grafo."
+     },
+     "Es el mismo componente de grafo que dibuja la consola: una paleta de tipos de paso a la izquierda y la definición en el lienzo."
+    ]
+   }
+  },
+  {
+   "id": "edit",
+   "view": "live",
+   "spec": {},
+   "narration": {
+    "en": [
+     "Drag a user task from the palette, and name it in the step panel.",
+     "Shift and drag from one step to another to draw the link: a precondition.",
+     "Select the rooms and choose what happens when a room fails — the panel offers the three policies.",
+     "Every change is written to the file, which you can keep open beside the graph."
+    ],
+    "es": [
+     "Arrastra una tarea de usuario desde la paleta y ponle nombre en el panel del paso.",
+     "Con Mayúsculas, arrastra de un paso a otro para dibujar el enlace: una precondición.",
+     "Selecciona las habitaciones y elige qué pasa cuando falla una: el panel ofrece las tres políticas.",
+     "Cada cambio se escribe en el fichero, que puedes tener abierto junto al grafo."
+    ]
+   }
+  },
+  {
+   "id": "inline",
+   "view": "live",
+   "spec": {},
+   "narration": {
+    "en": [
+     "A sub-process written in line is edited in place: double-click it, and its body becomes the graph, with the same palette and panel.",
+     "The breadcrumb says where you are; Back, or Escape, goes up again."
+    ],
+    "es": [
+     "Un subproceso escrito en línea se edita en su sitio: doble clic, y su cuerpo pasa a ser el grafo, con la misma paleta y el mismo panel.",
+     {
+      "text": "La ruta de arriba dice dónde estás; Back, o Escape, te devuelve al nivel de arriba.",
+      "say": "La ruta de arriba dice dónde estás; bak, o Escape, te devuelve al nivel de arriba."
+     }
+    ]
+   }
+  },
+  {
+   "id": "validate",
+   "view": "terminal",
+   "spec": {
+    "geom": {
+     "x": 90,
+     "y": 110,
+     "w": 1740,
+     "h": 820
+    },
+    "title": "examples/video-series",
+    "items": [
+     {
+      "id": "typo",
+      "at": 0.3,
+      "prompt": "$"
+     },
+     {
+      "id": "validate-broken",
+      "at": "c1",
+      "prompt": "$"
+     },
+     {
+      "id": "validate-fixed",
+      "at": "c2+1.0",
+      "prompt": "$"
+     }
+    ],
+    "opts": {
+     "cps": 40,
+     "lineGap": 0.12
+    }
+   },
+   "extra": 1,
+   "narration": {
+    "en": [
+     "Now a typo: a step that waits for plan-redy, a step that does not exist.",
+     "eventconductor validate, the Maven plugin's goal, reads every definition with the same JSON schema the editor uses, and checks what a schema cannot: here, a dangling reference — and fails the build.",
+     "Fix it, and it passes. The workshop binds it to the build, so a broken definition never reaches a running engine."
+    ],
+    "es": [
+     "Ahora una errata: un paso que espera a plan-redy, un paso que no existe.",
+     {
+      "text": "eventconductor:validate, el goal del plugin de Maven, lee cada definición con el mismo esquema JSON que usa el editor y comprueba lo que un esquema no puede: aquí, una referencia colgante; y rompe el build.",
+      "say": "Event conductor validate, el góul del plaguin de Maven, lee cada definición con el mismo esquema yeisón que usa el editor y comprueba lo que un esquema no puede: aquí, una referencia colgante; y rompe el bild."
+     },
+     {
+      "text": "Lo arreglas y pasa. El taller lo engancha al build, así que una definición rota nunca llega a un motor en marcha.",
+      "say": "Lo arreglas y pasa. El taller lo engancha al bild, así que una definición rota nunca llega a un motor en marcha."
+     }
+    ]
+   }
+  },
+  {
+   "id": "console",
+   "view": "live",
+   "spec": {},
+   "narration": {
+    "en": [
+     "The console shows every definition the engine knows, read-only, with the same graph — and its versions beside it.",
+     "Its play button animates the paths a run can take."
+    ],
+    "es": [
+     "La consola muestra cada definición que conoce el motor, de solo lectura, con el mismo grafo, y sus versiones al lado.",
+     "Su botón de reproducir anima los caminos que puede seguir una ejecución."
+    ]
+   }
+  },
+  {
+   "id": "intellij",
+   "view": "ides",
+   "spec": {},
+   "narration": {
+    "en": [
+     "IntelliJ IDEA has a plugin too: the same graph editor beside the text, in a split editor.",
+     "And every view edits the same file, so YAML, graph and build never disagree."
+    ],
+    "es": [
+     {
+      "text": "IntelliJ IDEA también tiene un plugin: el mismo editor de grafos junto al texto, en un editor dividido.",
+      "say": "Intelli yei aidía también tiene un plaguin: el mismo editor de grafos junto al texto, en un editor dividido."
+     },
+     {
+      "text": "Y todas las vistas editan el mismo fichero, así que el YAML, el grafo y el build nunca discrepan.",
+      "say": "Y todas las vistas editan el mismo fichero, así que el yámel, el grafo y el bild nunca discrepan."
+     }
+    ]
+   }
+  },
+  {
+   "id": "close",
+   "view": "close",
+   "spec": {
+    "line": "close.line",
+    "next": "close.next",
+    "links": [
+     "close.docs",
+     "close.market",
+     "close.license"
+    ]
+   },
+   "extra": 1.5,
+   "narration": {
+    "en": [
+     "One file, three views.",
+     "Next: sagas and compensation — all rooms or none.",
+     "The IDE plugins guide is linked below."
+    ],
+    "es": [
+     "Un fichero, tres vistas.",
+     "Próximo capítulo: sagas y compensación; todas las habitaciones o ninguna.",
+     {
+      "text": "La guía de los plugins de IDE está enlazada abajo.",
+      "say": "La guía de los plaguins de i de e está enlazada abajo."
+     }
+    ]
+   }
+  }
+ ]
+}

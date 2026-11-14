@@ -1,0 +1,451 @@
+{
+ "chapter": 7,
+ "slug": "people-in-the-loop",
+ "app": "examples/video-series",
+ "docs": "guides/user-tasks/",
+ "code": "examples/video-series",
+ "title": {
+  "en": "People in the loop",
+  "es": "Personas en el proceso"
+ },
+ "hook": {
+  "en": "A process that waits days for a person, without a thread waiting with it: a USER_TASK, a form, a task inbox — and what happens when nobody answers.",
+  "es": "Un proceso que espera días a una persona sin un hilo esperando con él: un USER_TASK, un formulario, una bandeja de tareas… y qué pasa cuando nadie responde."
+ },
+ "about": {
+  "en": "Human steps in EventConductor: a USER_TASK with a form (booking-approval.ecform), offered to a group, escalated after a day and timed out after three; the waiting run in the console; the manager's task inbox (Forms → Tasks) where the form is claimed and completed; the operator's alternative — Complete step, with a reason in the audit; and the test kit making days pass in milliseconds. Recorded on the series app (examples/video-series); the manager signs in with a test token, a laptop-only switch.",
+  "es": "Los pasos humanos en EventConductor: un USER_TASK con formulario (booking-approval.ecform), ofrecido a un grupo, escalado al cabo de un día y con timeout a los tres; la ejecución esperando en la consola; la bandeja de tareas del responsable (Forms → Tasks), donde el formulario se reclama y se completa; la alternativa del operador —Complete step, con un motivo en la auditoría—; y el kit de test haciendo pasar días en milisegundos. Grabado sobre la app de la serie (examples/video-series); el responsable entra con un token de prueba, un interruptor solo para el portátil."
+ },
+ "standIns": {
+  "en": "the hotel is a local stand-in, and the manager signs in with a test token (a laptop-only switch)",
+  "es": "el hotel es un sustituto local y el responsable entra con un token de prueba (un interruptor solo para el portátil)"
+ },
+ "youtubeChapters": [
+  {
+   "at": "title",
+   "en": "Start",
+   "es": "Inicio"
+  },
+  {
+   "at": "task",
+   "en": "The user task",
+   "es": "La tarea de usuario"
+  },
+  {
+   "at": "waiting",
+   "en": "Waiting",
+   "es": "Esperando"
+  },
+  {
+   "at": "inbox",
+   "en": "The task inbox",
+   "es": "La bandeja de tareas"
+  },
+  {
+   "at": "operator",
+   "en": "The operator's way",
+   "es": "La vía del operador"
+  },
+  {
+   "at": "time",
+   "en": "Escalation and timeout",
+   "es": "Escalado y timeout"
+  },
+  {
+   "at": "tested",
+   "en": "Tested",
+   "es": "Probado"
+  }
+ ],
+ "scenes": [
+  {
+   "id": "title",
+   "view": "title",
+   "spec": {
+    "eyebrow": "eyebrow",
+    "title": "title",
+    "sub": "sub",
+    "subAt": "c1"
+   },
+   "narration": {
+    "en": [
+     "A booking for three rooms needs a manager's yes — and the manager may answer in five minutes or in two days.",
+     "This chapter: people in the loop."
+    ],
+    "es": [
+     "Una reserva de tres habitaciones necesita el sí de un responsable, y el responsable puede contestar en cinco minutos o en dos días.",
+     "En este capítulo: personas en el proceso."
+    ]
+   }
+  },
+  {
+   "id": "task",
+   "view": "code",
+   "code": {
+    "file": "examples/video-series/src/main/resources/workflows/hotel-booking.ec.yaml",
+    "from": "^  - id: approve",
+    "to": "preconditionStepId: approve"
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 120,
+     "w": 1250,
+     "h": 760
+    },
+    "fontSize": 25,
+    "emphasis": [
+     {
+      "at": "c0",
+      "match": [
+       "type: USER_TASK",
+       "formId: booking-approval"
+      ]
+     },
+     {
+      "at": "c1",
+      "match": [
+       "assignment:",
+       "candidateGroups"
+      ]
+     },
+     {
+      "at": "c2",
+      "match": [
+       "escalation:",
+       "after: P1D",
+       "action: notify"
+      ]
+     },
+     {
+      "at": "c3",
+      "match": [
+       "timeout: P3D"
+      ]
+     },
+     {
+      "at": "c4",
+      "match": [
+       "type: CHOICE",
+       "name: Approved"
+      ]
+     }
+    ],
+    "notes": [
+     {
+      "at": "c0",
+      "key": "task.n1"
+     },
+     {
+      "at": "c1",
+      "key": "task.n2"
+     },
+     {
+      "at": "c2",
+      "key": "task.n3"
+     },
+     {
+      "at": "c3",
+      "key": "task.n4"
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     {
+      "text": "A USER_TASK is a step done by a person, through a form: booking-approval.",
+      "say": "A user task is a step done by a person, through a form: booking approval."
+     },
+     "It is offered to a group, the front-desk managers: any of them may claim it.",
+     "Still open after a day, it escalates — here, it notifies; it could also reassign it, or route the process elsewhere.",
+     "After three days with no decision, the step times out.",
+     "And a choice reads the answer."
+    ],
+    "es": [
+     {
+      "text": "Un USER_TASK es un paso que hace una persona, con un formulario: booking-approval.",
+      "say": "Un iúser task es un paso que hace una persona, con un formulario: búking apruval."
+     },
+     "Se ofrece a un grupo, los responsables de recepción: cualquiera de ellos puede reclamarlo.",
+     "Si sigue abierto al cabo de un día, escala: aquí avisa; también podría reasignarlo o llevar el proceso a otro paso.",
+     {
+      "text": "Tras tres días sin decisión, el paso vence por timeout.",
+      "say": "Tras tres días sin decisión, el paso vence por taim-aut."
+     },
+     "Y una decisión lee la respuesta."
+    ]
+   }
+  },
+  {
+   "id": "form",
+   "view": "code",
+   "code": {
+    "file": "examples/video-series/forms/booking-approval.ecform"
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 170,
+     "w": 1250,
+     "h": 620
+    },
+    "fontSize": 26,
+    "emphasis": [
+     {
+      "at": "c0",
+      "match": [
+       "^id: booking-approval",
+       "^fields:"
+      ]
+     },
+     {
+      "at": "c1",
+      "match": [
+       "id: approved",
+       "dataType: bool",
+       "required: true",
+       "id: comment"
+      ]
+     }
+    ],
+    "notes": [
+     {
+      "at": "c0",
+      "key": "form.n1"
+     },
+     {
+      "at": "c1",
+      "key": "form.n2"
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     "The form is a file too, served by the forms engine in the same application.",
+     "Two fields: approve, a required tick, and a comment. What the manager submits becomes process variables."
+    ],
+    "es": [
+     "El formulario también es un fichero, que sirve el motor de formularios en la misma aplicación.",
+     "Dos campos: aprobar, una casilla obligatoria, y un comentario. Lo que envía el responsable pasa a ser variables del proceso."
+    ]
+   }
+  },
+  {
+   "id": "waiting",
+   "view": "live",
+   "spec": {
+    "terms": [
+     {
+      "items": [
+       {
+        "id": "booking-7",
+        "at": 0.2,
+        "prompt": "$"
+       }
+      ],
+      "opts": {
+       "cps": 140
+      },
+      "from": 0,
+      "to": "c0+2.6",
+      "x": 180,
+      "y": 560,
+      "w": 1560,
+      "h": 300
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     "Booking seven arrives and stops at the manager's approval.",
+     "Nothing is held in memory while it waits: the run is in the database, and the step says what it waits for, who it is for, and when it escalates next.",
+     "The rest of the process is drawn faded: not reached yet."
+    ],
+    "es": [
+     "Llega la reserva siete y se para en la aprobación del responsable.",
+     "Mientras espera no se retiene nada en memoria: la ejecución está en la base de datos, y el paso dice a qué espera, para quién es y cuándo escala la próxima vez.",
+     "El resto del proceso se dibuja atenuado: todavía no se ha alcanzado."
+    ]
+   }
+  },
+  {
+   "id": "inbox",
+   "view": "live",
+   "spec": {
+    "pills": [
+     {
+      "key": "token",
+      "from": 0.4,
+      "right": 130,
+      "y": 950,
+      "cls": "amber"
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     "The manager opens Forms, Tasks: the task inbox, with every task offered to her groups.",
+     "She runs the task, claims it, ticks approve and completes it."
+    ],
+    "es": [
+     "La responsable abre Forms, Tasks: la bandeja de tareas, con todas las tareas ofrecidas a sus grupos.",
+     "Abre la tarea, la reclama, marca aprobar y la completa."
+    ]
+   }
+  },
+  {
+   "id": "approved",
+   "view": "live",
+   "spec": {},
+   "narration": {
+    "en": [
+     "The process goes on at once: the choice takes the approved branch, every room is booked at the hotel, and the guest is told."
+    ],
+    "es": [
+     "El proceso sigue en el acto: la decisión toma la rama aprobada, se reservan todas las habitaciones en el hotel y se avisa al huésped."
+    ]
+   }
+  },
+  {
+   "id": "operator",
+   "view": "live",
+   "spec": {},
+   "narration": {
+    "en": [
+     "When the manager cannot, an operator can: Complete step, on the waiting process.",
+     "The operator gives the output — approved, true — and a reason, which is mandatory.",
+     "The run goes on, and the Operations tab keeps what was done, when, and why."
+    ],
+    "es": [
+     {
+      "text": "Cuando el responsable no puede, un operador sí: Complete step, sobre el proceso que espera.",
+      "say": "Cuando el responsable no puede, un operador sí: «complít step», sobre el proceso que espera."
+     },
+     {
+      "text": "El operador da la salida —approved, true— y un motivo, que es obligatorio.",
+      "say": "El operador da la salida —aprúvd, tru— y un motivo, que es obligatorio."
+     },
+     {
+      "text": "La ejecución sigue, y la pestaña Operations guarda qué se hizo, cuándo y por qué.",
+      "say": "La ejecución sigue, y la pestaña «operéishons» guarda qué se hizo, cuándo y por qué."
+     }
+    ]
+   }
+  },
+  {
+   "id": "time",
+   "view": "clock",
+   "spec": {},
+   "narration": {
+    "en": [
+     "And when nobody answers at all?",
+     "After one day the escalation fires, recorded on the process timeline; after three, the step ends in timeout, and nothing is booked.",
+     "Escalations and timeouts are timers of the engine, stored with the step: a restart does not lose them, and does not fire them twice."
+    ],
+    "es": [
+     "¿Y cuando no contesta nadie?",
+     {
+      "text": "Al cabo de un día salta el escalado, que queda en el historial del proceso; a los tres días, el paso termina en timeout y no se reserva nada.",
+      "say": "Al cabo de un día salta el escalado, que queda en el historial del proceso; a los tres días, el paso termina en taim-aut y no se reserva nada."
+     },
+     {
+      "text": "Los escalados y los timeouts son temporizadores del motor, guardados con el paso: un reinicio no los pierde ni los dispara dos veces.",
+      "say": "Los escalados y los taim-auts son temporizadores del motor, guardados con el paso: un reinicio no los pierde ni los dispara dos veces."
+     }
+    ]
+   }
+  },
+  {
+   "id": "tested",
+   "view": "code",
+   "code": {
+    "file": "examples/workshop-hotel-booking/src/test/java/com/example/hotel/TimeTest.java",
+    "from": "void anApprovalNobodyGivesTimesOutAfterThreeDays",
+    "to": "hasNotPassedSteps\\(\"rooms\"\\)"
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 50,
+     "w": 1780,
+     "h": 620
+    },
+    "fontSize": 23,
+    "emphasis": [
+     {
+      "at": "c1",
+      "match": [
+       "advanceTime\\(Duration.ofDays\\(2\\)\\)",
+       "hasEscalated\\(\"approve\", 1\\)"
+      ]
+     },
+     {
+      "at": "c2",
+      "match": [
+       "advanceTime\\(Duration.ofDays\\(1\\)",
+       "StepExecutionStatus.TIMEOUT",
+       "hasNotPassedSteps"
+      ]
+     }
+    ],
+    "term": {
+     "geom": {
+      "x": 70,
+      "y": 700,
+      "w": 1780,
+      "h": 340
+     },
+     "from": "c1",
+     "items": [
+      {
+       "id": "time-test",
+       "at": "c1+0.3"
+      }
+     ],
+     "opts": {
+      "cps": 45,
+      "lineGap": 0.2
+     }
+    }
+   },
+   "narration": {
+    "en": [
+     "Waiting three days in a test takes milliseconds.",
+     "The workshop has the same definition: two days pass, and the approval is still open — escalated once.",
+     "One more day, and the step has timed out without booking a room."
+    ],
+    "es": [
+     "Esperar tres días en un test lleva milisegundos.",
+     "El taller tiene la misma definición: pasan dos días y la aprobación sigue abierta, escalada una vez.",
+     "Un día más, y el paso ha vencido sin reservar ninguna habitación."
+    ]
+   }
+  },
+  {
+   "id": "close",
+   "view": "close",
+   "spec": {
+    "line": "close.line",
+    "next": "close.next",
+    "links": [
+     "close.docs",
+     "close.workshop",
+     "close.license"
+    ]
+   },
+   "extra": 1.5,
+   "narration": {
+    "en": [
+     "People decide; the engine waits, reminds and keeps the record.",
+     "Next: time and messages.",
+     "Module 6 of the workshop is linked below."
+    ],
+    "es": [
+     "Las personas deciden; el motor espera, recuerda y lo deja todo registrado.",
+     "Próximo capítulo: tiempo y mensajes.",
+     "El módulo 6 del taller está enlazado abajo."
+    ]
+   }
+  }
+ ]
+}

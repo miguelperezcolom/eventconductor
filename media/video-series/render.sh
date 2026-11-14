@@ -7,7 +7,8 @@
 #   5 audio/srt  narration mix; .srt in EN and ES timed to this master
 #   6 assemble   → $OUT/chNN-<lang>.mp4, chNN-<lang>.srt, chNN-<lang>.<other>.srt, chNN-thumb.png, chNN-youtube.md
 # Env: OUT (default build/out), SKIP_RECORD=1 (reuse frames), ONLY=scene,… (record some scenes),
-#      TOOLS (setup.sh's dir), MAVEN_ARGS (passed to Maven), PORT (8095).
+#      TOOLS (setup.sh's dir), MAVEN_ARGS (passed to Maven),
+#      PORT (default: the app's own server.port — 8095 workshop, 8096 series app).
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"; cd "$here"
 ch="${1:?chapter, e.g. 04}"; lang="${2:?en or es}"
@@ -16,6 +17,8 @@ PYV="$TOOLS/venv/bin/python"; export HF_HOME="${HF_HOME:-$TOOLS/hf}"
 [ -x "$PYV" ] || { echo "run ./setup.sh first"; exit 1; }
 b="build/ch$ch/$lang"; mkdir -p "$b" "$OUT"
 app=$(node -e "console.log(JSON.parse(require('fs').readFileSync('chapters/$ch/script.json','utf8')).app)")
+# The app's port: PORT, else its own server.port — the recorder talks to it there (ENGINE).
+export PORT="$(scripts/app.sh port "$app")"; export ENGINE="${ENGINE:-http://localhost:$PORT}"
 
 echo "== 1 tts"
 for l in en es; do "$PYV" -I scripts/tts.py "chapters/$ch/script.json" "$l" "build/ch$ch/$l/audio" 2>&1 | grep -vE 'Warning|warn|^\s*$|WeightNorm|dropout' || true; done

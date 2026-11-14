@@ -1,0 +1,579 @@
+{
+ "chapter": 8,
+ "slug": "time-and-messages",
+ "app": "examples/video-series",
+ "docs": "guides/scheduling-and-deadlines/",
+ "code": "examples/video-series",
+ "title": {
+  "en": "Time and messages",
+  "es": "Tiempo y mensajes"
+ },
+ "hook": {
+  "en": "\"Three days before check-in, at nine, hotel time.\" \"Until the payment arrives.\" \"When the room is ready.\" Business processes wait — for moments and for messages.",
+  "es": "«Tres días antes de la llegada, a las nueve, hora del hotel.» «Hasta que llegue el pago.» «Cuando la habitación esté lista.» Los procesos de negocio esperan: a momentos y a mensajes."
+ },
+ "about": {
+  "en": "Waiting in EventConductor: a TIMER until a business moment computed from the booking (three days before check-in, 09:00 Europe/Madrid), WAIT_FOR_MESSAGE correlated by the business key with a deadline and an onTimeoutStepId route, SEND_MESSAGE from one process to another correlated by room, a step timeout with its own route, and the Schedules page — a cron.yaml schedule paused and run now. Recorded on the series app (examples/video-series).",
+  "es": "Esperar en EventConductor: un TIMER hasta un momento de negocio calculado desde la reserva (tres días antes de la llegada, 09:00 Europe/Madrid), WAIT_FOR_MESSAGE correlado por la clave de negocio con una fecha límite y una ruta onTimeoutStepId, SEND_MESSAGE de un proceso a otro correlado por habitación, el timeout de un paso con su propia ruta, y la página Schedules: una planificación de cron.yaml pausada y lanzada en el acto. Grabado sobre la app de la serie (examples/video-series)."
+ },
+ "standIns": {
+  "en": "the hotel's payment and housekeeping systems are played by the series app's scripts",
+  "es": "los sistemas de pagos y de limpieza del hotel los representan los scripts de la app de la serie"
+ },
+ "youtubeChapters": [
+  {
+   "at": "title",
+   "en": "Start",
+   "es": "Inicio"
+  },
+  {
+   "at": "timer",
+   "en": "A business moment",
+   "es": "Un momento de negocio"
+  },
+  {
+   "at": "wait",
+   "en": "Waiting for a message",
+   "es": "Esperar un mensaje"
+  },
+  {
+   "at": "timer-run",
+   "en": "In the console",
+   "es": "En la consola"
+  },
+  {
+   "at": "between",
+   "en": "Process to process",
+   "es": "De proceso a proceso"
+  },
+  {
+   "at": "cron",
+   "en": "Schedules",
+   "es": "Planificaciones"
+  }
+ ],
+ "scenes": [
+  {
+   "id": "title",
+   "view": "title",
+   "spec": {
+    "eyebrow": "eyebrow",
+    "title": "title",
+    "sub": "sub",
+    "subAt": "c3",
+    "top": 150,
+    "visual": "moments"
+   },
+   "narration": {
+    "en": [
+     "Three days before check-in, at nine, hotel time.",
+     "Until the payment arrives.",
+     "When the room is ready.",
+     "This chapter: time and messages."
+    ],
+    "es": [
+     "Tres días antes de la llegada, a las nueve, hora del hotel.",
+     "Hasta que llegue el pago.",
+     "Cuando la habitación esté lista.",
+     "En este capítulo: tiempo y mensajes."
+    ]
+   }
+  },
+  {
+   "id": "timer",
+   "view": "code",
+   "code": {
+    "file": "examples/video-series/src/main/resources/workflows/balance-reminder.ec.yaml",
+    "from": "^  - id: three-days-before",
+    "to": "zone: Europe/Madrid"
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 200,
+     "w": 1250,
+     "h": 560
+    },
+    "fontSize": 26,
+    "emphasis": [
+     {
+      "at": "c0",
+      "match": [
+       "type: TIMER",
+       "until:"
+      ]
+     },
+     {
+      "at": "c1",
+      "match": [
+       "date: \"\\$\\{checkIn\\}\"",
+       "offset: -P3D",
+       "at: \"09:00\""
+      ]
+     },
+     {
+      "at": "c2",
+      "match": [
+       "zone: Europe/Madrid"
+      ]
+     }
+    ],
+    "notes": [
+     {
+      "at": "c0",
+      "key": "timer.n1"
+     },
+     {
+      "at": "c1",
+      "key": "timer.n2"
+     },
+     {
+      "at": "c2",
+      "key": "timer.n3"
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     {
+      "text": "A TIMER can wait until a moment of the business, computed from the process.",
+      "say": "A timer can wait until a moment of the business, computed from the process."
+     },
+     "The check-in date, three calendar days back, at nine.",
+     "In the hotel's zone, whatever zone the servers run in."
+    ],
+    "es": [
+     {
+      "text": "Un TIMER puede esperar hasta un momento del negocio, calculado a partir del proceso.",
+      "say": "Un táimer puede esperar hasta un momento del negocio, calculado a partir del proceso."
+     },
+     "La fecha de llegada, tres días naturales antes, a las nueve.",
+     "En la zona horaria del hotel, sea cual sea la de los servidores."
+    ]
+   }
+  },
+  {
+   "id": "wait",
+   "view": "code",
+   "code": {
+    "file": "examples/video-series/src/main/resources/workflows/balance-reminder.ec.yaml",
+    "from": "^  - id: wait-payment",
+    "to": "reached only through onTimeoutStepId"
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 60,
+     "w": 1250,
+     "h": 960
+    },
+    "fontSize": 23,
+    "emphasis": [
+     {
+      "at": "c0",
+      "match": [
+       "type: WAIT_FOR_MESSAGE",
+       "messageName: payment-received"
+      ]
+     },
+     {
+      "at": "c1",
+      "match": [
+       "correlationExpression: businessKey"
+      ]
+     },
+     {
+      "at": "c2",
+      "match": [
+       "deadline:",
+       "offset: -P1D",
+       "at: \"12:00\""
+      ]
+     },
+     {
+      "at": "c3",
+      "match": [
+       "onTimeoutStepId: release-room",
+       "^  - id: release-room",
+       "expression: \"false\""
+      ]
+     }
+    ],
+    "notes": [
+     {
+      "at": "c0",
+      "key": "wait.n1"
+     },
+     {
+      "at": "c1",
+      "key": "wait.n2"
+     },
+     {
+      "at": "c2",
+      "key": "wait.n3"
+     },
+     {
+      "at": "c3",
+      "key": "wait.n4"
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     "Then the guest gets a payment link, and the process waits for a message: payment received.",
+     "Correlated by the business key: the message names the booking it belongs to.",
+     "With a deadline, the day before check-in at noon — a business moment again.",
+     "No payment by then, and the process takes the release-room route: an outcome, not a failure."
+    ],
+    "es": [
+     "Después el huésped recibe un enlace de pago, y el proceso espera un mensaje: pago recibido.",
+     "Correlado por la clave de negocio: el mensaje dice a qué reserva pertenece.",
+     "Con una fecha límite, el día antes de la llegada a mediodía; otra vez un momento de negocio.",
+     "Si para entonces no hay pago, el proceso toma la ruta de liberar la habitación: un resultado, no un fallo."
+    ]
+   }
+  },
+  {
+   "id": "timer-run",
+   "view": "live",
+   "spec": {
+    "terms": [
+     {
+      "items": [
+       {
+        "id": "balance-1",
+        "at": 0.2,
+        "prompt": "$"
+       }
+      ],
+      "opts": {
+       "cps": 150
+      },
+      "from": 0,
+      "to": "c0+2.6",
+      "x": 180,
+      "y": 560,
+      "w": 1560,
+      "h": 300
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     "A booking with check-in in twenty days.",
+     "The timer is armed, and the console says exactly when it will fire: nine o'clock, three days before.",
+     "Until then the process holds no thread and no connection — it is a row with a due date."
+    ],
+    "es": [
+     "Una reserva con llegada dentro de veinte días.",
+     "El temporizador está armado, y la consola dice exactamente cuándo saltará: a las nueve, tres días antes.",
+     "Hasta entonces el proceso no ocupa ningún hilo ni ninguna conexión: es una fila con una fecha de vencimiento."
+    ]
+   }
+  },
+  {
+   "id": "payment",
+   "view": "live",
+   "spec": {
+    "terms": [
+     {
+      "items": [
+       {
+        "id": "balance-2",
+        "at": 0.2,
+        "prompt": "$"
+       }
+      ],
+      "opts": {
+       "cps": 150
+      },
+      "from": 0,
+      "to": "c0+2.4",
+      "x": 180,
+      "y": 560,
+      "w": 1560,
+      "h": 300
+     },
+     {
+      "items": [
+       {
+        "id": "paid-2",
+        "at": 0.2,
+        "prompt": "$"
+       }
+      ],
+      "opts": {
+       "cps": 70
+      },
+      "from": "c2-0.2",
+      "to": "c2+3.4",
+      "x": 260,
+      "y": 600,
+      "w": 1400,
+      "h": 240
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     "Another booking, with check-in in two days: three days before has already passed, so the timer fires at once — the default for a moment in the past.",
+     "The link is sent, and the process waits for the payment, with its deadline.",
+     "The payment arrives as a message, naming the booking.",
+     "The wait completes, and the booking is guaranteed."
+    ],
+    "es": [
+     "Otra reserva, con llegada dentro de dos días: «tres días antes» ya pasó, así que el temporizador salta en el acto; es lo que pasa por defecto con un momento pasado.",
+     "Se envía el enlace, y el proceso espera el pago, con su fecha límite.",
+     "El pago llega como un mensaje que nombra la reserva.",
+     "La espera se completa y la reserva queda garantizada."
+    ]
+   }
+  },
+  {
+   "id": "between",
+   "view": "code",
+   "code": {
+    "file": "examples/video-series/src/main/resources/workflows/guest-checkin.ec.yaml",
+    "from": "^  - id: wait-room-ready",
+    "to": "onTimeoutStepId: offer-lounge"
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 120,
+     "w": 1250,
+     "h": 440
+    },
+    "fontSize": 25,
+    "emphasis": [
+     {
+      "at": "c0",
+      "match": [
+       "type: WAIT_FOR_MESSAGE",
+       "messageName: room-ready",
+       "correlationExpression: room"
+      ]
+     },
+     {
+      "at": "c1",
+      "match": [
+       "timeout: PT2H",
+       "onTimeoutStepId: offer-lounge"
+      ]
+     }
+    ],
+    "notes": [
+     {
+      "at": "c0",
+      "key": "between.n1"
+     },
+     {
+      "at": "c1",
+      "key": "between.n2"
+     },
+     {
+      "at": "c2",
+      "key": "between.n3"
+     }
+    ],
+    "term": {
+     "geom": {
+      "x": 70,
+      "y": 600,
+      "w": 1250,
+      "h": 420
+     },
+     "from": "c2",
+     "items": [
+      {
+       "id": "cleaning-yaml",
+       "at": "c2+0.1",
+       "prompt": "$"
+      }
+     ],
+     "opts": {
+      "cps": 80,
+      "lineGap": 0.05
+     }
+    }
+   },
+   "narration": {
+    "en": [
+     "Messages also go from one process to another.",
+     "At the desk, check-in waits for room-ready, correlated by the room number — with a step timeout of two hours, and its own route: offer the lounge.",
+     "The cleaning process ends with a SEND_MESSAGE to whoever waits for that room."
+    ],
+    "es": [
+     "Los mensajes también van de un proceso a otro.",
+     {
+      "text": "En recepción, el check-in espera room-ready, correlado por el número de habitación, con un timeout de paso de dos horas y su propia ruta: ofrecer la sala de espera.",
+      "say": "En recepción, el check-in espera rum redi, correlado por el número de habitación, con un taim-aut de paso de dos horas y su propia ruta: ofrecer la sala de espera."
+     },
+     {
+      "text": "El proceso de limpieza termina con un SEND_MESSAGE a quien espere esa habitación.",
+      "say": "El proceso de limpieza termina con un send mésech a quien espere esa habitación."
+     }
+    ]
+   }
+  },
+  {
+   "id": "checkin",
+   "view": "live",
+   "spec": {
+    "terms": [
+     {
+      "items": [
+       {
+        "id": "checkin-1",
+        "at": 0.2,
+        "prompt": "$"
+       }
+      ],
+      "opts": {
+       "cps": 150
+      },
+      "from": 0,
+      "to": "c0+2.2",
+      "x": 220,
+      "y": 560,
+      "w": 1480,
+      "h": 260
+     },
+     {
+      "items": [
+       {
+        "id": "clean-305",
+        "at": 0.2,
+        "prompt": "$"
+       }
+      ],
+      "opts": {
+       "cps": 90
+      },
+      "from": "c1-0.2",
+      "to": "c1+3.0",
+      "x": 220,
+      "y": 600,
+      "w": 1480,
+      "h": 240
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     {
+      "text": "Bob is at the desk for room 305: check-in waits.",
+      "say": "Bob is at the desk for room three-oh-five: check-in waits."
+     },
+     {
+      "text": "Housekeeping finishes room 305, and its process sends room-ready.",
+      "say": "Housekeeping finishes room three-oh-five, and its process sends room-ready."
+     },
+     "Check-in takes it: the keys are handed over, and the lounge was not needed."
+    ],
+    "es": [
+     "Bob está en recepción para la habitación 305: el check-in espera.",
+     {
+      "text": "Limpieza termina la 305, y su proceso envía room-ready.",
+      "say": "Limpieza termina la 305, y su proceso envía rum redi."
+     },
+     "El check-in lo recibe: se entregan las llaves, y la sala de espera no hizo falta."
+    ]
+   }
+  },
+  {
+   "id": "cron",
+   "view": "code",
+   "code": {
+    "file": "examples/video-series/src/main/resources/workflows/cron.yaml"
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 200,
+     "w": 1780,
+     "h": 520
+    },
+    "fontSize": 26,
+    "emphasis": [
+     {
+      "at": "c0",
+      "match": [
+       "- id: nightly-occupancy",
+       "workflow: nightly-occupancy"
+      ]
+     },
+     {
+      "at": "c1",
+      "match": [
+       "cron:",
+       "zone: Europe/Madrid"
+      ]
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     "Some processes are started by the clock, not by a caller.",
+     "A cron.yaml beside the definitions: every night at three, Madrid time, start the occupancy report."
+    ],
+    "es": [
+     "Algunos procesos los arranca el reloj, no alguien que llama.",
+     {
+      "text": "Un cron.yaml junto a las definiciones: cada noche a las tres, hora de Madrid, se arranca el informe de ocupación.",
+      "say": "Un cron punto yámel junto a las definiciones: cada noche a las tres, hora de Madrid, se arranca el informe de ocupación."
+     }
+    ]
+   }
+  },
+  {
+   "id": "schedules",
+   "view": "live",
+   "spec": {},
+   "narration": {
+    "en": [
+     "The Schedules page lists it, with its next starts.",
+     "The file owns it, so here it can be paused, resumed, or run now.",
+     "Run now starts the report at once, under a business key of its own."
+    ],
+    "es": [
+     {
+      "text": "La página Schedules la muestra, con sus próximos arranques.",
+      "say": "La página «skédiuls» la muestra, con sus próximos arranques."
+     },
+     "El fichero es su dueño, así que aquí se puede pausar, reanudar o lanzar en el acto.",
+     {
+      "text": "Run now arranca el informe al momento, con una clave de negocio propia.",
+      "say": "«Ran nau» arranca el informe al momento, con una clave de negocio propia."
+     }
+    ]
+   }
+  },
+  {
+   "id": "close",
+   "view": "close",
+   "spec": {
+    "line": "close.line",
+    "next": "close.next",
+    "links": [
+     "close.docs",
+     "close.repo",
+     "close.license"
+    ]
+   },
+   "extra": 1.5,
+   "narration": {
+    "en": [
+     "Waiting is a step like any other.",
+     "Next: events in, events out.",
+     "The scheduling and deadlines guide is linked below."
+    ],
+    "es": [
+     "Esperar es un paso como cualquier otro.",
+     "Próximo capítulo: eventos que entran y eventos que salen.",
+     "La guía de planificación y fechas límite está enlazada abajo."
+    ]
+   }
+  }
+ ]
+}
