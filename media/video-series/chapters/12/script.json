@@ -272,16 +272,6 @@
             "at": "c2",
             "key": "scen.n3"
           }
-        ],
-        "pills": [
-          {
-            "key": "release.compensate",
-            "from": "c1",
-            "x": null,
-            "y": 990,
-            "cls": "amber",
-            "right": 130
-          }
         ]
       },
       "narration": {
@@ -547,8 +537,5 @@
         ]
       }
     }
-  ],
-  "release": [
-    "release.compensate.text"
   ]
 }
