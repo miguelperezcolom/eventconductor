@@ -12,7 +12,7 @@ description: All status values for process instances and step executions.
 | `PAUSED` | Held by an operator (or a paused definition) — no new steps start, clocks are frozen |
 | `COMPLETED` | All steps finished successfully |
 | `ERROR` | A step failed after exhausting all retries, and the process was left as it fell (no rollback, or nothing compensable had run) |
-| `COMPENSATED` | The process failed and every executed compensable step was successfully compensated in reverse execution order (saga rollback) |
+| `COMPENSATED` | The process failed — or its flow reached an `END` with `compensate: true` — and every executed compensable step was successfully compensated in reverse execution order (saga rollback) |
 | `COMPENSATION_FAILED` | The process failed and a saga rollback started, but a compensation step itself failed after its own retries — the process is **partially rolled back** and needs manual resolution |
 | `CANCELLED` | Process was cancelled by an operator or a cancellation event |
 
@@ -30,8 +30,9 @@ PAUSED → CANCELLED
 
 A process in `ERROR` can be retried, which transitions it back to `RUNNING`.
 
-`ERROR`, `COMPENSATED` and `COMPENSATION_FAILED` are all reached by failing, but they are three
-different outcomes. `ERROR` means the process failed and was left as it fell. `COMPENSATED` means
+`ERROR`, `COMPENSATED` and `COMPENSATION_FAILED` are all reached by failing (or, for the last two,
+by an [`END` with `compensate: true`](/reference/step-types/#compensate), a rollback the flow decided
+on), but they are three different outcomes. `ERROR` means the process failed and was left as it fell. `COMPENSATED` means
 it failed and then undid its side effects, in order, to the end. While the rollback is running the
 process is `ERROR`; it flips to `COMPENSATED` only once the whole reverse-order compensation chain
 has completed. If a compensation step itself fails after its own retries, the chain halts and the

@@ -126,8 +126,10 @@ public class Process extends AggregateRoot implements Identifiable {
      * that started it while it was still running (the parent is rolling back, its forEach failed fast,
      * or the flow abandoned the branch with {@code compensateLosers}/{@code compensateAbandoned}). The
      * process is then failed without a step of its own having failed: what it has in flight is
-     * cancelled and its completed compensable steps are undone, as for any saga rollback. Null for
-     * every other process — including one an operator cancels, which is not rolled back.
+     * cancelled and its completed compensable steps are undone, as for any saga rollback. Also set when
+     * its own flow reaches an END with {@code compensate: true} — a business decision to undo what the
+     * process did, rolled back the same way. Null for every other process — including one an operator
+     * cancels, which is not rolled back.
      */
     @Hidden
     private String rollbackReason;

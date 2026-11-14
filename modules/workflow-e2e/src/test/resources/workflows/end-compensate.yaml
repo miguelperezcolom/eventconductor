@@ -1,0 +1,31 @@
+id: end-compensate
+name: The guest decides; cancelling undoes what was booked
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: room
+    type: ACTION
+    name: Book a room
+    topic: work
+    preconditionStepId: start
+    compensable: true
+    compensationStepId: cancel-room
+    forEach:
+      items: rooms
+      as: room
+      onIterationFailure: continue
+      output: roomBookings
+      outputElement: bookingId
+  - { id: car, type: ACTION, name: Book a car, topic: work, preconditionStepId: room, compensable: true, compensationStepId: cancel-car }
+  - { id: ask, type: ACTION, name: Ask the guest, topic: work, preconditionStepId: car }
+  - { id: decision, type: CHOICE, name: Cancel or keep, preconditionStepId: ask }
+  - id: cancelled
+    type: END
+    name: Cancelled by the guest
+    compensate: true
+    preconditions:
+      - { stepId: decision, expression: "decision == 'cancel'" }
+  - { id: confirm, type: ACTION, name: Confirm, topic: work, preconditionStepId: decision }
+  - { id: done, type: END, name: Booked, preconditionStepId: confirm }
+  - { id: cancel-room, type: ACTION, name: Cancel a room, topic: work }
+  - { id: cancel-car, type: ACTION, name: Cancel the car, topic: work }

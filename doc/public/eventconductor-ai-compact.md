@@ -88,7 +88,9 @@ are optional, to keep egress and its secrets out of the orchestrator.
   A compensable step cancelled while running (rollback, END in another branch, XOR join) whose work
   completes anyway is kept as completed and undone too (in a non-failed process as a *cleanup*: status
   unchanged, a failed cleanup = incident). Opt-ins: `compensateLosers: true` on an XOR `JOIN` (cancel and
-  undo the losing branches; one winner = first link to complete, losers' outputs discarded), `compensateAbandoned: true` on `END` (undo what the cut-short branches did).
+  undo the losing branches; one winner = first link to complete, losers' outputs discarded), `compensateAbandoned: true` on `END` (undo what the cut-short branches did). On a business decision
+  (guest cancelled), not a failure: an `END` with `compensate: true` rolls the process back on purpose —
+  in-flight work cancelled, completed compensable steps undone newest first → `COMPENSATED`.
   A running child PROCESS the engine cuts short (parent rollback, `failFast` forEach, those two opt-ins)
   rolls itself back first (child ends `COMPENSATED`; the parent waits for it, and its `compensationStepId`
   is not run for that child); a child that already completed is undone by the parent's
@@ -162,7 +164,7 @@ steps:
 | `REPLY` | answer a sync caller: `replyVariables` \| `replyExpression` \| `replyTemplate`; at most one per run |
 | `CONTINUE_AS_NEW` | `continueAsNew: {version: same\|latest, variables}`; fresh run, same business key; nothing after it |
 | `DYNAMIC` | a worker injects steps at runtime (advanced) |
-| `END` | completes the process; `compensateAbandoned: true` undoes what the branches it cut short completed |
+| `END` | completes the process; `compensateAbandoned: true` undoes what the branches it cut short completed; `compensate: true` instead rolls the whole process back on purpose (→ `COMPENSATED`) |
 
 Top-level fields: `id`, `name`, `version`, `description`, `status` (`DRAFT|ACTIVE|DISABLED|ARCHIVED`), `steps`,
 `tags`, `triggers`, `schedules`, `cronExpression`, `syncInvocation {enabled, onFailure, onLockBusy,

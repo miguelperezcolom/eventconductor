@@ -164,3 +164,17 @@ test('compensateLosers shows on an XOR join, compensateAbandoned on an END, each
     /compensateLosers is only allowed on a JOIN with joinType XOR/);
   assert.match(panelOf({ id: 'p', type: 'PROCESS', steps: [{ id: 'start', type: 'START' }] }), /written in line/);
 });
+
+test('compensate shows on an END only, and is refused beside compensateAbandoned', () => {
+  const panelOf = step => {
+    const component = Object.assign(Object.create(prototype), {
+      readOnly: false, selectedId: step.id, wf: { steps: [step] }, agentCatalogue: [], overlayData: {},
+      updateStep: () => {}, renderLoopFields: () => '', renderAssignmentFields: () => '', renderAdvancedFields: () => '', renderContinueAsNewFields: () => '',
+    });
+    return textOf(prototype.renderPanel.call(component));
+  };
+  assert.match(panelOf({ id: 'e', type: 'END' }), /data-compensate=/);
+  assert.doesNotMatch(panelOf({ id: 'a', type: 'ACTION' }), /data-compensate=/);
+  assert.match(panelOf({ id: 'e', type: 'END', compensate: true, compensateAbandoned: true }),
+    /compensate and compensateAbandoned cannot both be set/);
+});
