@@ -517,10 +517,10 @@ Every `@EventConductorTest` test records what its processes did. After each one,
 EventConductor workflow coverage — 35 test(s), 11 definition(s)
 
 definition                       steps              branches           edges
-hotel-booking                    21/21 (100.0%)     10/13 (76.9%)      24/27 (88.9%)
+hotel-booking                    20/20 (100.0%)     10/13 (76.9%)      23/26 (88.5%)
 rooms-booking-all-or-none        3/4 (75.0%)        1/1 (100.0%)       2/3 (66.7%)
 …
-TOTAL                            76/77 (98.7%)      23/28 (82.1%)      70/76 (92.1%)
+TOTAL                            74/75 (98.7%)      23/28 (82.1%)      68/74 (91.9%)
 
 Not covered:
   rooms-booking-all-or-none

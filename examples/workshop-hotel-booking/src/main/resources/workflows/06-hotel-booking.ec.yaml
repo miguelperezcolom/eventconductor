@@ -177,12 +177,6 @@ steps:
     retries: 3
     preconditionStepId: book-alternatives
 
-  - id: confirm-kept                         # the default: keep the rooms that were booked
-    type: ACTION
-    name: Confirm the rooms kept
-    retries: 3
-    preconditionStepId: guest-decision
-
   - id: cancelled-by-guest                   # cancel: the guest's decision undoes what was booked
     type: END
     name: Cancelled by the guest
@@ -194,7 +188,7 @@ steps:
   - id: done
     type: END
     name: Booked
-    preconditionStepIds: [notify-guest, confirm-alternatives, confirm-kept]   # whichever comes
+    preconditionStepIds: [notify-guest, confirm-alternatives, guest-decision]   # whichever comes (guest-decision: its default, keep the rooms)
 
   - id: cancel-room
     type: HTTP_CALL

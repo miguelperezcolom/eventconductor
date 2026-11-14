@@ -114,7 +114,7 @@ With an engine, the process is a definition, and every concern above is either t
 - id: done
   type: END
   name: Done
-  preconditionStepIds: [confirm, confirmKept]
+  preconditionStepIds: [confirm, decision]   # whichever comes; from decision, its default: keep
 
 - id: askGuest                          # a room was refused: tell the guest, ask
   type: ACTION
@@ -156,12 +156,6 @@ With an engine, the process is a definition, and every concern above is either t
   compensate: true
   preconditions:
     - { stepId: decision, expression: "answer == 'cancel'" }
-
-- id: confirmKept                       # the default: keep the rooms that were booked
-  type: ACTION
-  name: Confirm the rooms kept
-  preconditionStepId: decision
-  topic: notifications
 
 - id: cancelRoom                        # the compensation: runs once per completed room
   type: HTTP_CALL
