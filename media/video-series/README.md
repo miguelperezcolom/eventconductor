@@ -55,3 +55,14 @@ Needs JDK 21, Maven, Node 20+, ffmpeg (libx264), Python 3.12, and port 8095 free
 stopped by the script; `PORT` changes it). `MAVEN_ARGS` is passed to every Maven run (e.g. a separate
 local repository). Iterating: `SKIP_RECORD=1` reuses the recorded frames, `ONLY=lanes,hotel` re-records
 some shots, `node scripts/render-video.mjs 04 en --stills 12,40.5` renders single frames.
+
+### Optional per chapter (additive, chapters 9–14 use them)
+
+- `script.json`: `port` (the app's own port: console title, `ENGINE`, `--server.port`), `prompt` (terminal prompt),
+  `appArgs` (Spring arguments; `{here}` = this directory), `before` (shell, at the repo root, before the app starts),
+  `apps` (`[{name, app, port, appArgs}]`: more apps, exported to the recorder as `ENGINE_<NAME>`).
+- Scene specs: `host` / `app` on a live scene (another app's window title), `pills` on a code scene.
+- Recorder: `c.term(id, cmd, { env })`, `c.shot(id, open, script, { context })` (Playwright context options, e.g.
+  `httpCredentials`), `c.open(url)` with a full URL for another app's page.
+- A narration string with several sentences becomes several cues (`tts.py` splits it); write `{"text": …}` to keep
+  it one cue, so `cN` and `s.untilCue(N)` mean the same entry in both languages.

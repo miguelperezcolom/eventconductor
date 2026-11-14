@@ -1,0 +1,19 @@
+{
+  "eyebrow": "EventConductor · Chapter 12",
+  "title": "Testing **workflows**",
+  "sub": "Test kit · scenarios · coverage · eventconductor:verify",
+  "flow": [["@EventConductorTest", "az", "c1"], ["scenarios", "az", "c1"], ["coverage", "good", "c1"], ["verify", "amb", "c1"]],
+  "scen.n1": "how steps answer — the first answer whose `when` holds",
+  "scen.n2": "a scenario: `workflow` · `variables` · `expect`",
+  "scen.n3": "`ScenariosTest` runs each one as a test · new in 2.41",
+  "ci.n1": "every pull request, every push to main",
+  "ci.n2": "`check-migration` against the PR's base: `fetch-depth: 0`",
+  "ci.n3": "the coverage report kept as an artifact",
+  "close.line": "Definitions, **tested like code.**",
+  "close.next": "Next · From laptop to cluster",
+  "close.docs": "eventconductor.mateu.io · Testing workflows",
+  "close.workshop": "Workshop · Automate it",
+  "close.license": "Open source · MIT",
+  "thumb.title": "Testing **workflows**",
+  "thumb.sub": "Test kit · scenarios · coverage · verify"
+}

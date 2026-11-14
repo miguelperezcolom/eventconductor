@@ -191,6 +191,27 @@ public class ProcessDetailPage {
         return new java.util.ArrayList<>((java.util.List<String>) (java.util.List<?>) raw);
     }
 
+    /** Clicks a step's node on the diagram (by step id), the way a reader does. */
+    public void clickDiagramStep(String stepId) {
+        page.locator("eventconductor-workflow-graph").first()
+                .locator(".node[data-node=\"" + stepId + "\"] .node-inner").click();
+    }
+
+    /** Moves the pointer off the diagram, so only a pinned card can still be showing. */
+    public void pointerAway() {
+        page.mouse().move(1, 1);
+    }
+
+    /** The diagnostic card the diagram is showing, as its text — or null when none is. */
+    public String stepCard() {
+        return page.locator("eventconductor-workflow-graph").first().evaluate("""
+                el => {
+                    if (!el.shadowRoot) return null;
+                    const tip = el.shadowRoot.querySelector('.ov-tip');
+                    return tip ? tip.innerText : null;
+                }""") instanceof String text ? text : null;
+    }
+
     /** The full text a guard chip reveals under the pointer, for the first chip on the canvas. */
     public String firstGuardFullText() {
         return page.locator("eventconductor-workflow-graph").first().evaluate("""

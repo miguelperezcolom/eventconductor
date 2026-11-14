@@ -1,0 +1,32 @@
+# Chapter 13 — what the recording adds to apps/docker-compose.yml (that file uses :latest):
+#   docker compose -f apps/docker-compose.yml -f media/video-series/chapters/13/compose.2.41.0.yml up -d orchestrator redpanda-console
+# - the orchestrator image pinned to the release the series is recorded on, 2.41.0;
+# - the workshop's own definition file mounted into it (the standalone app imports WORKFLOW_DEFINITIONS_DIRS);
+# - its `hotel` connection pointed at the workshop app's stand-in hotel on the host (HOTEL_URL to change it);
+# - two host ports moved, because the recording machine already uses 5432 and 8082;
+# - postgres pinned to 16 (the Helm chart's): apps/docker-compose.yml says postgres:latest, which is now 18, and 18
+#   refuses a volume mounted at /var/lib/postgresql/data — the compose file as it stands does not start (reported);
+# - redpanda's healthcheck made to match today's rpk, which pads "Healthy:" with spaces (the file greps for
+#   'Healthy: true', so with redpanda:latest the broker never turns healthy and nothing starts — reported).
+# Relative paths are resolved against apps/, the directory of the first file.
+services:
+  postgres-db:
+    image: postgres:16
+    ports: !override
+      - "15432:5432"
+  redpanda:
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -Eq 'Healthy:[[:space:]]+true'"]
+    ports: !override
+      - "9092:9092"
+      - "19092:19092"
+      - "18082:8082"
+  orchestrator:
+    image: miguelperezcolom/orchestrator-standalone-app:2.41.0
+    environment:
+      WORKFLOW_DEFINITIONS_DIRS: /definitions
+      WORKFLOW_HTTP_CONNECTIONS_HOTEL_BASEURL: ${HOTEL_URL:-http://host.docker.internal:8095/fake/hotel}
+    volumes:
+      - ../examples/workshop-hotel-booking/src/main/resources/workflows/04-rooms-booking-http.ec.yaml:/definitions/04-rooms-booking-http.ec.yaml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

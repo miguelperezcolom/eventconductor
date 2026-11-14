@@ -1,0 +1,26 @@
+# Chapter 14 — a definition that asks for a secret the deployment never listed. The series app imports this
+# directory for the recording (workflow.directory-import); the call fails at run time, by design.
+id: partner-push
+name: Push availability to a partner
+steps:
+  - id: start
+    type: START
+    name: Availability changed
+
+  - id: push
+    type: HTTP_CALL
+    name: Push to the partner
+    preconditionStepId: start
+    http:
+      connection: channel-manager
+      method: PUT
+      path: "/availability/${room}"
+      auth: { type: bearer, token: "${secret:PARTNER_TOKEN}" }   # resolved only from workflow.http.secrets
+      body:
+        room: "${room}"
+        available: "${available}"
+
+  - id: done
+    type: END
+    name: Pushed
+    preconditionStepId: push

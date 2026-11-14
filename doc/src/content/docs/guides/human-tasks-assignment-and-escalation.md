@@ -120,7 +120,7 @@ Several escalations due at once (the engine was down, or `advanceTime` jumped pa
 
 The forms engine lists a person's tasks the same way everywhere, applying the rules above:
 
-- **UI** — **Tasks** (`/forms/tasks`): filters *Show* (All, Mine, Claimable, My groups), *Overdue only*, *Min priority*, *Process*, *Business key*; most urgent first, then soonest due; columns for priority, due date and an *Overdue* / *Escalated* badge, who holds it and who it is offered to. **Tasks v2** shows the same open tasks with their form inline, then the ones you completed. The task page shows priority, due date (overdue), escalation and who it is offered to, and offers *Claim* / *Release* / *Complete* only when they apply. The header badge counts your open tasks and says how many are overdue.
+- **UI** — **Tasks** (`/forms/tasks`): filters *Show* (All, Mine, Claimable, My groups), *Overdue only*, *Min priority*, *Process*, *Business key*; most urgent first, then soonest due; columns for priority, due date and an *Overdue* / *Escalated* badge, who holds it and who it is offered to. **Task inbox** (`/forms/tasksV2`, in `FormsMenu`) shows the same open tasks with their form inline, then the ones you completed. The task page shows priority, due date (overdue), escalation and who it is offered to, and offers *Claim* / *Release* / *Complete* only when they apply. The header badge counts your open tasks and says how many are overdue.
 - **REST** — `/forms/api/tasks`, always as the signed-in caller (anonymous is refused with 401):
 
   | | |

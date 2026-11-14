@@ -1,0 +1,128 @@
+{
+  "chapter": 13,
+  "slug": "laptop-to-cluster",
+  "app": "examples/workshop-hotel-booking",
+  "docs": "guides/deployment-modes/",
+  "code": "examples/workshop-hotel-booking",
+  "title": { "en": "From laptop to cluster", "es": "Del portátil al clúster" },
+  "hook": {
+    "en": "The booking that ran inside one Spring Boot app runs, unchanged, on an orchestrator over Kafka — and the Helm chart deploys it.",
+    "es": "La reserva que corría dentro de una app Spring Boot corre, sin cambios, en un orquestador sobre Kafka, y el chart de Helm la despliega."
+  },
+  "about": {
+    "en": "The same definition in every topology: embedded in memory or on a database (two properties), then distributed — the repository's docker compose stack with the 2.41.0 orchestrator, Redpanda and Postgres — running the workshop's HTTP saga through Kafka and the orchestrator's built-in workers, the topics in the broker, and the Helm chart rendering the same apps. Recorded on the workshop app and apps/docker-compose.yml.",
+    "es": "La misma definición en cada topología: embebida en memoria o sobre una base de datos (dos propiedades), y luego distribuida —el docker compose del repositorio con el orquestador 2.41.0, Redpanda y Postgres— ejecutando la saga HTTP del taller a través de Kafka y los workers integrados del orquestador, los topics en el broker, y el chart de Helm generando las mismas apps. Grabado sobre la app del taller y apps/docker-compose.yml."
+  },
+  "standIns": { "en": "the hotel is a local stand-in served by the workshop app", "es": "el hotel es un sustituto local que sirve la propia app del taller" },
+  "youtubeChapters": [
+    { "at": "title", "en": "One definition, every topology", "es": "Una definición, todas las topologías" },
+    { "at": "embedded", "en": "Embedded", "es": "Embebido" },
+    { "at": "compose", "en": "Distributed over Kafka", "es": "Distribuido sobre Kafka" },
+    { "at": "topics", "en": "In the broker", "es": "En el broker" },
+    { "at": "helm", "en": "The Helm chart", "es": "El chart de Helm" },
+    { "at": "recap", "en": "Recap", "es": "Resumen" }
+  ],
+  "scenes": [
+    {
+      "id": "title", "view": "title",
+      "spec": { "eyebrow": "eyebrow", "title": "title", "sub": "sub", "subAt": "c2", "top": 190, "visual": "flow", "size": 112 },
+      "narration": {
+        "en": ["So far, every booking ran inside one Spring Boot app, on a laptop.", "The same definition can run on an orchestrator over Kafka, and on Kubernetes.", { "text": "This chapter: from laptop to cluster, with EventConductor.", "say": "This chapter: from laptop to cluster, with Event Conductor." }],
+        "es": ["Hasta ahora, cada reserva corría dentro de una app Spring Boot, en un portátil.", "La misma definición puede correr en un orquestador sobre Kafka, y en Kubernetes.", { "text": "En este capítulo: del portátil al clúster, con EventConductor.", "say": "En este capítulo: del portátil al clúster, con Event Conductor." }]
+      }
+    },
+    {
+      "id": "embedded", "view": "code",
+      "code": { "file": "examples/workshop-hotel-booking/src/main/resources/application.properties", "from": "^# --- The engine", "to": "ddl-auto" },
+      "spec": {
+        "geom": { "x": 70, "y": 180, "w": 1780, "h": 440 }, "fontSize": 24,
+        "emphasis": [
+          { "at": "c0", "match": ["workflow.mode=embedded"] },
+          { "at": "c1", "match": ["workflow.persistence=jpa", "spring.datasource.url"] }
+        ],
+        "pills": [{ "key": "embedded.pill", "from": "c2", "x": 150, "y": 680 }]
+      },
+      "narration": {
+        "en": ["Embedded, the engine is a library inside your app.", "Its state lives in the app's own database, H2 in memory here, so restarts start clean; with a real database, processes survive them.", "Two properties pick the topology, and no code changes between them."],
+        "es": ["Embebido, el motor es una librería dentro de tu app.", "Su estado vive en la propia base de datos de la app, aquí H2 en memoria, así que cada arranque empieza limpio; con una base de datos real, los procesos sobreviven a los reinicios.", "Dos propiedades eligen la topología, y el código no cambia entre una y otra."]
+      }
+    },
+    {
+      "id": "topo", "view": "cards",
+      "spec": { "head": "topo.head", "items": "topo.items", "cols": 3, "strip": "topo.strip", "stripAt": "c2", "stripTop": 660, "cardH": 380 },
+      "narration": {
+        "en": ["In memory for tests and demos, on a database for one service that must not forget.", "When one service is not enough, mode kafka: an orchestrator owns each process, and workers take the tasks from topics, in any language.", "HTTP calls, model calls and published events need no worker at all: the orchestrator serves them itself."],
+        "es": ["En memoria para tests y demos, sobre una base de datos para un servicio que no debe olvidar.", "Cuando un servicio no basta, el modo kafka: un orquestador es dueño de cada proceso, y los workers toman las tareas de los topics, en cualquier lenguaje.", "Las llamadas HTTP, las llamadas a modelos y los eventos publicados no necesitan ningún worker: los sirve el propio orquestador."]
+      }
+    },
+    {
+      "id": "compose", "view": "terminal",
+      "spec": {
+        "geom": { "x": 80, "y": 70, "w": 1760, "h": 860 }, "title": "eventconductor (repository root)",
+        "items": [{ "id": "compose-up", "at": 0.3, "prompt": "~/eventconductor $" }, { "id": "compose-ps", "at": "c1", "prompt": "~/eventconductor $" }],
+        "opts": { "cps": 110, "lineGap": 0.06 },
+        "pills": [{ "key": "compose.pins", "from": "c2", "x": 80, "y": 960, "cls": "amber" }]
+      },
+      "extra": 0.8,
+      "narration": {
+        "en": ["This is the distributed stack from the repository's docker compose file: Postgres, Redpanda as the Kafka broker, and the orchestrator.", "The orchestrator is the 2.41.0 image, and the workshop's definition file is mounted into it, unchanged.", "On this machine the recording also pins two images and moves two ports; the note on screen says why."],
+        "es": ["Este es el stack distribuido del docker compose del repositorio: Postgres, Redpanda como broker de Kafka, y el orquestador.", "El orquestador es la imagen 2.41.0, y el fichero de definición del taller está montado dentro, sin cambios.", "En esta máquina, la grabación además fija dos imágenes y mueve dos puertos; la nota en pantalla explica por qué."]
+      }
+    },
+    {
+      "id": "dc-run", "view": "live",
+      "spec": {
+        "host": "localhost:8105",
+        "app": "EventConductor console · orchestrator (kafka + jpa)",
+        "terms": [
+          { "items": [{ "id": "booking-13", "at": 0.2, "prompt": "~/workshop-hotel-booking $" }], "opts": { "cps": 110, "lineGap": 0.05 }, "from": 0, "to": "c1-0.2", "x": 160, "y": 520, "w": 1600, "h": 380 }
+        ],
+        "pills": [{ "key": "standin.hotel", "from": "c1", "right": 130, "y": 990, "cls": "amber" }]
+      },
+      "extra": 0.8,
+      "narration": {
+        "en": ["The same penthouse booking, now against the orchestrator.", "Every hotel call went through Kafka to the orchestrator's built-in HTTP worker, and the room that was booked has been cancelled.", "Compensated, exactly as embedded, in the same console, behind a login."],
+        "es": ["La misma reserva con ático, ahora contra el orquestador.", "Cada llamada al hotel pasó por Kafka hasta el worker HTTP integrado del orquestador, y la habitación que se reservó se ha cancelado.", "Compensada, igual que embebida, en la misma consola, detrás de un inicio de sesión."]
+      }
+    },
+    {
+      "id": "topics", "view": "live",
+      "spec": { "host": "localhost:8888", "app": "Redpanda Console · the broker of the stack" },
+      "extra": 0.6,
+      "narration": {
+        "en": ["In the broker: the engine's own topics, outbox and upstream, and one topic per built-in worker: http-calls, llm-calls and event-publications.", "The process is the message key, so one orchestrator instance owns each process at a time."],
+        "es": [{ "text": "En el broker: los topics del propio motor, outbox y upstream, y uno por cada worker integrado: http-calls, llm-calls y event-publications.", "say": "En el broker: los tópics del propio motor, áutbox y ápstrim, y uno por cada worker integrado: eich ti ti pi colls, el el em colls e ivent publicéishons." }, "El proceso es la clave del mensaje, así que cada proceso tiene un único orquestador dueño en cada momento."]
+      }
+    },
+    {
+      "id": "helm", "view": "terminal",
+      "spec": {
+        "geom": { "x": 80, "y": 90, "w": 1760, "h": 880 }, "title": "eventconductor (repository root)",
+        "items": [{ "id": "helm-lint", "at": 0.3, "prompt": "~/eventconductor $" }, { "id": "helm-nopass", "at": "c1", "prompt": "~/eventconductor $" }, { "id": "helm-template", "at": "c2", "prompt": "~/eventconductor $" }],
+        "opts": { "cps": 110, "lineGap": 0.08 }
+      },
+      "extra": 1.0,
+      "narration": {
+        "en": ["On Kubernetes, the Helm chart in the repository deploys the same apps.", "It will not render without a database password: nothing ships with a default one.", "And it pins every app to the chart's version, 2.41.0, with Postgres and Redpanda to start with."],
+        "es": ["En Kubernetes, el chart de Helm del repositorio despliega las mismas apps.", "No se genera sin una contraseña para la base de datos: nada sale con una por defecto.", "Y fija cada app a la versión del chart, la 2.41.0, con Postgres y Redpanda para empezar."]
+      }
+    },
+    {
+      "id": "recap", "view": "cards",
+      "spec": { "head": "recap.head", "items": "recap.items", "cols": 2, "strip": "recap.strip", "stripAt": "c2", "stripTop": 720, "cardH": 220 },
+      "narration": {
+        "en": ["Start embedded, in memory or on your database.", "Grow into the orchestrator over Kafka, and deploy it with the chart.", "Wherever it runs, definitions can come from Git and change without a redeploy, as in chapter 11."],
+        "es": ["Empieza embebido, en memoria o sobre tu base de datos.", "Crece hacia el orquestador sobre Kafka, y despliégalo con el chart.", "Corra donde corra, las definiciones pueden venir de Git y cambiar sin redesplegar, como en el capítulo 11."]
+      }
+    },
+    {
+      "id": "close", "view": "close",
+      "spec": { "line": "close.line", "next": "close.next", "links": ["close.docs", "close.chart", "close.license"] },
+      "extra": 1.5,
+      "narration": {
+        "en": ["One definition, every topology.", "Next: secure and observable by default."],
+        "es": ["Una definición, todas las topologías.", "Próximo capítulo: seguro y observable por defecto."]
+      }
+    }
+  ]
+}
