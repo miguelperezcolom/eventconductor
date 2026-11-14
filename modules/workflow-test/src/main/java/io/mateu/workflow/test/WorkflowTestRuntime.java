@@ -34,6 +34,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -59,6 +60,8 @@ public final class WorkflowTestRuntime {
     private final StubbingTaskExecutor executor;
     private final PublishedEventRecorder published;
     private final ApplicationContext context;
+    /** The processes that existed when the current test began: not its own, so not its coverage. */
+    private Set<String> processesBefore = Set.of();
 
     WorkflowTestRuntime(TestClock clock, StubbingTaskExecutor executor, PublishedEventRecorder published,
                         ApplicationContext context) {
@@ -77,12 +80,42 @@ public final class WorkflowTestRuntime {
                 .collect(Collectors.toCollection(HashSet::new));
         executor.reset(existing);
         published.clear();
+        processesBefore = Set.copyOf(existing);
         runUntilIdle();
     }
 
-    /** Called after each test: the engine clock goes back to the system clock. */
+    /** Called after each test: what its processes did goes into the coverage, the engine clock back to the system clock. */
     void endTest() {
-        EngineClock.reset();
+        try {
+            recordCoverage();
+        } catch (RuntimeException e) {
+            // Coverage is a report about the tests, never a reason for one to fail.
+            System.err.println("[eventconductor] workflow coverage not recorded: " + e);
+        } finally {
+            EngineClock.reset();
+        }
+    }
+
+    /** Adds the processes this test started (or the engine started during it) to {@link WorkflowCoverage}, and writes the report. */
+    void recordCoverage() {
+        if (!WorkflowCoverage.enabled()) {
+            return;
+        }
+        var coverage = WorkflowCoverage.current();
+        recordInto(coverage);
+        coverage.write(WorkflowCoverage.directory());
+    }
+
+    /** Adds every definition the engine knows, and what the current test's processes did, to {@code coverage}. */
+    void recordInto(WorkflowCoverage coverage) {
+        coverage.register(io.mateu.workflow.domain.services.EmbeddedProcessDefinitions.withEmbedded(
+                repository(io.mateu.workflow.application.out.WorkflowDefinitionRepository.class).findAll()));
+        for (var process : repository(ProcessRepository.class).findAll()) {
+            if (!processesBefore.contains(process.id())) {
+                coverage.record(process.getWorkflowDefinitionId(), stepExecutions(process.id()));
+            }
+        }
+        coverage.testFinished();
     }
 
     // ---------------------------------------------------------------- definitions
@@ -511,6 +544,39 @@ public final class WorkflowTestRuntime {
     /** The dispatches of one step (in any process) during this test. */
     public List<TaskInvocation> invocationsOf(String stepId) {
         return executor.invocations().stream().filter(invocation -> stepId.equals(invocation.stepId())).toList();
+    }
+
+    // ---------------------------------------------------------------- scenarios
+
+    /**
+     * Runs a {@link Scenario}: sets up its stubs, starts its process, plays its {@code then} actions and checks
+     * its {@code expect}ations, failing the test as an assertion would. Returns the process, for more assertions.
+     */
+    public TestProcess run(Scenario scenario) {
+        return new ScenarioRunner(this, scenario).run();
+    }
+
+    /**
+     * The scenarios under {@code locations}, as dynamic tests — for a {@code @TestFactory}. Each one runs
+     * with fresh mocks, as a test of its own:
+     *
+     * <pre>{@code
+     * @TestFactory
+     * Stream<DynamicTest> scenarios(WorkflowTestRuntime runtime) {
+     *     return runtime.scenarios("src/test/scenarios");
+     * }
+     * }</pre>
+     */
+    public java.util.stream.Stream<org.junit.jupiter.api.DynamicTest> scenarios(String... locations) {
+        return Scenario.load(locations).stream().map(scenario -> org.junit.jupiter.api.DynamicTest.dynamicTest(
+                scenario.toString(), () -> {
+                    beginTest();
+                    try {
+                        run(scenario);
+                    } finally {
+                        recordCoverage();
+                    }
+                }));
     }
 
     // ---------------------------------------------------------------- engine access

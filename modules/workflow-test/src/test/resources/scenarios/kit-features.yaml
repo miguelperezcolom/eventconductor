@@ -1,0 +1,148 @@
+# One scenario per thing a scenario file can say, against the kit's own test definitions.
+scenarios:
+  - name: an HTTP call retried after a 503
+    workflow: http-charge
+    variables: { bookingId: B1, amount: 10 }
+    http:
+      charge:
+        - { status: 503 }
+        - { status: 201, body: { id: ch_1 }, headers: { Content-Type: application/json } }
+    then:
+      - advanceTime: PT1M                # the retry's backoff
+    expect:
+      status: COMPLETED
+      variables: { chargeId: ch_1 }
+      invocations: { charge: 2 }
+
+  - name: an HTTP call that never connects
+    workflow: http-charge
+    variables: { bookingId: B2, amount: 10 }
+    http:
+      charge: { ioError: true }
+    then:
+      - advanceTime: PT5M
+    expect:
+      status: ERROR
+
+  - name: a model answers with JSON
+    workflow: triage
+    variables: { guest: Ann, complaint: the party next door }
+    llm:
+      triage: { answer: { category: noise } }
+    expect:
+      status: COMPLETED
+      variables: { category: noise }
+
+  - name: a model that is rate limited
+    workflow: triage
+    variables: { guest: Bo, complaint: cold }
+    llm:
+      triage: { fail: LLM_RATE_LIMITED, retryable: false }
+    expect:
+      status: ERROR
+
+  - name: an agent accepts the claim
+    workflow: claim-assessment
+    variables: { claimId: C-1 }
+    agents:
+      assess: { output: { decision: accept } }
+    expect:
+      status: COMPLETED
+      variables: { assessment: { decision: accept } }
+
+  - name: an agent asks for a review
+    workflow: claim-assessment
+    variables: { claimId: C-2 }
+    agents:
+      assess: [ { reviewRequired: true }, { output: "{\"decision\":\"refer\"}" } ]
+    expect:
+      status: PAUSED
+
+  - name: an agent fails
+    workflow: claim-assessment
+    variables: { claimId: C-3 }
+    agents:
+      assess: { fail: AGENT_REFUSED, message: not a claim }
+    expect:
+      status: ERROR
+
+  - name: a manager approves
+    workflow: approval
+    steps:
+      notify: { complete: {} }
+    then:
+      - completeUserTask: { step: approve, values: { approved: true } }
+    expect:
+      status: COMPLETED
+      variables: { approved: true }
+
+  - name: the guest confirms in time
+    workflow: guest-confirmation
+    tasks:
+      confirm: { complete: {} }
+    then:
+      - advanceTime: PT2H
+      - sendMessage: { name: guest-confirmed, variables: { confirmed: "yes" } }
+    expect:
+      status: COMPLETED
+      passedSteps: [confirm]
+      notPassedSteps: [chase]
+
+  - name: a payment event resumes the booking, which announces it
+    workflow: booking-events
+    variables: { bookingId: B-9 }
+    then:
+      - publishEvent: { destination: payments, type: com.acme.payment.captured, data: { bookingId: B-9, paymentId: P-1 } }
+    expect:
+      status: COMPLETED
+      variables: { paymentId: P-1 }
+      publishedEvents: [com.acme.booking.paid]
+
+  - name: an update picks the parcel up
+    workflow: shipment
+    variables: { address: Old road 1 }
+    steps:
+      pack: { complete: {} }
+      deliver: { complete: {} }
+    then:
+      - update: { name: pickUp, payload: { courier: Ann } }
+    expect:
+      status: COMPLETED
+      variables: { courier: Ann }
+
+  - name: a supplier answers by hand
+    workflow: slow-supplier
+    then:
+      - completeTask: { step: order, variables: { orderId: O-1 } }
+      - runUntilIdle: true
+    expect:
+      status: COMPLETED
+      variables: { orderId: O-1 }
+
+  - name: a supplier refuses by hand
+    workflow: slow-supplier
+    then:
+      - failTask: { step: order, code: OUT_OF_STOCK, retryable: false }
+    expect:
+      status: ERROR
+
+  - name: an approval nobody gives is cancelled
+    workflow: approval
+    then:
+      - cancel: true
+    expect:
+      status: CANCELLED
+
+  - name: a quote replies
+    workflow: quote
+    steps:
+      price: { complete: { roomType: deluxe, price: "240" } }
+    expect:
+      status: COMPLETED
+      reply: { roomType: deluxe, price: "240" }
+
+  - name: a task waits for its worker
+    workflow: approval
+    expect:
+      status: RUNNING
+      waitingAt: approve

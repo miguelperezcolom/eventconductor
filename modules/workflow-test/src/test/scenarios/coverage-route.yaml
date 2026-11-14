@@ -1,0 +1,51 @@
+# Scenarios of coverage-route, as someone who does not write Java would add them.
+workflow: coverage-route
+tasks:                                   # shared by every scenario of the file; a scenario adds or overrides
+  reserve: { complete: { reservation: R-1 } }
+  check: { complete: {} }
+  release: { complete: {} }
+scenarios:
+  - name: a gold customer goes express
+    variables: { tier: gold }
+    tasks:
+      express: { complete: { lane: "express-${tier}" } }
+    expect:
+      status: COMPLETED
+      passedSteps: [reserve, check, route, express]
+      notPassedSteps: [standard]
+      variables: { lane: express-gold, reservation: R-1 }
+      invocations: { express: 1 }
+
+  - name: a standard customer is checked twice
+    variables: { tier: bronze }
+    tasks:
+      standard:                          # in order: the n-th dispatch gets the n-th answer
+        - { complete: { again: "yes" } }
+        - { complete: { again: "no" } }
+    expect:
+      status: COMPLETED
+      passedSteps: [standard]
+      invocations: { check: 2, standard: 2 }
+
+  - name: a check that never answers escalates
+    businessKey: COVERAGE-TIMEOUT
+    variables: { tier: gold }
+    tasks:
+      check: { timeout: true }
+      escalate: { complete: { escalatedTo: ops } }
+    then:
+      - advanceTime: PT61M
+    expect:
+      passedSteps: [escalate]
+      variables: { escalatedTo: ops }
+
+  - name: a failure undoes the reservation
+    variables: { tier: bronze }
+    tasks:
+      standard:                          # the first answer whose `when` holds over what the task was sent
+        - { when: "tier == 'bronze'", fail: NO_STOCK, retryable: false }
+        - { complete: {} }
+    expect:
+      status: COMPENSATED
+      passedSteps: [reserve, release]
+      missingVariables: [lane]

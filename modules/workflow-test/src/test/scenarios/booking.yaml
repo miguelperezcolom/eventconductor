@@ -1,0 +1,28 @@
+# The scenarios the testing guide shows (doc/src/content/docs/guides/testing-workflows.md), as it shows them.
+workflow: booking-saga                 # shared by every scenario of the file
+tasks:
+  reserve-room: { complete: { reservationId: R-1 } }
+  refund: { complete: {} }
+  release-room: { complete: {} }
+
+scenarios:
+  - name: the payment is captured after the cooling-off period
+    variables: { amount: 120 }
+    tasks:
+      charge-card: { complete: { chargeId: ch_1 } }
+      capture-payment: { complete: {} }
+    then:
+      - advanceTime: P3D
+    expect:
+      status: COMPLETED
+      passedSteps: [reserve, charge, capture]
+      variables: { chargeId: ch_1 }
+
+  - name: a declined card releases the room
+    variables: { amount: 120 }
+    tasks:
+      charge-card: { fail: CARD_DECLINED, retryable: false }
+    expect:
+      status: COMPENSATED
+      passedSteps: [release]
+      notPassedSteps: [capture]
