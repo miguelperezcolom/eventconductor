@@ -33,7 +33,7 @@ window.VIEWS = Object.assign(window.VIEWS || {}, {
   thumb(root, sc, H) {
     const { el, css, S, rich, D } = H;
     const num = el('div', null, String(D.chapter).padStart(2, '0'), root);
-    css(num, { position: 'absolute', right: 90, top: 10, fontFamily: 'var(--mono)', fontWeight: 800, fontSize: 520, lineHeight: 1, color: 'transparent', WebkitTextStroke: '4px rgba(246,178,60,.55)', letterSpacing: '-.04em' });
+    css(num, { position: 'absolute', right: 110, top: 90, fontFamily: 'var(--mono)', fontWeight: 800, fontSize: 400, lineHeight: 1, color: 'transparent', WebkitTextStroke: '4px rgba(246,178,60,.55)', letterSpacing: '-.04em' });
     const logo = el('div', null, `<svg class="mark" width="120" height="120" viewBox="0 0 128 128">${D.logo}</svg>`, root);
     css(logo, { position: 'absolute', left: 120, top: 110, filter: 'drop-shadow(0 0 34px rgba(246,178,60,.5))' });
     const brand = el('div', 'eyebrow', 'EventConductor', root); css(brand, { position: 'absolute', left: 270, top: 150, fontSize: 40 });

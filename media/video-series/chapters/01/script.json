@@ -148,7 +148,7 @@
       },
       "narration": {
         "en": ["It also speaks AI:", "a step can ask a language model for structured output, validated against a schema."],
-        "es": ["También habla IA:", "un paso puede pedir a un modelo de lenguaje una salida estructurada, validada contra un esquema."]
+        "es": ["Y también sabe de inteligencia artificial:", "un paso puede pedir a un modelo de lenguaje una salida estructurada, validada contra un esquema."]
       }
     },
     {
