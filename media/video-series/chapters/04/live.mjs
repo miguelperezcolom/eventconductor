@@ -8,40 +8,48 @@ const ROOMS_4 = '{"guest": "Bob", "rooms": [{"number": "201", "type": "double"},
 const graph = (s) => s.locator('eventconductor-workflow-graph');
 const node = (s, text) => graph(s).locator('g.node').filter({ hasText: text }).first();
 const tab = (s, name) => s.page.getByText(name, { exact: true }).first();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** The process of `key`, once its step `stepId` is waiting (PENDING) — e.g. for the guest's answer. */
+const waitingAt = (c, key, stepId) => async () => {
+  const p = await c.processByKey(key);
+  if (!p) return false;
+  const steps = await c.api(`/workflow/api/processes/${p.id}/steps`);
+  return (Array.isArray(steps) ? steps : steps.content || []).some((x) => x.stepId === stepId && x.status === 'PENDING') && p;
+};
+
+/** Open a process page on its Diagram tab, off camera. */
+const openDiagram = (c, id) => async (page) => {
+  await c.open(`/workflow/processes/${id}`, 'text=Diagram')(page);
+  await page.getByText('Diagram', { exact: true }).first().click();
+  for (let i = 0; i < 20; i++) { await page.clock.runFor(100); await sleep(50); }
+};
 
 export async function run(c) {
   // Scene "run": booking 3 — two double rooms and the penthouse (always sold out at the stand-in hotel).
   c.term('booking-3', `scripts/start.sh rooms-booking-safe BOOKING-3 '${ROOMS_3}' | jq '{id, businessKey, status}'`);
-  const p3 = await c.waitFor(async () => { const p = await c.processByKey('BOOKING-3'); return p?.status === 'COMPENSATED' && p; }, 'BOOKING-3 to end compensated');
+  const p3 = await c.waitFor(waitingAt(c, 'BOOKING-3', 'wait-for-guest'), 'BOOKING-3 to wait for the guest');
 
-  // Scene "diagram": the run's Diagram tab — badge, the failed forEach 2/3, the amber compensation 2/2.
-  await c.shot('diagram', c.open(`/workflow/processes/${p3.id}`, 'text=Compensated'), async (s) => {
-    await s.cameraNow('full');
-    await s.hold(0.2);
-    await s.click(tab(s, 'Diagram'), { dur: 0.7 });
-    await s.settleFrames(6);
-    await s.park(0.5);
+  // Scene "diagram": the waiting run — the forEach 2/3 completed anyway, nothing cancelled, the guest asked.
+  await c.shot('diagram', openDiagram(c, p3.id), async (s) => {
     s.cursor = false;
+    await s.cameraNow('full');
     await s.untilCue(0, -0.2);
-    await s.camera([s.page.getByText(/Compensated \(/).first(), graph(s).locator('g.node')], { zmax: 1.6, dur: 0.9, pad: 30 });
+    await s.camera(graph(s).locator('g.node'), { zmax: 1.6, dur: 0.9, pad: 30 });
     await s.untilCue(1, -0.2);
     await s.camera(node(s, 'Book every room'), { z: 2.2, dur: 1.0 });
-    await s.untilCue(2, 0.6);
+    await s.untilCue(2, -0.2);
     await s.camera([node(s, 'Book every room'), node(s, 'Cancel the room')], { zmax: 2.0, dur: 1.1 });
     await s.untilCue(3, -0.2);
-    await s.camera([node(s, 'Tell the guest'), node(s, 'Done')], { zmax: 2.0, dur: 1.0 });
+    await s.camera([node(s, 'Ask the guest'), node(s, 'Wait for the guest')], { zmax: 2.0, dur: 1.0 });
     await s.until(s.dur - 1.4);
     await s.camera(graph(s).locator('g.node'), { zmax: 1.6, dur: 1.2 });
   });
 
   // Scene "lanes": double-click the forEach → one lane per room; then the Errors tab.
-  await c.shot('lanes', async (page) => {
-    await c.open(`/workflow/processes/${p3.id}`, 'text=Compensated')(page);
-    await page.getByText('Diagram', { exact: true }).first().click();
-    for (let i = 0; i < 20; i++) { await page.clock.runFor(100); await new Promise((r) => setTimeout(r, 50)); }
-  }, async (s) => {
+  await c.shot('lanes', openDiagram(c, p3.id), async (s) => {
     const rooms = node(s, 'Book every room');
-    await s.cameraNow([rooms, node(s, 'Cancel the room'), node(s, 'Register the booking')], { zmax: 1.7 });
+    await s.cameraNow([rooms, node(s, 'Every room booked?'), node(s, 'Register the booking')], { zmax: 1.7 });
     await s.hold(0.3);
     await s.dblclick(rooms, { dur: 0.9 });
     await s.settleFrames(8);
@@ -62,13 +70,29 @@ export async function run(c) {
     await s.camera(await s.rowBox(s.page.getByText(/SOLD_OUT/).first(), { before: 640, span: 1180 }), { zmax: 1.9, dur: 1.0, pad: 50 });
   });
 
-  // Scene "hotel": booking 4 over HTTP — Compensated in the list; the stand-in hotel holds nothing.
+  // Scene "cancel": the guest's answer (as the hotel's website would send it) → Compensated.
+  c.term('answer-3', 'scripts/answer.sh BOOKING-3 cancel');
+  await c.waitFor(async () => (await c.processByKey('BOOKING-3'))?.status === 'COMPENSATED', 'BOOKING-3 to end compensated');
+  await c.shot('cancel', openDiagram(c, p3.id), async (s) => {
+    s.cursor = false;
+    await s.cameraNow('full');
+    await s.untilCue(1, -0.2);
+    await s.camera([s.page.getByText(/Compensated \(/).first(), graph(s).locator('g.node')], { zmax: 1.6, dur: 0.9, pad: 30 });
+    await s.hold(1.6);
+    await s.camera([node(s, 'Cancelled by the guest'), node(s, 'Cancel the room')], { zmax: 2.0, dur: 1.0 });
+    await s.untilCue(2, -0.2);
+    await s.camera([node(s, 'Book every room'), node(s, 'Cancel the room')], { zmax: 2.0, dur: 1.0 });
+  });
+
+  // Scene "hotel": booking 4 over HTTP — the hotel offers suite 901, the guest accepts; what the hotel holds.
   c.term('booking-4', `scripts/start.sh rooms-booking-http BOOKING-4 '${ROOMS_4}' | jq '{businessKey, status}'`);
-  await c.waitFor(async () => (await c.processByKey('BOOKING-4'))?.status === 'COMPENSATED', 'BOOKING-4 to end compensated');
-  c.term('hotel-bookings', `curl -s localhost:${c.port}/fake/hotel/bookings`);
+  await c.waitFor(waitingAt(c, 'BOOKING-4', 'wait-for-guest'), 'BOOKING-4 to wait for the guest');
+  c.term('answer-4', 'scripts/answer.sh BOOKING-4 accept');
+  await c.waitFor(async () => (await c.processByKey('BOOKING-4'))?.status === 'COMPLETED', 'BOOKING-4 to complete');
+  c.term('hotel-bookings', `curl -s localhost:${c.port}/fake/hotel/bookings | jq -c '.[] | {externalRef, type}'`);
   await c.shot('hotel', c.open('/workflow/processes', 'text=BOOKING-4'), async (s) => {
     await s.cameraNow('full');
-    await s.untilCue(1, -1.4);
+    await s.untilCue(1, -0.6);
     await s.click(s.page.getByPlaceholder('Search').first(), { dur: 0.6 });
     await s.type('BOOKING-4');
     await s.press('Enter');

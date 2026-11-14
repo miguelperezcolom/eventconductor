@@ -1,7 +1,8 @@
-# Test-only variant of module 3: the same flow with onIterationFailure: continue — every room is
-# tried, the step completes anyway, and roomBookings says how each room went.
-id: rooms-booking-tolerant
-name: Book every room (best effort)
+# Test-only variant of module 3: the same rooms with onIterationFailure: compensateAll — all rooms or
+# none, decided by the engine on its own. Right when the rooms are one technical unit that is worth
+# nothing in part (a tour operator's package, sold whole); not when there is a guest to ask.
+id: rooms-booking-all-or-none
+name: Book every room (all or none)
 steps:
   - id: start
     type: START
@@ -17,7 +18,7 @@ steps:
       items: rooms
       as: room
       label: "'Room ' + room.number"
-      onIterationFailure: continue
+      onIterationFailure: compensateAll      # wait for every room; if one failed, undo the rest
       output: roomBookings
       outputElement: roomBookingId
     steps:

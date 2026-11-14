@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **The hotel booking tells a realistic story: the guest decides.** In the workshop (`examples/workshop-hotel-booking`), the series app (`examples/video-series`) and their docs, a room the hotel cannot book no longer cancels the rooms already booked behind the guest's back. Modules 3, 4 and 6 keep what was booked (`onIterationFailure: continue`), ask the guest (`WAIT_FOR_MESSAGE guest-answer`, `scripts/answer.sh`), let the fake hotel offer an alternative (`GET /fake/hotel/alternatives`), remind and then hand the decision to the front desk (a `guest-follow-up` USER_TASK) when nobody answers — never auto-cancelling — and undo the booking only on an explicit `cancel`, with an `END` `compensate: true`. Compensation is still taught, as the guest's cancel path; *When undoing on its own is right* (and the test-only `rooms-booking-all-or-none` flow with `compensateAll`) covers the technical all-or-nothing case. Tests, scenarios, coverage and the testing pages, `why-a-process-engine`, the video-series plan and the chapter 1 and 4 scripts follow; pilots 1 and 4 must be re-recorded.
 - **`*.ec.yaml` is the recommended name for a workflow definition.** The docs, the workshop and its
   project (`examples/workshop-hotel-booking`), the testbench apps, the local demo stack, the IDE
   plugins' examples, the promo video and the AI reference/skills now name definitions

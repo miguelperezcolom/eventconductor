@@ -8,7 +8,10 @@ steps:
     - { when: "room.type == 'penthouse'", fail: SOLD_OUT, retryable: false }
     - { complete: { roomBookingId: "RB-${room.number}" } }
   cancel-room-booking: { complete: {} }
+  ask-guest: { complete: {} }
+  tell-front-desk: { complete: {} }
   notify-guest: { complete: {} }
+  confirm-kept: { complete: {} }
 
 scenarios:
   - name: every room is booked and the guest is told
@@ -24,15 +27,53 @@ scenarios:
         roomBookings: [RB-101, RB-102]
       invocations: { notify-guest: 1 }
 
-  - name: a sold-out penthouse undoes the rooms that were booked
+  - name: a sold-out penthouse keeps the rooms that were booked and asks the guest
     workflow: rooms-booking-safe
     variables:
       guest: Bob
       rooms: [ { number: "101", type: double }, { number: "900", type: penthouse } ]
     expect:
+      status: RUNNING
+      waitingAt: wait-for-guest
+      passedSteps: [register-booking, rooms, ask-guest]
+      notPassedSteps: [cancel-room-booking, notify-guest]
+
+  - name: the guest cancels, so the room that was booked is cancelled
+    workflow: rooms-booking-safe
+    variables:
+      guest: Bob
+      rooms: [ { number: "101", type: double }, { number: "900", type: penthouse } ]
+    then:
+      - sendMessage: { name: guest-answer, variables: { answer: cancel } }
+    expect:
       status: COMPENSATED
-      passedSteps: [register-booking, cancel-room-booking]
+      passedSteps: [ask-guest, wait-for-guest, cancelled-by-guest, cancel-room-booking]
       notPassedSteps: [notify-guest]
+      invocations: { cancel-room-booking: 1 }
+
+  - name: the guest keeps the rooms that were booked
+    workflow: rooms-booking-safe
+    variables:
+      guest: Bob
+      rooms: [ { number: "101", type: double }, { number: "900", type: penthouse } ]
+    then:
+      - sendMessage: { name: guest-answer, variables: { answer: keep } }
+    expect:
+      status: COMPLETED
+      passedSteps: [wait-for-guest, guest-decision, confirm-kept, done]
+      notPassedSteps: [cancelled-by-guest, cancel-room-booking, notify-guest]
+
+  - name: a guest who never answers is not cancelled — the front desk follows up
+    workflow: rooms-booking-safe
+    variables:
+      guest: Bob
+      rooms: [ { number: "101", type: double }, { number: "900", type: penthouse } ]
+    then:
+      - advanceTime: P2DT1M
+    expect:
+      status: COMPLETED
+      passedSteps: [tell-front-desk, held]
+      notPassedSteps: [cancel-room-booking, notify-guest]
 
   - name: a safe booking with every room available is booked and the guest told
     workflow: rooms-booking-safe
@@ -42,10 +83,9 @@ scenarios:
     expect:
       status: COMPLETED
       passedSteps: [rooms, notify-guest]
-      notPassedSteps: [cancel-room-booking]
-      variables: { roomBookings: [RB-101] }
+      notPassedSteps: [ask-guest, cancel-room-booking]
 
-  - name: a penthouse the hotel never confirms is retried, then the other room is undone
+  - name: a penthouse the hotel never confirms is retried, then the guest is asked
     workflow: rooms-booking-safe
     variables:
       guest: Carol
@@ -57,10 +97,10 @@ scenarios:
     then:
       - advanceTime: PT10M
     expect:
-      status: COMPENSATED
-      passedSteps: [cancel-room-booking]
-      notPassedSteps: [notify-guest]
-      invocations: { cancel-room-booking: 1 }
+      status: RUNNING
+      waitingAt: wait-for-guest
+      passedSteps: [ask-guest]
+      notPassedSteps: [cancel-room-booking]
 
   - name: the first booking is registered
     workflow: first-booking
@@ -68,7 +108,7 @@ scenarios:
       status: COMPLETED
       variables: { bookingNumber: BK-1 }
 
-  - name: the hotel's API refuses the second room, so the first is cancelled over HTTP
+  - name: the hotel refuses the second room and offers another; the guest cancels, so the first is cancelled over HTTP
     workflow: rooms-booking-http
     variables:
       rooms: [ { number: "101", type: double }, { number: "102", type: double } ]
@@ -76,9 +116,45 @@ scenarios:
       rooms:                              # in order: the first call books, every later one is refused
         - { status: 201, body: { id: H-1 } }
         - { status: 409, body: { error: sold out } }
+      find-alternatives: { status: 200, body: [ { number: "103", type: suite, instead: "102" } ] }
       cancel-room: { status: 204 }
     then:
-      - advanceTime: PT5M                 # the refused room's retries
+      - sendMessage: { name: guest-answer, variables: { answer: cancel } }
     expect:
       status: COMPENSATED
-      passedSteps: [cancel-room]
+      passedSteps: [find-alternatives, ask-guest, cancelled-by-guest, cancel-room]
+      invocations: { cancel-room: 1 }
+
+  - name: the guest accepts the alternative the hotel offered
+    workflow: rooms-booking-http
+    variables:
+      rooms: [ { number: "101", type: double }, { number: "102", type: double } ]
+    http:
+      rooms:
+        - { status: 201, body: { id: H-1 } }
+        - { status: 409, body: { error: sold out } }
+      find-alternatives: { status: 200, body: [ { number: "103", type: suite, instead: "102" } ] }
+      book-alternatives: { status: 201, body: { id: H-2 } }
+    then:
+      - sendMessage: { name: guest-answer, variables: { answer: accept } }
+    expect:
+      status: COMPLETED
+      passedSteps: [book-alternatives, booked-with-alternatives]
+      notPassedSteps: [cancel-room]
+      variables: { alternativeBookings: [H-2] }
+
+  - name: the guest keeps the room that was booked
+    workflow: rooms-booking-http
+    variables:
+      rooms: [ { number: "101", type: double }, { number: "102", type: double } ]
+    http:
+      rooms:
+        - { status: 201, body: { id: H-1 } }
+        - { status: 409, body: { error: sold out } }
+      find-alternatives: { status: 200, body: [ { number: "103", type: suite, instead: "102" } ] }
+    then:
+      - sendMessage: { name: guest-answer, variables: { answer: keep } }
+    expect:
+      status: COMPLETED
+      passedSteps: [kept]
+      notPassedSteps: [book-alternatives, cancel-room]

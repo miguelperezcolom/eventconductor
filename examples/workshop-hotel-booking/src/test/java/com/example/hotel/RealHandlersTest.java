@@ -23,9 +23,12 @@ class RealHandlersTest {
     }
 
     @Test
-    void theRealHandlerRefusesThePenthouseAndTheRestIsUndone(WorkflowTestRuntime runtime) {
+    void theRealHandlerRefusesThePenthouseAndTheGuestDecides(WorkflowTestRuntime runtime) {
         var booking = runtime.start("rooms-booking-safe", "REAL-2",
                 Map.of("guest", "Fay", "rooms", Rooms.WITH_A_PENTHOUSE));
+        assertThat(booking).isWaitingAt("wait-for-guest").hasNoCompensations();
+
+        runtime.sendMessage("guest-answer", "REAL-2", Map.of("answer", "cancel"));
 
         assertThat(booking).isCompensated().hasCompensated("rooms");
         assertThat(booking).iterations("rooms").hasOnlyFailed("Room 900").hasCompensated("Room 101", "Room 102");

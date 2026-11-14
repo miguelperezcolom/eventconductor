@@ -3,17 +3,17 @@ title: "8 · Debugging a workflow"
 description: Find out why a run failed — the graph, the Errors tab, the child runs, the step history, Copy state and the logs — and turn the failure into a test.
 ---
 
-BOOKING-3 ended **Compensated**. Why? Debugging a workflow is following the evidence the engine kept, from the outside in.
+BOOKING-3 did not finish booking: it is waiting for the guest, and one of its rooms failed. Why? Debugging a workflow is following the evidence the engine kept, from the outside in.
 
 ## 1. The graph says where
 
-Open the run, tab **Diagram**. The red node is where it failed, the badge how much: `rooms` failed **2/3**. Hover it for the step's reason:
+Open the run, tab **Diagram**. The red badge is where something failed, and how much: `rooms` booked **2/3**. Its log says what the policy did with the failure:
 
-![The failed step and its reason, on the graph](/workshop/03-compensated-lanes.jpg)
+![The step with a failed room, opened into its lanes](/workshop/03-compensated-lanes.jpg)
 
-> *1 of 3 iterations of step rooms failed or were cancelled (first failure: iteration 2); onIterationFailure compensateAll: the step fails and the 2 completed ones are compensated.*
+> *forEach on step rooms completed: 2 of 3 iterations completed, 1 failed (onIterationFailure continue).*
 
-So: one room failed, and the policy undid the other two — which is why the run is *Compensated*, not *Error*.
+So: one room failed, the policy kept the other two, and the flow went on to ask the guest — which is why the run is *Running*, waiting at *Wait for the guest's answer*, not *Error*. (Had the guest answered `cancel`, the run would be *Compensated* — and *Cancel the room* would show 2/2.)
 
 ## 2. The Errors tab says what — up to a boundary
 
@@ -73,11 +73,14 @@ The last step of debugging is making sure it never comes back. The variables fro
 
 ```java
 @Test
-void theRealHandlerRefusesThePenthouseAndTheRestIsUndone(WorkflowTestRuntime runtime) {
+void theRealHandlerRefusesThePenthouseAndTheGuestDecides(WorkflowTestRuntime runtime) {
     var booking = runtime.start("rooms-booking-safe", "REAL-2",
             Map.of("guest", "Fay", "rooms", Rooms.WITH_A_PENTHOUSE));
+    assertThat(booking).isWaitingAt("wait-for-guest").hasNoCompensations();
 
-    assertThat(booking).isCompensated().hasPassedSteps("cancel-room-booking");
+    runtime.sendMessage("guest-answer", "REAL-2", Map.of("answer", "cancel"));
+
+    assertThat(booking).isCompensated().hasCompensated("rooms");
 }
 ```
 

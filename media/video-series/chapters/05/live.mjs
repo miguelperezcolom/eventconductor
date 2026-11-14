@@ -30,7 +30,13 @@ export async function run(c) {
 
   // refused: the penthouse answers 409 — the Errors tab, not retried.
   c.term('booking-5', `scripts/start.sh rooms-booking-http BOOKING-5 '${ROOMS_5}' | jq '{businessKey, status}'`);
-  const p5 = await c.waitFor(async () => { const p = await c.processByKey('BOOKING-5'); return p?.status === 'COMPENSATED' && p; }, 'BOOKING-5 compensated');
+  // The refused room is set aside (onIterationFailure: continue): the run waits for the guest's decision (chapter 4).
+  const p5 = await c.waitFor(async () => {
+    const p = await c.processByKey('BOOKING-5');
+    if (!p) return false;
+    const steps = await c.api(`/workflow/api/processes/${p.id}/steps`);
+    return (Array.isArray(steps) ? steps : steps.content || []).some((x) => x.stepId === 'wait-for-guest' && x.status === 'PENDING') && p;
+  }, 'BOOKING-5 to wait for the guest');
   await c.shot('refused', openTab(c, p5.id, 'Errors'), async (s) => {
     s.cursor = false;
     await s.cameraNow('full');

@@ -8,7 +8,7 @@
   "ides.items": [["VS Code", "graph editor · execution view · Marketplace"], ["IntelliJ IDEA 2024.2+", "split editor: text + the same graph"], ["Maven", "`eventconductor:validate` — same schema, in the build"]],
   "ides.note": "IntelliJ is not filmed here — see the IDE plugins guide",
   "close.line": "One file, **three views.**",
-  "close.next": "Next · All rooms or none: sagas and compensation",
+  "close.next": "Next · The guest decides: sagas and compensation",
   "close.docs": "eventconductor.mateu.io",
   "close.market": "VS Code Marketplace · EventConductor",
   "close.license": "Open source · MIT",

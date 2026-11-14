@@ -33,9 +33,45 @@ public class SeriesTaskHandlers {
 
     @Bean
     TaskRegistration<NotifyGuestInput, NotifiedAt> notifyGuest() {
-        return task("notify-guest", NotifyGuestInput.class, NotifiedAt.class, (input, context) -> {
+        return confirming("notify-guest");
+    }
+
+    /** The confirmation once the guest has decided: the rooms kept, or the alternatives booked. */
+    @Bean
+    TaskRegistration<NotifyGuestInput, NotifiedAt> confirmKept() {
+        return confirming("confirm-kept");
+    }
+
+    @Bean
+    TaskRegistration<NotifyGuestInput, NotifiedAt> confirmAlternatives() {
+        return confirming("confirm-alternatives");
+    }
+
+    private static TaskRegistration<NotifyGuestInput, NotifiedAt> confirming(String id) {
+        return task(id, NotifyGuestInput.class, NotifiedAt.class, (input, context) -> {
             log.info("Told {} their booking is confirmed", input.guest());
             return new NotifiedAt(Instant.now().toString());
+        });
+    }
+
+    public record AskGuestInput(String guest, String roomBookings, String alternatives) {}
+    public record AskedAt(String askedAt) {}
+
+    /** A room could not be booked: tell the guest what the hotel offers instead, and ask (message guest-answer). */
+    @Bean
+    TaskRegistration<AskGuestInput, AskedAt> askGuest() {
+        return asking("ask-guest", "Asked");
+    }
+
+    @Bean
+    TaskRegistration<AskGuestInput, AskedAt> remindGuest() {
+        return asking("remind-guest", "Reminded");
+    }
+
+    private static TaskRegistration<AskGuestInput, AskedAt> asking(String id, String verb) {
+        return task(id, AskGuestInput.class, AskedAt.class, (input, context) -> {
+            log.info("{} {} what to do: the hotel offers {}", verb, input.guest(), input.alternatives());
+            return new AskedAt(Instant.now().toString());
         });
     }
 

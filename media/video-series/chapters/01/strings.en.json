@@ -9,7 +9,7 @@
   ],
   "plumb.head": "Production adds the rest.",
   "plumb": [
-    "undo what was booked",
+    "undo what was booked — if the guest cancels",
     "retry without booking twice",
     "survive a restart halfway",
     "wait days for a person",
@@ -18,7 +18,7 @@
   "declare.n1": "`USER_TASK` — the manager's approval",
   "declare.n2": "`CHOICE` — on the answer",
   "declare.n3": "`HTTP_CALL` × room — retries, timeout, `Idempotency-Key`",
-  "declare.n4": "`compensationStepId` — cancel a room if the booking fails",
+  "declare.n4": "`compensate: true` — cancel the booked rooms **when the guest cancels**",
   "standin.hotel": "fake hotel: local stand-in",
   "standin.model": "model: local stand-in",
   "mcp.optin": "MCP server: opt-in",
