@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Test kit: compensation assertions.** `assertThat(process).hasCompensated("charge", "reserve")`, `hasNotCompensated(...)`, `hasCompensatedInOrder("charge", "reserve")` (the compensated steps, in the order their compensations ran — the newest first) and `hasNoCompensations()`. A failure lists every compensation that ran, what it undid and how it ended.
+- **Test kit: forEach iteration assertions.** `assertThat(process).iterations("rooms")` → `hasSize(n)`, `allCompleted()`, `hasCompleted(...)`, `hasFailed(...)`, `hasOnlyFailed(...)`, `hasNoFailures()`, `hasCompensated(...)`, `hasCompensatedInOrder(...)`, `hasNoneCompensated()`, and `iteration(ref)` → `hasStatus`, `isCompleted`, `isFailed`, `isCancelled`, `hasOutput(name, value)`, `hasItem(item)`, `wasCompensated()`, `wasNotCompensated()`. An iteration is named by its index, its `forEach.label` (`"Room 102"`) or its item.
+- **Test kit: readable iterations in failure messages.** Iterations are named by index and label — `#2 "Room 900"` — or by item (`#1 room=2`), never by an execution id; a failed process assertion lists a forEach's iterations under their step, in index order.
+- **Test kit: escalation assertions.** `hasEscalated("approve")`, `hasEscalated("approve", 2)` and `hasNotEscalated("approve")` for a USER_TASK's `escalation`; a failure lists each level, its `after`, its action and whether it fired.
+- **Test kit: per-iteration HTTP stubs.** `whenHttpCall("book").whenIteration(1)`, `.whenItem(predicate)`, `.whenItemHas("number", "102")` and `.whenRequest(predicate)` return a scoped stub with answers of its own (consumed and repeated on their own, so each item can have its own retries); a call no scope matches gets the stub's own answers.
+- **Test kit: stubbed LLM answers are validated against the step's `responseSchema`.** A `thenAnswer` the schema refuses fails the step (`LLM_STUB_INVALID`, not retried) and the test, naming the stub and the schema's errors; `runtime.stubProblems()` lists them. `thenInvalidAnswer(text)` stubs a bad model answer on purpose: `LLM_INVALID_OUTPUT` with the errors, retried, as in production. A test that relied on `thenAnswer("not json")` to exercise that path now uses `thenInvalidAnswer`.
+- **Test kit: `whenTask(stepId)` matches a USER_TASK and the other built-in steps by their id.** Their task id is the engine's (`complete-form`, `http-call` …), so `whenTask("approve")` silently matched nothing and the task waited; a step that names no task of its own is now matched by its step id, as the guide said (`whenTask("complete-form")` still matches every USER_TASK). The guide also spells out two Mockito differences: stubbing the same step again appends answers, and answers are counted across every process and forEach iteration of the test.
+
 ## [2.40.0] - 2026-11-13
 
 ### Fixed

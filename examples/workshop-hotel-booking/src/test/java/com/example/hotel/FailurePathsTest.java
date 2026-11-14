@@ -32,12 +32,15 @@ class FailurePathsTest {
                 Map.of("guest", "Bob", "rooms", Rooms.WITH_A_PENTHOUSE));
 
         assertThat(booking).isCompensated()
-                .hasPassedSteps("register-booking", "cancel-room-booking")
+                .hasCompensated("rooms")                                  // the rollback undid the rooms
                 .hasNotPassedSteps("notify-guest");
-        // The compensation ran once per room that was booked, and saw that room's booking id:
-        var cancelled = runtime.invocationsOf("cancel-room-booking").stream()
-                .map(task -> task.variable("roomBookingId")).toList();
-        assertThat(cancelled).containsExactlyInAnyOrder("RB-101", "RB-102");
+        assertThat(booking).iterations("rooms")                           // room by room, by label
+                .hasOnlyFailed("Room 900")
+                .hasCompensated("Room 101", "Room 102");
+        // Each cancellation saw the booking id of the room it undid:
+        assertThat(runtime.invocationsOf("cancel-room-booking"))
+                .extracting(task -> task.variable("roomBookingId"))
+                .containsExactlyInAnyOrder("RB-101", "RB-102");
     }
 
     @Test
@@ -47,9 +50,13 @@ class FailurePathsTest {
         var booking = runtime.start("rooms-booking-tolerant", "FAIL-2",
                 Map.of("guest", "Bob", "rooms", Rooms.WITH_A_PENTHOUSE));
 
-        assertThat(booking).isCompleted();                                // the step completes anyway
-        assertThat(runtime.invocationsOf("cancel-room-booking")).isEmpty();
-        assertThat(booking.variable("roomBookings"))                      // and says how each room went
+        assertThat(booking).isCompleted()                                 // the step completes anyway
+                .hasNoCompensations();
+        assertThat(booking).iterations("rooms")
+                .hasOnlyFailed("Room 900")
+                .hasNoneCompensated()
+                .iteration("Room 101").hasOutput("roomBookingId", "RB-101");
+        assertThat(booking.variable("roomBookings"))                      // and the output says how each room went
                 .contains("{\"status\":\"COMPLETED\",\"value\":\"RB-101\"}", "{\"status\":\"FAILED\",\"error\":\"ERROR\"}");
     }
 }

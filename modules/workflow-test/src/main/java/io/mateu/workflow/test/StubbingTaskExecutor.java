@@ -58,6 +58,14 @@ final class StubbingTaskExecutor implements EmbeddedTaskExecutor {
     // By step execution id, in dispatch order: a multi-instance step parks one task per instance.
     private final Map<String, TaskExecutionRequested> parked = java.util.Collections.synchronizedMap(new LinkedHashMap<>());
     private volatile Set<String> foreignProcesses = Set.of();
+    // What a stub got wrong (an LLM answer its step's responseSchema refuses …): the test fails on it.
+    private final List<String> stubProblems = new CopyOnWriteArrayList<>();
+    // The task ids the engine gives its built-in tasks (complete-form …): a step of such a type names no task.
+    private static final Set<String> BUILT_IN_TASK_IDS = java.util.Arrays.stream(
+                    io.mateu.workflow.domain.aggregates.StepType.values())
+            .map(io.mateu.workflow.domain.services.BuiltInTasks::taskIdOf)
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
     StubbingTaskExecutor(ObjectProvider<UpdateStepExecutionUseCase> updateStepExecution,
                          WorkflowDefinitionRepository definitions,
@@ -81,6 +89,7 @@ final class StubbingTaskExecutor implements EmbeddedTaskExecutor {
         invocations.clear();
         counts.clear();
         parked.clear();
+        stubProblems.clear();
         foreignProcesses = Set.copyOf(foreign);
     }
 
@@ -97,7 +106,7 @@ final class StubbingTaskExecutor implements EmbeddedTaskExecutor {
     }
 
     LlmStub llmStub(String stepId) {
-        return llmStubs.computeIfAbsent(stepId, LlmStub::new);
+        return llmStubs.computeIfAbsent(stepId, id -> new LlmStub(id, stubProblems::add));
     }
 
     AgentStub agentStub(String stepId) {
@@ -106,6 +115,15 @@ final class StubbingTaskExecutor implements EmbeddedTaskExecutor {
 
     List<TaskInvocation> invocations() {
         return List.copyOf(invocations);
+    }
+
+    /** What the stubs of this test got wrong, in the order it happened; empty when nothing. */
+    List<String> stubProblems() {
+        return List.copyOf(stubProblems);
+    }
+
+    void clearStubProblems() {
+        stubProblems.clear();
     }
 
     /** The oldest parked task of {@code stepId} in {@code processId}, removed; null when none waits. */
@@ -131,8 +149,9 @@ final class StubbingTaskExecutor implements EmbeddedTaskExecutor {
     @Override
     public void execute(TaskExecutionRequested request) {
         var key = key(request.processId(), request.stepId());
+        var step = stepOf(request);
         var invocation = new TaskInvocation(request.processId(), request.workflowDefinitionId(), request.stepId(),
-                request.taskId(), topicOf(request), request.attempt(), counts.merge(key, 1, Integer::sum),
+                request.taskId(), step == null ? null : step.topic(), request.attempt(), counts.merge(key, 1, Integer::sum),
                 variablesOf(request), io.mateu.workflow.time.EngineClock.now());
         invocations.add(invocation);
         // A new dispatch replaces whatever attempt was parked before it: that one's reply would be dropped.
@@ -145,7 +164,8 @@ final class StubbingTaskExecutor implements EmbeddedTaskExecutor {
         TaskOutcome outcome;
         if ("http-call".equals(base)) {
             outcome = builtIn(request, invocation, httpStubs.get(request.stepId()) == null ? null
-                    : () -> httpStubs.get(request.stepId()).answer(Values.tree(invocation.variable("__http"))), "HTTP_CALL",
+                    : () -> httpStubs.get(request.stepId()).answer(Values.tree(invocation.variable("__http")),
+                            iterationOf(step, invocation)), "HTTP_CALL",
                     "whenHttpCall");
         } else if ("run-agent".equals(base) && agentStubs.containsKey(request.stepId())) {
             answerAgent(request, agentStubs.get(request.stepId()).invoked(Values.tree(invocation.variable("__agent"))), false);
@@ -180,6 +200,10 @@ final class StubbingTaskExecutor implements EmbeddedTaskExecutor {
             return stubbed.get();
         }
         var stub = stepStubs.get(request.stepId());
+        if (stub == null) {
+            // whenTask(stepId): the step names no task of its own — the engine gave it a built-in one.
+            stub = taskStubs.get(request.stepId());
+        }
         if (stub != null) {
             return stub.answer(invocation);
         }
@@ -263,9 +287,13 @@ final class StubbingTaskExecutor implements EmbeddedTaskExecutor {
 
     private TaskStub stubFor(TaskExecutionRequested request, String base, String topic) {
         var stub = stepStubs.get(request.stepId());
-        if (stub == null) {
-            // As the worker SDK resolves a handler: by task id, or by step id when the step names no task.
-            stub = taskStubs.get(base.isBlank() ? request.stepId() : base);
+        if (stub == null && (base.isBlank() || BUILT_IN_TASK_IDS.contains(base))) {
+            // As the worker SDK resolves a handler: by step id when the step names no task — and a built-in
+            // task's step (a USER_TASK's complete-form …) names none either: the engine gave it its id.
+            stub = taskStubs.get(request.stepId());
+        }
+        if (stub == null && !base.isBlank()) {
+            stub = taskStubs.get(base);
         }
         if (stub == null && topic != null) {
             stub = taskStubs.get(topic);
@@ -279,7 +307,26 @@ final class StubbingTaskExecutor implements EmbeddedTaskExecutor {
                 && registry.resolve(request.taskId(), request.stepId()) != null;
     }
 
-    private String topicOf(TaskExecutionRequested request) {
+    /**
+     * The forEach iteration a dispatch of a step with a {@code forEach} belongs to — its index and item, read
+     * from the variables the iteration was sent — or null for any other dispatch.
+     */
+    private static HttpStub.Iteration iterationOf(io.mateu.workflow.domain.aggregates.Step step, TaskInvocation invocation) {
+        var forEach = step == null ? null : step.forEach();
+        if (forEach == null) {
+            return null;
+        }
+        Integer index;
+        try {
+            index = Integer.valueOf(String.valueOf(invocation.variable(forEach.indexVariable())).trim());
+        } catch (NumberFormatException notAnIteration) {
+            return null;
+        }
+        var item = invocation.variable(forEach.itemVariable());
+        return new HttpStub.Iteration(index, item == null ? null : Values.parsed(item));
+    }
+
+    private io.mateu.workflow.domain.aggregates.Step stepOf(TaskExecutionRequested request) {
         try {
             return definitions.findById(request.workflowDefinitionId())
                     // A step of a PROCESS step's inline body: its definition is built from the parent's.
@@ -289,7 +336,6 @@ final class StubbingTaskExecutor implements EmbeddedTaskExecutor {
                             .findFirst())
                     .flatMap(definition -> definition.steps() == null ? java.util.Optional.empty()
                             : definition.steps().stream().filter(step -> request.stepId().equals(step.id())).findFirst())
-                    .map(step -> step.topic())
                     .orElse(null);
         } catch (RuntimeException unreadable) {
             return null;

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 /**
  * The responses an {@code HTTP_CALL} step gets instead of the network. The engine renders the
@@ -18,6 +19,17 @@ import java.util.concurrent.atomic.AtomicInteger;
  * step at once, and {@code output: { chargeId: body.id }} reads the stubbed body.
  *
  * <p>Answers are consumed in order and the last one repeats, as for {@link TaskStub}.
+ *
+ * <p>A call can be answered apart from the others — a forEach iteration, an item, a request — by a
+ * <b>scoped</b> stub: {@link #whenIteration(int)}, {@link #whenItem(Predicate)} or
+ * {@link #whenRequest(Predicate)} return one with answers of its own (consumed, and repeated, on their
+ * own), and the first scope that matches a call answers it; a call no scope matches gets this stub's
+ * answers.
+ *
+ * <pre>{@code
+ * var hotel = runtime.whenHttpCall("rooms").thenRespond(201, "{\"id\": \"H-1\"}");   // every room…
+ * hotel.whenIteration(1).thenRespond(409, "sold out");                              // …but the second
+ * }</pre>
  */
 public final class HttpStub {
 
@@ -25,13 +37,70 @@ public final class HttpStub {
     public record Response(int status, String body, Map<String, String> headers, boolean ioError) {
     }
 
+    /** The forEach iteration a call belongs to: its 0-based index and its item (parsed: a map, a list, text …). */
+    record Iteration(int index, Object item) {
+    }
+
+    private record Scope(Predicate<Map<String, Object>> request, Predicate<Iteration> iteration, HttpStub stub) {
+        boolean matches(Map<String, Object> rendered, Iteration call) {
+            return iteration != null ? call != null && iteration.test(call) : request.test(rendered);
+        }
+    }
+
     private final String stepId;
+    private final String description;
+    private final List<Scope> scopes = new CopyOnWriteArrayList<>();
     private final List<Response> responses = new CopyOnWriteArrayList<>();
     private final List<Map<String, Object>> requests = new CopyOnWriteArrayList<>();
     private final AtomicInteger calls = new AtomicInteger();
 
     HttpStub(String stepId) {
+        this(stepId, "HTTP_CALL step '" + stepId + "'");
+    }
+
+    private HttpStub(String stepId, String description) {
         this.stepId = stepId;
+        this.description = description;
+    }
+
+    /**
+     * A stub for the calls of one forEach iteration ({@code 0} = the first item) of this step, with answers
+     * of its own. Applies to an HTTP_CALL that has the {@code forEach} itself; inside an inline PROCESS
+     * body, match the request instead ({@link #whenRequest}).
+     */
+    public HttpStub whenIteration(int index) {
+        return scope(null, call -> call.index() == index, " (iteration #" + index + ")");
+    }
+
+    /**
+     * A stub for the calls of the forEach iterations whose item matches — the item parsed: a map for a
+     * JSON object, a list, text or a number. {@code whenItem(room -> ((Map<?, ?>) room).get("number").equals("900"))}.
+     */
+    public HttpStub whenItem(Predicate<Object> item) {
+        return scope(null, call -> item.test(call.item()), " (an item)");
+    }
+
+    /**
+     * A stub for the calls of the forEach iterations whose item is an object with {@code field} =
+     * {@code value} (compared as text): {@code whenItemHas("number", "900")}.
+     */
+    public HttpStub whenItemHas(String field, Object value) {
+        return scope(null, call -> call.item() instanceof Map<?, ?> item && item.get(field) != null
+                && Values.text(item.get(field)).equals(Values.text(value)), " (" + field + "=" + Values.text(value) + ")");
+    }
+
+    /**
+     * A stub for the calls whose rendered request matches ({@code method}, {@code url} or
+     * {@code connection} + {@code path}, {@code headers}, {@code body} …, as {@link #requests()} lists them).
+     */
+    public HttpStub whenRequest(Predicate<Map<String, Object>> request) {
+        return scope(request, null, " (a request)");
+    }
+
+    private HttpStub scope(Predicate<Map<String, Object>> request, Predicate<Iteration> iteration, String what) {
+        var scoped = new HttpStub(stepId, description + what);
+        scopes.add(new Scope(request, iteration, scoped));
+        return scoped;
     }
 
     /** Answers with {@code status} and an empty body. */
@@ -69,9 +138,21 @@ public final class HttpStub {
     }
 
     TaskOutcome answer(JsonNode request) {
-        requests.add(Values.toMap(request));
+        return answer(request, null);
+    }
+
+    /** Answers a call — of forEach iteration {@code iteration}, null for none — by the first scope it matches, else by this stub. */
+    TaskOutcome answer(JsonNode request, Iteration iteration) {
+        var rendered = Values.toMap(request);
+        requests.add(rendered);
+        for (var scope : scopes) {
+            if (scope.matches(rendered, iteration)) {
+                return scope.stub().answer(request, iteration);
+            }
+        }
         if (responses.isEmpty()) {
-            return TaskOutcome.fail("HTTP_STUB", "HTTP_CALL step '" + stepId + "' is stubbed but has no response", false);
+            return TaskOutcome.fail("HTTP_STUB", description + " is stubbed but has no response"
+                    + (iteration == null ? "" : " for iteration #" + iteration.index()), false);
         }
         var response = responses.get(Math.min(calls.getAndIncrement(), responses.size() - 1));
         var retryOn = new ArrayList<String>();

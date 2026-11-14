@@ -1,0 +1,63 @@
+{
+  "id": "triage-strict",
+  "name": "Triage a complaint into a fixed set of categories",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "triage",
+      "type": "LLM_CALL",
+      "name": "Triage",
+      "preconditionStepId": "start",
+      "retries": 1,
+      "llm": {
+        "connection": "claude",
+        "prompt": "${complaint}",
+        "responseSchema": {
+          "type": "object",
+          "required": [
+            "category",
+            "urgent"
+          ],
+          "properties": {
+            "category": {
+              "type": "string",
+              "enum": [
+                "noise",
+                "cleaning",
+                "other"
+              ]
+            },
+            "urgent": {
+              "type": "boolean"
+            }
+          }
+        },
+        "output": {
+          "category": "json.category"
+        }
+      }
+    },
+    {
+      "id": "summary",
+      "type": "LLM_CALL",
+      "name": "Summarise",
+      "preconditionStepId": "triage",
+      "llm": {
+        "connection": "claude",
+        "prompt": "Summarise: ${complaint}",
+        "outputVariable": "summary"
+      }
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "summary"
+    }
+  ]
+}

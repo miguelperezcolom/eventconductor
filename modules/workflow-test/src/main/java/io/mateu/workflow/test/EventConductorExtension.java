@@ -14,7 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * The JUnit side of {@link EventConductorTest}: before each test, the definitions it names are
  * imported (once per context), the engine clock is the test clock and the mocks are fresh; after it,
- * the engine clock is the system clock again. Resolves {@link WorkflowTestRuntime} parameters.
+ * the engine clock is the system clock again, and the test fails if a stub answered what its step
+ * cannot take ({@link WorkflowTestRuntime#stubProblems()}). Resolves {@link WorkflowTestRuntime} parameters.
  */
 public class EventConductorExtension implements BeforeEachCallback, AfterEachCallback, ParameterResolver {
 
@@ -37,7 +38,19 @@ public class EventConductorExtension implements BeforeEachCallback, AfterEachCal
 
     @Override
     public void afterEach(ExtensionContext context) {
-        runtime(context).endTest();
+        var runtime = runtime(context);
+        java.util.List<String> problems;
+        try {
+            problems = runtime.takeStubProblems();
+        } finally {
+            runtime.endTest();
+        }
+        if (!problems.isEmpty()) {
+            // A stub that answered what the definition cannot take is a mistake in the test, not a
+            // behaviour of the process: fail on it even when the assertions happened to pass.
+            throw new AssertionError("The test's stubs answered what their steps cannot take:\n  "
+                    + String.join("\n  ", problems));
+        }
     }
 
     @Override

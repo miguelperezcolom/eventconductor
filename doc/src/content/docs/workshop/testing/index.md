@@ -20,7 +20,7 @@ $ mvn verify
 [INFO] Tests run: 3, Failures: 0, Errors: 0 -- in com.example.hotel.RealHandlersTest
 [INFO] Tests run: 3, Failures: 0, Errors: 0 -- in com.example.hotel.IntegrationsTest
 [INFO] Tests run: 2, Failures: 0, Errors: 0 -- in com.example.hotel.TimeTest
-[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0
+[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0
 [INFO] BUILD SUCCESS
 ```
 

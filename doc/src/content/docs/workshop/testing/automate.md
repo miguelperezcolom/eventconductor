@@ -55,7 +55,7 @@ $ mvn verify
 $ mvn verify
 [ERROR] FailurePathsTest.compensateAllCancelsEveryRoomThatWasBooked <<< FAILURE!
 Expected process … (rooms-booking-safe, businessKey FAIL-1) to be COMPENSATED but it is COMPLETED.
-[ERROR] Tests run: 11, Failures: 3, Errors: 0, Skipped: 0
+[ERROR] Tests run: 12, Failures: 3, Errors: 0, Skipped: 0
 [INFO] BUILD FAILURE
 ```
 
@@ -76,7 +76,7 @@ With everything fixed, all three pass:
 
 ```text
 $ mvn verify && mvn eventconductor:check-migration -Dfrom=HEAD
-[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0
+[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0
 [INFO] BUILD SUCCESS
 [INFO] EventConductor migration check HEAD → current: 6 workflow(s), 0 error(s), 0 warning(s).
 [INFO] BUILD SUCCESS
