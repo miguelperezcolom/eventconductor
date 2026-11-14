@@ -78,7 +78,7 @@ class Shot {
     await p.evaluate(([rp, show]) => { window.__recRing?.(rp); window.__recShow?.(show); }, [ringP, this.cursor]);
     if (ringP >= 1) this.ring = null;
     const name = String(this.f).padStart(5, '0') + '.jpg';
-    await p.screenshot({ path: `${this.dir}/${name}`, type: 'jpeg', quality: 90, animations: 'allow', caret: 'initial' });
+    await p.screenshot({ path: `${this.dir}/${name}`, type: 'jpeg', quality: 90, animations: 'allow', caret: 'initial', timeout: 180000 });
     this.frames.push({ f: name, cam: { ...this.cam } });
     this.f++;
   }
@@ -90,7 +90,7 @@ class Shot {
 
   async box(target) {
     const loc = typeof target === 'string' ? this.page.locator(target).first() : target;
-    await loc.waitFor({ state: 'visible', timeout: 15000 });
+    await loc.waitFor({ state: 'visible', timeout: 60000 });
     const b = await loc.boundingBox();
     if (!b) throw new Error(`no box for ${target}`);
     return b;
@@ -172,7 +172,7 @@ const ctx = {
   base: BASE, lang, chapter, repo, here, build, scenes,
   api: async (path, init) => { const r = await fetch(BASE + path, init); if (!r.ok) throw new Error(`${path}: ${r.status}`); return r.json(); },
   processByKey: async (key) => (await ctx.api(`/workflow/api/processes?size=200`)).content.find((p) => p.businessKey === key),
-  waitFor: async (fn, what, ms = 30000) => { const t0 = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t0 > ms) throw new Error(`timeout waiting for ${what}`); await sleep(300); } },
+  waitFor: async (fn, what, ms = 120000) => { const t0 = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t0 > ms) throw new Error(`timeout waiting for ${what}`); await sleep(300); } },
 
   /** Run a REAL command (bash, in cwd relative to the repo) and keep its output for terminal scene `id`. */
   term(id, cmd, { cwd = 'examples/workshop-hotel-booking', keep = null, cache = false, show = cmd } = {}) {

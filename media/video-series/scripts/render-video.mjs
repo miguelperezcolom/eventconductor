@@ -82,7 +82,10 @@ await page.waitForTimeout(300);
 async function frameAt(t) {
   await page.evaluate((tt) => window.render(tt), t);
   await page.evaluate(() => window.pending);
-  return page.screenshot({ type: 'png', animations: 'disabled' });
+  for (let i = 0; ; i++) {
+    try { return await page.screenshot({ type: 'png', animations: 'disabled', timeout: 180000 }); }
+    catch (e) { if (i >= 2) throw e; console.warn(`  ! screenshot at t=${t.toFixed(2)} retried: ${e.message.split('\n')[0]}`); }
+  }
 }
 
 if (flag('thumb')) {

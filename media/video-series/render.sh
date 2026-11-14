@@ -5,7 +5,7 @@
 #   3 record     the app, fresh; the real console filmed frame by frame; real terminal output
 #   4 render     HTML scenes + recorded frames → silent video
 #   5 audio/srt  narration mix; .srt in EN and ES timed to this master
-#   6 assemble   → $OUT/chNN-<lang>.mp4, chNN-<lang>.srt, chNN-<lang>.<other>.srt, chNN-thumb.png, chNN-youtube.md
+#   6 assemble   → $OUT/chNN-<lang>.mp4, chNN-<lang>.srt, chNN-<lang>.<other>.srt, chNN-thumb.png (+ -es), chNN-youtube.md
 # Env: OUT (default build/out), SKIP_RECORD=1 (reuse frames), ONLY=scene,… (record some scenes),
 #      TOOLS (setup.sh's dir), MAVEN_ARGS (passed to Maven), PORT (8095).
 set -euo pipefail
@@ -35,6 +35,8 @@ echo "== 5 audio + subtitles"
 node scripts/srt.mjs "$ch" "$lang"
 echo "== 6 assemble"
 scripts/assemble.sh "$ch" "$lang" "$OUT"
-node scripts/render-video.mjs "$ch" en --thumb >/dev/null && ffmpeg -y -loglevel error -i "build/ch$ch/thumb-en.png" -vf scale=1280:720 "$OUT/ch$ch-thumb.png"
+for l in en es; do node scripts/render-video.mjs "$ch" "$l" --thumb >/dev/null; done
+ffmpeg -y -loglevel error -i "build/ch$ch/thumb-en.png" -vf scale=1280:720 "$OUT/ch$ch-thumb.png"
+ffmpeg -y -loglevel error -i "build/ch$ch/thumb-es.png" -vf scale=1280:720 "$OUT/ch$ch-thumb-es.png"
 node scripts/youtube.mjs "$ch" "$OUT"
 echo "done: $OUT/ch$ch-$lang.mp4"
