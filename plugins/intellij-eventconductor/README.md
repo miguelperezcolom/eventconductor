@@ -1,13 +1,13 @@
 # EventConductor for IntelliJ IDEA
 
-Edit EventConductor workflow definitions (`.ec` files) as an **interactive graph** or as
+Edit EventConductor workflow definitions (`*.ec.yaml` files — recommended — or `.ec`) as an **interactive graph** or as
 plain **YAML/JSON** with schema validation — in one split editor, both views backed by the
 same document.
 
 ## Features
 
-- **Split editor** for `*.ec` — and for `*.workflow.yaml` / `*.ec.yaml` (and `.yml`), for those
-  who keep the `.yaml` extension: the text (YAML/JSON) on one side and the EventConductor graph
+- **Split editor** for `*.ec.yaml` (the recommended name) — and for `*.ec` / `*.workflow.yaml`
+  (and `.yml`): the text (YAML/JSON) on one side and the EventConductor graph
   (the same web component the app uses, embedded via **JCEF**) on the other. Use the editor's
   **Editor / Split / Preview** toolbar toggles to focus on text, graph, or both.
 - **Two-way sync**: graphical edits update the document and text edits update the graph.

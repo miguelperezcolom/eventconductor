@@ -124,6 +124,7 @@ export default defineConfig({
 						{ label: 'Migrating running processes', slug: 'guides/migrating-running-processes' },
 						{ label: 'Process Analytics', slug: 'guides/analytics' },
 						{ label: 'Searching and Bulk Operations', slug: 'guides/searching-and-bulk-operations' },
+						{ label: 'Secure by Default', slug: 'guides/security-defaults' },
 						{ label: 'Sensitive Data and Encryption', slug: 'guides/sensitive-data-and-encryption' },
 						{ label: 'Process Index (CQRS Read Model)', slug: 'guides/process-index' },
 						{ label: 'Sharding', slug: 'guides/sharding' },

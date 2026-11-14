@@ -1,0 +1,92 @@
+# Chapter 6 — Branches, loops and sub-processes. A group arrives: one exclusive decision (CHOICE), then three
+# things at the same time (FORK) that must all be done (AND JOIN) before the group is told. Every room is
+# prepared by a named sub-process (prepare-room), one per room (forEach, labelled), and a room that cannot be
+# prepared does not stop the others (onIterationFailure: continue).
+id: group-arrival
+name: Group arrival
+steps:
+  - id: start
+    type: START
+    name: Group booked
+
+  - id: group-size
+    type: CHOICE
+    name: Large group?
+    preconditionStepId: start
+
+  - id: assign-coordinator
+    type: ACTION
+    name: Assign a group coordinator
+    preconditions:
+      - stepId: group-size
+        expression: "groupSize >= 10"         # the first guard that holds wins
+
+  - id: standard-welcome
+    type: ACTION
+    name: Plan the standard welcome
+    preconditions:
+      - stepId: group-size                    # unguarded: the CHOICE's default branch
+
+  - id: plan-ready
+    type: JOIN
+    name: Welcome planned
+    joinType: XOR                             # after a CHOICE: the branch that was taken
+    preconditionStepIds: [assign-coordinator, standard-welcome]
+
+  - id: prepare
+    type: FORK
+    name: Prepare everything
+    preconditionStepId: plan-ready
+
+  - id: prepare-rooms
+    type: PROCESS
+    name: Prepare every room
+    preconditionStepId: prepare
+    childWorkflowDefinitionId: prepare-room   # a named sub-process: a definition of its own
+    outputVariables: [roomStatus]
+    forEach:
+      items: rooms
+      as: room
+      label: "'Room ' + room.number"
+      onIterationFailure: continue            # a room out of order does not stop the others
+      output: roomReports
+      outputElement: roomStatus
+
+  - id: arrange-transfer
+    type: HTTP_CALL
+    name: Book the airport transfer
+    preconditionStepId: prepare
+    retries: 2
+    timeout: PT15S
+    http:
+      connection: taxis
+      method: POST
+      path: /coach/bookings
+      headers:
+        Idempotency-Key: "${businessKey}-coach"
+      body:
+        group: "${businessKey}"
+        passengers: "${groupSize}"
+      output:
+        transferId: "body.id"
+
+  - id: welcome-pack
+    type: ACTION
+    name: Prepare the welcome packs
+    preconditionStepId: prepare
+
+  - id: all-ready
+    type: JOIN
+    name: Everything ready
+    joinType: AND                             # after a FORK: all of them
+    preconditionStepIds: [prepare-rooms, arrange-transfer, welcome-pack]
+
+  - id: notify-group
+    type: ACTION
+    name: Tell the group leader
+    preconditionStepId: all-ready
+
+  - id: done
+    type: END
+    name: Ready for the group
+    preconditionStepId: notify-group

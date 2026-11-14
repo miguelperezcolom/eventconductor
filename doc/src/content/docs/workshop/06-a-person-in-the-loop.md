@@ -7,7 +7,7 @@ Large bookings need a manager's approval **before** any room is booked. A person
 
 ## The definition
 
-`06-hotel-booking.yaml` — the whole booking: approval, then the rooms at the hotel (all or none), then the guest:
+`06-hotel-booking.ec.yaml` — the whole booking: approval, then the rooms at the hotel (all or none), then the guest:
 
 ```yaml
 id: hotel-booking

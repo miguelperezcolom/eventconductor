@@ -1,0 +1,8 @@
+# Chapter 8 — schedules beside the definitions (never imported as a definition). Each entry names the
+# workflow it starts; an id makes the schedule one across the engine and keeps its business keys stable.
+- id: nightly-occupancy
+  cron: "0 0 3 * * *"                         # Spring cron: second minute hour day month weekday
+  zone: Europe/Madrid
+  workflow: nightly-occupancy
+  variables:
+    hotel: Workshop Hotel

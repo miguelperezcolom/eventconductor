@@ -7,7 +7,7 @@
 //   node scripts/render-animated.mjs --stills 3,12,21      # single frames → build/stills/*.png
 //   --strings strings.es.json                              # another language
 //
-// Inputs: strings.json, app/definitions/hotel-booking.yaml, build/real/* (record-real.mjs),
+// Inputs: strings.json, app/definitions/hotel-booking.ec.yaml, build/real/* (record-real.mjs),
 // build/out/*.txt (capture-terminal.sh), doc/public/favicon.svg (the logo).
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
@@ -31,7 +31,7 @@ for (const need of ['build/real/boxes.json', 'build/out/test-green.txt', 'build/
 
 // The definition as typed in the editor: the real file, from its top through the inline body,
 // then one comment standing for the three steps left out (they are in the file, not on screen).
-const def = read('app/definitions/hotel-booking.yaml').split('\n');
+const def = read('app/definitions/hotel-booking.ec.yaml').split('\n');
 const cut = def.findIndex((l) => /^\s+- id: notify/.test(l));
 const yaml = [...def.slice(0, cut).filter((l, i, a) => !(l.trim() === '' && i === a.length - 1)), '  # … notify, done, cancelRoom'].join('\n');
 const shown = yaml.split('\n');

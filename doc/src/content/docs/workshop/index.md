@@ -29,7 +29,7 @@ workshop-hotel-booking/
 │   └── fakes/                       # a fake hotel API and a fake OpenAI-compatible model
 ├── src/main/resources/
 │   ├── application.properties
-│   └── workflows/                   # one definition per module: 01-…yaml to 06-…yaml
+│   └── workflows/                   # one definition per module: 01-….ec.yaml to 06-….ec.yaml
 ├── src/test/java/…                  # the test-kit tests of Part 9
 ├── src/test/flows/                  # test-only definitions
 ├── forms/booking-approval.ecform    # the manager's approval form (module 6)

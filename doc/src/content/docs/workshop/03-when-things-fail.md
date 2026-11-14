@@ -9,7 +9,7 @@ For a booking, the answer is usually **all rooms or none**: if one cannot be boo
 
 ## The definition
 
-`03-rooms-booking-safe.yaml` — the rooms flow of module 2, plus failure handling:
+`03-rooms-booking-safe.ec.yaml` — the rooms flow of module 2, plus failure handling:
 
 ```yaml
 id: rooms-booking-safe

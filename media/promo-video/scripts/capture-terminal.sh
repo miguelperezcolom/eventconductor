@@ -9,7 +9,7 @@ here="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$here"
 export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 21)}"
 bash scripts/prepare-app.sh >/dev/null
-gate="$here/build/gate"; out="$here/build/out"; def="$gate/src/main/resources/workflows/hotel-booking.yaml"
+gate="$here/build/gate"; out="$here/build/out"; def="$gate/src/main/resources/workflows/hotel-booking.ec.yaml"
 mkdir -p "$out"
 plugin="io.mateu.workflow:workflow-maven-plugin:1.0-SNAPSHOT:validate"
 keep_test='Running com|Tests run:|FAILURE!|Expected process|BUILD (SUCCESS|FAILURE)'

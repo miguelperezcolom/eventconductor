@@ -7,8 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`examples/video-series` — the series app.** What the EventConductor video series records beyond the workshop: the same hotel, embedded on JPA/H2 with the console and the forms console, and one runnable definition per step type the series shows — TIMER on a business moment and a `deadline`, WAIT_FOR_MESSAGE / SEND_MESSAGE between processes, FORK / AND and XOR JOIN (a race with `compensateLosers`), CHOICE, forEach over a named PROCESS, `repeat` and `loopBack`, PUBLISH_EVENT, REPLY with synchronous invocation, CONTINUE_AS_NEW, a schedule (`cron.yaml`), an event trigger (`events.yaml`) fed by the generic webhook, and an **AGENT step that runs for real** against a demo stand-in agent catalogue (`WorkflowAgentCatalogue` bean) and runtime (a `run-agent@1` task handler, deterministic rules instead of a model). Every definition is tested with the test kit (scenarios as data, coverage floors, `eventconductor:verify` bound in the pom) and the whole app end to end. Also: `scripts/seed.sh` (waiting, completed, compensated and failed processes, so no console screen is empty), a scripted, deterministic MCP client (`scripts/mcp-demo.mjs`: real JSON-RPC to `/sse`), and a `docker compose --profile observability` with Prometheus, Grafana (a provisioned EventConductor dashboard over the engine's metrics) and Jaeger, with tracing switched on by the app's `observability` profile.
+- **Docs: [Secure by default](doc/src/content/docs/guides/security-defaults.md)** — what the engine refuses until told otherwise (anonymous API, console and MCP callers; secrets from the environment; credentials to arbitrary hosts; unverified tokens; sensitive variables without keys), the switch for each, and which ones are laptop-only.
+
 ### Fixed
 - Mateu 3.0-beta.67: the console's cached page layouts are kept per app and per build, so a different Mateu app served earlier on the same address no longer causes a "not allowed" (403) message on every page; a cached screen the server refuses recovers on its own.
+- **The webhook gateway can be embedded beside the engine.** Its provider interface was called `io.mateu.workflow.webhook.WebhookProvider`, the name of the engine's git-import enum in `shared`, so an application with both on the classpath failed to start (`IncompatibleClassChangeError`); the interface is now `WebhookDeliveryProvider` (a provider of your own implements that name instead). And `WebhookController`, met by the engine's component scan of `io.mateu.workflow`, is now skipped where the gateway's auto-configuration is off (a test without a web server, `workflow.webhooks.enabled=false`) instead of failing the context for want of its properties.
+
+### Documentation
+- **`*.ec.yaml` is the recommended name for a workflow definition.** The docs, the workshop and its
+  project (`examples/workshop-hotel-booking`), the testbench apps, the local demo stack, the IDE
+  plugins' examples, the promo video and the AI reference/skills now name definitions
+  `hotel-booking.ec.yaml` — plain YAML to every tool, opened by both IDE plugins in the graph editor
+  with schema validation. `.ec`, `*.workflow.yaml` and plain `.yaml`/`.yml`/`.json` stay supported
+  and documented as alternatives; the ids are unchanged (each file declares its `id`, and
+  `order.ec.yaml` derives `order` exactly as `order.ec` does). Forms, rules and task contracts keep
+  `.ecform`/`.ecrule`/`.ectask`.
 
 ## [2.41.0] - 2026-11-14
 

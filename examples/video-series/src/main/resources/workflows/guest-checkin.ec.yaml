@@ -1,0 +1,41 @@
+# Chapter 8 — one process waits for a message another process sends. The guest is at the desk; the keys are
+# handed over when housekeeping says the room is ready (room-cleaning's SEND_MESSAGE), correlated by the room
+# number. Not ready within two hours (a step timeout): the guest is offered the lounge instead.
+id: guest-checkin
+name: Guest check-in
+steps:
+  - id: start
+    type: START
+    name: Guest at the desk
+
+  - id: wait-room-ready
+    type: WAIT_FOR_MESSAGE
+    name: Wait for the room to be ready
+    preconditionStepId: start
+    messageName: room-ready
+    correlationExpression: room               # the room number: what room-cleaning stamps on its message
+    timeout: PT2H
+    onTimeoutStepId: offer-lounge
+
+  - id: hand-over-keys
+    type: ACTION
+    name: Hand over the keys
+    preconditionStepId: wait-room-ready
+
+  - id: offer-lounge
+    type: ACTION
+    name: Offer the lounge while they wait
+    preconditions:
+      - stepId: wait-room-ready
+        expression: "false"                   # reached only through onTimeoutStepId
+
+  - id: outcome
+    type: JOIN
+    name: Outcome
+    joinType: XOR
+    preconditionStepIds: [hand-over-keys, offer-lounge]
+
+  - id: done
+    type: END
+    name: Checked in
+    preconditionStepId: outcome

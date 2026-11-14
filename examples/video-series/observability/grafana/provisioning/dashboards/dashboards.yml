@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: eventconductor
+    folder: EventConductor
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

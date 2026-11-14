@@ -1,0 +1,33 @@
+# Chapter 9 — a process that publishes a domain event, and one that answers its caller (REPLY).
+steps:
+  register-guest: { complete: { guestId: G-1 } }
+  price-stay:
+    - { when: "roomType == 'castle'", fail: UNKNOWN_ROOM_TYPE, retryable: false }
+    - { complete: { quoteId: Q-1, price: "780", currency: EUR } }
+  expire-quote: { complete: {} }
+
+scenarios:
+  - name: a new booking's guest is registered and announced
+    workflow: booking-onboarding
+    variables: { bookingId: CM-1001, guest: Alice, checkIn: "2026-12-20" }
+    expect:
+      status: COMPLETED
+      passedSteps: [register-guest, guest-welcomed]
+      publishedEvents: [com.example.guest.welcomed]
+
+  - name: the caller gets the quote at once, and the quote expires 15 minutes later
+    workflow: room-quote
+    variables: { roomType: suite, nights: 3 }
+    then:
+      - advanceTime: PT16M
+    expect:
+      status: COMPLETED
+      reply: { quoteId: Q-1, price: "780", currency: EUR }
+      passedSteps: [answer, hold-quote, expire-quote]
+
+  - name: a room type with no price fails before any answer
+    workflow: room-quote
+    variables: { roomType: castle, nights: 1 }
+    expect:
+      status: ERROR
+      notPassedSteps: [answer]

@@ -1,0 +1,29 @@
+# Chapter 6 — a race: the first taxi company to confirm wins (XOR JOIN), the other is cancelled (compensateLosers).
+# The kit answers each call on the spot, so City Cabs (dispatched first) always wins here and Airport Express is
+# cancelled before it is sent. The race on real threads — the loser booked, then undone — is SeriesAppEndToEndTest's.
+workflow: airport-transfer
+variables: { guest: Erin, flight: IB3456 }
+steps:
+  confirm-transfer: { complete: {} }
+http:
+  book-city-cabs: { status: 201, body: { id: CC-1 } }
+  book-airport-express: { status: 201, body: { id: AE-1 } }
+  cancel-city-cabs: { status: 204 }
+  cancel-airport-express: { status: 204 }
+
+scenarios:
+  - name: the first company to confirm takes the guest, the other branch is abandoned
+    expect:
+      status: COMPLETED
+      passedSteps: [book-city-cabs, first-confirmed, confirm-transfer]
+      notPassedSteps: [book-airport-express, cancel-city-cabs, cancel-airport-express]
+      variables: { taxi: City Cabs, taxiBookingId: CC-1 }
+      invocations: { book-airport-express: 0, confirm-transfer: 1 }
+
+  - name: a company that refuses for good fails the transfer, and the taxi the other one booked is cancelled
+    http:
+      book-city-cabs: { status: 409, body: { error: no cars } }   # a 4xx is final
+    expect:
+      status: COMPENSATED
+      passedSteps: [book-airport-express, cancel-airport-express]
+      notPassedSteps: [confirm-transfer]

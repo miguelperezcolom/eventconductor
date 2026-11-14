@@ -1,0 +1,88 @@
+# Chapter 6 — CHOICE, FORK / AND JOIN, a forEach over a named sub-process, repeat and loopBack.
+steps:
+  assign-coordinator: { complete: { coordinator: Marta } }
+  standard-welcome: { complete: { welcomePlan: standard } }
+  welcome-pack: { complete: { welcomePacks: 4 } }
+  notify-group: { complete: {} }
+  check-housekeeping: { complete: { clean: "true" } }
+  inspect-room:
+    - { when: "room.type == 'out-of-order'", fail: OUT_OF_ORDER, retryable: false }
+    - { complete: { issues: 0 } }
+  fix-issues: { complete: { fixed: true } }
+  stock-minibar: { complete: { roomStatus: "Room ${room.number} ready" } }
+http:
+  arrange-transfer: { status: 201, body: { id: CO-1 } }
+
+scenarios:
+  - name: a large group gets a coordinator, every room, a coach and welcome packs
+    workflow: group-arrival
+    variables:
+      leader: Ana
+      groupSize: 12
+      rooms: [ { number: "301", type: double }, { number: "302", type: double } ]
+    expect:
+      status: COMPLETED
+      passedSteps: [assign-coordinator, prepare-rooms, arrange-transfer, welcome-pack, all-ready, notify-group]
+      notPassedSteps: [standard-welcome]
+      variables: { coordinator: Marta, transferId: CO-1 }
+      invocations: { arrange-transfer: 1, notify-group: 1 }
+
+  - name: a small group takes the default branch, and a room out of order does not stop the others
+    workflow: group-arrival
+    variables:
+      leader: Luis
+      groupSize: 4
+      rooms: [ { number: "201", type: double }, { number: "202", type: out-of-order } ]
+    expect:
+      status: COMPLETED
+      passedSteps: [standard-welcome, prepare-rooms, notify-group]
+      notPassedSteps: [assign-coordinator]
+
+  - name: the coach company fails for good, so the group is not told
+    workflow: group-arrival
+    variables:
+      leader: Mia
+      groupSize: 4
+      rooms: [ { number: "201", type: double } ]
+    http:
+      arrange-transfer: { status: 400, body: { error: no coach } }
+    expect:
+      status: ERROR
+      notPassedSteps: [notify-group]
+
+  - name: a suite is asked about again until housekeeping says it is clean
+    workflow: prepare-room
+    variables:
+      room: { number: "302", type: suite }
+    steps:
+      check-housekeeping:
+        - { complete: { clean: "false" } }
+        - { complete: { clean: "true" } }
+    then:
+      - advanceTime: PT10S                      # the repeat's delay
+    expect:
+      status: COMPLETED
+      passedSteps: [check-housekeeping, stock-minibar]
+      invocations: { check-housekeeping: 2 }
+
+  - name: what the inspection finds is fixed, and the room inspected again
+    workflow: prepare-room
+    variables:
+      room: { number: "303", type: double, issues: 2 }
+    steps:
+      inspect-room:
+        - { complete: { issues: 2 } }
+        - { complete: { issues: 0 } }
+    expect:
+      status: COMPLETED
+      passedSteps: [fix-issues, stock-minibar]
+      variables: { roomStatus: "Room 303 ready" }
+      invocations: { inspect-room: 2, fix-issues: 1 }
+
+  - name: a room out of order cannot be prepared
+    workflow: prepare-room
+    variables:
+      room: { number: "304", type: out-of-order }
+    expect:
+      status: ERROR
+      notPassedSteps: [stock-minibar]
