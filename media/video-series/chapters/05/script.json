@@ -190,8 +190,8 @@
       "view": "code",
       "code": {
         "file": "examples/workshop-hotel-booking/src/main/resources/application.properties",
-        "from": 27,
-        "to": 31
+        "from": "^# --- The hotel's API",
+        "to": "connections\\.hotel\\.read-timeout"
       },
       "spec": {
         "geom": {

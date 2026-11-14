@@ -34,7 +34,7 @@ export async function run(c) {
   });
 
   // edit: a USER_TASK from the palette, named; a Shift+drag link; the forEach failure policy; the file beside.
-  await c.vscodeShot('edit', WORKSPACE, async (vs) => { await vs.quickOpen('group-arrival.ec.yaml'); await hideSidebar(vs); }, async (s, vs) => {
+  await c.vscodeShot('edit', WORKSPACE, async (vs) => { await hideSidebar(vs); await vs.quickOpen('group-arrival.ec.yaml'); await sleep(2500); }, async (s, vs) => {
     await s.cameraNow('full');
     const canvas = await s.box(ed(vs));
     await s.moveTo(ed(vs).locator('.palette-item').filter({ hasText: 'USER_TASK' }).first(), 0.8);
@@ -81,7 +81,7 @@ export async function run(c) {
   });
 
   // inline: the workshop's inline PROCESS body, edited in place; Esc back.
-  await c.vscodeShot('inline', WORKSPACE, async (vs) => { await vs.quickOpen('03-rooms-booking-safe.ec.yaml'); await hideSidebar(vs); }, async (s, vs) => {
+  await c.vscodeShot('inline', WORKSPACE, async (vs) => { await hideSidebar(vs); await vs.quickOpen('03-rooms-booking-safe.ec.yaml'); await sleep(2500); }, async (s, vs) => {
     await s.cameraNow('full');
     await s.hold(0.4);
     await s.dblclick(vnode(vs, 'Book every room'), { dur: 0.9 });
