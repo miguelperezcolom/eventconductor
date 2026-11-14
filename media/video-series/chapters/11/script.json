@@ -1,0 +1,227 @@
+{
+  "chapter": 11,
+  "slug": "operating-running-processes",
+  "app": "examples/video-series",
+  "port": 8096,
+  "prompt": "~/video-series $",
+  "before": "rm -rf media/video-series/build/hotel-definitions && mkdir -p media/video-series/build/hotel-definitions && cp examples/video-series/src/main/resources/workflows/hotel-booking.ec.yaml media/video-series/build/hotel-definitions/ && cd media/video-series/build/hotel-definitions && git init -q -b main && git add . && git -c user.name=series -c user.email=series@example.invalid commit -qm 'hotel-booking v1'",
+  "appArgs": "--workflow.git-import.repositories[0].url=file://{here}/build/hotel-definitions --workflow.git-import.repositories[0].branch=main",
+  "docs": "guides/operating-running-processes/",
+  "code": "examples/video-series",
+  "title": { "en": "Operating running processes", "es": "Operar procesos en marcha" },
+  "hook": {
+    "en": "The channel manager went down overnight and three syncs failed. Find them, see why, fix them all at once — and change the process while bookings are still waiting.",
+    "es": "El channel manager se cayó por la noche y fallaron tres sincronizaciones. Encuéntralas, mira por qué, arréglalas todas a la vez, y cambia el proceso con reservas todavía esperando."
+  },
+  "about": {
+    "en": "The console as an operator's tool: searching by business key and filtering, the Errors tab, incidents grouped by cause, a batch retry and its progress, operations by hand with a mandatory reason in the audit trail, and a new version of a definition imported from Git with a running process migrated after a dry run. Recorded on the series app (examples/video-series) with its seed data.",
+    "es": "La consola como herramienta de operación: buscar por clave de negocio y filtrar, la pestaña de errores, incidencias agrupadas por causa, un reintento por lotes y su progreso, operaciones a mano con un motivo obligatorio en la auditoría, y una nueva versión de una definición importada desde Git con un proceso en marcha migrado tras una simulación. Grabado sobre la app de la serie (examples/video-series) con sus datos de ejemplo."
+  },
+  "standIns": {
+    "en": "the channel manager and the hotel are local stand-ins served by the series app",
+    "es": "el channel manager y el hotel son sustitutos locales que sirve la propia app de la serie"
+  },
+  "youtubeChapters": [
+    { "at": "title", "en": "The night the channel manager went down", "es": "La noche en que se cayó el channel manager" },
+    { "at": "find", "en": "Find it", "es": "Encontrarlo" },
+    { "at": "incident", "en": "Why it failed: incidents", "es": "Por qué falló: incidencias" },
+    { "at": "retry", "en": "Retry them all", "es": "Reintentarlas todas" },
+    { "at": "byhand", "en": "Operations by hand", "es": "Operaciones a mano" },
+    { "at": "change", "en": "A new version", "es": "Una nueva versión" },
+    { "at": "migrate", "en": "Migrate a running process", "es": "Migrar un proceso en marcha" },
+    { "at": "recap", "en": "Recap", "es": "Resumen" }
+  ],
+  "scenes": [
+    {
+      "id": "title",
+      "view": "title",
+      "spec": { "eyebrow": "eyebrow", "title": "title", "sub": "sub", "subAt": "c2", "top": 190, "visual": "flow", "size": 112},
+      "narration": {
+        "en": [
+          "Overnight, the channel manager went down, and three availability syncs failed.",
+          "Someone has to find them, see why, and fix them, without touching the hundreds of runs that are fine.",
+          {
+            "text": "This chapter: operating running processes, in EventConductor.",
+            "say": "This chapter: operating running processes, in Event Conductor."
+          }
+        ],
+        "es": [
+          {
+            "text": "Por la noche se cayó el channel manager, y fallaron tres sincronizaciones de disponibilidad.",
+            "say": "Por la noche se cayó el chánel mánayer, y fallaron tres sincronizaciones de disponibilidad."
+          },
+          "Alguien tiene que encontrarlas, ver por qué y arreglarlas, sin tocar los cientos de ejecuciones que van bien.",
+          {
+            "text": "En este capítulo: operar procesos en marcha, en EventConductor.",
+            "say": "En este capítulo: operar procesos en marcha, en Event Conductor."
+          }
+        ]
+      }
+    },
+    {
+      "id": "find",
+      "view": "live",
+      "spec": {},
+      "extra": 0.6,
+      "narration": {
+        "en": [
+          "Every run is in the process list, with its business key and how far it got.",
+          "Search by the key you were given: booking nine, compensated.",
+          { "text": "Or filter: only errors. Three syncs, stopped a third of the way." }
+        ],
+        "es": [
+          "Cada ejecución está en la lista de procesos, con su clave de negocio y hasta dónde llegó.",
+          "Busca por la clave que te han dado: la reserva nueve, compensada.",
+          { "text": "O filtra: solo errores. Tres sincronizaciones, paradas a un tercio del camino." }
+        ]
+      }
+    },
+    {
+      "id": "incident",
+      "view": "live",
+      "spec": {},
+      "extra": 0.6,
+      "narration": {
+        "en": [
+          { "text": "Open one. The Errors tab says why: the channel manager answered 503, after the step's retries ran out." },
+          "The Incidents page groups failures by workflow, step and cause.",
+          "One incident, three processes: the same outage."
+        ],
+        "es": [
+          {
+            "text": "Abre una. La pestaña de errores dice por qué: el channel manager contestó 503, después de agotar los reintentos del paso.",
+            "say": "Abre una. La pestaña de errores dice por qué: el chánel mánayer contestó quinientos tres, después de agotar los reintentos del paso."
+          },
+          "La página de incidencias agrupa los fallos por flujo, paso y causa.",
+          "Una incidencia, tres procesos: la misma caída."
+        ]
+      }
+    },
+    {
+      "id": "retry",
+      "view": "live",
+      "spec": {
+        "terms": [{"items": [{"id": "outage-off", "at": 0.2}], "opts": {"cps": 70}, "from": 0, "to": "c1-0.3", "x": 210, "y": 560, "w": 1500, "h": 260}],
+        "pills": [{"key": "standin.cm", "from": 0.4, "to": "c1-0.3", "right": 130, "y": 860, "cls": "amber"}]
+      },
+      "extra": 0.8,
+      "narration": {
+        "en": [
+          "The channel manager is back.",
+          "Retry all, with a reason: every process of the incident is retried, from where it failed, as a batch operation.",
+          "The batch runs in the background: three processes, three succeeded.",
+          "Nothing that had already succeeded ran twice."
+        ],
+        "es": [
+          { "text": "El channel manager vuelve a funcionar.", "say": "El chánel mánayer vuelve a funcionar." },
+          "Reintentar todo, con un motivo: cada proceso de la incidencia se reintenta, desde donde falló, como una operación por lotes.",
+          "El lote corre en segundo plano: tres procesos, tres con éxito.",
+          "Nada de lo que ya había ido bien se ejecutó dos veces."
+        ]
+      }
+    },
+    {
+      "id": "byhand",
+      "view": "live",
+      "spec": {},
+      "extra": 0.6,
+      "narration": {
+        "en": [
+          "Some runs need a person.",
+          "This check-in waits for a room that housekeeping already handed over by phone.",
+          "Complete the step by hand: every operation asks for a reason, recorded with your name.",
+          "Pause, set variables, retry from a step, cancel: same rule, same audit trail."
+        ],
+        "es": [
+          "Algunas ejecuciones necesitan a una persona.",
+          "Este check-in espera una habitación que limpieza ya entregó por teléfono.",
+          "Completa el paso a mano: cada operación pide un motivo, que queda registrado con tu nombre.",
+          "Pausar, cambiar variables, reintentar desde un paso, cancelar: la misma regla, la misma auditoría."
+        ]
+      }
+    },
+    {
+      "id": "change",
+      "view": "terminal",
+      "spec": {
+        "geom": { "x": 140, "y": 150, "w": 1640, "h": 760},
+        "title": "a Git repository of definitions",
+        "items": [{"id": "change-def", "at": 0.3, "prompt": "hotel-definitions $"}, {"id": "git-webhook", "at": "c2", "prompt": "hotel-definitions $"}],
+        "opts": { "cps": 80, "lineGap": 0.08}
+      },
+      "extra": 0.8,
+      "narration": {
+        "en": [
+          "Processes also outlive their definitions.",
+          {
+            "text": "Here the definitions are imported from a Git repository. The managers want to be reminded after four hours, not a day: one line, one commit."
+          },
+          { "text": "The repository's webhook tells the engine, and it imports the new version. No build, no restart." }
+        ],
+        "es": [
+          "Los procesos también sobreviven a sus definiciones.",
+          {
+            "text": "Aquí las definiciones se importan desde un repositorio Git. Los responsables quieren el aviso a las cuatro horas, no al día: una línea, un commit."
+          },
+          {
+            "text": "El webhook del repositorio avisa al motor, y este importa la nueva versión. Sin compilar, sin reiniciar.",
+            "say": "El uébjuk del repositorio avisa al motor, y este importa la nueva versión. Sin compilar, sin reiniciar."
+          }
+        ]
+      }
+    },
+    {
+      "id": "migrate",
+      "view": "live",
+      "spec": {},
+      "extra": 0.8,
+      "narration": {
+        "en": [
+          {
+            "text": "The definition keeps every version, with the runs on each. Booking seven still runs version one: running processes keep the version they started on."
+          },
+          {
+            "text": "To move it, Migrate. The steps map by id, a reason is mandatory, and Preview is a dry run: what would happen to each step, before anything changes."
+          },
+          "Then migrate it for real, or many at once with a batch."
+        ],
+        "es": [
+          {
+            "text": "La definición guarda cada versión, con sus ejecuciones. La reserva siete sigue en la versión uno: los procesos en marcha conservan la versión con la que empezaron."
+          },
+          {
+            "text": "Para moverla, Migrar. Los pasos se emparejan por identificador, el motivo es obligatorio, y Previsualizar es una simulación: qué le pasaría a cada paso, antes de cambiar nada."
+          },
+          "Después se migra de verdad, o muchas a la vez con un lote."
+        ]
+      }
+    },
+    {
+      "id": "recap",
+      "view": "cards",
+      "spec": { "head": "recap.head", "items": "recap.items", "cols": 3, "strip": "recap.strip", "stripAt": "c2", "stripTop": 720, "cardH": 220},
+      "narration": {
+        "en": [
+          "Find a run by its key, see why it failed, group failures into incidents.",
+          "Fix one by hand or thousands with a batch, from where they stopped.",
+          { "text": "Change the process, and decide which runs follow. Every operation leaves a reason in the audit trail." }
+        ],
+        "es": [
+          "Encuentra una ejecución por su clave, mira por qué falló, agrupa los fallos en incidencias.",
+          "Arregla una a mano o miles con un lote, desde donde se pararon.",
+          { "text": "Cambia el proceso, y decide qué ejecuciones lo siguen. Cada operación deja un motivo en la auditoría." }
+        ]
+      }
+    },
+    {
+      "id": "close",
+      "view": "close",
+      "spec": { "line": "close.line", "next": "close.next", "links": ["close.docs", "close.app", "close.license"]},
+      "extra": 1.5,
+      "narration": {
+        "en": ["Running processes, in hand.", "Next: testing workflows."],
+        "es": ["Los procesos en marcha, bajo control.", "Próximo capítulo: probar los flujos."]
+      }
+    }
+  ]
+}

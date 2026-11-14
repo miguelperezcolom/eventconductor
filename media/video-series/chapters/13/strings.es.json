@@ -1,0 +1,79 @@
+{
+  "eyebrow": "EventConductor · Capítulo 13",
+  "title": "Del portátil **al clúster**",
+  "sub": "Embebido · Kafka · Helm",
+  "flow": [
+    [
+      "embebido · memoria",
+      "az",
+      "c0"
+    ],
+    [
+      "embebido · JPA",
+      "az",
+      "c0"
+    ],
+    [
+      "kafka + JPA",
+      "amb",
+      "c1"
+    ],
+    [
+      "chart de Helm",
+      "amb",
+      "c1"
+    ]
+  ],
+  "embedded.pill": "`workflow.mode` = embedded | kafka   ·   `workflow.persistence` = memory | jpa",
+  "topo.head": "Las mismas definiciones, todas las topologías",
+  "topo.items": [
+    [
+      "embebido · memoria",
+      "",
+      "dentro de tu app; tests y demos",
+      "c0"
+    ],
+    [
+      "embebido · JPA",
+      "",
+      "dentro de tu app, el estado en su base de datos; sobrevive a reinicios",
+      "c0+1.0"
+    ],
+    [
+      "kafka + JPA",
+      "",
+      "un orquestador es dueño de cada proceso; workers en topics, en cualquier lenguaje (también por HTTP)",
+      "c1"
+    ]
+  ],
+  "topo.strip": [
+    "workers integrados en el orquestador (desde la 2.35): `HTTP_CALL` · `LLM_CALL` · `PUBLISH_EVENT`"
+  ],
+  "compose.pins": "+ chapters/13/compose.2.41.0.yml: imagen 2.41.0 · postgres:16 · healthcheck · puertos (el fichero solo hoy falla: reportado)",
+  "standin.hotel": "hotel: sustituto local, servido por la app del taller en el host",
+  "recap.head": "Del portátil al clúster",
+  "recap.items": [
+    [
+      "portátil",
+      "embebido",
+      "memoria o tu base de datos — dos propiedades",
+      "c0"
+    ],
+    [
+      "clúster",
+      "kafka",
+      "orquestador + workers sobre Kafka · el chart de Helm",
+      "c1"
+    ]
+  ],
+  "recap.strip": [
+    "definiciones desde Git, reimportadas con un webhook firmado: **cambiar sin redesplegar**"
+  ],
+  "close.line": "Una definición, **todas las topologías.**",
+  "close.next": "Próximo · Seguro y observable por defecto",
+  "close.docs": "eventconductor.mateu.io · Deployment modes",
+  "close.chart": "charts/eventconductor",
+  "close.license": "Código abierto · MIT",
+  "thumb.title": "Del portátil **al clúster**",
+  "thumb.sub": "Embebido · Kafka · Helm"
+}

@@ -1,0 +1,33 @@
+{
+  "eyebrow": "EventConductor · Chapter 9",
+  "title": "Events in, **events out**",
+  "sub": "Triggers, webhooks, PUBLISH_EVENT and REPLY",
+  "flow": [["booking created", "az", "c0"], ["signed webhook", "az", "c1"], ["process", "good", "c1"], ["guest welcomed", "amb", "c1"], ["reply, now", "amb", "c2"]],
+  "trigger.n1": "a CloudEvent of this `type` on this `destination` starts the `workflow`",
+  "trigger.n2": "`businessKey` and `variables` from the event's `data`",
+  "trigger.n3": "same source + id → **never two processes** through one trigger",
+  "webhook.main": "embedded beside the engine: needs a fix on main, after 2.41.0 · in 2.41.0, run the gateway as its own service",
+  "standin.cm": "channel manager: local stand-in (scripts/webhook.sh)",
+  "publish.n1": "`destination` · `type` · `key` · `payload` — from the process variables",
+  "publish.n2": "since 2.35: a **built-in worker** — topic `event-publications` when distributed",
+  "publish.n3": "at least once · event id = the step execution id",
+  "standin.events": "GET /fake/events: what the app's publisher received (local stand-in)",
+  "reply.n1": "`syncInvocation` — opt-in per definition, with a deadline",
+  "reply.n2": "`REPLY` — answers the waiting caller with `replyVariables`",
+  "reply.n3": "…and the process **carries on** after the answer",
+  "recap.head": "Events in, events out",
+  "recap.items": [
+    ["event trigger", "in", "a CloudEvent on a destination → `events.yaml` or the definition", "c0"],
+    ["webhook", "in", "signed (HMAC) · `github` or `generic` → a CloudEvent", "c0+1.2"],
+    ["PUBLISH_EVENT", "out", "built-in worker · at least once", "c1"],
+    ["REPLY", "out", "a synchronous caller gets its answer; the process carries on", "c1+1.2"]
+  ],
+  "recap.strip": ["distributed (`workflow.mode=kafka`): destinations are **Kafka topics** — the definitions do not change"],
+  "close.line": "Events in, **events out.**",
+  "close.next": "Next · AI in the process",
+  "close.docs": "eventconductor.mateu.io · Domain-event triggers",
+  "close.app": "examples/video-series",
+  "close.license": "Open source · MIT",
+  "thumb.title": "Events in, **events out**",
+  "thumb.sub": "Triggers · webhooks · PUBLISH_EVENT · REPLY"
+}

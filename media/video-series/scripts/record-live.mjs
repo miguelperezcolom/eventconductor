@@ -175,13 +175,13 @@ const ctx = {
   waitFor: async (fn, what, ms = 30000) => { const t0 = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t0 > ms) throw new Error(`timeout waiting for ${what}`); await sleep(300); } },
 
   /** Run a REAL command (bash, in cwd relative to the repo) and keep its output for terminal scene `id`. */
-  term(id, cmd, { cwd = 'examples/workshop-hotel-booking', keep = null, cache = false, show = cmd } = {}) {
+  term(id, cmd, { cwd = 'examples/workshop-hotel-booking', keep = null, cache = false, show = cmd, env = {} } = {}) {
     const dir = cache ? resolve(here, `build/ch${chapter}/term`) : `${build}/term`;
     mkdirSync(dir, { recursive: true });
     const file = `${dir}/${id}.json`;
     if (cache && existsSync(file) && !process.env.FRESH) { console.log(`term ${id}: cached`); return JSON.parse(readFileSync(file, 'utf8')); }
     console.log(`term ${id}: $ ${cmd}`);
-    const r = spawnSync('bash', ['-c', cmd], { cwd: resolve(repo, cwd), encoding: 'utf8', env: { ...process.env, ENGINE: BASE }, maxBuffer: 64 << 20 });
+    const r = spawnSync('bash', ['-c', cmd], { cwd: resolve(repo, cwd), encoding: 'utf8', env: { ...process.env, ENGINE: BASE, ...env }, maxBuffer: 64 << 20 });
     let lines = (r.stdout + r.stderr).replace(/\x1b\[[0-9;]*m/g, '').split('\n').filter((l) => l.trim().length);
     if (keep) lines = lines.filter((l) => keep.test(l));
     // Paths as a viewer would see them from the example's directory (no machine-specific prefixes).
@@ -192,13 +192,13 @@ const ctx = {
   },
 
   /** Film live scene `id` (skipped when the chapter has no such scene). */
-  async shot(id, open, script, { viewport = { w: VW, h: VH }, scale = viewport.w < VW ? 3 : SCALE } = {}) {
+  async shot(id, open, script, { viewport = { w: VW, h: VH }, scale = viewport.w < VW ? 3 : SCALE, context: contextOptions = {} } = {}) {
     const scene = scenes[id];
     if (!scene) throw new Error(`no scene ${id} in the timeline`);
     if (only && !only.has(id)) return;
     const dir = `${build}/live/${id}`;
     rmSync(dir, { recursive: true, force: true }); mkdirSync(dir, { recursive: true });
-    const context = await browser.newContext({ viewport: { width: viewport.w, height: viewport.h }, deviceScaleFactor: scale, colorScheme: 'dark', reducedMotion: 'no-preference' });
+    const context = await browser.newContext({ viewport: { width: viewport.w, height: viewport.h }, deviceScaleFactor: scale, colorScheme: 'dark', reducedMotion: 'no-preference', ...contextOptions });
     const page = await context.newPage();
     await page.addInitScript(CURSOR);
     const t0 = new Date('2026-11-14T09:00:00Z');
@@ -222,7 +222,7 @@ const ctx = {
   },
   /** Open a console page and wait until `ready` (a selector or function) is there — off camera. */
   open: (path, ready) => async (page) => {
-    await page.goto(BASE + path);
+    await page.goto(/^https?:/.test(path) ? path : BASE + path);   // another app's page: a full URL
     for (let i = 0; i < 100; i++) {
       await page.clock.runFor(100); await sleep(50);
       const ok = typeof ready === 'function' ? await ready(page) : await page.locator(ready).first().isVisible().catch(() => false);

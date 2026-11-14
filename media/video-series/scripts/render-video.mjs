@@ -62,7 +62,9 @@ function data() {
     if (!existsSync(idx)) throw new Error(`missing ${idx}: run record-live.mjs ${chapter} ${lang}`);
     { const ix = json(idx); live[s.id] = { dir: `../build/ch${chapter}/${lang}/live/${s.id}`, viewport: ix.viewport, frames: ix.frames }; }
   }
-  return { chapter: script.chapter, lang, strings, logo, duration: tl.duration, scenes, code, term, live };
+  // The console window's title and the terminal prompt: the chapter's app (script.json `port`, `prompt`), else the workshop's.
+  const host = script.port ? `localhost:${script.port}` : undefined;
+  return { chapter: script.chapter, lang, strings, logo, duration: tl.duration, scenes, code, term, live, host, prompt: script.prompt };
 }
 
 const DATA = data();

@@ -1,0 +1,134 @@
+{
+  "chapter": 14,
+  "slug": "secure-and-observable",
+  "app": "examples/video-series",
+  "port": 8096,
+  "prompt": "~/video-series $",
+  "before": "cd examples/video-series && docker compose -p ec-series-obs --profile observability up -d",
+  "appArgs": "--spring.profiles.active=observability --workflow.message-api.allow-anonymous=false --workflow.security.trust-forwarded-token=false --workflow.message-api.api-key=series-demo-api-key --workflow.directory-import.directories[0]={here}/chapters/14/definitions",
+  "docs": "guides/security-defaults/",
+  "code": "examples/video-series",
+  "title": { "en": "Secure and observable by default", "es": "Seguro y observable por defecto" },
+  "hook": {
+    "en": "An engine that runs your business processes should refuse what nobody allowed — and tell you what it is doing when you ask.",
+    "es": "Un motor que ejecuta tus procesos de negocio debería rechazar lo que nadie ha permitido, y contarte qué está haciendo cuando se lo pidas."
+  },
+  "about": {
+    "en": "What EventConductor refuses until told otherwise (since 2.27 and 2.28): anonymous callers of the REST API, the console and MCP — shown live with real requests — and secrets that the deployment never listed; then what it shows when you switch observability on: its own Prometheus metrics on a Grafana dashboard and one OpenTelemetry trace per process (tracing is off by default). Recorded on the series app with its laptop switch off and its observability profile on.",
+    "es": "Lo que EventConductor rechaza mientras no se le diga lo contrario (desde la 2.27 y la 2.28): llamadas anónimas a la API REST, a la consola y a MCP —mostrado en vivo con peticiones reales— y secretos que el despliegue nunca declaró; y lo que enseña cuando activas la observabilidad: sus propias métricas de Prometheus en un panel de Grafana y una traza de OpenTelemetry por proceso (las trazas vienen desactivadas). Grabado sobre la app de la serie con su interruptor de portátil apagado y su perfil de observabilidad activo."
+  },
+  "standIns": { "en": "the channel manager is a local stand-in served by the series app", "es": "el channel manager es un sustituto local que sirve la propia app de la serie" },
+  "youtubeChapters": [
+    { "at": "title", "en": "Secure until told otherwise", "es": "Seguro mientras no se diga lo contrario" },
+    { "at": "refuse", "en": "Anonymous callers refused", "es": "Llamadas anónimas rechazadas" },
+    { "at": "secret", "en": "Secrets by name only", "es": "Secretos solo por nombre" },
+    { "at": "metrics", "en": "Metrics", "es": "Métricas" },
+    { "at": "traces", "en": "Traces", "es": "Trazas" },
+    { "at": "optin", "en": "On by default, opt-in", "es": "Activo por defecto, opcional" }
+  ],
+  "scenes": [
+    {
+      "id": "title", "view": "title",
+      "spec": { "eyebrow": "eyebrow", "title": "title", "sub": "sub", "subAt": "c2", "top": 190, "visual": "flow", "size": 104 },
+      "narration": {
+        "en": ["The engine that runs your business processes holds their data, their credentials and their history.", "It should refuse what nobody allowed, and tell you what it is doing when you ask.", { "text": "This chapter: secure and observable by default, in EventConductor.", "say": "This chapter: secure and observable by default, in Event Conductor." }],
+        "es": ["El motor que ejecuta tus procesos de negocio guarda sus datos, sus credenciales y su historia.", "Debería rechazar lo que nadie ha permitido, y contarte qué está haciendo cuando se lo pidas.", { "text": "En este capítulo: seguro y observable por defecto, en EventConductor.", "say": "En este capítulo: seguro y observable por defecto, en Event Conductor." }]
+      }
+    },
+    {
+      "id": "page", "view": "code",
+      "code": { "file": "doc/src/content/docs/guides/security-defaults.md", "from": "^## The laptop switches", "to": "Copy their definitions" },
+      "spec": {
+        "geom": { "x": 50, "y": 120, "w": 1820, "h": 620 }, "fontSize": 17,
+        "emphasis": [
+          { "at": "c1", "match": ["allow-anonymous` \\| `false", "trust-forwarded-token` \\| `false", "secrets-from-environment", "credentials-to-any-host", "SECURITY_ENABLED"] },
+          { "at": "c2", "match": ["The repository's demos", "allow-anonymous` and `trust-forwarded-token`", "Copy their definitions"] }
+        ],
+        "pills": [{ "key": "page.main", "from": 0.6, "x": 110, "y": 800, "cls": "amber" }]
+      },
+      "narration": {
+        "en": ["Since 2.27 and 2.28, EventConductor refuses what it has not been told to allow.", "One page lists every switch: what it opens, and where it belongs.", "The demos in this series turn two of them on, so that they run with one command; copy their definitions, not those two lines."],
+        "es": ["Desde la 2.27 y la 2.28, EventConductor rechaza lo que no se le ha dicho que permita.", "Una página lista cada interruptor: qué abre, y dónde tiene sentido.", "Las demos de esta serie activan dos de ellos, para arrancar con un solo comando; copia sus definiciones, no esas dos líneas."]
+      }
+    },
+    {
+      "id": "refuse", "view": "terminal",
+      "spec": {
+        "geom": { "x": 80, "y": 70, "w": 1760, "h": 900 }, "title": "examples/video-series — the laptop switch off, an API key set",
+        "items": [{ "id": "api-401", "at": "c1" }, { "id": "mcp-403", "at": "c2" }, { "id": "key-200", "at": "c3" }],
+        "opts": { "cps": 90, "lineGap": 0.08 }
+      },
+      "extra": 1.0,
+      "narration": {
+        "en": ["This is the series app with its laptop switch off, the way every other EventConductor app ships.", "An anonymous request to the engine's API: 401.", "MCP refuses too, and says how to open it: Spring Security in front, or the switch, on an isolated machine.", "With the deployment's API key, the same request is answered."],
+        "es": ["Esta es la app de la serie con su interruptor de portátil apagado, como sale cualquier otra app de EventConductor.", "Una petición anónima a la API del motor: 401.", { "text": "MCP también la rechaza, y dice cómo abrirlo: Spring Security delante, o el interruptor, en una máquina aislada.", "say": "Eme ce pe también la rechaza, y dice cómo abrirlo: Spring Security delante, o el interruptor, en una máquina aislada." }, "Con la clave de API del despliegue, la misma petición recibe respuesta."]
+      }
+    },
+    {
+      "id": "console", "view": "live",
+      "spec": {},
+      "extra": 0.6,
+      "narration": {
+        "en": ["The console has no login of its own, so with no Spring Security in front of it, it does not open at all.", "Protect the application, or switch the console off."],
+        "es": ["La consola no tiene inicio de sesión propio, así que sin Spring Security delante, no llega a abrirse.", "Protege la aplicación, o apaga la consola."]
+      }
+    },
+    {
+      "id": "secret", "view": "code",
+      "code": { "file": "media/video-series/chapters/14/definitions/partner-push.ec.yaml", "from": "^id: partner-push", "to": "available: \"\\$" },
+      "spec": {
+        "geom": { "x": 70, "y": 40, "w": 1780, "h": 560 }, "fontSize": 20,
+        "emphasis": [
+          { "at": "c0", "match": ["auth:", "secret:PARTNER_TOKEN"] },
+          { "at": "c1", "match": ["secret:PARTNER_TOKEN"] }
+        ],
+        "term": { "geom": { "x": 70, "y": 630, "w": 1780, "h": 420 }, "from": "c2", "items": [{ "id": "partner-1", "at": "c2+0.2", "prompt": "~/video-series $" }], "opts": { "cps": 140, "lineGap": 0.1 } }
+      },
+      "extra": 1.2,
+      "narration": {
+        "en": ["A credential is never written in a definition: it is a reference, resolved when the call is made.", "And only from the names the deployment lists under workflow dot http dot secrets; the environment is not consulted.", "This one was never listed: the step fails, says exactly why, and is not retried."],
+        "es": ["Una credencial nunca se escribe en una definición: es una referencia, que se resuelve al hacer la llamada.", "Y solo a partir de los nombres que el despliegue declara en workflow punto http punto secrets; no se consulta el entorno.", "Esta nunca se declaró: el paso falla, dice exactamente por qué, y no se reintenta."]
+      }
+    },
+    {
+      "id": "metrics", "view": "live",
+      "spec": {
+        "host": "localhost:3000", "app": "Grafana · the series app's observability compose",
+        "terms": [
+          { "items": [{ "id": "load", "at": 0.2 }], "opts": { "cps": 160, "lineGap": 0.05 }, "from": 0, "to": "c1-0.2", "x": 160, "y": 470, "w": 1600, "h": 460 }
+        ]
+      },
+      "extra": 0.8,
+      "narration": {
+        "en": ["Observability is opt-in, and starts with one dependency.", "With Actuator and the Prometheus registry, the engine publishes its own metrics: processes running, open incidents, stalled steps, step outcomes and durations, retries and compensations, HTTP calls.", "This dashboard comes with the series app; Prometheus scrapes it every five seconds."],
+        "es": ["La observabilidad es opcional, y empieza con una dependencia.", "Con Actuator y el registro de Prometheus, el motor publica sus propias métricas: procesos en marcha, incidencias abiertas, pasos atascados, resultados y duración de los pasos, reintentos y compensaciones, llamadas HTTP.", "Este panel viene con la app de la serie; Prometheus la consulta cada cinco segundos."]
+      }
+    },
+    {
+      "id": "traces", "view": "live",
+      "spec": { "host": "localhost:16686", "app": "Jaeger · the series app's observability compose" },
+      "extra": 0.8,
+      "narration": {
+        "en": ["Tracing is off by default: the sampling is zero.", "This app's observability profile turns it on, and ships the traces over OpenTelemetry.", "Each process becomes a trace, with a span for every step."],
+        "es": ["Las trazas vienen desactivadas: el muestreo es cero.", "El perfil de observabilidad de esta app las activa, y las envía por OpenTelemetry.", "Cada proceso se convierte en una traza, con un tramo por cada paso."]
+      }
+    },
+    {
+      "id": "optin", "view": "cards",
+      "spec": { "head": "optin.head", "items": "optin.items", "cols": 2, "strip": "optin.strip", "stripAt": "c2", "stripTop": 700, "cardH": 380 },
+      "narration": {
+        "en": ["On by default: anonymous callers refused, secrets by name, credentials bound to their hosts, unsigned Git webhooks refused.", "Opt-in, when you need them: tracing, metrics over OTLP, MCP, sensitive-variable encryption, sharding, the process index and analytics rollups.", "Nothing is opened, or exported, until you say so."],
+        "es": ["Activo por defecto: llamadas anónimas rechazadas, secretos por nombre, credenciales atadas a sus hosts, webhooks de Git sin firma rechazados.", "Opcional, cuando lo necesites: trazas, métricas por OTLP, MCP, cifrado de variables sensibles, sharding, el índice de procesos y los agregados de analítica.", "Nada se abre, ni se exporta, hasta que tú lo digas."]
+      }
+    },
+    {
+      "id": "close", "view": "close",
+      "spec": { "line": "close.line", "next": "close.next", "links": ["close.docs", "close.obs", "close.license"] },
+      "extra": 1.5,
+      "narration": {
+        "en": ["Secure until told otherwise, observable when you ask.", "The whole series, and the workshop, are linked below."],
+        "es": ["Seguro mientras no se diga lo contrario, observable cuando lo pidas.", "La serie completa, y el taller, están enlazados abajo."]
+      }
+    }
+  ]
+}
