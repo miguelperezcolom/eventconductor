@@ -13,8 +13,8 @@
     "es": "La reserva que corría dentro de una app Spring Boot corre, sin cambios, en un orquestador sobre Kafka, y el chart de Helm la despliega."
   },
   "about": {
-    "en": "The same definition in every topology: embedded in memory or on a database (two properties), then distributed — the repository's docker compose stack with the 2.41.0 orchestrator, Redpanda and Postgres — running the workshop's HTTP saga through Kafka and the orchestrator's built-in workers, the topics in the broker, and the Helm chart rendering the same apps. Recorded on the workshop app and apps/docker-compose.yml.",
-    "es": "La misma definición en cada topología: embebida en memoria o sobre una base de datos (dos propiedades), y luego distribuida —el docker compose del repositorio con el orquestador 2.41.0, Redpanda y Postgres— ejecutando la saga HTTP del taller a través de Kafka y los workers integrados del orquestador, los topics en el broker, y el chart de Helm generando las mismas apps. Grabado sobre la app del taller y apps/docker-compose.yml."
+    "en": "The same definition in every topology: embedded in memory or on a database (two properties), then distributed — the repository's docker compose stack with the 2.42.0 orchestrator, Redpanda and Postgres — running the workshop's HTTP saga through Kafka and the orchestrator's built-in workers, the topics in the broker, and the Helm chart rendering the same apps. Recorded on the workshop app and apps/docker-compose.yml.",
+    "es": "La misma definición en cada topología: embebida en memoria o sobre una base de datos (dos propiedades), y luego distribuida —el docker compose del repositorio con el orquestador 2.42.0, Redpanda y Postgres— ejecutando la saga HTTP del taller a través de Kafka y los workers integrados del orquestador, los topics en el broker, y el chart de Helm generando las mismas apps. Grabado sobre la app del taller y apps/docker-compose.yml."
   },
   "standIns": {
     "en": "the hotel is a local stand-in served by the workshop app",
@@ -203,12 +203,12 @@
       "narration": {
         "en": [
           "This is the distributed stack from the repository's docker compose file: Postgres, Redpanda as the Kafka broker, and the orchestrator.",
-          "The orchestrator is the 2.41.0 image, and the workshop's definition file is mounted into it, unchanged.",
+          "The orchestrator is the 2.42.0 image, and the workshop's definition file is mounted into it, unchanged.",
           "On this machine the recording also pins two images and moves two ports; the note on screen says why."
         ],
         "es": [
           "Este es el stack distribuido del docker compose del repositorio: Postgres, Redpanda como broker de Kafka, y el orquestador.",
-          "El orquestador es la imagen 2.41.0, y el fichero de definición del taller está montado dentro, sin cambios.",
+          "El orquestador es la imagen 2.42.0, y el fichero de definición del taller está montado dentro, sin cambios.",
           "En esta máquina, la grabación además fija dos imágenes y mueve dos puertos; la nota en pantalla explica por qué."
         ]
       }
@@ -324,12 +324,12 @@
         "en": [
           "On Kubernetes, the Helm chart in the repository deploys the same apps.",
           "It will not render without a database password: nothing ships with a default one.",
-          "And it pins every app to the chart's version, 2.41.0, with Postgres and Redpanda to start with."
+          "And it pins every app to the chart's version, 2.42.0, with Postgres and Redpanda to start with."
         ],
         "es": [
           "En Kubernetes, el chart de Helm del repositorio despliega las mismas apps.",
           "No se genera sin una contraseña para la base de datos: nada sale con una por defecto.",
-          "Y fija cada app a la versión del chart, la 2.41.0, con Postgres y Redpanda para empezar."
+          "Y fija cada app a la versión del chart, la 2.42.0, con Postgres y Redpanda para empezar."
         ]
       }
     },
