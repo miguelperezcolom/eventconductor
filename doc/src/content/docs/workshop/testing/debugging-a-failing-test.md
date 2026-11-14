@@ -21,7 +21,6 @@ Steps:
   wait-for-guest           CANCELLED
   guest-decision           CANCELLED
   cancelled-by-guest       CANCELLED
-  confirm-kept             CANCELLED
   notify-guest             CANCELLED
   done                     CANCELLED
   tell-front-desk          CANCELLED

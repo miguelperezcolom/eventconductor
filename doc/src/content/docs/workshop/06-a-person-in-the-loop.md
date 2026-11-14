@@ -185,12 +185,6 @@ steps:
     retries: 3
     preconditionStepId: book-alternatives
 
-  - id: confirm-kept                         # the default: keep the rooms that were booked
-    type: ACTION
-    name: Confirm the rooms kept
-    retries: 3
-    preconditionStepId: guest-decision
-
   - id: cancelled-by-guest                   # cancel: the guest's decision undoes what was booked
     type: END
     name: Cancelled by the guest
@@ -202,7 +196,7 @@ steps:
   - id: done
     type: END
     name: Booked
-    preconditionStepIds: [notify-guest, confirm-alternatives, confirm-kept]   # whichever comes
+    preconditionStepIds: [notify-guest, confirm-alternatives, guest-decision]   # whichever comes (guest-decision: its default, keep the rooms)
 
   - id: cancel-room
     type: HTTP_CALL
@@ -278,7 +272,7 @@ scripts/start.sh hotel-booking BOOKING-9 '{"guest": "Lee", "rooms": [
 scripts/approve.sh BOOKING-9 true 'VIP'
 ```
 
-Room 401 is booked, the penthouse is refused, the hotel offers suite 901 and the guest is asked: the process waits at *Wait for the guest's answer*. Now the guest decides — `scripts/answer.sh BOOKING-9 accept` books the suite and confirms; `keep` confirms room 401 alone; `cancel` ends at *Cancelled by the guest*, where room 401 is cancelled at the hotel and the process ends **Compensated**.
+Room 401 is booked, the penthouse is refused, the hotel offers suite 901 and the guest is asked: the process waits at *Wait for the guest's answer*. Now the guest decides — `scripts/answer.sh BOOKING-9 accept` books the suite and confirms; `keep` ends *Booked* with room 401 alone; `cancel` ends at *Cancelled by the guest*, where room 401 is cancelled at the hotel and the process ends **Compensated**.
 
 If nobody answers, nothing is cancelled. After a day the guest is reminded; after two, the task *Front desk calls the guest* appears under **Forms → Tasks** (for `front-desk`, and for *mia* of `front-desk-managers` in the workshop): the front desk calls and records what the guest wants. Choosing *Cancel the whole booking* there is the same decision, taken for the guest — and the same compensation.
 

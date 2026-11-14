@@ -1,0 +1,23 @@
+id: choice-default-xor-join
+name: An XOR join fed straight from the default branch of two CHOICEs
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: book, type: ACTION, name: Book, topic: work, preconditionStepId: start }
+  - { id: all-booked, type: CHOICE, name: "Every room booked?", preconditionStepId: book }
+  - id: ask
+    type: ACTION
+    name: Ask the guest
+    topic: work
+    preconditions:
+      - { stepId: all-booked, expression: "missing == 'true'" }
+  - { id: guest-decision, type: CHOICE, name: "What did the guest decide?", preconditionStepId: ask }
+  - id: cancelled
+    type: END
+    name: Cancelled
+    preconditions:
+      - { stepId: guest-decision, expression: "answer == 'cancel'" }
+  # The default branch of both CHOICEs, joined directly — no step in between.
+  - { id: booked, type: JOIN, name: Booked, joinType: XOR, preconditionStepIds: [all-booked, guest-decision] }
+  - { id: confirm, type: ACTION, name: Confirm, topic: work, preconditionStepId: booked }
+  - { id: done, type: END, name: Done, preconditionStepId: confirm }

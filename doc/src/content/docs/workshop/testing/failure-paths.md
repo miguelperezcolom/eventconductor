@@ -17,7 +17,6 @@ class FailurePathsTest {
                 : TaskOutcome.complete(Map.of("roomBookingId", "RB-" + task.variable("room").replaceAll("\\D", ""))));
         runtime.whenStep("ask-guest").thenComplete();
         runtime.whenStep("cancel-room-booking").thenComplete();
-        runtime.whenStep("confirm-kept").thenComplete();
     }
 
     @Test
@@ -49,7 +48,7 @@ class FailurePathsTest {
         assertThat(booking).isCompensated()
                 .hasPassedSteps("cancelled-by-guest")
                 .hasCompensated("rooms")                                  // the rollback undid the rooms
-                .hasNotPassedSteps("confirm-kept", "notify-guest");
+                .hasNotPassedSteps("done", "notify-guest");
         assertThat(booking).iterations("rooms")
                 .hasOnlyFailed("Room 900")
                 .hasCompensated("Room 101", "Room 102");                  // the sold-out one had nothing to undo
@@ -67,7 +66,7 @@ class FailurePathsTest {
 
         runtime.sendMessage("guest-answer", "FAIL-3", Map.of("answer", "keep"));
 
-        assertThat(booking).isCompleted().hasPassedSteps("confirm-kept").hasNoCompensations();
+        assertThat(booking).isCompleted().hasPassedSteps("guest-decision", "done").hasNoCompensations();
     }
 
     @Test

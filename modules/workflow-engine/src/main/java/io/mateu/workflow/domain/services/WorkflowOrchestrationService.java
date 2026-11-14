@@ -657,17 +657,20 @@ public class WorkflowOrchestrationService {
             return isAnEntryPoint(step) && evaluatePreconditionExpression(step, process);
         }
 
-        // A CHOICE is an exclusive split: of its successors it takes exactly one. A successor of a
-        // CHOICE therefore runs only if it is the branch that CHOICE picks — and the pick latches, so
-        // once a sibling has left the starting gate a variable changing later cannot hand the branch
-        // to another. See pickedChoiceBranch for the ordering.
-        var choiceLink = choiceLinkInto(step, stepExecutions, cache);
-        if (choiceLink != null) {
-            return isPickedChoiceBranch(step, choiceLink.stepId(), process, stepExecutions, cache);
-        }
         // A precondition is satisfied once its step has a COMPLETED execution AND its own guard,
         // if it declares one, holds. An XOR join proceeds as soon as ANY incoming branch is
         // satisfied; every other step — including an AND join, the default barrier — needs them ALL.
+        //
+        // A link that comes from a CHOICE is satisfied only if this step is the branch that CHOICE
+        // picks: a CHOICE is an exclusive split, and of its successors it takes exactly one — and
+        // the pick latches, so once a sibling has left the starting gate a variable changing later
+        // cannot hand the branch to another. See isPickedChoiceBranch for the ordering.
+        //
+        // That is a property of the LINK, not of the step. An XOR join fed by a CHOICE's default
+        // branch and by another route (the CHOICE's other branch, a few steps on) must still proceed
+        // on that other route when the CHOICE took it. Reading the whole step as "a CHOICE branch"
+        // discarded such a join as a branch not taken, and the process completed around it without
+        // ever running what came after the join.
         //
         // A guard that is false leaves its link unsatisfied, which on an AND join means the step
         // waits: "wait for all of them" is read literally, and a branch whose condition never comes
@@ -676,6 +679,10 @@ public class WorkflowOrchestrationService {
         // than its author wrote. A guard reads process variables, so one that is false now becomes
         // true later if the variable changes, and the step is released then.
         java.util.function.Predicate<Precondition> satisfied = precondition -> {
+            Step predecessor = stepById(precondition.stepId(), stepExecutions, cache);
+            if (predecessor != null && predecessor.type() == StepType.CHOICE) {
+                return isPickedChoiceBranch(step, precondition.stepId(), process, stepExecutions, cache);
+            }
             boolean completed = stepExecutions.stream()
                     .filter(se -> precondition.stepId().equals(se.getStepId()))
                     .anyMatch(se -> StepExecutionStatus.COMPLETED.equals(se.getStatus()));

@@ -36,12 +36,7 @@ public class SeriesTaskHandlers {
         return confirming("notify-guest");
     }
 
-    /** The confirmation once the guest has decided: the rooms kept, or the alternatives booked. */
-    @Bean
-    TaskRegistration<NotifyGuestInput, NotifiedAt> confirmKept() {
-        return confirming("confirm-kept");
-    }
-
+    /** The confirmation once the guest has accepted the alternatives and they are booked. */
     @Bean
     TaskRegistration<NotifyGuestInput, NotifiedAt> confirmAlternatives() {
         return confirming("confirm-alternatives");
