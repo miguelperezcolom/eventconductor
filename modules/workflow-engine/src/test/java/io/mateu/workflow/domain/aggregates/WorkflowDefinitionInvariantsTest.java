@@ -349,6 +349,24 @@ class WorkflowDefinitionInvariantsTest {
     }
 
     @Test
+    void doesNotWarnAboutTheRouteToAStepsOwnTimeoutBranch() {
+        // The documented shape of a wait with a deadline: the normal successor and, reached only on
+        // timeout (a false guard), the onTimeoutStepId branch — one flow out of the wait, not two.
+        var wait = io.mateu.core.infra.JsonSerializer.pojoFromJson("""
+                {"id": "wait", "workflowDefinitionId": "wd-1", "type": "WAIT_FOR_MESSAGE", "name": "Wait",
+                 "preconditionStepId": "start", "messageName": "paid", "correlationExpression": "businessKey",
+                 "timeout": "PT2H", "onTimeoutStepId": "expire"}
+                """, Step.class);
+        var expire = io.mateu.core.infra.JsonSerializer.pojoFromJson("""
+                {"id": "expire", "workflowDefinitionId": "wd-1", "type": "ACTION", "name": "Expire", "topic": "t",
+                 "preconditions": [{"stepId": "wait", "expression": "false"}]}
+                """, Step.class);
+        var steps = List.of(startStep(), wait, step("ship", "wait", null), expire,
+                gateway("done", StepType.JOIN, List.of("ship", "expire")), endStep("end", "done"));
+        assertThat(definition(steps).topologyWarnings()).noneSatisfy(w -> assertThat(w).contains("'wait'"));
+    }
+
+    @Test
     void doesNotWarnWhenForkAndJoinAreUsed() {
         var steps = List.of(
                 startStep(),
