@@ -13,18 +13,16 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 
 /**
- * Imports workflow definitions from classpath:/workflows/ into the JPA repository at startup.
+ * Imports workflow definitions from every {@code workflows/} directory on the classpath (see
+ * {@link ClasspathDefinitionFiles}, which also says which copy wins when an id is in two of them) into the JPA repository at startup.
  * Active only when workflow.persistence=jpa. Runs before other ApplicationRunners (@Order(0)).
  * Definitions already present in the DB are skipped (idempotent).
  */
@@ -44,31 +42,26 @@ public class ClasspathWorkflowDefinitionImporter implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        var resolver = new PathMatchingResourcePatternResolver();
         try {
-            var resources = new java.util.ArrayList<Resource>();
-            // .json, .yaml/.yml (which covers order.workflow.yaml and order.ec.yaml) and .ec — the
-            // patterns don't overlap, so nothing is read twice.
-            for (var pattern : DefinitionFileFormat.CLASSPATH_PATTERNS) {
-                resources.addAll(Arrays.asList(resolver.getResources("classpath:/workflows/" + pattern)));
-            }
-            // cron.yaml sits next to the definitions but holds schedules (ClasspathCronScheduleLoader).
-            resources.removeIf(r -> io.mateu.workflow.analysis.ScheduleRules.isCronFileName(r.getFilename()));
-            // events.yaml too: event triggers naming their workflow (ClasspathEventTriggerLoader).
-            resources.removeIf(r -> io.mateu.workflow.analysis.EventTriggerRules.isEventFileName(r.getFilename()));
-            for (var resource : resources) {
+            // Every workflows/ directory on the classpath; the same id in two of them: the first on
+            // the classpath wins (ClasspathDefinitionFiles).
+            var firstWins = new ClasspathDefinitionFiles.FirstWins();
+            for (var file : ClasspathDefinitionFiles.scan()) {
                 try {
-                    String filename = resource.getFilename();
-                    byte[] bytes = resource.getInputStream().readAllBytes();
+                    String filename = file.filename();
+                    byte[] bytes = file.bytes();
                     // .ec content may be JSON or YAML; sniff to pick the parser.
                     boolean yaml = DefinitionFileFormat.isYaml(filename, bytes);
                     // The document as written, before binding drops whatever the record has no field
                     // for — the only moment a misspelled key can still be seen. See validateSource.
                     workflowDefinitionValidator.validateSource(
-                            (yaml ? YAML_MAPPER : JSON_MAPPER).readTree(bytes), "classpath:/workflows/" + filename);
+                            (yaml ? YAML_MAPPER : JSON_MAPPER).readTree(bytes), file.location());
                     WorkflowDefinition def = yaml
                             ? YAML_MAPPER.readValue(bytes, WorkflowDefinition.class)
                             : pojoFromJson(new String(bytes, java.nio.charset.StandardCharsets.UTF_8), WorkflowDefinition.class);
+                    if (!firstWins.claim(def.id(), file)) {
+                        continue;
+                    }
                     if (workflowDefinitionRepository.findById(def.id()).isPresent()) {
                         log.info("Workflow definition '{}' already in DB, skipping classpath import", def.id());
                         continue;
@@ -100,9 +93,9 @@ public class ClasspathWorkflowDefinitionImporter implements ApplicationRunner {
                                 .withDeclaredStatus(def.declaredStatus());
                     }
                     workflowDefinitionRepository.save(taskReferenceResolver.resolve(def));
-                    log.info("Imported workflow definition '{}' from classpath:{}", def.id(), filename);
+                    log.info("Imported workflow definition '{}' from {}", def.id(), file.location());
                 } catch (Exception e) {
-                    log.error("Failed to import workflow definition from classpath:{}", resource.getFilename(), e);
+                    log.error("Failed to import workflow definition from {}", file.location(), e);
                 }
             }
         } catch (IOException e) {

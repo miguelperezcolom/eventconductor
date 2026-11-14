@@ -52,4 +52,4 @@ One dependency — it brings the engine, JUnit 5, Spring's test support and Asse
 
 A test class is annotated `@EventConductorTest` and receives a `WorkflowTestRuntime`. It boots the engine in **embedded mode with memory persistence**, loads the definitions from `classpath:/workflows/` — the same files the application runs — and answers every task on the calling thread, so there is nothing to wait for.
 
-Test-only definitions go in a folder of their own, loaded with `@EventConductorTest(definitions = "src/test/flows")`. Do not put them in `src/test/resources/workflows/`: the engine reads **one** `workflows` directory from the classpath, and the test one would hide the application's.
+Test-only definitions go in a folder of their own, loaded with `@EventConductorTest(definitions = "src/test/flows")`. `src/test/resources/workflows/` works too — the engine reads the `workflows` directory of every classpath root, main and test — but a file there with the same id as one of the application's **replaces** it in every test (test output is first on the classpath), which is easy to forget. A folder of its own keeps the application's definitions the ones under test.

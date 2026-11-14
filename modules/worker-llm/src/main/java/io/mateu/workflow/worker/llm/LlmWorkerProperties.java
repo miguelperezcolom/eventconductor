@@ -25,7 +25,7 @@ import java.util.Map;
  *           timeout: PT60S
  *         local:
  *           provider: openai                    # any OpenAI-compatible endpoint
- *           base-url: http://vllm.internal:8000
+ *           base-url: http://vllm.internal:8000/v1   # the API root, /v1 included
  *           model: llama-4-scout
  *           api-key: ${LOCAL_LLM_KEY:none}
  * </pre>
@@ -47,7 +47,15 @@ public class LlmWorkerProperties {
         private String provider = "anthropic";
         /** The model a step uses unless it names another. */
         private String model;
-        /** Optional: a proxy, a gateway or a self-hosted OpenAI-compatible server. */
+        /**
+         * Optional: a proxy, a gateway or a self-hosted OpenAI-compatible server. For {@code openai} it is
+         * the API root <em>including</em> the version segment, i.e. what comes before
+         * {@code /chat/completions} — {@code https://api.openai.com/v1}, {@code http://vllm.internal:8000/v1}.
+         * A URL with no path gets {@code /v1} appended and a pasted {@code …/chat/completions} endpoint is
+         * cut back to its root, so {@code http://host:8000} and {@code http://host:8000/v1} are the same.
+         * For {@code anthropic} it is the opposite: the host <em>without</em> {@code /v1}, which the SDK adds
+         * with {@code /v1/messages} — {@code https://api.anthropic.com}; a trailing {@code /v1} is cut off.
+         */
         private String baseUrl;
         /** The API key. Configuration only — feed it from the environment or a secret. */
         private String apiKey;

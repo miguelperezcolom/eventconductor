@@ -7,6 +7,10 @@ Workflow definitions describe the steps of a business process. They can be writt
 
 Definitions are loaded from `classpath:/workflows/` at startup, in every mode. They can also be imported from Git (with `memory` persistence into the in-memory store, so they are imported again at every start; with `jpa` into the database) — either at startup, on demand via the MCP tool `importWorkflowDefinitionsFromGit`, or automatically via a **git webhook** (GitHub, GitLab, Bitbucket or generic).
 
+`classpath:/workflows/` means the `workflows/` directory of **every** classpath root — `target/classes`, `target/test-classes`, and any jar that ships one — not only the first. When the same definition `id` is found in more than one of them, **the first on the classpath wins**, the order the JVM resolves classes in: under Maven and Gradle test output comes before main output, so in a test run `src/test/resources/workflows/order.yaml` overrides a definition with the same id in `src/main/resources/workflows/`, and both beat one packaged in a dependency. A shadowed copy whose content differs is logged as a warning naming both files. (A stale file left in `target/test-classes/workflows/` still overrides by the same rule — `mvn clean` removes it.)
+
+With `jpa` persistence, a definition is versioned by its content: saving or importing it records a new version only when what it runs changed. Re-importing the same content — at every boot, or from Git after the classpath import loaded it — records nothing, whatever the source.
+
 ## IDE support
 
 Add a `$schema` reference to your JSON files to enable autocomplete and inline validation in IntelliJ, VS Code, and any other JSON Schema-aware editor:
