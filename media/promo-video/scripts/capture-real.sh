@@ -26,8 +26,8 @@ start_app BK-4711
 node scripts/record-real.mjs "http://localhost:$port" main
 stop_app
 perl -0pi -e 's/(- \{ id: create, type: ACTION, name: Create booking, topic: create-booking, preconditionStepId: start)( \})/$1, retries: 3$2/' \
-  "$app/definitions/hotel-booking.yaml"
-grep -q "retries: 3" "$app/definitions/hotel-booking.yaml"
+  "$app/definitions/hotel-booking.ec.yaml"
+grep -q "retries: 3" "$app/definitions/hotel-booking.ec.yaml"
 start_app BK-4712
 node scripts/record-real.mjs "http://localhost:$port" versions
 stop_app

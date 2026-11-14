@@ -142,9 +142,9 @@ Written in JSON or YAML (`.json`, `.yaml`, `.yml`); version-controlled and PR-re
 | `name` | string | Human-readable name |
 | `version` | integer | Version number |
 | `description` | string | Optional |
-| `paused` | boolean | Runtime flag (not authored in the .ec) — pause/resume. While true all processes are held and new instances (cron included) are born-`PAUSED` |
-| `disabled` | boolean | Runtime flag (not authored in the .ec) — disable/enable. While true, no new instances (cron included); running ones continue |
-| `archived` | boolean | Runtime flag (not authored in the .ec) — set by the git-import prune to hide a removed definition |
+| `paused` | boolean | Runtime flag (not authored in the definition file) — pause/resume. While true all processes are held and new instances (cron included) are born-`PAUSED` |
+| `disabled` | boolean | Runtime flag (not authored in the definition file) — disable/enable. While true, no new instances (cron included); running ones continue |
+| `archived` | boolean | Runtime flag (not authored in the definition file) — set by the git-import prune to hide a removed definition |
 | `limitConcurrentExecutions` | boolean | Cap concurrent running instances |
 | `maxConcurrentExecutions` | integer | Max instances (when limit enabled) |
 | `enqueueOnLimit` | boolean | Queue new instances when the limit is reached |
@@ -167,7 +167,7 @@ Written in JSON or YAML (`.json`, `.yaml`, `.yml`); version-controlled and PR-re
 
 ### Runtime state
 
-Definitions are authored as `.ec` files and imported — never edited in the UI. Two orthogonal runtime flags (outside the `.ec`): pause/resume (processes held; new instances born paused) and disable/enable (no new instances). A definition removed from its repo is archived by the import prune. Disabled and archived definitions start no new instances.
+Definitions are authored as files (name them `*.ec.yaml`; `.ec`, `*.workflow.yaml`, `.yaml`/`.json` also accepted) and imported — never edited in the UI. Two orthogonal runtime flags (outside the definition file): pause/resume (processes held; new instances born paused) and disable/enable (no new instances). A definition removed from its repo is archived by the import prune. Disabled and archived definitions start no new instances.
 
 ### Editor autocomplete
 
@@ -194,7 +194,7 @@ host (`--ec-*` tokens).
 
 | Field | Values | Meaning |
 |---|---|---|
-| `status` | `ACTIVE` (default), `DISABLED`, `ARCHIVED` | Whether the workflow accepts new instances. Declaring it in the `.ec` is a **floor**: an operator can take a workflow out of service at runtime, but cannot put one into service that its own definition closes. `ARCHIVED` also hides it from the listing |
+| `status` | `ACTIVE` (default), `DISABLED`, `ARCHIVED` | Whether the workflow accepts new instances. Declaring it in the definition file is a **floor**: an operator can take a workflow out of service at runtime, but cannot put one into service that its own definition closes. `ARCHIVED` also hides it from the listing |
 | `disabled`, `archived` | boolean | The older spelling, still read: `true` means the corresponding status |
 | `paused` | boolean | A different axis: a paused workflow still accepts instances (born `PAUSED`); a disabled one accepts none. A workflow can be both |
 

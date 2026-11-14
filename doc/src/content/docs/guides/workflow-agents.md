@@ -5,7 +5,7 @@ description: Invoke a published IA catalogue agent with explicit input and durab
 
 An `AGENT` step invokes an agent already published from the IA catalogue's Git repository. The
 catalogue owns its system prompt, model, allowed MCP/RAG/peer references and JSON output schema.
-The workflow chooses the task and explicit input. Credentials never belong in a `.ec` file.
+The workflow chooses the task and explicit input. Credentials never belong in a definition file.
 
 ```yaml
 - id: assess-case

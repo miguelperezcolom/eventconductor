@@ -141,7 +141,7 @@ Forms and rules persist separately: `forms.persistence=jpa` / `rules.persistence
 ## 4. Layout
 
 ```
-src/main/resources/workflows/order.workflow.yaml   # definitions (.yaml/.yml/.json/.ec; *.workflow.yaml and *.ec.yaml open in the IDE plugins)
+src/main/resources/workflows/order.ec.yaml         # definitions: name them *.ec.yaml (also .ec, *.workflow.yaml, .yaml/.yml/.json)
 src/main/resources/workflows/events.yaml           # optional event triggers (never read as a definition)
 src/main/resources/workflows/cron.yaml             # optional schedules (never read as a definition)
 forms/expense-approval.ecform                      # USER_TASK forms: NOT read from the classpath —

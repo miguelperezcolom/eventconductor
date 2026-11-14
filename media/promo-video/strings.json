@@ -31,7 +31,7 @@
   "quote": "The code that never fails is the code you don't write.",
   "iceberg.engine": "Built into EventConductor",
   "editor.caption": "Declare the process. One booking per room, all rooms or none.",
-  "editor.file": "hotel-booking.yaml",
+  "editor.file": "hotel-booking.ec.yaml",
   "editor.graph": "The graph is derived from it — open the inline body: one lane per room.",
   "draw.caption1": "Or draw it. Same definition — in the browser, VS Code or IntelliJ.",
   "draw.caption2": "The graph and the file are the same thing.",

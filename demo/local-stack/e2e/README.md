@@ -21,7 +21,7 @@ header notice is deterministic.
 - The full stack up: `docker compose up -d` in the parent dir (`..`). Services needed:
   postgres, redpanda, orchestrator, forms, booking, keycloak, shell, api-gw.
 - The `verify-booking-payment` workflow's `verify-payment` step must have `timeout: 30000` (matches
-  `WF_TIMEOUT_MS`). See `../wf-repo/verify-booking-payment.ec`.
+  `WF_TIMEOUT_MS`). See `../wf-repo/verify-booking-payment.ec.yaml`.
 - Playwright's Chromium (downloaded automatically by the driver on first `mvn test`).
 
 ## Run

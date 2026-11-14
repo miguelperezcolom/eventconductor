@@ -1,8 +1,9 @@
 # Workflow definition reference
 
-A definition is YAML or JSON (`.yaml`/`.yml`/`.json`, or `.ec` holding either). Name files
-`order.workflow.yaml` or `order.ec.yaml` so the IDE plugins open them as a graph with schema
-validation; without an `id`, import names it `order`. Loaded from `classpath:/workflows/` (every mode),
+A definition is YAML or JSON. Name files `order.ec.yaml` (recommended) — plain YAML that the IDE
+plugins open as a graph with schema validation; `.ec` (YAML or JSON), `order.workflow.yaml` and
+plain `.yaml`/`.yml`/`.json` are also accepted. Without an `id`, import names it `order` from any of
+them. Loaded from `classpath:/workflows/` (every mode),
 `workflow.directory-import.directories`, or git import. Schema:
 `modules/workflow-engine/src/main/resources/workflow-definition-schema.json` — add
 `# yaml-language-server: $schema=https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json`

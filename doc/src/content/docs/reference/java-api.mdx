@@ -254,9 +254,9 @@ matches the API you are calling — they are not interchangeable.
 | `name` | String | Human-readable name |
 | `description` | String | Optional description |
 | `version` | int | Version number |
-| `paused` | boolean | Runtime flag (not in the .ec): while true, the definition's processes are held and new instances are created born-`PAUSED` |
-| `disabled` | boolean | Runtime flag (not in the .ec): while true, accepts no new instances |
-| `archived` | boolean | Runtime flag (not in the .ec): set by the git-import prune to hide a removed definition |
+| `paused` | boolean | Runtime flag (not in the definition file): while true, the definition's processes are held and new instances are created born-`PAUSED` |
+| `disabled` | boolean | Runtime flag (not in the definition file): while true, accepts no new instances |
+| `archived` | boolean | Runtime flag (not in the definition file): set by the git-import prune to hide a removed definition |
 | `cronExpression` | String | Optional Spring cron expression for scheduled starts |
 | `limitConcurrentExecutions` | boolean | Whether to cap concurrent processes |
 | `maxConcurrentExecutions` | int | The cap, when limited |

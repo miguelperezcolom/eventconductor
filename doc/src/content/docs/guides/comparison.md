@@ -266,7 +266,7 @@ The process is a travel booking: reserve a flight, a stay, a transfer and some e
 - every unit of work is handed to a worker by **publishing an event**, and the step finishes when the worker's event comes back — compensations included;
 - **every step has a timeout** and a bounded number of retries, because a step waiting for a reply that will never arrive is not a slow step, it is an invisible one.
 
-Both definitions are downloadable and directly comparable: [`travel-saga.yaml`](/examples/travel-saga.yaml) and [`travel-saga.bpmn`](/examples/travel-saga.bpmn) (BPMN 2.0 with diagram interchange; it opens in Camunda Modeler or [bpmn.io](https://demo.bpmn.io)).
+Both definitions are downloadable and directly comparable: [`travel-saga.ec.yaml`](/examples/travel-saga.ec.yaml) and [`travel-saga.bpmn`](/examples/travel-saga.bpmn) (BPMN 2.0 with diagram interchange; it opens in Camunda Modeler or [bpmn.io](https://demo.bpmn.io)).
 
 | | EventConductor | BPMN 2.0 |
 |---|---|---|

@@ -14,6 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **The webhook gateway can be embedded beside the engine.** Its provider interface was called `io.mateu.workflow.webhook.WebhookProvider`, the name of the engine's git-import enum in `shared`, so an application with both on the classpath failed to start (`IncompatibleClassChangeError`); the interface is now `WebhookDeliveryProvider` (a provider of your own implements that name instead). And `WebhookController`, met by the engine's component scan of `io.mateu.workflow`, is now skipped where the gateway's auto-configuration is off (a test without a web server, `workflow.webhooks.enabled=false`) instead of failing the context for want of its properties.
 
+### Documentation
+
+- **`*.ec.yaml` is the recommended name for a workflow definition.** The docs, the workshop and its
+  project (`examples/workshop-hotel-booking`), the testbench apps, the local demo stack, the IDE
+  plugins' examples, the promo video and the AI reference/skills now name definitions
+  `hotel-booking.ec.yaml` — plain YAML to every tool, opened by both IDE plugins in the graph editor
+  with schema validation. `.ec`, `*.workflow.yaml` and plain `.yaml`/`.yml`/`.json` stay supported
+  and documented as alternatives; the ids are unchanged (each file declares its `id`, and
+  `order.ec.yaml` derives `order` exactly as `order.ec` does). Forms, rules and task contracts keep
+  `.ecform`/`.ecrule`/`.ectask`.
+
 ## [2.41.0] - 2026-11-14
 
 ### Added

@@ -7,7 +7,7 @@ The hotel's system wants **one booking per room**. The booking has a list of roo
 
 ## The definition
 
-`02-rooms-booking.yaml`:
+`02-rooms-booking.ec.yaml`:
 
 ```yaml
 id: rooms-booking

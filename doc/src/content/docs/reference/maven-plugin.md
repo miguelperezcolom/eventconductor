@@ -84,7 +84,7 @@ load from the classpath. **Forms are not**: the forms engine imports them with
 `forms.directory-import.directories` or `forms.git-import` (whose `directory` can name this folder in the
 repository), so `src/main/resources/forms/` is only the default place the plugin validates them — point
 `formsDirectory` at wherever your forms really live. The plugin logs a reminder when it validates forms. `.ec`, `.ecform` and `.ecrule` are what the graph editor and the
-two IDE plugins write, and they were not collected before 2.2.3 — a repository of them was walked,
+two IDE plugins write (alongside `*.ec.yaml`, the recommended name for a workflow, collected as a `.yaml`), and they were not collected before 2.2.3 — a repository of them was walked,
 nothing was found, and the build passed. Anything that is not `.json` is read by the YAML parser,
 which reads JSON too, so an `.ec` holding either parses.
 
@@ -94,7 +94,7 @@ violation the build fails with a per-file report:
 ```
 EventConductor definition validation found 2 problem(s):
 
-src/main/resources/workflows/order.yaml:
+src/main/resources/workflows/order.ec.yaml:
   - 'not a cron' is not a valid cron expression
   - Step 's1' references unknown precondition step 'nope'.
 ```

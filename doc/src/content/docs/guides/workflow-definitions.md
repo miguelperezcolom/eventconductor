@@ -3,11 +3,11 @@ title: Workflow Definitions
 description: The EventConductor workflow DSL — steps, branching, retries, and more. Supports JSON and YAML.
 ---
 
-Workflow definitions describe the steps of a business process. They can be written in **JSON** or **YAML** (`.json`, `.yaml`, `.yml`), are version-controlled, and are reviewable in a pull request.
+Workflow definitions describe the steps of a business process. They can be written in **JSON** or **YAML**, are version-controlled, and are reviewable in a pull request. Name them **`*.ec.yaml`** (recommended) — see [File names](#file-names).
 
 Definitions are loaded from `classpath:/workflows/` at startup, in every mode. They can also be imported from Git (with `memory` persistence into the in-memory store, so they are imported again at every start; with `jpa` into the database) — either at startup, on demand via the MCP tool `importWorkflowDefinitionsFromGit`, or automatically via a **git webhook** (GitHub, GitLab, Bitbucket or generic).
 
-`classpath:/workflows/` means the `workflows/` directory of **every** classpath root — `target/classes`, `target/test-classes`, and any jar that ships one — not only the first. When the same definition `id` is found in more than one of them, **the first on the classpath wins**, the order the JVM resolves classes in: under Maven and Gradle test output comes before main output, so in a test run `src/test/resources/workflows/order.yaml` overrides a definition with the same id in `src/main/resources/workflows/`, and both beat one packaged in a dependency. A shadowed copy whose content differs is logged as a warning naming both files. (A stale file left in `target/test-classes/workflows/` still overrides by the same rule — `mvn clean` removes it.)
+`classpath:/workflows/` means the `workflows/` directory of **every** classpath root — `target/classes`, `target/test-classes`, and any jar that ships one — not only the first. When the same definition `id` is found in more than one of them, **the first on the classpath wins**, the order the JVM resolves classes in: under Maven and Gradle test output comes before main output, so in a test run `src/test/resources/workflows/order.ec.yaml` overrides a definition with the same id in `src/main/resources/workflows/`, and both beat one packaged in a dependency. A shadowed copy whose content differs is logged as a warning naming both files. (A stale file left in `target/test-classes/workflows/` still overrides by the same rule — `mvn clean` removes it.)
 
 With `jpa` persistence, a definition is versioned by its content: saving or importing it records a new version only when what it runs changed. Re-importing the same content — at every boot, or from Git after the classpath import loaded it — records nothing, whatever the source.
 
@@ -37,6 +37,19 @@ As a fallback, configure the schema association manually in your editor (Intelli
 ## File format
 
 Both formats are fully equivalent — use whichever fits your team's conventions.
+
+### File names
+
+**Name definitions `*.ec.yaml` (recommended)** — `hotel-booking.ec.yaml`, `order.ec.yaml`. It is
+plain YAML to every tool (editors, linters, diff viewers), and the suffix says what the file is: both
+[IDE plugins](/guides/ide-plugins/#file-names-ecyaml-recommended) open it in the graph editor with
+workflow-schema validation, the engine loads it from `classpath:/workflows/`, directories and Git,
+and `mvn eventconductor:validate` checks it. The compound suffix is not part of the id: a file that
+declares no `id` derives `hotel-booking` from `hotel-booking.ec.yaml`.
+
+Also accepted, and equivalent: `.ec` (JSON or YAML, sniffed from the content), `*.workflow.yaml`,
+and plain `.yaml` / `.yml` / `.json`. `order.ec`, `order.workflow.yaml`, `order.ec.yaml` and
+`order.yaml` all derive the id `order`, so renaming between them changes nothing for a definition.
 
 **JSON:**
 
@@ -81,8 +94,8 @@ steps: [...]
 | `sensitiveVariables` | string[] | Variables whose values are sensitive — names or globs (`[cardNumber, "patient.*"]`): stored and transported only encrypted (needs `workflow.encryption.keys.<id>`), masked in the console, REST and MCP and revealed only on an audited request, never a search attribute, kept out of LLM prompts unless the step opts in. Part of the version. See [Sensitive data and encryption](/guides/sensitive-data-and-encryption/) |
 | `searchAttributes` | object | Named values every process is indexed by, computed from its variables: `customerId: "${customerId}"` (a keyword) or `amount: { value: "${total}", type: number }` — types `keyword`, `text`, `number`, `date`, `bool`; at most 20. Part of the version. See [Searching and bulk operations](/guides/searching-and-bulk-operations/) |
 | `updates` | array | Named updates a running process accepts — validated writes that answer with a result: `{name, accepts (JSON Schema), acceptedWhile, validate, set, completes, reply \| replyTemplate, sensitive}`. Part of the version. See [Updating running processes](/guides/updating-running-processes/) |
-| `paused` | boolean | Runtime flag — **not authored in the `.ec`**. Toggled at runtime (UI, `PauseWorkflowUseCase`/`ResumeWorkflowUseCase`, MCP). While `true`, all the definition's processes are held and new instances (cron included) are created born-`PAUSED`. Kept in the schema (default `false`) only so exported definitions round-trip |
-| `status` | string | `ACTIVE` (default), `DISABLED` or `ARCHIVED`. **Authored in the `.ec`**, and a floor: an operator can take a workflow out of service at runtime, but cannot put one into service that its own definition closes. This is how a definition lives in the repository without being live |
+| `paused` | boolean | Runtime flag — **not authored in the definition file**. Toggled at runtime (UI, `PauseWorkflowUseCase`/`ResumeWorkflowUseCase`, MCP). While `true`, all the definition's processes are held and new instances (cron included) are created born-`PAUSED`. Kept in the schema (default `false`) only so exported definitions round-trip |
+| `status` | string | `ACTIVE` (default), `DISABLED` or `ARCHIVED`. **Authored in the definition file**, and a floor: an operator can take a workflow out of service at runtime, but cannot put one into service that its own definition closes. This is how a definition lives in the repository without being live |
 | `disabled`, `archived` | boolean | The older way of saying the same thing, still read: `disabled: true` means `status: DISABLED`, `archived: true` means `status: ARCHIVED` |
 | `limitConcurrentExecutions` | boolean | Cap concurrent running instances |
 | `maxConcurrentExecutions` | integer | Max instances (if limit enabled) |
@@ -142,7 +155,7 @@ coordinate, not a broken workflow.
 
 ### Runtime state
 
-Definitions are **authored as `.ec` files** (edited with the [IDE plugins](/guides/ide-plugins/))
+Definitions are **authored as files** — `*.ec.yaml` recommended (edited with the [IDE plugins](/guides/ide-plugins/))
 and imported — they are never edited in the management UI. The UI toggles runtime state:
 
 | Action | Effect |
@@ -159,7 +172,7 @@ accepts new instances — they are born paused — while a disabled one accepts 
 be both.
 
 **The file and the runtime are two answers to the same question, and the stricter one wins.** The
-engine keeps them apart: what the `.ec` declares in `status`, and what an operator has done. A
+engine keeps them apart: what the definition file declares in `status`, and what an operator has done. A
 re-import replaces the declaration and leaves the runtime state alone, so it no longer puts back
 into service anything that had been disabled; and **Enable** is refused — and not offered — for a
 workflow whose own definition says `DISABLED` or `ARCHIVED`. Change that in the file and import it
@@ -244,7 +257,7 @@ immutable version: an incrementing number (starting at **1**), a **creation time
 frozen JSON snapshot. Re-importing an unchanged definition, or a runtime toggle (pause/disable/
 archive), records **nothing** — only a real content change bumps the version.
 
-Because numbering is engine-owned, the `version` field authored in the `.ec` is **ignored** for
+Because numbering is engine-owned, the `version` field authored in the definition file is **ignored** for
 numbering (and overwritten on the head record). Every process instance already captures the version
 it was created with, so the engine can attribute each running or finished process to the exact
 version it ran.
@@ -271,7 +284,7 @@ workflow:
 
 or, in the standalone app, `WORKFLOW_DEFINITIONS_DIRS=/definitions/workflows` (comma-separated).
 
-Each directory is scanned recursively for `.json` / `.yaml` / `.yml` / `.ec` files, and every file
+Each directory is scanned recursively for `.ec.yaml` / `.yaml` / `.yml` / `.json` / `.ec` files, and every file
 that has both `name` and `steps` is imported. A directory that is not there is reported as an
 error rather than passed over in silence — the failure this saves you from is a typo in a mount
 path, an engine that starts clean, and an empty definition list for no stated reason.
@@ -282,7 +295,7 @@ they are for a repository, and tracked separately per directory.
 ### A file that declares no `id`
 
 `id` is optional, and a file that leaves it out is given one **derived from its path** relative to
-the scan root: `sagas/onboarding.ec` becomes `sagas.onboarding`, with the separators as dots because
+the scan root: `sagas/onboarding.ec.yaml` becomes `sagas.onboarding`, with the separators as dots because
 an id travels in URLs and in event payloads, where a slash is a separator.
 
 The point of deriving it rather than generating one is that it is the same next time. Until 2.2.2 it
