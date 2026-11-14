@@ -1,0 +1,85 @@
+# Chapters 8, 10 and 11 — a schedule's workflow, a CONTINUE_AS_NEW chain, an agent, and the incident maker.
+steps:
+  count-occupancy: { complete: { occupiedRooms: 37, totalRooms: 52 } }
+  add-points: { complete: { points: 240 } }
+  alert-front-desk: { complete: {} }
+  nothing-to-do: { complete: {} }
+
+scenarios:
+  - name: the nightly report counts the occupancy
+    workflow: nightly-occupancy
+    variables: { hotel: Workshop Hotel }
+    expect:
+      status: COMPLETED
+      variables: { occupiedRooms: 37 }
+
+  - name: a month of points, then the statement continues as a new run
+    workflow: loyalty-statement
+    variables: { member: M-7, month: 11, points: 120 }
+    then:
+      - advanceTime: P30D
+    expect:
+      status: COMPLETED
+      passedSteps: [add-points, month-end, next-month]
+      notPassedSteps: [year-closed]
+
+  - name: the last month closes the year
+    workflow: loyalty-statement
+    variables: { member: M-8, month: 12, points: 1320 }
+    then:
+      - advanceTime: P30D
+    expect:
+      status: COMPLETED
+      passedSteps: [year-closed]
+      notPassedSteps: [next-month]
+
+  - name: an agent that says staff must act alerts the front desk
+    workflow: special-request-agent
+    variables: { guest: Erin, room: "204", specialRequest: I use a wheelchair }
+    agents:
+      prepare-request:
+        output: { category: accessibility, needsStaff: true, actions: [ "Move Erin to an accessible room" ], summary: x }
+    expect:
+      status: COMPLETED
+      passedSteps: [prepare-request, alert-front-desk]
+      notPassedSteps: [nothing-to-do]
+
+  - name: an agent with nothing for staff to do notes it on the booking
+    workflow: special-request-agent
+    variables: { guest: Frank, room: "118", specialRequest: We arrive late }
+    agents:
+      prepare-request:
+        output: { category: arrival, needsStaff: false, actions: [ "Note the late arrival" ], summary: x }
+    expect:
+      status: COMPLETED
+      passedSteps: [nothing-to-do]
+      notPassedSteps: [alert-front-desk]
+
+  - name: an agent failure is final
+    workflow: special-request-agent
+    variables: { guest: Gus, room: "119", specialRequest: anything }
+    agents:
+      prepare-request: { fail: AGENT_UNAVAILABLE, message: no runtime }
+    expect:
+      status: ERROR
+      notPassedSteps: [needs-staff]
+
+  - name: a channel manager that keeps answering 503 is retried, then becomes an incident
+    workflow: channel-sync
+    variables: { room: "101", date: "2026-12-20", available: 0 }
+    http:
+      push-availability: { status: 503, body: { error: unavailable } }
+    then:
+      - advanceTime: PT1M
+    expect:
+      status: ERROR
+      invocations: { push-availability: 3 }
+
+  - name: an available channel manager takes the update
+    workflow: channel-sync
+    variables: { room: "102", date: "2026-12-20", available: 2 }
+    http:
+      push-availability: { status: 200, body: { room: "102", version: 7 } }
+    expect:
+      status: COMPLETED
+      variables: { channelVersion: 7 }

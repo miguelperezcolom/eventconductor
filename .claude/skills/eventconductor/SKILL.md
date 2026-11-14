@@ -18,7 +18,7 @@ features: `updates`, `startPolicy`, `businessKeyPolicy`, `CONTINUE_AS_NEW`, `pri
 ## Workflow for a newcomer
 
 1. **Scaffold** the project → `eventconductor-scaffold` skill (pom, main class, properties).
-2. **Write the definition** in `src/main/resources/workflows/<id>.workflow.yaml` → [patterns.md](reference/patterns.md) (copy-paste examples), [workflow-definitions.md](reference/workflow-definitions.md) (every field).
+2. **Write the definition** in `src/main/resources/workflows/<id>.ec.yaml` → [patterns.md](reference/patterns.md) (copy-paste examples), [workflow-definitions.md](reference/workflow-definitions.md) (every field).
 3. **Validate** → `mvn eventconductor:validate` (also runs in `mvn verify`).
 4. **Test** with `workflow-test` (`@EventConductorTest`, mocks, `advanceTime`) → [testing.md](reference/testing.md).
 5. **Implement workers** → [workers.md](reference/workers.md).

@@ -10,12 +10,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Diagram minimap folds away.** The minimap's **×** folds it into a small map button (remembered per browser); the button brings it back. Styled with the graph's `--ec-*` tokens, so it reads the same in the VS Code and IntelliJ webviews.
 - **Workshop: approve in the browser.** The workshop console mounts the forms engine's `FormsOperationsMenu` beside `WorkflowMenu`, so a manager's approval is **Forms → Tasks → Run → Claim → Complete**. A laptop-only user switch, `GET /dev/act-as/manager` (and `/dev/act-as/nobody`), makes the browser *mia* of `front-desk-managers` by leaving an unsigned token in the console's sign-in cookie; it answers only with `workflow.security.trust-forwarded-token=true` and only to a loopback address. Module 6 shows the form path; `scripts/approve.sh` stays as the alternative.
+- **`examples/video-series` — the series app.** What the EventConductor video series records beyond the workshop: the same hotel, embedded on JPA/H2 with the console and the forms console, and one runnable definition per step type the series shows — TIMER on a business moment and a `deadline`, WAIT_FOR_MESSAGE / SEND_MESSAGE between processes, FORK / AND and XOR JOIN (a race with `compensateLosers`), CHOICE, forEach over a named PROCESS, `repeat` and `loopBack`, PUBLISH_EVENT, REPLY with synchronous invocation, CONTINUE_AS_NEW, a schedule (`cron.yaml`), an event trigger (`events.yaml`) fed by the generic webhook, and an **AGENT step that runs for real** against a demo stand-in agent catalogue (`WorkflowAgentCatalogue` bean) and runtime (a `run-agent@1` task handler, deterministic rules instead of a model). Every definition is tested with the test kit (scenarios as data, coverage floors, `eventconductor:verify` bound in the pom) and the whole app end to end. Also: `scripts/seed.sh` (waiting, completed, compensated and failed processes, so no console screen is empty), a scripted, deterministic MCP client (`scripts/mcp-demo.mjs`: real JSON-RPC to `/sse`), and a `docker compose --profile observability` with Prometheus, Grafana (a provisioned EventConductor dashboard over the engine's metrics) and Jaeger, with tracing switched on by the app's `observability` profile.
+- **Docs: [Secure by default](doc/src/content/docs/guides/security-defaults.md)** — what the engine refuses until told otherwise (anonymous API, console and MCP callers; secrets from the environment; credentials to arbitrary hosts; unverified tokens; sensitive variables without keys), the switch for each, and which ones are laptop-only.
 
 ### Fixed
 - **Compensation rows read `item 0`, `item 1`.** The runs of a compensation that undoes a forEach's iterations now carry the label of the iteration they undo — the Steps tab reads `cancel-room-booking · Room 101`, and so do the diagram's lanes and the Errors tab. Messages, the *Complete step* picker and the migration log name an iteration by its label too (`Iteration 1 (Room 102)`, `first failure: Room 102`).
 - **The minimap covered nodes.** At 1280×720 the fitted graph put its right-most step (the END) under the minimap. Fit now keeps every step clear of the minimap — or of its folded button — fitting the graph beside or above it when a centred fit would not.
 - **A task's form answered "Not found." in a console mounted at the root.** An embedded application whose `@UI("")` mounts `FormsOperationsMenu`/`FormsMenu` as `forms` listed its tasks at `/forms/tasks`, but **Run** led to `/forms/task/{id}`, registered only under `/_forms` and `/_forms-admin`. The root mount now resolves both.
 - **Task inbox:** the *Overdue* column drew an empty dot on every task that is not overdue or escalated; it is blank now.
+- **The webhook gateway can be embedded beside the engine.** Its provider interface was called `io.mateu.workflow.webhook.WebhookProvider`, the name of the engine's git-import enum in `shared`, so an application with both on the classpath failed to start (`IncompatibleClassChangeError`); the interface is now `WebhookDeliveryProvider` (a provider of your own implements that name instead). And `WebhookController`, met by the engine's component scan of `io.mateu.workflow`, is now skipped where the gateway's auto-configuration is off (a test without a web server, `workflow.webhooks.enabled=false`) instead of failing the context for want of its properties.
+
+### Documentation
+
+- **`*.ec.yaml` is the recommended name for a workflow definition.** The docs, the workshop and its
+  project (`examples/workshop-hotel-booking`), the testbench apps, the local demo stack, the IDE
+  plugins' examples, the promo video and the AI reference/skills now name definitions
+  `hotel-booking.ec.yaml` — plain YAML to every tool, opened by both IDE plugins in the graph editor
+  with schema validation. `.ec`, `*.workflow.yaml` and plain `.yaml`/`.yml`/`.json` stay supported
+  and documented as alternatives; the ids are unchanged (each file declares its `id`, and
+  `order.ec.yaml` derives `order` exactly as `order.ec` does). Forms, rules and task contracts keep
+  `.ecform`/`.ecrule`/`.ectask`.
 
 ## [2.41.0] - 2026-11-14
 

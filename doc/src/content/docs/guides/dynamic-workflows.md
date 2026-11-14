@@ -55,7 +55,7 @@ public Consumer<TaskExecutionRequested> planTopic(StreamOperations streamBridge)
 ```
 
 `stepsJson` is a JSON array of step objects in exactly the [workflow-definition step
-schema](/guides/workflow-definitions/#step-fields) — the same fields you would write in an `.ec`
+schema](/guides/workflow-definitions/#step-fields) — the same fields you would write in an `.ec.yaml`
 file. See [Implementing Workers](/guides/workers/) for the reply contract these helpers implement.
 
 - **`WorkerReply.inject(streamBridge, task, stepsJson)`** sends the injection (a `StepsInjected`
@@ -113,7 +113,7 @@ recursion needs a bound. Two step-budget guards provide it:
 | Guard | Where | Default | Meaning |
 | --- | --- | --- | --- |
 | `workflow.dynamic.max-steps-per-process` | engine config | `500` | The most step executions any one process may ever hold, injections included |
-| `maxSteps` | per definition (`.ec`) | `0` | Overrides the global default for this definition's processes. `0` = fall back to the global default; any positive value takes precedence |
+| `maxSteps` | per definition (`.ec.yaml`) | `0` | Overrides the global default for this definition's processes. `0` = fall back to the global default; any positive value takes precedence |
 
 An injection that would push the process past its effective cap — the definition's `maxSteps` when
 it declares one, else the global default — is rejected as "step budget exceeded", and the `DYNAMIC`

@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The series app: what the EventConductor video series records that the workshop
+  (examples/workshop-hotel-booking) does not have. The same hotel, the same single command:
+    - the engine, embedded, with JPA on H2 (the console needs JPA), its console and the forms console;
+    - the built-in workers (HTTP_CALL, LLM_CALL, PUBLISH_EVENT) and the hotel's task handlers;
+    - one runnable, tested definition per step type the series shows: TIMER and deadlines, WAIT_FOR_MESSAGE /
+      SEND_MESSAGE, FORK / JOIN, CHOICE, PUBLISH_EVENT, REPLY, CONTINUE_AS_NEW, a schedule (cron.yaml), an event
+      trigger (events.yaml) fed by a generic webhook, and an AGENT step;
+    - LOCAL STAND-INS under /fake/** (hotel, channel manager, taxis) and a DEMO STAND-IN agent catalogue and runtime,
+      so nothing leaves the laptop and every run is deterministic;
+    - metrics on /actuator/prometheus and OpenTelemetry tracing (off unless the `observability` profile is on).
+
+  Inside this repository it builds against the engine you installed from source
+  (`mvn -Djacoco.skip=true -DskipTests install` at the root). In a project of your own, set
+  eventconductor.version to the latest release on Maven Central.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.0</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.example</groupId>
+    <artifactId>video-series</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <name>video-series</name>
+
+    <properties>
+        <java.version>21</java.version>
+        <eventconductor.version>1.0-SNAPSHOT</eventconductor.version>
+        <mateu.version>3.0-beta.63</mateu.version>
+        <spring-ai.version>2.0.2</spring-ai.version>
+    </properties>
+
+    <dependencies>
+        <!-- The engine -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>workflow-engine</artifactId>
+            <version>${eventconductor.version}</version>
+        </dependency>
+        <!-- HTTP_CALL, LLM_CALL and PUBLISH_EVENT in-process, and the task-handler runtime (which also serves
+             the demo agent runtime's run-agent@1) -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>builtin-workers</artifactId>
+            <version>${eventconductor.version}</version>
+            <type>pom</type>
+        </dependency>
+        <!-- USER_TASK: the forms engine in the same application, with its console (Forms menu) -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>forms-engine</artifactId>
+            <version>${eventconductor.version}</version>
+        </dependency>
+        <!-- POST /webhooks/{endpoint}: the webhook gateway, as a library, handing events to this engine over REST -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>webhook-gateway</artifactId>
+            <version>${eventconductor.version}</version>
+        </dependency>
+        <!-- LLM_CALL provider (worker-llm needs one on the classpath; no LLM_CALL here, the workshop has them) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-openai</artifactId>
+            <version>${spring-ai.version}</version>
+        </dependency>
+        <!-- MCP: the engine's tools, for scripts/mcp-demo.mjs (opt-in: it is this dependency) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+            <version>${spring-ai.version}</version>
+        </dependency>
+
+        <!-- HTTP: the REST API, the console, the stand-ins -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
+        </dependency>
+        <!-- The console (Mateu) -->
+        <dependency>
+            <groupId>io.mateu</groupId>
+            <artifactId>mateu-mvc</artifactId>
+            <version>${mateu.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.mateu</groupId>
+            <artifactId>mateu-vaadin</artifactId>
+            <version>${mateu.version}</version>
+        </dependency>
+        <!-- Persistence: JPA on H2 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Observability (chapter 14): metrics on /actuator/prometheus ... -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+        <!-- ... and OpenTelemetry tracing over OTLP: inert until management.tracing.sampling.probability > 0
+             (the `observability` profile sets it). Boot 4 keeps the tracing auto-configuration in its own module. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-tracing-opentelemetry</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-otlp</artifactId>
+        </dependency>
+
+        <!-- Tests: JUnit 5, Spring test, AssertJ and the EventConductor test kit -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>workflow-test</artifactId>
+            <version>${eventconductor.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <!-- Mateu's annotation processor builds the console's UI classes -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>io.mateu</groupId>
+                            <artifactId>mateu-annotation-processor-mvc</artifactId>
+                            <version>${mateu.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <!-- Every EventConductor check, in `mvn verify`:
+                 - validate (process-resources): every definition under src/main/resources/workflows, cron.yaml and
+                   events.yaml included — schema, dangling references, unreachable steps, expressions;
+                 - verify (verify, after the tests): check-migration (-Deventconductor.migration.from=<git ref>) and
+                   the workflow coverage the tests reached (target/eventconductor-coverage/) against the floors below. -->
+            <plugin>
+                <groupId>io.mateu.workflow</groupId>
+                <artifactId>workflow-maven-plugin</artifactId>
+                <version>${eventconductor.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>validate</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>eventconductor-verify</id>
+                        <goals>
+                            <goal>verify</goal>
+                        </goals>
+                        <configuration>
+                            <skipValidation>true</skipValidation>
+                            <minStepCoverage>90</minStepCoverage>
+                            <minBranchCoverage>75</minBranchCoverage>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -91,7 +91,7 @@ row showing whether the definition's runtime pause flag is set), a **Diagram**
 section rendering the workflow graph (read-only, with a full-screen expand button), and
 the list of steps below.
 
-Definitions are authored as `.ec` files (edited with the IDE plugins), not in the UI. The detail
+Definitions are authored as files — `*.ec.yaml` (edited with the IDE plugins), not in the UI. The detail
 view is read-only; its toolbar carries only the runtime toggles plus a YAML export:
 
 | Button | Description |

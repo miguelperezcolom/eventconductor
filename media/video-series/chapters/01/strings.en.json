@@ -1,0 +1,56 @@
+{
+  "tagline": "Business processes, **without the plumbing.**",
+  "hook": "How much of your code is **actually the business?**",
+  "biz.head": "A hotel booking is three steps.",
+  "biz": [
+    "Approve",
+    "Book each room",
+    "Tell the guest"
+  ],
+  "plumb.head": "Production adds the rest.",
+  "plumb": [
+    "undo what was booked",
+    "retry without booking twice",
+    "survive a restart halfway",
+    "wait days for a person",
+    "change the process with runs in flight"
+  ],
+  "declare.n1": "`USER_TASK` — the manager's approval",
+  "declare.n2": "`CHOICE` — on the answer",
+  "declare.n3": "`HTTP_CALL` × room — retries, timeout, `Idempotency-Key`",
+  "declare.n4": "`compensationStepId` — cancel a room if the booking fails",
+  "standin.hotel": "fake hotel: local stand-in",
+  "standin.model": "model: local stand-in",
+  "mcp.optin": "MCP server: opt-in",
+  "topo.head": "Same definitions, every topology",
+  "topo": [
+    [
+      "Embedded",
+      "memory",
+      "inside your Spring Boot app"
+    ],
+    [
+      "Embedded",
+      "JPA",
+      "state in your database, survives restarts"
+    ],
+    [
+      "Distributed",
+      "Kafka",
+      "orchestrator + workers in any language over HTTP"
+    ],
+    [
+      "Kubernetes",
+      "Helm chart",
+      "charts/eventconductor"
+    ]
+  ],
+  "close.line": "Business processes, **without the plumbing.**",
+  "close.next": "Next · Your first process",
+  "close.docs": "eventconductor.mateu.io",
+  "close.repo": "github.com/miguelperezcolom/eventconductor",
+  "close.license": "Open source · MIT",
+  "thumb.title": "EventConductor **in 3 minutes**",
+  "thumb.sub": "Business processes, without the plumbing",
+  "topo.defs": "**the same definition files**, from a laptop to a cluster"
+}

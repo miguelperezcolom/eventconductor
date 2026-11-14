@@ -1,0 +1,49 @@
+# Chapter 6 — the named sub-process group-arrival runs once per room. Two loops: the housekeeping check is
+# repeated until the room is clean (repeat: one step), and inspect → fix runs again while issues remain
+# (loopBack: a section).
+id: prepare-room
+name: Prepare a room
+steps:
+  - id: start
+    type: START
+    name: Room to prepare
+
+  - id: check-housekeeping
+    type: ACTION
+    name: Is the room clean?
+    preconditionStepId: start
+    repeat:
+      until: "clean == 'true'"                # asked again until housekeeping says so
+      maxIterations: 5
+      delay: PT2S
+
+  - id: inspect-room
+    type: ACTION
+    name: Inspect the room
+    preconditionStepId: check-housekeeping
+
+  - id: any-issues
+    type: CHOICE
+    name: Anything to fix?
+    preconditionStepId: inspect-room
+
+  - id: fix-issues
+    type: ACTION
+    name: Fix what the inspection found
+    preconditions:
+      - stepId: any-issues
+        expression: "issues > 0"
+    loopBack:
+      to: inspect-room                        # inspect again after fixing (the CHOICE picks afresh)
+      maxIterations: 3
+
+  - id: stock-minibar
+    type: ACTION
+    name: Stock the minibar
+    preconditions:
+      - stepId: any-issues                    # the default branch: nothing to fix
+
+  - id: done
+    type: END
+    name: Room ready
+    preconditionStepId: stock-minibar

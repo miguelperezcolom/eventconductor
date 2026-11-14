@@ -1,0 +1,36 @@
+# Chapter 9 — Events in, events out. Started by a domain event (the trigger is in events.yaml): a booking created
+# at the channel manager, which reaches the engine as a signed webhook (POST /webhooks/channel-manager). The
+# process registers the guest and publishes a domain event of its own (PUBLISH_EVENT, the built-in worker).
+id: booking-onboarding
+name: Booking onboarding
+steps:
+  - id: start
+    type: START
+    name: Booking created
+
+  - id: register-guest
+    type: ACTION
+    name: Register the guest
+    preconditionStepId: start
+    timeout: PT30S
+    retries: 2
+
+  - id: guest-welcomed
+    type: PUBLISH_EVENT
+    name: Announce the new guest
+    preconditionStepId: register-guest
+    retries: 2
+    event:
+      destination: guest-events               # workflow.events.destinations.guest-events.topic
+      type: com.example.guest.welcomed
+      key: "${bookingId}"
+      payload:
+        bookingId: "${bookingId}"
+        guest: "${guest}"
+        guestId: "${guestId}"
+        checkIn: "${checkIn}"
+
+  - id: done
+    type: END
+    name: Onboarded
+    preconditionStepId: guest-welcomed

@@ -48,7 +48,7 @@ class BookingJourneyE2eTest {
   private static final String BASE = envOr("BASE_URL", "http://localhost:8191");
   private static final String USER = envOr("KC_USER", "demo");
   private static final String PASS = envOr("KC_PASS", "demo");
-  // Must match `timeout:` on the verify-payment USER_TASK in wf-repo/verify-booking-payment.ec.
+  // Must match `timeout:` on the verify-payment USER_TASK in wf-repo/verify-booking-payment.ec.yaml.
   private static final long TIMEOUT_MS = Long.parseLong(envOr("WF_TIMEOUT_MS", "30000"));
 
   private Playwright playwright;

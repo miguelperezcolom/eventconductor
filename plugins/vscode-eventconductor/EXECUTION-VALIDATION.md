@@ -60,7 +60,7 @@ recheck. The rebuilt graph passes its TypeScript/build checks.
 
 The VSIX ZIP integrity, manifest, runtime dependencies and execution assets were checked. VS Code
 successfully installed it in an isolated temporary extension/profile directory. The user's normal
-extension installation was not changed. `examples/execution-smoke.ec` uses START and END only,
+extension installation was not changed. `examples/execution-smoke.ec.yaml` uses START and END only,
 so the first manual execution needs no task worker or model provider.
 
 ## Remaining environment validation
@@ -85,7 +85,7 @@ instance, with the existing generated local HTTP Basic credentials and a loopbac
 at `http://127.0.0.1:18105`. The connection supervisor retries interrupted port forwards;
 it is a local process and does not automatically start after a machine reboot.
 
-A real HTTP execution of `examples/execution-smoke.ec` completed successfully:
+A real HTTP execution of `examples/execution-smoke.ec.yaml` completed successfully:
 
 - Run `67374c46-b001-473f-9970-1f3aeb4d4fb4`: `COMPLETED`, version 1, `testRun=true`.
 - Both `start` and `end`: `COMPLETED`; synthetic input variables were preserved.

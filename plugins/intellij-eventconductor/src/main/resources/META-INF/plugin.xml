@@ -4,8 +4,8 @@
     <vendor url="https://github.com/miguelperezcolom/eventconductor">EventConductor</vendor>
 
     <description><![CDATA[
-        Edit EventConductor workflow definitions (<code>.ec</code>, <code>*.workflow.yaml</code>,
-        <code>*.ec.yaml</code>) as an interactive graph and form
+        Edit EventConductor workflow definitions (<code>*.ec.yaml</code> recommended;
+        <code>.ec</code> and <code>*.workflow.yaml</code> too) as an interactive graph and form
         definitions (<code>.ecform</code>) as a visual editor, or as YAML/JSON with schema validation.
         The graph and form editors are the same components used inside the EventConductor app,
         embedded via JCEF, backed by the text document so both views stay in sync.

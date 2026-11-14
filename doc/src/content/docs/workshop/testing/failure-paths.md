@@ -61,6 +61,6 @@ class FailurePathsTest {
 - **`iterations("rooms")`** asserts room by room. An iteration is named by its **label** — the forEach's `label`, `'Room ' + room.number` — by its index (`2`) or by its item; `hasOnlyFailed("Room 900")` means that room failed *and no other did*, and `hasCompensated("Room 101", "Room 102")` that the rollback undid exactly those two. When one of them fails, the message names the rooms the same way (`#2 "Room 900"`), never by an execution id.
 - `invocationsOf("cancel-room-booking")` is still the way to check what each compensation was *sent*.
 
-The second test runs a **test-only** variant of module 3 with `onIterationFailure: continue`, from `src/test/flows/rooms-booking-tolerant.yaml` — the same flow, best effort instead of all or none. Writing both tests is how a team *decides* which behaviour a booking should have, and keeps it.
+The second test runs a **test-only** variant of module 3 with `onIterationFailure: continue`, from `src/test/flows/rooms-booking-tolerant.ec.yaml` — the same flow, best effort instead of all or none. Writing both tests is how a team *decides* which behaviour a booking should have, and keeps it.
 
 `TaskOutcome.fail(code, false)` is a final failure, as a handler's `TaskFailure(code, reason, false)` would be; `fail(code)` alone is retryable and spends the step's `retries` first.

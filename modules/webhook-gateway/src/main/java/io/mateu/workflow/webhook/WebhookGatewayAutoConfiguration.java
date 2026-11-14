@@ -31,8 +31,8 @@ public class WebhookGatewayAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public Map<WebhookGatewayProperties.Provider, WebhookProvider> webhookProviders() {
-        var providers = new EnumMap<WebhookGatewayProperties.Provider, WebhookProvider>(WebhookGatewayProperties.Provider.class);
+    public Map<WebhookGatewayProperties.Provider, WebhookDeliveryProvider> webhookProviders() {
+        var providers = new EnumMap<WebhookGatewayProperties.Provider, WebhookDeliveryProvider>(WebhookGatewayProperties.Provider.class);
         providers.put(WebhookGatewayProperties.Provider.GITHUB, new GitHubWebhookProvider());
         providers.put(WebhookGatewayProperties.Provider.GENERIC, new GenericWebhookProvider());
         return providers;
@@ -55,7 +55,7 @@ public class WebhookGatewayAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public WebhookController webhookController(WebhookGatewayProperties properties,
-                                               Map<WebhookGatewayProperties.Provider, WebhookProvider> providers,
+                                               Map<WebhookGatewayProperties.Provider, WebhookDeliveryProvider> providers,
                                                WebhookPublisher publisher, WebhookMetrics metrics) {
         return new WebhookController(properties, providers, publisher, metrics);
     }

@@ -29,13 +29,13 @@
 <body>
 <div id="wrap">
   <div id="editor"></div>
-  <div id="file"><h2><b>hotel-booking.yaml</b> <span class="live">● live</span></h2><pre id="yaml"></pre></div>
+  <div id="file"><h2><b>hotel-booking.ec.yaml</b> <span class="live">● live</span></h2><pre id="yaml"></pre></div>
 </div>
 <script type="module">
   import '/modules/workflow-engine/src/main/resources/META-INF/resources/eventconductor/workflow-graph.js';
   import * as YAML from '/media/promo-video/node_modules/yaml/browser/dist/index.js';
 
-  const def = YAML.parse(await (await fetch('/media/promo-video/app/definitions/hotel-booking.yaml')).text());
+  const def = YAML.parse(await (await fetch('/media/promo-video/app/definitions/hotel-booking.ec.yaml')).text());
   // ?unset=onIterationFailure starts from the definition without that field (the default,
   // failFast), so the video can set it in the editor and the file shows the line appear.
   for (const f of new URLSearchParams(location.search).getAll('unset')) {

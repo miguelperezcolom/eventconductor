@@ -34,7 +34,7 @@ spring:
         # mensajes no se leen nunca. Ver la configuración del orquestador.
         consumeWorkerEvent-in-0:
           # "booking", el topic que nombran los pasos confirmar-reserva y cancelar-reserva de
-          # verify-booking-payment.ec: el motor despacha cada tarea al destino que declara su paso.
+          # verify-booking-payment.ec.yaml: el motor despacha cada tarea al destino que declara su paso.
           # Antes este servicio escuchaba en downstream y recibía TODAS las tareas del sistema para
           # descartar en su switch las que no eran suyas; ahora solo le llegan las suyas. El
           # USER_TASK verify-payment no nombra topic, así que sigue yendo a downstream, donde
