@@ -16,6 +16,9 @@ const openTab = (c, id, name) => async (page) => {
 };
 /** Type into the field labelled `label` (a dialog's Reason). */
 const typeInto = async (s, label, text) => {
+  // Dialogs taller than the page (Migrate…) keep fields below the fold: scroll the field in, as a user would.
+  await s.page.getByLabel(label).first().scrollIntoViewIfNeeded();
+  await s.settleFrames(4);
   await s.click(s.page.getByLabel(label).first(), { dur: 0.6 });
   await s.type(text);
 };
@@ -136,8 +139,14 @@ export async function run(c) {
     await s.click(s.page.getByText('Migrate…', { exact: true }).first(), { dur: 0.6 });
     await s.settleFrames(10);
     await typeInto(s, 'Reason', 'Managers want the 4-hour reminder');
-    await s.click(s.page.getByRole('button', { name: 'Preview' }).last(), { dur: 0.6 });
+    const preview = s.page.getByRole('button', { name: 'Preview' }).last();
+    await preview.scrollIntoViewIfNeeded();
+    await s.settleFrames(4);
+    await s.click(preview, { dur: 0.6 });
     await s.settleFrames(20);
+    // the dry run's result renders under the button: bring it into view
+    await preview.evaluate((b) => { let p = b.parentElement; while (p && p.scrollHeight <= p.clientHeight) p = p.parentElement; if (p) p.scrollTop = p.scrollHeight; });
+    await s.settleFrames(10);
     await s.park(0.3);
   });
 }
