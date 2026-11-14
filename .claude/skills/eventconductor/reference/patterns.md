@@ -1,7 +1,7 @@
 # Patterns — copy, paste, adapt
 
 Every example is a complete, valid definition (checked by `AiReferenceExamplesTest`). Put each in
-`src/main/resources/workflows/<id>.workflow.yaml`, run `mvn eventconductor:validate`, then test it
+`src/main/resources/workflows/<id>.ec.yaml`, run `mvn eventconductor:validate`, then test it
 ([testing.md](testing.md)). Field reference: [workflow-definitions.md](workflow-definitions.md).
 
 ## 1. Saga with a timer and compensation

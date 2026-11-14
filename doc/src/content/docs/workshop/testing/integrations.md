@@ -77,7 +77,7 @@ The stub is **validated against the step's `responseSchema`**, as a real model's
 
 ## An agent, held for review
 
-`AGENT` cannot run in the workshop app (it needs the IA catalogue), but it runs in a test: the kit plays both the catalogue and the agent runtime. The definition is test-only, in `src/test/flows/special-request-agent.yaml`.
+`AGENT` cannot run in the workshop app (it needs the IA catalogue), but it runs in a test: the kit plays both the catalogue and the agent runtime. The definition is test-only, in `src/test/flows/special-request-agent.ec.yaml`.
 
 ```java
 @Test

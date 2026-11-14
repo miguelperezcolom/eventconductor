@@ -490,7 +490,7 @@ public class MyApplication {
 
 - Domain events dispatched synchronously on each repository `save()`.
 - State held in `ConcurrentHashMap` (lost on restart).
-- Workflow definitions loaded from `classpath:/workflows/` at startup (`.ec`, `.json`, `.yaml`, `.yml`).
+- Workflow definitions loaded from `classpath:/workflows/` at startup (`*.ec.yaml` recommended; also `.ec`, `.json`, `.yaml`, `.yml`).
 - Ideal for tests, local development, and embedding in other applications.
 
 ---
@@ -529,10 +529,11 @@ spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group=worker-group
 
 Used in `memory` persistence mode. Each file defines one workflow. Both JSON and YAML are supported (`.json`, `.yaml`, `.yml`, and `.ec` — JSON or YAML, sniffed from the content).
 
-A workflow file may say what it is in its name: `order.workflow.yaml` or `order.ec.yaml` (and the
-`.yml` twins) are ordinary YAML files that the IDE plugins also open as workflow graphs and validate
-against the workflow schema. The compound suffix is not part of the name: a file that declares no
-`id` (directory or repository import) gets `order` from either, as `order.ec` would.
+**Name definitions `*.ec.yaml` (recommended)** — e.g. `order.ec.yaml`. It is an ordinary YAML file
+to every tool, and the IDE plugins open it as a workflow graph and validate it against the workflow
+schema. Also accepted: `.ec`, `*.workflow.yaml`, plain `.yaml`/`.yml`/`.json`. The compound suffix is
+not part of the name: a file that declares no `id` (directory or repository import) gets `order` from
+`order.ec.yaml`, `order.workflow.yaml` or `order.ec` alike.
 
 **YAML** (recommended for readability):
 
@@ -916,7 +917,7 @@ parseability for rules.
 
 The `validate` goal binds to `process-resources` and scans `src/main/resources/{workflows,forms,rules}`
 for `*.ec`, `*.ecform`, `*.ecrule`, `*.json`, `*.yaml` and `*.yml` — the same six extensions the
-engine imports (a workflow may also be named `*.workflow.yaml` or `*.ec.yaml`, which are `.yaml`
+engine imports (a workflow is best named `*.ec.yaml` — or `*.workflow.yaml` — which are `.yaml`
 files to every tool), and the same layout it loads from the classpath. Run
 it in the build (`mvn verify`) or on demand with `mvn eventconductor:validate`; on a violation
 it fails with a per-file report. Directories, per-type toggles, `failOnError`, `failOnMissing`
@@ -1161,7 +1162,7 @@ public class MyApplication {
 }
 ```
 
-Add a workflow definition at `src/main/resources/workflows/hello-world.yaml`:
+Add a workflow definition at `src/main/resources/workflows/hello-world.ec.yaml`:
 
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json
@@ -1203,7 +1204,7 @@ away. **Security vulnerabilities go through neither**: see [SECURITY.md](./SECUR
 ## Versioning & compatibility
 
 EventConductor follows [Semantic Versioning](https://semver.org). From **1.0.0** the stable,
-SemVer-covered surface is the **definition formats** (the JSON/YAML/`.ec` documents and their
+SemVer-covered surface is the **definition formats** (the JSON/YAML (`*.ec.yaml`, `.ec`) documents and their
 versioned schemas), the documented **configuration properties**, the **worker/Kafka integration
 contract**, the documented **embedded entry points**, the **HTTP message + MCP** surface, and the
 `eventconductor.*` **metric names**. The internal Java classes — including the `WorkflowDefinition`

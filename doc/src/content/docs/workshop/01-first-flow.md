@@ -7,7 +7,7 @@ The smallest useful process: a booking arrives, the hotel registers it, done.
 
 ## The definition
 
-`src/main/resources/workflows/01-first-booking.yaml` — every file under `workflows/` on the classpath is loaded at startup:
+`src/main/resources/workflows/01-first-booking.ec.yaml` — every file under `workflows/` on the classpath is loaded at startup:
 
 ```yaml
 id: first-booking
@@ -29,6 +29,8 @@ steps:
 ```
 
 A definition is a list of **steps**, and each step says what it waits for (`preconditionStepId`). There are no arrows to draw: the graph is derived from the preconditions. `START` and `END` mark where a run begins and finishes; `ACTION` is work done by a worker.
+
+The file is named `*.ec.yaml`: plain YAML to every tool, and the [IDE plugins](/guides/ide-plugins/) open it in the graph editor with schema validation. The engine takes `.ec`, `.workflow.yaml` and plain `.yaml`/`.json` too — see [Workflow Definitions](/guides/workflow-definitions/#file-names).
 
 ## The worker
 
