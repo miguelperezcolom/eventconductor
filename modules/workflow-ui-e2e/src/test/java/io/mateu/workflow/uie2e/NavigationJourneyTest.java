@@ -40,7 +40,7 @@ class NavigationJourneyTest extends AbstractUiE2eTest {
 
         var processes = ui.goToProcesses();
 
-        for (var heading : java.util.List.of("Id", "Name", "Status", "Created", "Started", "Finished")) {
+        for (var heading : java.util.List.of("Id", "Name", "Business key", "Status", "Created", "Started", "Finished")) {
             assertThat(processes.column(heading)).isVisible();
         }
     }
@@ -53,6 +53,36 @@ class NavigationJourneyTest extends AbstractUiE2eTest {
         var processes = ui.goToProcesses();
 
         assertThat(processes.rowContaining("Completed")).isVisible();
+    }
+
+    /**
+     * The console is English whatever the browser asks for: the engine's own words are, and Mateu's —
+     * the "New" button, the search box — used to follow {@code Accept-Language}, which on a Spanish
+     * browser gave "Nuevo" beside "Retry all matching".
+     */
+    @Test
+    void theConsoleIsInOneLanguageWhateverTheBrowserAsks() {
+        var spanish = page.context().browser().newContext(new com.microsoft.playwright.Browser.NewContextOptions()
+                .setViewportSize(1920, 1200).setLocale("es-ES")
+                .setExtraHTTPHeaders(java.util.Map.of("Accept-Language", "es-ES,es;q=0.9"))).newPage();
+        try {
+            spanish.navigate("http://localhost:" + port + "/workflow/processes");
+            assertThat(spanish.getByPlaceholder("Search").first()).isVisible();
+            assertThat(spanish.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                    new com.microsoft.playwright.Page.GetByRoleOptions().setName("New").setExact(true)).first()).isVisible();
+            assertThat(spanish.getByPlaceholder("Buscar")).hasCount(0);
+        } finally {
+            spanish.context().close();
+        }
+    }
+
+    /** The console's multi-word pages answer at the kebab-case spelling the REST API and the docs use. */
+    @Test
+    void aKebabCasePageNameLandsOnThePage() {
+        page.navigate("http://localhost:" + port + "/workflow/batch-operations");
+        assertThat(page).hasURL(java.util.regex.Pattern.compile(".*/workflow/batchOperations$"));
+        assertThat(page.getByRole(com.microsoft.playwright.options.AriaRole.HEADING,
+                new com.microsoft.playwright.Page.GetByRoleOptions().setName("Batch operations"))).isVisible();
     }
 
     /**

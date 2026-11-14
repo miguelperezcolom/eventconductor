@@ -123,12 +123,27 @@ public class ProcessIndexDBRepository implements ProcessIndexRepository {
         if (filters == null || filters.isEmpty()) {
             return search(searchText, onlyErrors, page, size);
         }
+        return search(searchText, onlyErrors, filters, false, page, size);
+    }
+
+    /** And without the child runs of PROCESS steps, told apart by their business key — built like the attribute search. */
+    @Override
+    public java.util.Optional<ProcessIndexPage> search(String searchText, boolean onlyErrors,
+                                                       List<io.mateu.workflow.search.SearchAttributeFilter> filters,
+                                                       boolean topLevelOnly, int page, int size) {
+        if (!topLevelOnly && (filters == null || filters.isEmpty())) {
+            return search(searchText, onlyErrors, page, size);
+        }
         var pattern = (searchText == null || searchText.isBlank())
                 ? null : "%" + searchText.toLowerCase() + "%";
         var where = new StringBuilder(" where 1 = 1");
         var params = new java.util.LinkedHashMap<String, Object>();
         if (onlyErrors) {
             where.append(" and p.status = 'ERROR'");
+        }
+        if (topLevelOnly) {
+            where.append(" and (p.businessKey is null or p.businessKey not like :childKey)");
+            params.put("childKey", CHILD_BUSINESS_KEY_PREFIX + "%");
         }
         if (pattern != null) {
             where.append(" and lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, ''))) like :pattern");

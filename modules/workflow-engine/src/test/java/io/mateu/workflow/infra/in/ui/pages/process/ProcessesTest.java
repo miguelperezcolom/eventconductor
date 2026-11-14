@@ -24,7 +24,7 @@ class ProcessesTest {
     }
 
     private ProcessRow row(String id) {
-        return new ProcessRow(id, "P", new Status(StatusType.INFO, "Running"), null, null, null);
+        return new ProcessRow(id, "P", null, new Status(StatusType.INFO, "Running"), null, null, null);
     }
 
     /**

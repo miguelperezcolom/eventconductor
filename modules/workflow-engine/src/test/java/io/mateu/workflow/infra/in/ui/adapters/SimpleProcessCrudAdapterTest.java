@@ -83,14 +83,40 @@ class SimpleProcessCrudAdapterTest {
         assertThat(adapter.definitionsTagged("nobody")).containsExactly(SimpleProcessCrudAdapter.NO_DEFINITION);
         assertThat(adapter.definitionsTagged(null)).isNull();
 
-        var filters = new io.mateu.workflow.infra.in.ui.pages.process.ProcessFilters(null, null, "billing", null, null, null, null, null);
+        var filters = new io.mateu.workflow.infra.in.ui.pages.process.ProcessFilters(null, null, null, "billing", null, null, null, null, null);
         assertThat(adapter.listingFilter(null, filters, null).workflowDefinitionIds()).containsExactly("orders", "refunds");
 
         // A tag nobody carries lists nothing, without the store being asked to match an empty set.
-        var nobody = new io.mateu.workflow.infra.in.ui.pages.process.ProcessFilters(null, null, "nobody", null, null, null, null, null);
+        var nobody = new io.mateu.workflow.infra.in.ui.pages.process.ProcessFilters(null, null, null, "nobody", null, null, null, null, null);
         var page = adapter.search(null, nobody, new io.mateu.uidl.data.Pageable(0, 10, List.of()), null);
         assertThat(page.page().totalElements()).isZero();
         assertThat(page.page().content()).isEmpty();
+    }
+
+    /**
+     * The child runs PROCESS steps start (a forEach over PROCESS: one per item) are listed under their
+     * parent, not beside it — unless the operator ticks "Include child processes".
+     */
+    @Test
+    void childRunsAreLeftOutUnlessAskedFor() {
+        when(repository.searchSummaries(any(), anyInt(), anyInt())).thenCallRealMethod();
+        var created = LocalDateTime.of(2026, 1, 1, 0, 0);
+        when(repository.findAll()).thenReturn(List.of(
+                Process.builder().id("parent").name("Booking").businessKey("BOOKING-1")
+                        .status(ProcessStatus.ERROR).workflowDefinitionId("booking").created(created).build(),
+                Process.builder().id("child").name("Book a room").businessKey("parent:se-1")
+                        .parentStepExecutionId("se-1").status(ProcessStatus.ERROR)
+                        .workflowDefinitionId("booking.rooms").created(created.plusSeconds(1)).build()));
+        var adapter = new SimpleProcessCrudAdapter(null, repository, index, readModel, null, null);
+
+        var topLevel = adapter.search(null, null, new Pageable(0, 10, List.of()), null).page();
+        assertThat(topLevel.content()).extracting(r -> ((ProcessRow) r).id()).containsExactly("parent");
+        assertThat(topLevel.content()).extracting(r -> ((ProcessRow) r).businessKey()).containsExactly("BOOKING-1");
+
+        var withChildren = new io.mateu.workflow.infra.in.ui.pages.process.ProcessFilters(
+                null, true, null, null, null, null, null, null, null);
+        var all = adapter.search(null, withChildren, new Pageable(0, 10, List.of()), null).page();
+        assertThat(all.content()).extracting(r -> ((ProcessRow) r).id()).containsExactly("child", "parent");
     }
 
     private io.mateu.uidl.data.Page<?> page(int processes, int pageNumber, int size) {
@@ -172,7 +198,8 @@ class SimpleProcessCrudAdapterTest {
                 new ProcessStatusAnnouncer(true, ""), null, null);
         var indexStore = mock(ProcessIndexRepository.class);
         when(index.getIfAvailable()).thenReturn(indexStore);
-        when(indexStore.search(null, false, 0, 10)).thenReturn(java.util.Optional.of(
+        // The console lists top-level processes unless asked otherwise: the index is asked for those.
+        when(indexStore.search(null, false, null, true, 0, 10)).thenReturn(java.util.Optional.of(
                 new ProcessIndexRepository.ProcessIndexPage(List.of(
                         indexRow("i-1", "bk-1", "named process"),
                         indexRow("i-2", "bk-2", null)),

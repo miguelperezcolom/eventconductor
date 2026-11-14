@@ -293,6 +293,7 @@ public interface ProcessRepository extends CrudStore<Process> {
                 ? null : filter.normalisedBusinessKey().toLowerCase();
         var attributes = filter.normalisedSearchAttributes();
         return process -> (!filter.onlyErrors() || ProcessStatus.ERROR.equals(process.getStatus()))
+                && (!filter.topLevelOnly() || process.getParentStepExecutionId() == null)
                 && (filter.status() == null || filter.status().isEmpty() || filter.status().contains(process.getStatus()))
                 && (filter.workflowDefinitionId() == null
                         || filter.workflowDefinitionId().equals(process.getWorkflowDefinitionId()))

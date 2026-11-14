@@ -72,6 +72,23 @@ abstract class ProcessListingQueryContract {
                 false, List.of("COMPLETED", "ERROR"), null, null)).isEqualTo(2);
     }
 
+    /** The top-level toggle, as the per-filter JPQL writes it: the runs a PROCESS step started are left out. */
+    @Test
+    void theTopLevelToggleLeavesOutTheRunsAProcessStarted() {
+        jdbc.update("UPDATE process_entity SET parent_step_execution_id = 'se-1', business_key = 'parent:se-1' WHERE id = 'p4'");
+        var entityManager = context.getBean(jakarta.persistence.EntityManagerFactory.class).createEntityManager();
+        try {
+            var where = ProcessListingJpql.of(io.mateu.workflow.application.out.ProcessListingFilter.of(null, false)
+                    .withTopLevelOnly(true));
+            var query = entityManager.createQuery("select p.id from ProcessEntity p" + where.text() + " order by p.id",
+                    String.class);
+            where.params().forEach(query::setParameter);
+            assertThat(query.getResultList()).containsExactly("p1", "p2", "p3");
+        } finally {
+            entityManager.close();
+        }
+    }
+
     @Test
     void theFlagsSwitchTheFiltersOff() {
         assertThat(search(true, List.of(""), true, List.of(""))).containsExactly("p1", "p2", "p3", "p4");

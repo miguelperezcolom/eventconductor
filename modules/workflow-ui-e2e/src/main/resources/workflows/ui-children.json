@@ -1,0 +1,17 @@
+{
+  "id": "ui-children",
+  "name": "UI Children",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "rooms", "type": "PROCESS", "name": "Book every room", "preconditionStepId": "start",
+      "forEach": { "items": "['101', '102']", "as": "room", "label": "'Room ' + room" },
+      "steps": [
+        { "id": "start", "type": "START", "name": "Start" },
+        { "id": "charge", "type": "ACTION", "name": "Charge the room", "topic": "work",
+          "preconditionStepId": "start", "retries": 0 },
+        { "id": "end", "type": "END", "name": "End", "preconditionStepId": "charge" }
+      ] },
+    { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "rooms" }
+  ]
+}

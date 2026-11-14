@@ -779,6 +779,7 @@ Mounted either way, they sit behind the access rule above: the check is made on 
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `workflow.ui.enabled` | boolean | `true` | Mount the admin UI. `false` drops every console bean the EventConductor modules contribute (`io.mateu.workflow.infra.in.ui`: the workflow, workflow-admin, rules and forms consoles and the task-project zips) before it is created, so those routes answer `404` — also when `@EnableWorkflowUi` mounted them. An application whose own Mateu UI mounts `WorkflowMenu` must drop that too |
+| `workflow.ui.locale` | string | `en` | The language the console is drawn in, a BCP 47 tag. The engine's pages are written in English; this makes Mateu's own words on them (the *New* button, the search box, confirmations, toasts) match, instead of following the browser's `Accept-Language`. `auto` follows the browser, as before 2.41. An application that declares its own Mateu `Translator` keeps deciding the language (and translating) |
 
 The MCP server is the application's (the `spring-ai-starter-mcp-server-webmvc` starter and the `ToolCallbackProvider` it registers), so it is switched off with Spring AI's own `spring.ai.mcp.server.enabled=false`.
 

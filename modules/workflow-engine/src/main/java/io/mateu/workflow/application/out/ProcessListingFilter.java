@@ -47,11 +47,32 @@ public record ProcessListingFilter(
          * Conditions on the processes' search attributes, all of which must hold (2.30; see
          * {@link io.mateu.workflow.search.SearchAttributeFilter}). Null or empty narrows nothing.
          */
-        java.util.List<io.mateu.workflow.search.SearchAttributeFilter> searchAttributes) {
+        java.util.List<io.mateu.workflow.search.SearchAttributeFilter> searchAttributes,
+        /**
+         * Only processes no other process started — leaves out the child runs of PROCESS steps (a forEach
+         * over PROCESS starts one per item, business key {@code parent:<step execution>}), which the
+         * console lists under their parent rather than beside it. False lists every process.
+         */
+        boolean topLevelOnly) {
 
     /** The listing with nothing but a text box and the errors toggle — what every caller had. */
     public static ProcessListingFilter of(String searchText, boolean onlyErrors) {
-        return new ProcessListingFilter(searchText, onlyErrors, null, null, null, null, null, null, null);
+        return new ProcessListingFilter(searchText, onlyErrors, null, null, null, null, null, null, null, false);
+    }
+
+    /** The shape before the top-level toggle: every process, children included. */
+    public ProcessListingFilter(String searchText, boolean onlyErrors, String workflowDefinitionId,
+                                Set<ProcessStatus> status, LocalDateTime createdFrom, LocalDateTime createdTo,
+                                String businessKey, Set<String> workflowDefinitionIds,
+                                java.util.List<io.mateu.workflow.search.SearchAttributeFilter> searchAttributes) {
+        this(searchText, onlyErrors, workflowDefinitionId, status, createdFrom, createdTo, businessKey,
+                workflowDefinitionIds, searchAttributes, false);
+    }
+
+    /** A copy that lists only top-level processes ({@code true}) or every process ({@code false}). */
+    public ProcessListingFilter withTopLevelOnly(boolean topLevelOnly) {
+        return new ProcessListingFilter(searchText, onlyErrors, workflowDefinitionId, status, createdFrom, createdTo,
+                businessKey, workflowDefinitionIds, searchAttributes, topLevelOnly);
     }
 
     /** The shape before search attributes; null narrows nothing. */
@@ -65,7 +86,7 @@ public record ProcessListingFilter(
     /** A copy narrowed by these search-attribute conditions as well (replacing any it had). */
     public ProcessListingFilter withSearchAttributes(java.util.List<io.mateu.workflow.search.SearchAttributeFilter> conditions) {
         return new ProcessListingFilter(searchText, onlyErrors, workflowDefinitionId, status, createdFrom, createdTo,
-                businessKey, workflowDefinitionIds, conditions);
+                businessKey, workflowDefinitionIds, conditions, topLevelOnly);
     }
 
     /** The shape every caller had before a definition-set (tag) filter existed; null narrows nothing. */
@@ -99,7 +120,8 @@ public record ProcessListingFilter(
 
     /**
      * Whether anything beyond text, the errors toggle and search attributes is set — the three the
-     * process index can answer (since 2.30 it holds the attributes too).
+     * process index can answer (since 2.30 it holds the attributes too). The top-level toggle is not one
+     * of them: an index store answers it or declines the listing (see {@code ProcessIndexRepository}).
      */
     public boolean hasNarrowingBeyondTextAndAttributes() {
         return workflowDefinitionId != null || (status != null && !status.isEmpty())

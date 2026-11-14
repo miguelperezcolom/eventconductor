@@ -125,6 +125,19 @@ class ProcessIndexDBRepositoryTest {
         assertThat(store.countByStatus()).isEqualTo(Map.of("RUNNING", 2L, "ERROR", 1L));
     }
 
+    /** The child runs of PROCESS steps carry the business key {@code parent:<step execution>}: left out when asked. */
+    @Test
+    void theTopLevelListingLeavesOutTheRunsAProcessStarted() {
+        store.upsert(row("parent", "BOOKING-1", "Booking", "orders", "ERROR", T0, T0));
+        store.upsert(row("child", "parent:se-1", "Room", "orders.rooms", "ERROR", T0.plusMinutes(1), T0));
+        store.upsert(row("nokey", null, null, "orders", "RUNNING", T0.plusMinutes(2), T0));
+
+        assertThat(store.search(null, false, List.of(), true, 0, 10).orElseThrow().content())
+                .extracting(ProcessIndexRow::processId).containsExactly("nokey", "parent");
+        assertThat(store.search("room", false, List.of(), true, 0, 10).orElseThrow().totalElements()).isZero();
+        assertThat(store.search(null, false, List.of(), false, 0, 10).orElseThrow().totalElements()).isEqualTo(3);
+    }
+
     @Test
     void pagesTheListingNewestFirstAndFiltersByTextAndErrors() {
         for (var i = 0; i < 5; i++) {

@@ -85,7 +85,8 @@ public class SimpleProcessCrudAdapter  {
                     filters.createdTo(),
                     blankToNull(filters.businessKey()),
                     definitionsTagged(blankToNull(filters.tag())),
-                    io.mateu.workflow.search.SearchQuery.parse(filters.attributes()));
+                    io.mateu.workflow.search.SearchQuery.parse(filters.attributes()),
+                    !Boolean.TRUE.equals(filters.includeChildren()));
         }
         return new io.mateu.workflow.application.out.ProcessListingFilter(
                 searchText,
@@ -96,7 +97,8 @@ public class SimpleProcessCrudAdapter  {
                 stateDateTime(httpRequest, "createdTo"),
                 blankToNull(stateString(httpRequest, "businessKey")),
                 definitionsTagged(blankToNull(stateString(httpRequest, "tag"))),
-                io.mateu.workflow.search.SearchQuery.parse(stateString(httpRequest, "attributes")));
+                io.mateu.workflow.search.SearchQuery.parse(stateString(httpRequest, "attributes")),
+                !stateFlag(httpRequest, "includeChildren"));
     }
 
     /**
@@ -203,6 +205,7 @@ public class SimpleProcessCrudAdapter  {
         // identifies a process to a person.
         return summary -> new ProcessRow(summary.id(),
                 summary.name() != null ? summary.name() : summary.businessKey(),
+                summary.businessKey(),
                 mapProcessStatus(summary.status(), summary.completionPercentage()),
                 summary.created() != null ? summary.created().format(dtf) : null,
                 summary.started() != null ? summary.started().format(dtf) : null,

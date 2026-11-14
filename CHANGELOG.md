@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Console in two languages.** On a browser set to another language, Mateu's own words (*Nuevo*, *Buscar*, confirmations, toasts) followed `Accept-Language` while the engine's pages are English. The console now answers its own language to Mateu — English by default, `workflow.ui.locale` to change it, `auto` to follow the browser. An application with its own Mateu `Translator` keeps choosing.
+- **The process list mixed in the child runs of PROCESS steps** (one per forEach item, business key `parent:<step execution>`) and had no business-key column. It now lists top-level processes, with a **Business key** column; the **Include child processes** filter brings the children back. Answered in the store on JPA (`parent_step_execution_id is null`), in memory, and by the process index (JPA and JDBC stores, by the `parent:` key) — `ProcessListingFilter.topLevelOnly`, `ProcessIndexRepository.search(…, topLevelOnly, …)`; a custom index store that does not implement it declines and the listing is answered from the write side.
+- **A parent's Errors tab did not say why its child failed.** A failed PROCESS step (a forEach iteration over PROCESS above all) only logged "1 of 2 iterations … failed" on the parent; the reason was in the child's log. The Errors tab now lists the error lines of the child runs its failed steps started (and of theirs, three levels deep), against the step that started them — `rooms · Room 900 › create-room-booking` — and has a **Step** column.
+- **Stale toolbar after an operation.** After *Complete step* (or any change that finished the process) the detail repainted its values but kept the buttons of the previous render — *Complete step*, *Cancel process* on a completed process. A refresh whose actions on offer changed now redraws the view.
+- **`/workflow/batch-operations` answered 404.** The console's multi-word pages live at camelCase routes named after their menu fields (`batchOperations`, `eventTriggers`, `receivedEvents`) while the REST API and the docs spell them in kebab case. A browser asking for a page by the kebab-case name is now redirected (301) to the route; the API is untouched.
+- **forEach badge on the process graph.** The `∥ rooms` chip sat across the stacked cards, its glyph rendered as a clipped bar and long item expressions overflowed the pill; and the iterations pill (`1/2`) covered the caption above the card (`INLINE · 3 STEPS`). The chip now sits under the stack, sized for its text, with the glyph drawn at a readable size, and the pill is right-aligned clear of the caption.
+- **Workshop:** the note about a *"No tienes permiso para esta acción"* toast now says what it is — a Mateu client cache left in the browser by another application served earlier on the same `localhost` port, replayed against this one (403 *Forbidden* for a UI class this app does not have) — and how to clear it. It is not caused by `allow-anonymous`.
+
 ## [2.40.0] - 2026-11-13
 
 ### Fixed

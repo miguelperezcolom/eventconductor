@@ -62,6 +62,6 @@ workflow.message-api.allow-anonymous=true
 
 The data lives in memory: **every restart starts clean**. In production, the same engine runs on PostgreSQL, and — when one node is not enough — distributed over Kafka, with the same definitions: see [Deployment Modes](/guides/deployment-modes/).
 
-:::note[Known issue in this setup]
-The console may show a red *"No tienes permiso para esta acción"* / *"You don't have permission"* toast on every page in this anonymous setup. It is harmless for the workshop — every action used here works.
+:::note[A "You don't have permission" toast?]
+If another Mateu application ran on `localhost:8095` in this browser before, the console may show a red *"You don't have permission for this action"* toast on the pages that application had visited. The browser kept that application's screen layout (Mateu caches it in `localStorage`, per address) and replays it against this one, which refuses a screen it does not have. It has nothing to do with the anonymous setup. Clear the site data for `localhost:8095` (DevTools → Application → Clear site data), or run `localStorage.removeItem('mateu-route-structure-cache')` in the console, and reload.
 :::

@@ -68,6 +68,10 @@ class InstanceOperationsJourneyTest extends AbstractUiE2eTest {
 
         awaitUntil(Duration.ofSeconds(20), () -> processes.findById(id).orElseThrow().getStatus() == ProcessStatus.COMPLETED);
         assertThat(detail.statusBadge()).containsText("Completed");
+        // The toolbar follows: a completed process offers no step to complete. The refresh after the
+        // dialog used to repaint the values only, leaving the buttons of the failed process on screen.
+        assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Complete step"))).hasCount(0);
+        org.assertj.core.api.Assertions.assertThat(detail.offers("Retry from failure")).isFalse();
     }
 
     @Test

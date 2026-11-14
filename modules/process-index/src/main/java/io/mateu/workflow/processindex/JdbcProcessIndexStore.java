@@ -314,12 +314,24 @@ public class JdbcProcessIndexStore implements ProcessIndexRepository {
     public Optional<ProcessIndexPage> search(String searchText, boolean onlyErrors,
                                              List<io.mateu.workflow.search.SearchAttributeFilter> attributes,
                                              int page, int size) {
+        return search(searchText, onlyErrors, attributes, false, page, size);
+    }
+
+    /** And without the child runs of PROCESS steps, told apart by their business key. */
+    @Override
+    public Optional<ProcessIndexPage> search(String searchText, boolean onlyErrors,
+                                             List<io.mateu.workflow.search.SearchAttributeFilter> attributes,
+                                             boolean topLevelOnly, int page, int size) {
         var pattern = (searchText == null || searchText.isBlank())
                 ? null : "%" + searchText.toLowerCase() + "%";
         var where = new StringBuilder(" WHERE 1=1");
         var params = new ArrayList<Object>();
         if (onlyErrors) {
             where.append(" AND status = 'ERROR'");
+        }
+        if (topLevelOnly) {
+            where.append(" AND (business_key IS NULL OR business_key NOT LIKE ?)");
+            params.add(CHILD_BUSINESS_KEY_PREFIX + "%");
         }
         if (pattern != null) {
             where.append(" AND lower(coalesce(name,'') || ' ' || coalesce(business_key,'')) LIKE ?");

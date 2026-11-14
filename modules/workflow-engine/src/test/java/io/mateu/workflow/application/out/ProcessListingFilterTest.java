@@ -70,6 +70,19 @@ class ProcessListingFilterTest {
     class Narrows {
 
         @Test
+        void topLevelOnlyLeavesOutTheRunsAProcessStarted() {
+            var child = Process.builder().id("child").name("child").businessKey("parent:se-1")
+                    .parentStepExecutionId("se-1").workflowDefinitionId("orders.rooms")
+                    .status(ProcessStatus.ERROR).created(JAN_1).build();
+            var store = storeOf(List.of(SAMPLE.get(0), child));
+            assertThat(store.searchSummaries(ProcessListingFilter.of(null, false).withTopLevelOnly(true), 0, 50)
+                    .content()).extracting(ProcessSummary::id).containsExactly("a");
+            assertThat(store.searchSummaries(ProcessListingFilter.of(null, false), 0, 50).totalElements()).isEqualTo(2);
+            assertThat(ProcessListingFilter.of(null, false).withTopLevelOnly(true).hasNarrowingBeyondTextAndAttributes())
+                    .as("the process index answers it, or declines").isFalse();
+        }
+
+        @Test
         void byDefinition() {
             assertThat(ids(new ProcessListingFilter(null, false, "orders", null, null, null)))
                     .containsExactly("a", "b");

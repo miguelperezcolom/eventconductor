@@ -4356,12 +4356,22 @@ export class MateuWorkflowElk extends LitElement {
     /** A small violet chip under a task card: what a forEach runs over, or what a repeat waits for. */
     private renderMiBadge(label: string, w: number, h: number, kind: string) {
         const text = label.length > LOOP_CHIP_CHARS ? label.slice(0, LOOP_CHIP_CHARS - 1) + "…" : label;
-        const cw = Math.max(30, text.length * 6 + 14);
+        // The leading glyph (∥ ⇣ ↻) on its own, at a size where its strokes read as what they are: at
+        // 10px bold, "∥" collapsed into a short bar that read as a clipped "I".
+        const glyph = /^[∥⇣↻↺]\s/.test(text) ? text.slice(0, 1) : "";
+        const rest = glyph ? text.slice(2) : text;
+        // Sized for 10px bold with room to spare: 6px a character undercounted wide letters and the
+        // text spilled over the pill's ends.
+        const cw = Math.max(30, Math.ceil(rest.length * 6.6 + (glyph ? 14 : 0) + 18));
+        // A forEach's card is drawn as a stack peeking 8px below it: the chip goes under the stack,
+        // not across its edges.
+        const y = kind === "mi-foreach" ? h + 12 : h + 4;
         return svg`
-            <g class="mi-badge ${kind}" transform="translate(${w / 2 - cw / 2}, ${h + 4})">
+            <g class="mi-badge ${kind}" transform="translate(${w / 2 - cw / 2}, ${y})">
                 <title>${label}</title>
-                <rect width="${cw}" height="16" rx="8"/>
-                <text x="${cw / 2}" y="11.5" text-anchor="middle">${text}</text>
+                <rect width="${cw}" height="18" rx="9"/>
+                <text x="${cw / 2}" y="9" dominant-baseline="central" text-anchor="middle">${glyph
+                    ? svg`<tspan class="mi-glyph">${glyph}</tspan> ${rest}` : rest}</text>
             </g>`;
     }
 
@@ -4516,8 +4526,11 @@ export class MateuWorkflowElk extends LitElement {
         // "×3", the times it ran. Top edge, centred — clear of every corner badge.
         const it = ov?.iterations;
         const iterLabel = it ? `${it.completed}/${it.total}` : (ov?.runs && ov.runs > 1 ? `×${ov.runs}` : "");
+        // Right-aligned rather than centred, clear of the count badge in the corner: centred, it sat on
+        // the caption above the card ("INLINE · 3 STEPS") and hid half of it.
+        const iterHalf = (iterLabel.length * 6.8 + 16) / 2;
         const iterationsBadge = iterLabel ? svg`
-            <g class="ov-iterations" transform="translate(${w / 2}, -2)">
+            <g class="ov-iterations" transform="translate(${Math.max(w / 2, w - 18 - iterHalf)}, -2)">
                 <title>${it ? `${it.completed} of ${it.total} iterations completed, ${it.active} in flight, ${it.failed} failed`
                     : `Ran ${ov!.runs} times`}</title>
                 <rect x="${-(iterLabel.length * 3.4 + 8)}" y="-8" width="${iterLabel.length * 6.8 + 16}" height="16" rx="8"
@@ -5636,6 +5649,7 @@ export class MateuWorkflowElk extends LitElement {
         .node-stack {fill: var(--ec-surface, #fff); stroke-width: 1.2;}
         .mi-badge rect {fill: #f5f3ff; stroke: #7c3aed; stroke-width: 1;}
         .mi-badge text {font-size: 10px; fill: #5b21b6; font-weight: 700;}
+        .mi-badge .mi-glyph {font-size: 12px; font-weight: 400;}
         .mi-badge.mi-continue rect {fill: #fdf2f8; stroke: #db2777;}
         .mi-badge.mi-continue text {fill: #9d174d;}
         /* Under a dark host the pastel chips glared as the brightest thing on the board: same hue,
