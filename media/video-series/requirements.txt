@@ -1,0 +1,10 @@
+# Pinned TTS stack for the video series (installed by setup.sh into an isolated venv).
+# Kokoro-82M (hexgrad) — weights are downloaded from the official Hugging Face repo hexgrad/Kokoro-82M.
+kokoro==0.9.4
+misaki[en]==0.9.4
+soundfile==0.13.1
+numpy==2.2.6
+torch==2.8.0
+huggingface_hub==0.35.3
+# misaki[en] would otherwise pip-install this at first use, unpinned
+en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl

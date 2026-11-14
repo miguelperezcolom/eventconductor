@@ -1,0 +1,12 @@
+{
+  "name": "eventconductor-video-series",
+  "private": true,
+  "type": "module",
+  "description": "Renders the EventConductor video series: narration (Kokoro TTS), the real console recorded frame by frame with Playwright, HTML scenes, subtitles, assembled with ffmpeg. ./render.sh <chapter> <lang>.",
+  "devDependencies": {
+    "@fontsource-variable/inter": "5.2.8",
+    "@fontsource-variable/jetbrains-mono": "5.2.8",
+    "playwright": "1.65.0",
+    "yaml": "2.8.1"
+  }
+}
