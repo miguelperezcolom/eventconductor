@@ -1,14 +1,21 @@
-# Chapter 7 — the whole booking, approved and rejected (the workshop's module 6 scenarios). The manager's decision is a step of the
-# scenario (`then`), the hotel's API a stubbed HTTP call: nothing leaves the test.
+# Chapter 7 — the whole booking (the workshop's module 6 scenarios): approved and rejected, and what happens when the hotel cannot book a
+# room. The manager's and the guest's decisions are steps of the scenario (`then`), the hotel's API a
+# stubbed HTTP call: nothing leaves the test.
 workflow: hotel-booking
 variables:
   guest: Erin
   rooms: [ { number: "101", type: double }, { number: "102", type: double } ]
 http:
   rooms: { status: 201, body: { id: HB-1 } }   # every room, the same answer
+  find-alternatives: { status: 200, body: [ { number: "103", type: suite, instead: "102" } ] }
+  book-alternatives: { status: 201, body: { id: HB-2 } }
   cancel-room: { status: 204 }
 steps:
   notify-guest: { complete: {} }
+  ask-guest: { complete: {} }
+  remind-guest: { complete: {} }
+  confirm-kept: { complete: {} }
+  confirm-alternatives: { complete: {} }
 
 scenarios:
   - name: an approved booking books every room at the hotel
@@ -16,9 +23,9 @@ scenarios:
       - completeUserTask: { step: approve, values: { approved: "true" } }
     expect:
       status: COMPLETED
-      passedSteps: [approve, decision, rooms, notify-guest]
-      notPassedSteps: [rejected]
-      variables: { roomBookings: [HB-1, HB-1] }
+      passedSteps: [approve, decision, rooms, notify-guest, done]
+      notPassedSteps: [rejected, find-alternatives, cancel-room]
+      variables: { roomBookings: [ { status: COMPLETED, value: HB-1 }, { status: COMPLETED, value: HB-1 } ] }
       invocations: { rooms: 2 }
 
   - name: a rejected booking books nothing
@@ -30,15 +37,84 @@ scenarios:
       notPassedSteps: [rooms, notify-guest]
       invocations: { rooms: 0 }
 
-  - name: a sold-out room at the hotel cancels the one already booked
+  - name: a sold-out room keeps the room already booked, and the hotel proposes another
     http:
       rooms:
         - { status: 201, body: { id: HB-1 } }
         - { status: 409, body: { error: sold out } }
     then:
       - completeUserTask: { step: approve, values: { approved: "true" } }
-      - advanceTime: PT5M
+    expect:
+      status: RUNNING
+      waitingAt: wait-for-guest
+      passedSteps: [rooms, find-alternatives, ask-guest]
+      notPassedSteps: [cancel-room, notify-guest]
+
+  - name: the guest accepts the alternative, and it is booked
+    http:
+      rooms:
+        - { status: 201, body: { id: HB-1 } }
+        - { status: 409, body: { error: sold out } }
+    then:
+      - completeUserTask: { step: approve, values: { approved: "true" } }
+      - sendMessage: { name: guest-answer, variables: { answer: accept } }
+    expect:
+      status: COMPLETED
+      passedSteps: [wait-for-guest, book-alternatives, confirm-alternatives, done]
+      notPassedSteps: [cancel-room, cancelled-by-guest]
+      invocations: { book-alternatives: 1 }
+
+  - name: the guest keeps the room that was booked, without the alternative
+    http:
+      rooms:
+        - { status: 201, body: { id: HB-1 } }
+        - { status: 409, body: { error: sold out } }
+    then:
+      - completeUserTask: { step: approve, values: { approved: "true" } }
+      - sendMessage: { name: guest-answer, variables: { answer: keep } }
+    expect:
+      status: COMPLETED
+      passedSteps: [confirm-kept, done]
+      notPassedSteps: [book-alternatives, cancel-room]
+
+  - name: the guest cancels, so the room that was booked is cancelled at the hotel
+    http:
+      rooms:
+        - { status: 201, body: { id: HB-1 } }
+        - { status: 409, body: { error: sold out } }
+    then:
+      - completeUserTask: { step: approve, values: { approved: "true" } }
+      - sendMessage: { name: guest-answer, variables: { answer: cancel } }
     expect:
       status: COMPENSATED
-      passedSteps: [cancel-room]
-      notPassedSteps: [notify-guest]
+      passedSteps: [cancelled-by-guest, cancel-room]
+      notPassedSteps: [book-alternatives, notify-guest]
+      invocations: { cancel-room: 1 }
+
+  - name: a guest who answers after the reminder is heard
+    http:
+      rooms:
+        - { status: 201, body: { id: HB-1 } }
+        - { status: 409, body: { error: sold out } }
+    then:
+      - completeUserTask: { step: approve, values: { approved: "true" } }
+      - advanceTime: P1DT1M
+      - sendMessage: { name: guest-answer, variables: { answer: keep } }
+    expect:
+      status: COMPLETED
+      passedSteps: [remind-guest, wait-after-reminder, confirm-kept]
+      notPassedSteps: [front-desk, cancel-room]
+
+  - name: no answer at all is never a cancellation — the front desk calls, and decides with the guest
+    http:
+      rooms:
+        - { status: 201, body: { id: HB-1 } }
+        - { status: 409, body: { error: sold out } }
+    then:
+      - completeUserTask: { step: approve, values: { approved: "true" } }
+      - advanceTime: P2DT1M
+      - completeUserTask: { step: front-desk, values: { answer: cancel } }
+    expect:
+      status: COMPENSATED
+      passedSteps: [remind-guest, front-desk, cancelled-by-guest, cancel-room]
+      notPassedSteps: [book-alternatives, notify-guest]

@@ -61,12 +61,14 @@ curl -s -X POST "$ENGINE/workflow/api/schedules/nightly-occupancy/run-now" > /de
 start channel-sync SYNC-1 "{\"room\": \"204\", \"date\": \"$(day 30)\", \"available\": \"3\"}"
 start hotel-booking BOOKING-8 '{"guest": "Kim", "rooms": [{"number": "201", "type": "double"}]}'
 
-echo "A compensated booking (a penthouse is always sold out at the hotel)"
+echo "A compensated booking: the penthouse is sold out, and the guest decides to cancel"
 start hotel-booking BOOKING-9 '{"guest": "Lee", "rooms": [{"number": "401", "type": "double"}, {"number": "900", "type": "penthouse"}]}'
 reached BOOKING-8 approve
 reached BOOKING-9 approve
 ./approve.sh BOOKING-8 true 'Regular guest' > /dev/null && echo "  approved BOOKING-8"
 ./approve.sh BOOKING-9 true 'VIP' > /dev/null && echo "  approved BOOKING-9"
+reached BOOKING-9 wait-for-guest                                  # the hotel offered 901; the guest is asked
+./message.sh guest-answer BOOKING-9 '{"answer": "cancel"}' > /dev/null && echo "  the guest cancelled BOOKING-9 (room 401 is cancelled at the hotel)"
 
 echo "Incidents: the channel manager is down"
 curl -s -X POST "$ENGINE/fake/channel-manager/outage?on=true" > /dev/null

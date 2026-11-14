@@ -1,6 +1,6 @@
 // Chapter 4's own HTML scenes (diagrams, in the reel's language). Real product footage is in live.mjs.
 window.VIEWS = Object.assign(window.VIEWS || {}, {
-  /** Title visual: three room cards; two get booked, the penthouse is sold out, the booked two ask "undo?". */
+  /** Title visual: three room cards; two get booked, the penthouse is sold out, the booked two: "ask the guest". */
   rooms(root, sc, H) {
     const { el, css, S, vis, eout, at, seg, lerp, eio } = H;
     const row = el('div', 'abs', null, root); css(row, { left: 0, right: 0, top: 560, display: 'flex', justifyContent: 'center', gap: '56px' });
@@ -44,7 +44,7 @@ window.VIEWS = Object.assign(window.VIEWS || {}, {
     };
   },
 
-  /** The three onIterationFailure policies; Compensated is not Error; the 2.39 opt-ins. */
+  /** The three onIterationFailure policies (narrated continue, failFast, compensateAll); who decides to compensate: the opt-ins. */
   policies(root, sc, H) {
     const { el, css, S, vis, eout, at, rich, esc } = H;
     const head = el('div', 'eyebrow', esc(S('pol.head')), root); css(head, { position: 'absolute', left: 150, top: 110 });
@@ -56,22 +56,20 @@ window.VIEWS = Object.assign(window.VIEWS || {}, {
       const l = el('div', 'lead', esc(line), c); css(l, { marginTop: 26, fontSize: 32 });
       return c;
     });
-    const cmp = el('div', 'abs', null, root); css(cmp, { left: 150, top: 560, display: 'flex', alignItems: 'center', gap: '26px', fontFamily: 'var(--mono)', fontSize: 40 });
-    cmp.innerHTML = `<span class="chip good" style="font-size:40px">${esc(S('pol.compensated'))}</span><span>${esc(S('pol.notError'))}</span><span class="chip bad" style="font-size:40px">${esc(S('pol.error'))}</span><span class="lead" style="font-size:32px">— ${esc(S('pol.notErrorTail'))}</span>`;
-    const strip = el('div', 'card', null, root); css(strip, { left: 150, top: 720, width: 1620, padding: '34px 44px' });
+    const strip = el('div', 'card', null, root); css(strip, { left: 150, top: 600, width: 1620, padding: '34px 44px' });
     strip.innerHTML = `<div class="eyebrow" style="font-size:24px">${esc(S('pol.since'))}</div><div class="note" style="position:relative;margin-top:22px">${rich(S('pol.opt1'))}</div><div class="note" style="position:relative;margin-top:14px">${rich(S('pol.opt2'))}</div>`;
     return (t) => {
       const v0 = vis(t, 0.1, 1e9, 0.5); head.style.opacity = v0;
       cards.forEach((c, i) => {
         const v = vis(t, 0.3 + i * 0.25, 1e9, 0.5);
-        const focus = t >= at(sc, 'c1') && t < at(sc, 'c3') ? (t >= at(sc, 'c2') ? 1 : 0) : t >= at(sc, 'c3') ? 2 : -1;
+        // c0: continue (this chapter's policy) · c1: failFast · c2 on: compensateAll.
+        const focus = t >= at(sc, 'c2') ? 2 : t >= at(sc, 'c1') ? 0 : t >= at(sc, 'c0') + 0.6 ? 1 : -1;
         const on = focus === -1 || focus === i;
         c.style.opacity = v * (on ? 1 : 0.4);
-        c.style.borderColor = focus === i || (focus === -1 && i === 2) ? (i === 2 ? 'rgba(246,178,60,.7)' : 'var(--azure-dim)') : '';
+        c.style.borderColor = focus === i ? (i === 2 ? 'rgba(246,178,60,.7)' : 'var(--azure-dim)') : '';
         c.style.transform = `translateY(${(1 - eout(v)) * 30}px)`;
       });
-      const v3 = vis(t, at(sc, 'c3'), 1e9, 0.5); cmp.style.opacity = v3; cmp.style.transform = `translateY(${(1 - eout(v3)) * 20}px)`;
-      const v4 = vis(t, at(sc, 'c4'), 1e9, 0.5); strip.style.opacity = v4; strip.style.transform = `translateY(${(1 - eout(v4)) * 20}px)`;
+      const v3 = vis(t, at(sc, 'c3'), 1e9, 0.5); strip.style.opacity = v3; strip.style.transform = `translateY(${(1 - eout(v3)) * 20}px)`;
     };
   },
 });

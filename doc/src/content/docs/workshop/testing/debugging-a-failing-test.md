@@ -3,41 +3,42 @@ title: "9g · Debugging a failing test"
 description: What a failing process assertion prints — every step and variable of the run — and how to read it.
 ---
 
-Change module 3's policy from `compensateAll` to `continue` and run the tests. The definition is still valid, so validation passes; the behaviour changed, so a test fails — and its message is the run, as the console would show it:
+Change module 3's policy from `continue` to `compensateAll` and run the tests. The definition is still valid, so validation passes; the behaviour changed, so a test fails — and its message is the run, as the console would show it:
 
 ```text
-[ERROR] com.example.hotel.FailurePathsTest.compensateAllCancelsEveryRoomThatWasBooked -- <<< FAILURE!
+[ERROR] com.example.hotel.FailurePathsTest.aSoldOutRoomKeepsTheOthersAndAsksTheGuest -- <<< FAILURE!
 java.lang.AssertionError:
-Expected process 7c311a8e-… (rooms-booking-safe, businessKey FAIL-1) to be COMPENSATED but it is COMPLETED.
+Expected process f72b82ee-… (rooms-booking-safe, businessKey FAIL-1) to be waiting at 'wait-for-guest'.
 Steps:
   start                    COMPLETED
   register-booking         COMPLETED
-  rooms                    COMPLETED
+  rooms                    ERROR
     #0 "Room 101"          COMPLETED
     #1 "Room 102"          COMPLETED
     #2 "Room 900"          ERROR
-  notify-guest             COMPLETED
-  done                     COMPLETED
-  cancel-room-booking      CANCELLED
-Variables: {rooms=[…], guest=Bob, bookingNumber=BK-2,
-  roomBookings=[{"status":"COMPLETED","value":"RB-101"},{"status":"COMPLETED","value":"RB-102"},
-                {"status":"FAILED","error":"ERROR"}]}
+  all-booked               CANCELLED
+  ask-guest                CANCELLED
+  wait-for-guest           CANCELLED
+  guest-decision           CANCELLED
+  cancelled-by-guest       CANCELLED
+  confirm-kept             CANCELLED
+  notify-guest             CANCELLED
+  done                     CANCELLED
+  tell-front-desk          CANCELLED
+  held                     CANCELLED
+  cancel-room-booking      COMPLETED
+    #0 "Room 102"          COMPLETED
+    #1 "Room 101"          COMPLETED
+Variables: {rooms=[…], guest=Bob, bookingNumber=BK-2}
 ```
 
 Read it top-down, as in [module 8](/workshop/08-debugging/):
 
-1. **The status** — expected *compensated*, got *completed*: the process did not roll back.
-2. **The steps** — `rooms` completed, and under it each iteration, named by its index and the forEach's `label` (by its item when there is no label): two rooms completed, `Room 900` ended in `ERROR`. Yet `notify-guest` ran and `cancel-room-booking` was *cancelled*: the failed room did not stop the process.
-3. **The variables** — `roomBookings` has a `status` per room: that shape is what `continue` produces. The policy changed.
+1. **The status** — expected to be *waiting* for the guest; it is not waiting at all.
+2. **The steps** — under `rooms`, each iteration, named by its index and the forEach's `label` (by its item when there is no label): two rooms completed, `Room 900` ended in `ERROR` — and this time `rooms` itself is `ERROR`. Nothing after it ran: the guest was never asked, yet `cancel-room-booking` ran once per booked room, newest first. The engine undid the booking on its own.
+3. **The variables** — no `roomBookings` at all: the step failed, so it produced no output. The policy changed.
 
-An assertion on the iterations says it room by room — `assertThat(booking).iterations("rooms").hasCompensated("Room 101", "Room 102")` fails with each room's status, what it reported and whether it was undone:
-
-```text
-Expected the compensation of step 'rooms' of process … to have undone [#0 "Room 101", #1 "Room 102"], but it undid none:
-  #0 "Room 101"                COMPLETED {roomBookingId=RB-101}
-  #1 "Room 102"                COMPLETED {roomBookingId=RB-102}
-  #2 "Room 900"                ERROR
-```
+An assertion on the iterations says it room by room — `assertThat(booking).iterations("rooms").hasNoneCompensated()` fails with each room's status, what it reported and whether it was undone.
 
 When the message is not enough:
 

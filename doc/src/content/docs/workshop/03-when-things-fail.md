@@ -1,11 +1,16 @@
 ---
 title: "3 · When things fail"
-description: Retries, timeouts and compensation — and a booking that is all rooms or none.
+description: Retries and timeouts for what is technical; for a sold-out room, the guest decides — and compensation undoes what was booked only if the guest cancels.
 ---
 
 The hotel's penthouse is always sold out. Book two doubles and the penthouse, and the third room fails. What should happen to the two that were booked?
 
-For a booking, the answer is usually **all rooms or none**: if one cannot be booked, cancel the others. That is a **saga** — and in EventConductor it is three lines.
+Not "cancel them behind the guest's back". A real hotel tells the guest, and **the guest decides**: keep the two rooms, or cancel the whole booking. Only a cancellation undoes what was booked — and undoing it is a **saga compensation**, which EventConductor runs for you, room by room, once someone has decided to.
+
+Two kinds of failure, two answers:
+
+- **Technical** — the hotel's system is slow, a worker crashes, an answer never comes. Retry it, with backoff, and give up after a timeout. Nobody needs to be asked.
+- **Business** — the room is sold out. Retrying will not free it. Keep what was booked and ask the person whose booking it is.
 
 ## The definition
 
@@ -13,7 +18,7 @@ For a booking, the answer is usually **all rooms or none**: if one cannot be boo
 
 ```yaml
 id: rooms-booking-safe
-name: Book every room (all or none)
+name: Book every room (the guest decides)
 steps:
   - id: start
     type: START
@@ -29,14 +34,14 @@ steps:
     name: Book every room
     preconditionStepId: register-booking
     compensable: true
-    compensationStepId: cancel-room-booking  # undoes each room that was booked
+    compensationStepId: cancel-room-booking  # how to undo a room that was booked — if the guest cancels
     outputVariables: [roomBookingId]
     forEach:
       items: rooms
       as: room
       label: "'Room ' + room.number"
-      onIterationFailure: compensateAll      # wait for every room; if one failed, undo the rest
-      output: roomBookings
+      onIterationFailure: continue           # a sold-out room stops nothing: keep what was booked
+      output: roomBookings                   # each room: {"status": "COMPLETED", "value": …} or FAILED
       outputElement: roomBookingId
     steps:
       - id: start
@@ -53,15 +58,69 @@ steps:
         name: End
         preconditionStepId: create-room-booking
 
-  - id: notify-guest
+  - id: all-booked
+    type: CHOICE
+    name: Every room booked?
+    preconditionStepId: rooms
+
+  - id: ask-guest                            # some room could not be booked: tell the guest, ask
+    type: ACTION
+    name: Ask the guest
+    retries: 3
+    preconditions:
+      - stepId: all-booked
+        expression: "roomBookings =~ '.*FAILED.*'"
+
+  - id: wait-for-guest
+    type: WAIT_FOR_MESSAGE
+    name: Wait for the guest's answer
+    preconditionStepId: ask-guest
+    messageName: guest-answer                # {"answer": "keep"} or {"answer": "cancel"}
+    correlationExpression: businessKey
+    timeout: P2D
+    onTimeoutStepId: tell-front-desk         # no answer: nothing is cancelled, a person follows up
+
+  - id: guest-decision
+    type: CHOICE
+    name: What did the guest decide?
+    preconditionStepId: wait-for-guest
+
+  - id: cancelled-by-guest                   # the guest's decision: undo every room that was booked
+    type: END
+    name: Cancelled by the guest
+    compensate: true
+    preconditions:
+      - stepId: guest-decision
+        expression: "answer == 'cancel'"
+
+  - id: confirm-kept                         # the default: the guest keeps the rooms that were booked
+    type: ACTION
+    name: Confirm the rooms kept
+    retries: 3
+    preconditionStepId: guest-decision
+
+  - id: notify-guest                         # the default of all-booked: every room was booked
     type: ACTION
     name: Tell the guest
-    preconditionStepId: rooms
+    retries: 3
+    preconditionStepId: all-booked
 
   - id: done
     type: END
     name: Done
-    preconditionStepId: notify-guest
+    preconditionStepIds: [notify-guest, confirm-kept]   # an END goes on with whichever comes
+
+  - id: tell-front-desk
+    type: ACTION
+    name: Tell the front desk
+    preconditions:
+      - stepId: wait-for-guest
+        expression: "false"                  # reached only through onTimeoutStepId
+
+  - id: held
+    type: END
+    name: Held for the guest
+    preconditionStepId: tell-front-desk
 
   - id: cancel-room-booking                  # the compensation: no preconditions, run by the rollback
     type: ACTION
@@ -72,10 +131,16 @@ steps:
 |---|---|
 | `retries: 2` | A technical failure (an exception, a timeout) is retried twice, with exponential backoff |
 | `timeout: PT30S` | A worker that never answers fails the attempt after 30 seconds — and that is retried too |
-| `compensable` + `compensationStepId` | If the process fails later, every completed room is undone by `cancel-room-booking`, newest first |
-| `onIterationFailure: compensateAll` | Let every room finish; if one failed, undo the rest and fail the step. The alternatives: `failFast` (the default — stop at the first failure) and `continue` (book what you can and report the rest) |
+| `onIterationFailure: continue` | A room that fails for good stops nothing: the others are booked and **kept**, the step completes, and `roomBookings` says how each room went. The alternatives: `failFast` (the default — stop at the first failure and roll back) and `compensateAll` (let every room finish, then undo them all if one failed) |
+| `all-booked` (CHOICE) | Every room booked: tell the guest. Some room `FAILED`: ask them |
+| `wait-for-guest` | Waits — for days if need be, holding no thread — for the message `guest-answer`, correlated by the booking's business key |
+| `timeout: P2D` + `onTimeoutStepId` | No answer in two days is **not** a cancellation: the front desk is told to call the guest, and the booking stays as it is |
+| `compensable` + `compensationStepId` | *How* to undo a booked room: `cancel-room-booking`. Declaring it undoes nothing by itself |
+| `cancelled-by-guest` — an `END` with `compensate: true` | *When* to undo: the guest said cancel. Reaching it runs `cancel-room-booking` once for every room that was booked, newest first, and the process ends **Compensated** |
 
-The handler says *why* it failed with a business code, and that the failure is final — retrying will not make the penthouse free:
+**Compensation is the mechanism; who decides to trigger it is your business rule.** Here the rule is the guest's answer. (A failure for good — a step that runs out of retries — still rolls the saga back on its own: that is the other way a compensation is triggered, see *When undoing on its own is right* below.)
+
+The handler says *why* the room failed, with a business code, and that the failure is final — retrying will not make the penthouse free:
 
 ```java
 if ("penthouse".equals(input.room().type())) {
@@ -97,17 +162,31 @@ scripts/start.sh rooms-booking-safe BOOKING-3 '{"guest": "Bob", "rooms": [
   {"number": "900", "type": "penthouse"}]}'
 ```
 
-![All rooms or none: rooms fails 2/3, Cancel the room runs 2/2](/workshop/03-compensated-graph.jpg)
+The process does not fail and does not undo anything. `rooms` shows **2/3** — open it (double-click) to see Room 900 failed with `SOLD_OUT` and 101 and 102 completed — *Ask the guest* has run, and the process waits at *Wait for the guest's answer*. The step's log says how the rooms went: *forEach on step rooms completed: 2 of 3 iterations completed, 1 failed (onIterationFailure continue).*
 
-The process ends **Compensated**. `rooms` is red with **2/3**; the dashed red edge leads to *Cancel the room*, drawn amber because it is a compensation, with **2/2**: one cancellation per room that had been booked. *Tell the guest* never ran. Open `rooms` to see which room failed:
+Now answer as the guest. The hotel's website would send this message when the guest clicks a link in the email; `scripts/answer.sh` sends it to the engine's message API:
 
-![Rooms 101 and 102 completed, Room 900 failed](/workshop/03-compensated-lanes.jpg)
+```bash
+scripts/answer.sh BOOKING-3 cancel
+```
+
+The process takes *Cancelled by the guest*. Its log says *Rolling the process back on purpose: the flow reached END 'cancelled-by-guest', which compensates what the process did.* — and *Cancel the room*, drawn amber because it is a compensation, runs **2/2**: one cancellation per room that had been booked; the penthouse, never booked, is not cancelled. The process ends **Compensated**.
+
+Start another one (BOOKING-3B) and answer `keep` instead: the two rooms are confirmed (*Confirm the rooms kept*) and the process ends *Completed*, with nothing undone. Leave a third one unanswered and nothing happens to it for two days; then the front desk is told — in a test, those two days pass in milliseconds ([Part 9 · Time](/workshop/testing/time/)).
+
+## When undoing on its own is right
+
+Automatic compensation is the right default when the steps are **one technical unit** that is worth nothing in part — charging a card and reserving the stock within one request, or a tour operator's package that is sold whole. Nobody is asked, because there is nobody whose decision it is: `onIterationFailure: compensateAll` (or a step that fails for good) undoes what was done, newest first, and the process ends *Compensated*. The workshop's test-only flow `src/test/flows/rooms-booking-all-or-none.ec.yaml` is module 3 written that way; [Part 8 · Failure paths](/workshop/testing/failure-paths/) tests both.
+
+A saga declared with `compensable` keeps that second trigger: if a later step fails *for good* — it ran out of its retries — the engine rolls the whole process back on its own, cancelling the booked rooms too. That is why the steps after `rooms` here have `retries`: a confirmation email that fails once is retried, not a reason to cancel a booking.
 
 ## Why it matters
 
-Written by hand, this is the part that goes wrong: remembering which rooms were booked, undoing them in reverse, retrying with backoff, giving up on a worker that never answers, coping with an answer that arrives *after* you gave up. Here it is declared, and it is the same for every process. See [Retries, timeouts and compensation](/guides/retries-timeouts-compensation/) and [Why a process engine?](/guides/why-a-process-engine/).
+Written by hand, this is the part that goes wrong: remembering which rooms were booked, undoing exactly those in reverse, waiting days for an answer without holding a thread, retrying with backoff, giving up on a worker that never answers, coping with an answer that arrives *after* you gave up. Here it is declared, and it is the same for every process. See [Retries, timeouts and compensation](/guides/retries-timeouts-compensation/#compensation-on-a-business-decision) and [Why a process engine?](/guides/why-a-process-engine/).
 
 ## Check
 
-- [ ] BOOKING-3 is **Compensated**; *Cancel the room* ran twice.
+- [ ] BOOKING-3 waits at *Wait for the guest's answer*, with rooms 101 and 102 booked and nothing cancelled.
 - [ ] Room 900's own run (double-click its lane header) says why: `SOLD_OUT`. Module 8 comes back to this.
+- [ ] After `scripts/answer.sh BOOKING-3 cancel` it is **Compensated**; *Cancel the room* ran twice.
+- [ ] With `keep`, the rooms are confirmed and nothing is cancelled.

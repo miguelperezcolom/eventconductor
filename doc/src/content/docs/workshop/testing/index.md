@@ -9,7 +9,7 @@ The kit runs **your definitions in the real engine, in memory**, inside a JUnit 
 
 - **mocks instead of workers** — answer each task with a completion, a failure or silence;
 - **a clock you move** — *three days* pass in milliseconds;
-- **assertions on the process** — `assertThat(booking).isCompensated().hasPassedSteps("cancel-room-booking")`;
+- **assertions on the process** — `assertThat(booking).isCompensated().hasCompensated("rooms")`;
 - **coverage of the flow** — which steps, CHOICE branches, timeout routes and compensations the tests went through.
 
 All the tests on these pages are in the workshop project, in `src/test/java` — and, written as data, in `src/test/scenarios` — and pass:
@@ -30,7 +30,7 @@ $ mvn verify
 | Page | What it tests |
 |---|---|
 | [The happy path](/workshop/testing/happy-path/) | Every room booked, the forEach's collected output |
-| [When things fail](/workshop/testing/failure-paths/) | A sold-out room: `compensateAll` vs `continue` |
+| [When things fail](/workshop/testing/failure-paths/) | A sold-out room: nothing undone until the guest decides; their `cancel` compensates; `compensateAll` for all-or-none |
 | [Time](/workshop/testing/time/) | A worker that never answers; an approval nobody gives for three days |
 | [Simulated integrations](/workshop/testing/integrations/) | The hotel's API, the language model and an agent — and the idempotency key actually sent |
 | [The real handlers](/workshop/testing/real-handlers/) | Your Java handlers in the loop, and a mock that still wins |

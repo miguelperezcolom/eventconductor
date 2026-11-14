@@ -315,12 +315,12 @@
    "narration": {
     "en": [
      "One file, three views.",
-     "Next: sagas and compensation — all rooms or none.",
+     "Next: sagas and compensation — when a room can't be booked, the guest decides.",
      "The IDE plugins guide is linked below."
     ],
     "es": [
      "Un fichero, tres vistas.",
-     "Próximo capítulo: sagas y compensación; todas las habitaciones o ninguna.",
+     "Próximo capítulo: sagas y compensación; cuando no se puede reservar una habitación, decide el cliente.",
      {
       "text": "La guía de los plugins de IDE está enlazada abajo.",
       "say": "La guía de los plaguins de i de e está enlazada abajo."

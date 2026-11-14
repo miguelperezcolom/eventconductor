@@ -67,14 +67,15 @@ $ mvn verify
 [INFO] BUILD FAILURE
 ```
 
-**A change of behaviour** — `onIterationFailure: continue` instead of `compensateAll`. Valid, so only a test can catch it:
+**A change of behaviour** — `onIterationFailure: compensateAll` instead of `continue` in module 3: the engine would cancel the booked rooms on its own instead of asking the guest. Valid, so only a test can catch it:
 
 ```text
 $ mvn verify
-[ERROR] FailurePathsTest.compensateAllCancelsEveryRoomThatWasBooked:34 Expected process … (rooms-booking-safe, businessKey FAIL-1) to be COMPENSATED but it is COMPLETED.
-[ERROR] ScenariosTest.scenario:16 [scenario 'a sold-out penthouse undoes the rooms that were booked' (src/test/scenarios/rooms-booking.yaml)] Expected process … to be COMPENSATED but it is COMPLETED.
+[ERROR] FailurePathsTest.aSoldOutRoomKeepsTheOthersAndAsksTheGuest:35 Expected process … (rooms-booking-safe, businessKey FAIL-1) to be waiting at 'wait-for-guest'.
+[ERROR] FailurePathsTest.theGuestKeepingTheRoomsUndoesNothing:75 Expected process … (rooms-booking-safe, businessKey FAIL-3) to be COMPLETED but it is COMPENSATED.
+[ERROR] ScenariosTest.scenario:16 [scenario 'a guest who never answers is not cancelled — the front desk follows up' (src/test/scenarios/rooms-booking.yaml)] Expected process … to be COMPLETED but it is COMPENSATED.
 …
-[ERROR] Tests run: 21, Failures: 6, Errors: 0, Skipped: 0
+[ERROR] Tests run: 38, Failures: 10, Errors: 0, Skipped: 0
 [INFO] BUILD FAILURE
 ```
 
@@ -93,48 +94,51 @@ $ mvn verify -Deventconductor.migration.from=HEAD
 
 `check-migration` compares two versions of the definitions — `-Deventconductor.migration.from` takes a git ref, a path, or `current` — and fails when a step a process can be *waiting in* has no counterpart. If the rename is deliberate, a mapping file says so (`-Deventconductor.migration.mapping=migration.yaml`, `hotel-booking: { approve: manager-approval }`). The goal also runs alone, as `mvn eventconductor:check-migration -Dfrom=HEAD`. See [Migrating running processes](/guides/migrating-running-processes/#in-ci-check-migration).
 
-**A path no test takes** — the tests pass, but nothing ever makes module 4's hotel API refuse a room, so its compensation, `cancel-room`, has never run in a test. Delete the last scenario of `src/test/scenarios/rooms-booking.yaml` and:
+**A path no test takes** — every test of the kit records which steps its processes ran and which routes they took; after the tests, `target/eventconductor-coverage/` holds the result — `coverage.txt` to read, `coverage.json` for the goal:
 
 ```text
-$ mvn verify
-[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0
-[INFO] EventConductor workflow coverage: steps 45/47 (95.7%), branches 4/6 (66.7%), edges 34/36 (94.4%)
-[ERROR] EventConductor verify failed:
-[ERROR]
-[ERROR] [coverage] branches coverage is 66.7%, below the minimum of 75.0%
-[ERROR] Not covered:
-[ERROR]   rooms-booking-http: step cancel-room, compensation rooms → cancel-room
-[ERROR]   rooms-booking-tolerant: step cancel-room-booking, compensation rooms → cancel-room-booking
-```
+EventConductor workflow coverage — 35 test(s), 11 definition(s)
 
-Every test of the kit records which steps its processes ran and which routes they took; after the tests, `target/eventconductor-coverage/` holds the result — `coverage.txt` to read, `coverage.json` for the goal:
-
-```text
-EventConductor workflow coverage — 21 test(s), 11 definition(s)
-
-definition                    steps              branches           edges
-hotel-booking                 8/8 (100.0%)       3/3 (100.0%)       7/7 (100.0%)
-rooms-booking-http            4/4 (100.0%)       1/1 (100.0%)       3/3 (100.0%)
-rooms-booking-tolerant        3/4 (75.0%)        0/1 (0.0%)         2/3 (66.7%)
+definition                       steps              branches           edges
+hotel-booking                    21/21 (100.0%)     10/13 (76.9%)      24/27 (88.9%)
+rooms-booking-all-or-none        3/4 (75.0%)        1/1 (100.0%)       2/3 (66.7%)
+rooms-booking-http               13/13 (100.0%)     6/7 (85.7%)        12/13 (92.3%)
+rooms-booking-safe               14/14 (100.0%)     6/7 (85.7%)        14/15 (93.3%)
 …
-TOTAL                         46/47 (97.9%)      5/6 (83.3%)        35/36 (97.2%)
+TOTAL                            76/77 (98.7%)      23/28 (82.1%)      70/76 (92.1%)
 
 Not covered:
-  rooms-booking-tolerant
-    step cancel-room-booking
-    compensation rooms → cancel-room-booking
+  hotel-booking
+    guard wait-for-guest → remind-guest
+    guard wait-after-reminder → front-desk
+    compensation book-alternatives → cancel-room
+  rooms-booking-all-or-none
+    step done
+    sequence rooms → done
+  rooms-booking-http
+    compensation book-alternatives → cancel-room
+  rooms-booking-safe
+    guard wait-for-guest → tell-front-desk
 ```
 
-*Branches* are the routes that are decisions: CHOICE branches, guarded links, timeout routes, compensations and loop-backs. The one left here is deliberate — `continue` tolerates the sold-out room, so in that flow nothing is ever undone — which is why the floor is 75% and not 100%. See [Workflow coverage](/guides/testing-workflows/#workflow-coverage).
+*Branches* are the routes that are decisions: CHOICE branches, guarded links, timeout routes, compensations and loop-backs. Most of what is left here is deliberate: the `"false"` guards into `remind-guest`, `front-desk` and `tell-front-desk` are never taken *as links* — those steps are reached by their `onTimeoutStepId` route, which the tests do take — and nothing after the alternatives fails, so their compensation never runs. That is why the floor is 75% and not 100%. Delete the scenarios and tests that cancel a booking, and `cancel-room` and `cancel-room-booking` join the list; below the floor, `eventconductor:verify` fails the build:
+
+```text
+[ERROR] EventConductor verify failed:
+[ERROR]
+[ERROR] [coverage] branches coverage is …%, below the minimum of 75.0%
+```
+
+See [Workflow coverage](/guides/testing-workflows/#workflow-coverage).
 
 With everything fixed, all four pass:
 
 ```text
 $ mvn verify -Deventconductor.migration.from=HEAD
 [INFO] EventConductor: 6 definition(s) validated successfully.
-[INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0
+[INFO] Tests run: 38, Failures: 0, Errors: 0, Skipped: 0
 [INFO] EventConductor migration check HEAD → current: 6 workflow(s), 0 error(s), 0 warning(s).
-[INFO] EventConductor workflow coverage: steps 46/47 (97.9%), branches 5/6 (83.3%), edges 35/36 (97.2%)
+[INFO] EventConductor workflow coverage: steps 76/77 (98.7%), branches 23/28 (82.1%), edges 70/76 (92.1%)
 [INFO] EventConductor verify: every check passed.
 [INFO] BUILD SUCCESS
 ```

@@ -52,15 +52,25 @@ export async function run(c) {
     await s.camera(s.page.getByText(/rooms · Room 10[123]/), { zmax: 1.6, dur: 1.0, pad: 200 });
   });
 
-  // penthouse: the same booking over HTTP with a penthouse — sold out, so the rooms are cancelled.
+  // penthouse: the same booking over HTTP with a penthouse — sold out; the booked rooms stay booked, the hotel
+  // offers another room and the guest is asked. The guest cancels: the booked rooms are cancelled (compensated).
   c.term('booking-8', `scripts/start.sh rooms-booking-http BOOKING-8 '${ROOMS_8}' | jq '{businessKey, status}'`);
+  await c.waitFor(async () => {
+    const p = await c.processByKey('BOOKING-8');
+    if (!p) return false;
+    const steps = await c.api(`/workflow/api/processes/${p.id}/steps`);
+    return (Array.isArray(steps) ? steps : steps.content || []).some((x) => x.stepId === 'wait-for-guest' && x.status === 'PENDING');
+  }, 'BOOKING-8 waiting for the guest');
+  c.term('answer-8', 'scripts/answer.sh BOOKING-8 cancel');
   const p8 = await c.waitFor(async () => { const p = await c.processByKey('BOOKING-8'); return p?.status === 'COMPENSATED' && p; }, 'BOOKING-8 compensated');
   await c.shot('penthouse', openTab(c, p8.id, 'Diagram'), async (s) => {
     s.cursor = false;
     await s.cameraNow('full');
     await s.untilCue(1, 0.3);
-    await s.camera([node(s, 'Book every room'), node(s, 'Cancel the room')], { zmax: 2.0, dur: 1.0 });
-    await s.untilCue(2, -0.2);
+    await s.camera([node(s, 'Book every room'), node(s, 'Find alternatives'), node(s, 'Ask the guest')], { zmax: 2.0, dur: 1.0 });
+    await s.untilCue(2, 0.2);
+    await s.camera([node(s, 'Cancelled by the guest'), node(s, 'Cancel the room')], { zmax: 2.0, dur: 1.0 });
+    await s.hold(1.6);
     await s.camera([s.page.getByText(/Compensated \(/).first(), graph(s).locator('g.node')], { zmax: 1.6, dur: 0.9, pad: 30 });
   });
 

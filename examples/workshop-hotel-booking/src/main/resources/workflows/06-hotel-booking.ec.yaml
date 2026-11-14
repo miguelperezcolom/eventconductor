@@ -1,5 +1,7 @@
-# Module 6 — the whole booking: a manager approves large bookings, then the rooms are booked at
-# the hotel (all or none) and the guest is told.
+# Module 6 — the whole booking: a manager approves large bookings, then the rooms are booked at the
+# hotel. A room the hotel cannot book is not cancelled behind the guest's back: the hotel offers an
+# alternative and the guest decides. No answer: a reminder, then the front desk calls. Only the guest's
+# (or the front desk's) "cancel" undoes the rooms that were booked.
 id: hotel-booking
 name: Hotel booking
 steps:
@@ -24,6 +26,11 @@ steps:
     name: Approved?
     preconditionStepId: approve
 
+  - id: rejected
+    type: END
+    name: Rejected
+    preconditionStepId: decision            # unguarded: the CHOICE's default branch
+
   - id: rooms
     type: HTTP_CALL
     name: Book every room at the hotel
@@ -31,14 +38,14 @@ steps:
       - stepId: decision
         expression: "approved == 'true'"
     compensable: true
-    compensationStepId: cancel-room
+    compensationStepId: cancel-room          # how to undo a room — when the guest decides to cancel
     retries: 3
     timeout: PT15S
     forEach:
       items: rooms
       as: room
       label: "'Room ' + room.number"
-      onIterationFailure: compensateAll
+      onIterationFailure: continue           # a refused room stops nothing: keep what was booked
       output: roomBookings
       outputElement: roomBookingId
     http:
@@ -54,20 +61,140 @@ steps:
       output:
         roomBookingId: "body.id"
 
-  - id: notify-guest
+  - id: all-booked
+    type: CHOICE
+    name: Every room booked?
+    preconditionStepId: rooms
+
+  - id: notify-guest                         # the default: every room was booked
     type: ACTION
     name: Tell the guest
-    preconditionStepId: rooms
+    retries: 3
+    preconditionStepId: all-booked
+
+  # --- A room could not be booked: the hotel proposes, the guest decides -------------------------
+
+  - id: find-alternatives
+    type: HTTP_CALL
+    name: Find alternatives at the hotel
+    retries: 3
+    preconditions:
+      - stepId: all-booked
+        expression: "roomBookings =~ '.*FAILED.*'"
+    http:
+      connection: hotel
+      method: GET
+      path: /alternatives
+      query: { booking: "${businessKey}" }
+      output:
+        alternatives: "body"
+
+  - id: ask-guest
+    type: ACTION
+    name: Propose the alternatives to the guest
+    retries: 3
+    preconditionStepId: find-alternatives
+
+  - id: wait-for-guest
+    type: WAIT_FOR_MESSAGE
+    name: Wait for the guest's answer
+    preconditionStepId: ask-guest
+    messageName: guest-answer                # {"answer": "accept" | "keep" | "cancel"}
+    correlationExpression: businessKey
+    timeout: P1D
+    onTimeoutStepId: remind-guest            # no answer in a day: remind — never cancel
+
+  - id: remind-guest
+    type: ACTION
+    name: Remind the guest
+    retries: 3
+    preconditions:
+      - stepId: wait-for-guest
+        expression: "false"                  # reached only through onTimeoutStepId
+
+  - id: wait-after-reminder
+    type: WAIT_FOR_MESSAGE
+    name: Wait for the guest's answer (reminded)
+    preconditionStepId: remind-guest
+    messageName: guest-answer
+    correlationExpression: businessKey
+    timeout: P1D
+    onTimeoutStepId: front-desk              # still nothing: a person calls the guest
+
+  - id: front-desk
+    type: USER_TASK
+    name: Front desk calls the guest
+    formId: guest-follow-up                  # records the guest's answer: accept, keep or cancel
+    assignment:
+      candidateGroups: [front-desk, front-desk-managers]
+    preconditions:
+      - stepId: wait-after-reminder
+        expression: "false"                  # reached only through onTimeoutStepId
+
+  - id: answered
+    type: JOIN
+    name: Answered
+    joinType: XOR                            # whichever answer came: the message, or the front desk
+    preconditionStepIds: [wait-for-guest, wait-after-reminder, front-desk]
+
+  - id: guest-decision
+    type: CHOICE
+    name: What did the guest decide?
+    preconditionStepId: answered
+
+  - id: book-alternatives                    # accept: book what the hotel offered
+    type: HTTP_CALL
+    name: Book the alternatives
+    compensable: true
+    compensationStepId: cancel-room
+    retries: 3
+    timeout: PT15S
+    preconditions:
+      - stepId: guest-decision
+        expression: "answer == 'accept'"
+    forEach:
+      items: alternatives
+      as: room                               # the same name, so cancel-room undoes these too
+      label: "'Room ' + room.number"
+      output: alternativeBookings
+      outputElement: roomBookingId
+    http:
+      connection: hotel
+      method: POST
+      path: /bookings
+      headers:
+        Idempotency-Key: "${businessKey}-${room.number}"
+      body:
+        externalRef: "${businessKey}-${room.number}"
+        number: "${room.number}"
+        type: "${room.type}"
+      output:
+        roomBookingId: "body.id"
+
+  - id: confirm-alternatives
+    type: ACTION
+    name: Confirm the booking to the guest
+    retries: 3
+    preconditionStepId: book-alternatives
+
+  - id: confirm-kept                         # the default: keep the rooms that were booked
+    type: ACTION
+    name: Confirm the rooms kept
+    retries: 3
+    preconditionStepId: guest-decision
+
+  - id: cancelled-by-guest                   # cancel: the guest's decision undoes what was booked
+    type: END
+    name: Cancelled by the guest
+    compensate: true
+    preconditions:
+      - stepId: guest-decision
+        expression: "answer == 'cancel'"
 
   - id: done
     type: END
     name: Booked
-    preconditionStepId: notify-guest
-
-  - id: rejected
-    type: END
-    name: Rejected
-    preconditionStepId: decision            # unguarded: the CHOICE's default branch
+    preconditionStepIds: [notify-guest, confirm-alternatives, confirm-kept]   # whichever comes
 
   - id: cancel-room
     type: HTTP_CALL
