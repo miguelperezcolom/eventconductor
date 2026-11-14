@@ -1,0 +1,20 @@
+{
+  "eyebrow": "EventConductor · Capítulo 14",
+  "title": "Seguro y observable **por defecto**",
+  "sub": "Rechazos · secretos · métricas · trazas",
+  "flow": [["anónimo → 401 / 403", "bad", "c0"], ["secretos por nombre", "az", "c0"], ["métricas", "good", "c1"], ["trazas (opcional)", "amb", "c1"]],
+  "page.main": "guides/security-defaults.md — en main, se publica después de la 2.41.0 · los valores por defecto: desde 2.27 / 2.28 / 2.32",
+  "optin.head": "Por defecto · opcional",
+  "optin.items": [
+    ["por defecto", "2.27 · 2.28", "API, consola y MCP rechazan llamadas anónimas · `${secret:…}` solo desde `workflow.http.secrets` · credenciales atadas a hosts · webhooks de Git sin firma rechazados", "c0"],
+    ["opcional", "", "trazas (muestreo `0.0`) · métricas por OTLP · MCP · cifrado de variables sensibles · sharding · índice de procesos · agregados de analítica", "c1"]
+  ],
+  "optin.strip": ["las métricas solo necesitan un `MeterRegistry`: Actuator + Prometheus → `/actuator/prometheus`, prefijo `eventconductor_`"],
+  "close.line": "Seguro mientras no se diga lo contrario, **observable cuando lo pidas.**",
+  "close.next": "La serie · eventconductor.mateu.io",
+  "close.docs": "eventconductor.mateu.io · Secure by default",
+  "close.obs": "Referencia · Observability",
+  "close.license": "Código abierto · MIT",
+  "thumb.title": "Seguro y observable **por defecto**",
+  "thumb.sub": "Rechazos · secretos · métricas · trazas"
+}
