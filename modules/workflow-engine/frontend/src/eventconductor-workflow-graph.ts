@@ -144,6 +144,8 @@ interface WorkflowStep {
     compensateLosers?: boolean;
     /** END only: compensate what the branches this END cuts short had completed. */
     compensateAbandoned?: boolean;
+    /** END only: reaching it rolls the process back on purpose (compensates what completed; ends COMPENSATED). */
+    compensate?: boolean;
     /** LOCK / UNLOCK: the lock domain, and a JEXL expression giving the key locked. */
     lockName?: string;
     lockKey?: string;
@@ -602,6 +604,12 @@ function branchCleanupProblem(step: WorkflowStep): string {
     }
     if (step.compensateAbandoned === true && step.type !== "END") {
         return "compensateAbandoned is only allowed on an END.";
+    }
+    if (step.compensate === true && step.type !== "END") {
+        return "compensate is only allowed on an END.";
+    }
+    if (step.compensate === true && step.compensateAbandoned === true) {
+        return "compensate and compensateAbandoned cannot both be set: compensate already undoes every branch.";
     }
     return "";
 }
@@ -4535,9 +4543,18 @@ export class MateuWorkflowElk extends LitElement {
         if (isEventType(step.type)) {
             // BPMN event: circle (START thin green, END thick red), name below.
             const kind = step.type === "END" ? "ev-end" : "ev-start";
+            // An END that rolls the process back (compensate: true) carries BPMN's compensation
+            // marker: two triangles pointing back, "rewind".
+            const cx = w / 2, cy = h / 2;
+            const rewind = step.type === "END" && step.compensate === true
+                ? svg`<path class="ev-compensate" data-compensate-marker="${step.id}"
+                            d="M${cx},${cy - 6} L${cx - 8},${cy} L${cx},${cy + 6} Z M${cx + 8},${cy - 6} L${cx},${cy} L${cx + 8},${cy + 6} Z"
+                            fill="${st.stroke}" style="--ec-tint: ${st.stroke}"/>`
+                : svg``;
             shape = svg`
                 <circle class="node-shape ${kind}" cx="${w / 2}" cy="${h / 2}" r="${w / 2 - 3}"
                         fill="${st.fill}" stroke="${st.stroke}" style="--ec-tint: ${st.stroke}"/>
+                ${rewind}
                 <text class="node-caption" x="${w / 2}" y="${h + 15}" text-anchor="middle">${label}</text>`;
         } else if (isGatewayType(step.type)) {
             // BPMN gateway diamond. Parallel (FORK / AND-JOIN) shows "+", exclusive (XOR-JOIN and
@@ -4934,6 +4951,11 @@ export class MateuWorkflowElk extends LitElement {
                                title="Reaching this END also compensates what the branches it cuts short had completed (a cleanup: the process still completes)"
                                ?checked="${step.compensateAbandoned === true}"
                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {compensateAbandoned: (e.target as HTMLInputElement).checked || undefined})}"/>`) : nothing}
+                    ${step.type === "END" ? field("Compensate (roll back)", html`
+                        <input type="checkbox" ?disabled="${ro}" data-compensate="${step.id}"
+                               title="Reaching this END rolls the process back on purpose: what is in flight is cancelled and every completed compensable step is compensated, newest first. The process ends COMPENSATED. For a business decision to undo — the guest cancelled"
+                               ?checked="${step.compensate === true}"
+                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {compensate: (e.target as HTMLInputElement).checked || undefined})}"/>`) : nothing}
                     <!-- Conditions live on connections, not on the step: draw a line to add an
                          incoming link, select a line to set its precondition (the Connection panel),
                          press Delete to remove it. The legacy step-level condition is not edited

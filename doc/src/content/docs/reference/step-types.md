@@ -736,6 +736,37 @@ compensations run after it as a cleanup.
 - { id: done, type: END, name: Done, compensateAbandoned: true, preconditionStepId: quick }
 ```
 
+### An END that rolls back: `compensate` {#compensate}
+
+With **`compensate: true`** (default `false`, `END` only) reaching the `END` **rolls the process back
+on purpose**. It is for a business decision to undo — the guest cancelled — where nothing failed:
+
+- what is still waiting or in flight is cancelled, as any `END` cancels it (a running child `PROCESS`
+  is rolled back, not just cancelled);
+- every compensable step that **completed** is compensated, newest first, exactly as in a
+  [saga rollback](/guides/retries-timeouts-compensation/#compensation-saga-pattern) — a forEach's
+  completed iterations once each, its failed ones not at all; work that completes after it was
+  cancelled is undone too;
+- the process ends **`COMPENSATED`** (`COMPENSATION_FAILED` if a compensation fails), also when there
+  was nothing to undo. It is not counted as a failed process; the reason is on the process
+  (`rollbackReason`) and in the `END`'s log.
+
+In a child process, the parent's `PROCESS` step fails when the child ends `COMPENSATED` — the child did
+not do its job — and the parent's own saga takes it from there. `compensate` cannot be combined with
+`compensateAbandoned`: it already undoes every branch. The graph draws it with BPMN's compensation
+marker (⏪).
+
+```yaml
+- id: cancelled-by-guest
+  type: END
+  name: Cancelled by the guest
+  compensate: true
+  preconditions:
+    - { stepId: guest-decision, expression: "decision == 'cancel'" }
+```
+
+See [Compensation on a business decision](/guides/retries-timeouts-compensation/#compensation-on-a-business-decision).
+
 ---
 
 ## DYNAMIC
