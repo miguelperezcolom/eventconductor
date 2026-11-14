@@ -124,4 +124,38 @@ class GraphReadabilityJourneyTest extends AbstractUiE2eTest {
         awaitUntil(THE_GRAPH_LAYS_OUT, () -> "folded".equals(detail.minimapState()));
         assertThat(detail.nodesUnderMinimap()).as("nor beneath the button that brings it back").isEmpty();
     }
+
+    /**
+     * Hovering a step shows its card and clicking it used to close it again. A click pins the card:
+     * it stays when the pointer leaves, and a second click on the step lets it go.
+     */
+    @Test
+    void clickingAStepPinsItsCardOpen() {
+        var id = startProcess("ui-greeting", "graph-pin");
+
+        var detail = ui.goToProcesses().open(id);
+        detail.openTab("Diagram");
+        awaitUntil(THE_GRAPH_LAYS_OUT, () -> detail.stepOrderNumbers().size() >= 3);
+
+        detail.clickDiagramStep("greet");
+        detail.pointerAway();
+        awaitUntil(Duration.ofSeconds(2), () -> detail.stepCard() != null);
+        page.waitForTimeout(400);   // past the hover card's close delay
+        assertThat(detail.stepCard()).as("the clicked step's card stays open").contains("Greet the user");
+
+        detail.clickDiagramStep("greet");
+        detail.pointerAway();
+        awaitUntil(Duration.ofSeconds(2), () -> detail.stepCard() == null);
+    }
+
+    /** A retry reuses the step's execution, so the Steps tab says which attempt each step is on. */
+    @Test
+    void theStepsTabHasAnAttemptsColumn() {
+        var id = startProcess("ui-greeting", "steps-attempts");
+
+        var detail = ui.goToProcesses().open(id);
+        detail.openTab("Steps");
+
+        com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat(detail.tabShows("Attempts")).isVisible();
+    }
 }
