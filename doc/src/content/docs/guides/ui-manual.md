@@ -399,7 +399,7 @@ http://localhost:8191/_workflow-admin    Workflow Engine — administration
 http://localhost:8191/_forms             Forms Engine — operations
   └─ Forms → Executions                 Form executions (user tasks)
   └─ Forms → Tasks                      Pending tasks simplified view
-  └─ Forms → Tasks v 2                  Pending tasks, second view
+  └─ Forms → Task inbox                 Pending tasks, each with its form inline (FormsMenu only)
   └─ /my-tasks                          Personal task inbox
 
 http://localhost:8191/_forms-admin       Forms Engine — administration

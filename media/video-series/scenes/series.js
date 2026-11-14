@@ -151,12 +151,14 @@
       return (t) => { draw(t); pills(t); };
     },
 
-    /** The real console, filmed frame by frame; the camera was keyed by the recorder. spec: { pills, terms } */
+    /** The real console (or VS Code), filmed frame by frame; the camera was keyed by the recorder. spec: { pills, terms, title } */
     live(root, sc) {
       const L = D.live[sc.id];
       if (!L) throw new Error(`no live frames for ${sc.id} — run record-live first`);
       const g = { x: 88, y: 22, w: 1744, h: 1036 };
-      const { body, bw, bh } = windowEl(root, { ...g, title: `<b>${esc(sc.spec.host ?? D.host ?? 'localhost:8095')}</b>  ·  ${esc(sc.spec.app ?? 'EventConductor console')}`, cls: 'console' });
+      const title = L.origin === 'vscode' ? '<b>Visual Studio Code</b>  ·  EventConductor extension'
+        : `<b>${esc(sc.spec.host ?? L.origin ?? D.host ?? 'localhost:8095')}</b>  ·  ${esc(sc.spec.app ?? 'EventConductor console')}`;
+      const { body, bw, bh } = windowEl(root, { ...g, title, cls: 'console' });
       const img = el('img', 'frame', null, body);
       const VPW = L.viewport?.w ?? 1920, VPH = L.viewport?.h ?? 1080;
       css(img, { width: VPW, height: VPH });

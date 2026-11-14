@@ -1,0 +1,17 @@
+{
+  "eyebrow": "EventConductor · Capítulo 3",
+  "title": "Definiciones: **YAML, grafo e IDE**",
+  "sub": "*.ec.yaml · el editor de grafos de VS Code · eventconductor:validate",
+  "yaml.n1": "`*.ec.yaml` — YAML normal: `id`, `name`, `steps`",
+  "yaml.n2": "`preconditionStepId` — **el grafo se deduce**",
+  "yaml.n3": "se revisa, se compara y se versiona **como código**",
+  "ides.items": [["VS Code", "editor de grafos · vista de ejecución · Marketplace"], ["IntelliJ IDEA 2024.2+", "editor dividido: texto + el mismo grafo"], ["Maven", "`eventconductor:validate` — el mismo esquema, en el build"]],
+  "ides.note": "IntelliJ no se graba aquí — ver la guía de plugins de IDE",
+  "close.line": "Un fichero, **tres vistas.**",
+  "close.next": "Próximo · Todas o ninguna: sagas y compensación",
+  "close.docs": "eventconductor.mateu.io",
+  "close.market": "VS Code Marketplace · EventConductor",
+  "close.license": "Código abierto · MIT",
+  "thumb.title": "Definiciones: **YAML, grafo e IDE**",
+  "thumb.sub": "Un fichero, tres vistas"
+}

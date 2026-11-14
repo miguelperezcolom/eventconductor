@@ -464,6 +464,15 @@ interface StepOverlay {
     startedAt?: string;
     worker?: string;
     variables?: { name: string; value: string }[];
+    /** USER_TASK only: the form the task shows, who it is assigned to and who it is offered to. */
+    form?: string;
+    assignee?: string;
+    candidates?: string;
+    /**
+     * A loop's step that ran (and completed) on an earlier pass and whose later pass — this run
+     * number — was cancelled: drawn as the completed step it was, with the cancelled pass noted.
+     */
+    cancelledPass?: number;
     /** True when a DYNAMIC step injected this step into the process at runtime (not declared). */
     injected?: boolean;
     /** The DYNAMIC step execution that injected it — provenance, for tooling that traces it back. */
@@ -819,8 +828,19 @@ function isTaskStepType(t: StepType): boolean {
 function formatTimeout(ms: number): string {
     if (!ms || ms <= 0) return "—";
     if (ms < 60000) return `${Math.round(ms / 1000)}s`;
+    if (ms >= 3600000) {
+        const hrs = Math.floor(ms / 3600000), mins = Math.round((ms % 3600000) / 60000);
+        return mins ? `${hrs}h ${mins}m` : `${hrs}h`;
+    }
     const m = Math.floor(ms / 60000), s = Math.round((ms % 60000) / 1000);
     return s ? `${m}m ${s}s` : `${m}m`;
+}
+/** The on-timeout edge's chip: "⏱ timeout 30s", or "⏱ timeout · deadline" for a step bounded by a moment. */
+function timeoutChipText(timeoutMs: number, deadline: boolean): string {
+    return "⏱ timeout" + (timeoutMs > 0 ? " " + formatTimeout(timeoutMs) : deadline ? " · deadline" : "");
+}
+function timeoutChipSize(text: string): {w: number; h: number} {
+    return {w: Math.max(34, text.length * 6.3 + 20), h: 19};
 }
 function sizeOf(t: StepType): {w: number; h: number} {
     return (isEventType(t) || isGatewayType(t)) ? {w: EVENT_SIZE, h: EVENT_SIZE} : {w: NODE_W, h: NODE_H};
@@ -1394,21 +1414,33 @@ function compTargets(steps: WorkflowStep[]): Set<string> {
  * that lead to it said the opposite of what the file says. It also made alt+drag look
  * destructive: naming a step as a compensation appeared to delete its preconditions.
  */
-function flowLinksOf(step: WorkflowStep, targets: Set<string>): Precondition[] {
+function flowLinksOf(step: WorkflowStep, targets: Set<string>, timeouts?: Set<string>): Precondition[] {
     const links = linksOf(step);
-    if (!targets.has(step.id)) return links;
-    return links.filter(l => (l.expression ?? step.preconditionExpression)?.trim() !== "false");
+    const anchored = (l: Precondition) => (l.expression ?? step.preconditionExpression)?.trim() === "false";
+    // The same kind of anchor on a route reached only by a timeout: a `false`-guarded link from the
+    // step whose onTimeoutStepId this is. Nothing arrives along it — the on-timeout edge, drawn as
+    // one, is how the flow gets here — so it is not drawn as a second, "false"-guarded line.
+    const timeoutOnly = (l: Precondition) => !!timeouts?.has(`${l.stepId}->${step.id}`) && anchored(l);
+    return links.filter(l => !(targets.has(step.id) && anchored(l)) && !timeoutOnly(l));
+}
+
+/** `from->to` for every step's on-timeout route, for {@link flowLinksOf}. */
+function timeoutRoutes(steps: WorkflowStep[]): Set<string> {
+    const t = new Set<string>();
+    for (const s of steps) if (s.onTimeoutStepId) t.add(`${s.id}->${s.onTimeoutStepId}`);
+    return t;
 }
 
 function allPaths(steps: WorkflowStep[]): string[][] {
     const ids = new Set(steps.map(s => s.id));
     const targets = compTargets(steps);
+    const timeouts = timeoutRoutes(steps);
     const outgoing: Record<string, string[]> = {};
     const hasIncoming = new Set<string>();
     for (const s of steps) {
         // Normal sequence edges — but not the false-guarded anchor that keeps a compensation
         // step valid at load: nothing ever arrives by it, so no token walks it.
-        for (const {stepId: from} of flowLinksOf(s, targets)) {
+        for (const {stepId: from} of flowLinksOf(s, targets, timeouts)) {
             if (!ids.has(from)) continue;
             (outgoing[from] ??= []).push(s.id);
             hasIncoming.add(s.id);
@@ -1610,6 +1642,14 @@ export class MateuWorkflowElk extends LitElement {
     @state() private paletteHoverNode: string | null = null;
     /** Node the pointer is over in monitoring view — drives the diagnostic hover tooltip. */
     @state() private hoverId: string | null = null;
+    /**
+     * Monitoring views: the step whose diagnostic card a click pinned open. Hover still shows the
+     * card of whatever is under the pointer; leaving it falls back to the pinned one, and a second
+     * click on the step (or a click on the empty canvas, or Escape) unpins it.
+     */
+    @state() private pinnedId: string | null = null;
+    /** A press that began on a node: the canvas's plain-click handling must not unpin what the click is about to toggle. */
+    private nodePressed = false;
     /**
      * Pending close of the hover card. The card sits 8px below the node, so moving the pointer from
      * the node onto the card crosses a gap where neither is hovered; a short grace timer bridges it,
@@ -1926,8 +1966,9 @@ export class MateuWorkflowElk extends LitElement {
     private layoutEdges(steps: WorkflowStep[]): ElkExtendedEdge[] {
         const ids = new Set(steps.map(s => s.id));
         const targets = compTargets(steps);
+        const timeouts = timeoutRoutes(steps);
         const flow = steps.flatMap(s =>
-            flowLinksOf(s, targets)
+            flowLinksOf(s, targets, timeouts)
                 .map(l => l.stepId)
                 .filter(from => ids.has(from))
                 .map(from => ({
@@ -2298,6 +2339,11 @@ export class MateuWorkflowElk extends LitElement {
         if (tag === "input" || tag === "textarea" || tag === "select" || target?.isContentEditable) {
             return;
         }
+        if (e.key === "Escape" && this.pinnedId) {
+            e.preventDefault();
+            this.pinnedId = null;
+            return;
+        }
         if (e.key === "Escape" && (this.bodyFrames?.length ?? 0) && !this.palettePlacing && !this.linkCursor) {
             e.preventDefault();
             this.leaveBody();
@@ -2316,6 +2362,7 @@ export class MateuWorkflowElk extends LitElement {
     // ── Drag & drop ───────────────────────────────────────────────────────────
 
     private onNodeMouseDown(e: MouseEvent, id: string) {
+        this.nodePressed = true;
         // shift+drag = precondition; alt+drag = compensation; shift+alt+drag = on-timeout. The two
         // task-only links start only from a step type that can have them (does work / can time out).
         const type = this.wf.steps.find(s => s.id === id)?.type;
@@ -3178,11 +3225,13 @@ export class MateuWorkflowElk extends LitElement {
         this.panning = false;
         window.removeEventListener("mousemove", this.onPanMove);
         window.removeEventListener("mouseup", this.onPanUp);
-        if (!this.panMoved) {                                 // a plain click clears the selection
+        if (!this.panMoved && !this.nodePressed) {            // a plain click clears the selection
             this.selectedId = null;
             this.selectedEdge = null;
+            this.pinnedId = null;
             this.clearFocus();
         }
+        this.nodePressed = false;
     };
 
     /** Recentre the viewport on a scene point (used by minimap click/drag). */
@@ -3221,9 +3270,10 @@ export class MateuWorkflowElk extends LitElement {
     private computeEdges(): {key: string; from: string; to: string; comp: boolean; timeout: boolean; loop?: boolean; pts: Pt[]}[] {
         const steps = this.wf.steps ?? [];
         const targets = compTargets(steps);
+        const timeouts = timeoutRoutes(steps);
         const raw: {from: string; to: string; comp: boolean; timeout: boolean; loop?: boolean}[] = [];
         for (const s of steps) {
-            for (const {stepId: f} of flowLinksOf(s, targets)) {
+            for (const {stepId: f} of flowLinksOf(s, targets, timeouts)) {
                 if (this.boxForId(f) && this.boxForId(s.id)) raw.push({from: f, to: s.id, comp: false, timeout: false});
             }
         }
@@ -3361,6 +3411,13 @@ export class MateuWorkflowElk extends LitElement {
 
     private onNodeClick(e: MouseEvent, id: string) {
         e.stopPropagation();
+        this.nodePressed = false;
+        // In a monitoring view a click pins the step's card open (and a second click unpins it):
+        // hover only shows it while the pointer is there, and the card is what the click was for.
+        if (this.hasStateOverlay() && !e.shiftKey) {
+            this.pinnedId = this.pinnedId === id ? null : id;
+            this.cancelHoverHide();
+        }
         this.dispatchEvent(new CustomEvent("ec-step-selected", {
             detail: {stepId: id}, bubbles: true, composed: true,
         }));
@@ -4243,6 +4300,13 @@ export class MateuWorkflowElk extends LitElement {
     private renderEdges() {
         const edges = this.computeEdges();
         this.edgeCache = new Map(edges.map(e => [e.key, e.pts])); // token & guards reuse these routes
+        let rects: Rect[] | null = null;
+        const nodeRects = () => rects ??= (this.wf.steps ?? []).flatMap(st => {
+            const pos = this.positions[st.id];
+            if (!pos) return [];
+            const {w, h} = this.sizeOfStep(st);
+            return [{x: pos.x, y: pos.y, w, h}];
+        });
         const prior: [Pt, Pt][] = [];
         const out: unknown[] = [];
         const mon = this.hasStateOverlay();
@@ -4271,9 +4335,13 @@ export class MateuWorkflowElk extends LitElement {
                 : svg`<path class="edge ${monDim} ${focusDim} ${sel}" data-edge="${e.key}"
                              d="${d}" marker-end="url(#ec-arrow)"/>`);
             // A clock chip with the timeout, mid-route, so the on-timeout branch reads at a glance.
+            // Placed clear of the nodes: a short hop into the next layer would otherwise put the chip
+            // over the card it leads to.
             if (e.timeout) {
                 const src = (this.wf.steps ?? []).find(s => s.id === e.from);
-                out.push(this.renderTimeoutChip(polylinePointAt(e.pts, 0.5), src?.timeout ?? 0, e.key));
+                const timeoutMs = src?.timeout ?? 0, deadline = !!src?.deadline;
+                const at = clearPointOn(e.pts, timeoutChipSize(timeoutChipText(timeoutMs, deadline)), nodeRects());
+                out.push(this.renderTimeoutChip(at, timeoutMs, e.key, deadline, monDim));
             }
             // A 1.6px line is not a click target. This invisible one rides on top of the painted
             // route and is the thing the pointer actually hits — drawn after, so it is never
@@ -4333,7 +4401,7 @@ export class MateuWorkflowElk extends LitElement {
 
         // Only the links that are drawn: a chip on the undrawn compensation anchor would float
         // over the canvas attached to nothing.
-        for (const link of flowLinksOf(step, this.compensationTargets())) {
+        for (const link of flowLinksOf(step, this.compensationTargets(), timeoutRoutes(this.wf.steps ?? []))) {
             const expr = link.expression?.trim();
             if (!expr) continue;
             const edgeKey = `${link.stepId}->${step.id}`;
@@ -4421,14 +4489,16 @@ export class MateuWorkflowElk extends LitElement {
         `;
     }
 
-    /** A "⏱ 30s" chip on the on-timeout edge, showing the source step's timeout. */
-    private renderTimeoutChip(at: Pt, timeoutMs: number, edgeKey: string) {
-        const text = "⏱ " + formatTimeout(timeoutMs);
-        const w = Math.max(34, text.length * 6.3 + 20);
-        const h = 19;
+    /**
+     * A "⏱ timeout 30s" chip on the on-timeout edge: says the route is taken when the source runs
+     * out of time, and how long it has — or "deadline" for one bounded by a moment, not a duration.
+     */
+    private renderTimeoutChip(at: Pt, timeoutMs: number, edgeKey: string, deadline = false, monDim = "") {
+        const text = timeoutChipText(timeoutMs, deadline);
+        const {w, h} = timeoutChipSize(text);
         const focusDim = this.focusPaint && !this.focusPaint.edges.has(edgeKey) ? "focus-dim" : "";
         return svg`
-            <g class="timeout-chip ${focusDim}" data-edge="${edgeKey}"
+            <g class="timeout-chip ${focusDim} ${monDim}" data-edge="${edgeKey}"
                transform="translate(${at.x}, ${at.y})">
                 <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="9.5"/>
                 <text x="0" y="3.6" text-anchor="middle">${text}</text>
@@ -4592,6 +4662,15 @@ export class MateuWorkflowElk extends LitElement {
                 <path class="ov-bar" d="M -4.6 0 L 4.6 0"/>
             </g>` : nothing;
 
+        // A step that ran on an earlier pass of a loop and whose later pass was cancelled: it keeps
+        // the tick of the run that happened, and a small grey bar beside it says the next one did not.
+        const cancelledPass = ov?.cancelledPass && ov.state === "COMPLETED" ? svg`
+            <g class="ov-cancel ov-cancel-pass" transform="translate(${w - 30}, ${h - 4})">
+                <title>Run ${ov.cancelledPass} was cancelled</title>
+                <circle r="8"/>
+                <path class="ov-bar" d="M -3.4 0 L 3.4 0"/>
+            </g>` : nothing;
+
         // An amber clock on timed-out steps: a timeout is not a plain error — the step ran out of
         // time rather than failing outright — so it gets its own badge and colour in that corner.
         const timedOut = ov?.state === "TIMEOUT" ? svg`
@@ -4668,6 +4747,7 @@ export class MateuWorkflowElk extends LitElement {
                 ${done}
                 ${failed}
                 ${cancelled}
+                ${cancelledPass}
                 ${timedOut}
                 ${injectedBadge}
                 ${triggerBadge}
@@ -4717,11 +4797,12 @@ export class MateuWorkflowElk extends LitElement {
      * moving onto it keeps it open (see {@link cancelHoverHide}).
      */
     private renderOverlayTooltip() {
-        const id = this.hoverId;
+        const id = this.hoverId ?? this.pinnedId;
         if (!id) return nothing;
         // Not while a gesture is under way: a card trailing a dragged node, or sitting over the
-        // node a line is being drawn to, is in the way of the very thing the pointer is doing.
-        if (this.draggingId || this.linkingFrom || this.panning || this.palettePlacing) return nothing;
+        // node a line is being drawn to, is in the way of the very thing the pointer is doing. A
+        // press that has not moved is not a pan yet — it is the click that pins the card.
+        if (this.draggingId || this.linkingFrom || (this.panning && this.panMoved) || this.palettePlacing) return nothing;
         const ov = this.overlayData[id];
         const step = this.wf.steps.find(s => s.id === id);
         const pos = this.positions[id];
@@ -4738,6 +4819,8 @@ export class MateuWorkflowElk extends LitElement {
         // Says what the amber means, so the colour does not have to be learned from the docs.
         const undoneChip = this.ranAsCompensation(id)
             ? html`<span class="tip-chip tip-undone">COMPENSATION</span>` : nothing;
+        const cancelledPassChip = ov.cancelledPass
+            ? html`<span class="tip-chip tip-cancelled">RUN ${ov.cancelledPass} CANCELLED</span>` : nothing;
         const row = (k: string, v?: string | null) => v == null || v === ""
             ? nothing : html`<div class="tip-row"><span class="tip-k">${k}</span><span class="tip-v">${v}</span></div>`;
         const attempt = ov.attempt != null
@@ -4746,10 +4829,13 @@ export class MateuWorkflowElk extends LitElement {
             <div class="ov-tip" style="left:${left}px; top:${top}px;"
                  @mouseenter="${() => this.cancelHoverHide()}"
                  @mouseleave="${() => this.scheduleHoverHide()}">
-                <div class="tip-head"><span class="tip-name">${step.name || id}</span>${chip}${undoneChip}</div>
+                <div class="tip-head"><span class="tip-name">${step.name || id}</span>${chip}${undoneChip}${cancelledPassChip}</div>
                 <div class="tip-sub">${id} · ${step.type}</div>
                 ${ov.reason ? html`<div class="tip-reason">${ov.reason}</div>` : nothing}
                 ${ov.error ? html`<div class="tip-errmsg">${ov.error}</div>` : nothing}
+                ${row("Form", ov.form)}
+                ${row("Assignee", ov.assignee)}
+                ${row("Offered to", ov.candidates)}
                 ${row("Attempt", attempt)}
                 ${row("Awaiting", ov.awaitingMessage)}
                 ${row("Key", ov.correlationKey)}
@@ -5633,7 +5719,8 @@ export class MateuWorkflowElk extends LitElement {
            may never arrive at — and at .3 the two were the same picture. Lifted to sit between the
            untouched steps and the ones already done, which is where it belongs. */
         .node.mon-dim.ov-pending {opacity: .62;}
-        .edge.mon-dim, .comp-edge.mon-dim {opacity: .18;}
+        .edge.mon-dim, .comp-edge.mon-dim, .timeout-edge.mon-dim {opacity: .18;}
+        .timeout-chip.mon-dim {opacity: .35;}
 
         /* stopped/waiting heatmap (definition view): --heat is 0–100, set per node. The fill mix is
            capped so even the hottest card keeps its dark title/id legible; the stroke goes fully warm

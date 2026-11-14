@@ -1,0 +1,23 @@
+{
+  "eyebrow": "EventConductor · Capítulo 2",
+  "title": "Tu **primer proceso**",
+  "sub": "Dependencias · configuración · definición · worker · ejecución",
+  "pieces": [["pom.xml", "2 dependencias"], ["application.properties", "2 propiedades"], ["01-first-booking.ec.yaml", "3 pasos"], ["HotelTaskHandlers.java", "1 bean"], ["POST /workflow/api/processes", "1 llamada"]],
+  "pom.n1": "`workflow-engine` — el motor",
+  "pom.n2": "`builtin-workers` — llamadas HTTP y a LLM, y **tus task handlers**, en el mismo proceso",
+  "pom.n3": "la app del taller añade la consola (Mateu), JPA y H2",
+  "props.n1": "`embedded` — el motor corre **dentro de tu app**",
+  "props.n2": "`jpa` — cada ejecución guardada; aquí H2 en memoria",
+  "props.n3": "`allow-anonymous` — **solo en el portátil**: por defecto la API rechaza llamadas anónimas (desde la 2.27)",
+  "def.n0": "`workflows/*.ec.yaml` — se cargan al arrancar",
+  "def.n1": "`START` → `ACTION` → `END`",
+  "def.n2": "`preconditionStepId` — a qué espera un paso; **el grafo se deduce**",
+  "recap.items": [["Declara", "el proceso, en un fichero", "01-first-booking.ec.yaml"], ["Implementa", "el trabajo, en Java normal", "un bean TaskRegistration"], ["Ejecuta", "el motor hace el resto", "pasos · estado · consola"]],
+  "close.line": "Un fichero, un bean, **una llamada.**",
+  "close.next": "Próximo · Definiciones: YAML, grafo e IDE",
+  "close.docs": "eventconductor.mateu.io",
+  "close.workshop": "Taller · módulo 1",
+  "close.license": "Código abierto · MIT",
+  "thumb.title": "Tu **primer proceso**",
+  "thumb.sub": "De una app Spring Boot a un proceso en marcha"
+}
