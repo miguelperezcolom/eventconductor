@@ -109,4 +109,40 @@ class WorkflowDefinitionVersioningServiceTest {
         // Absent hashes as before the field existed: an upgrade mints nothing.
         assertThat(service.contentHash(def.withSearchAttributes(null))).isEqualTo(service.contentHash(def));
     }
+
+    /** What the classpath import saves: every step stamped with the definition's id. */
+    private static WorkflowDefinition asClasspathImportsIt(WorkflowDefinition d) {
+        return new WorkflowDefinition(d.id(), d.name(), d.version(), d.description(),
+                d.limitConcurrentExecutions(), d.maxConcurrentExecutions(), d.enqueueOnLimit(),
+                d.cronExpression(), d.defaultMaxStepExecutions(),
+                d.steps().stream().map(s -> s.withWorkflowDefinitionId(d.id())).toList());
+    }
+
+    @Test
+    void theSameContentImportedFromGitAfterTheClasspathRecordsNothing() throws Exception {
+        // The classpath import stamps the steps, the directory / Git import does not: the same file
+        // used to hash twice, and the Git import recorded v2 with identical content.
+        var fromClasspath = asClasspathImportsIt(def(TWO_STEPS));
+        var fromGit = def(TWO_STEPS);
+        assertThat(service.contentHash(fromGit)).isEqualTo(service.contentHash(fromClasspath));
+
+        var head = new WorkflowDefinitionVersionEntity(
+                "d1:1", "d1", 1, "Demo", "{}", service.contentHash(fromClasspath), null);
+        when(versions.findTopByDefinitionIdOrderByVersionDesc("d1")).thenReturn(Optional.of(head));
+
+        assertThat(service.reconcile(fromGit)).isEqualTo(1);
+        verify(versions, never()).save(any());
+    }
+
+    @Test
+    void aHeadHashedBeforeTheNormalizationStillMatchesUnchangedContent() throws Exception {
+        // Recorded by an older engine from a Git import: the hash of the unstamped steps.
+        var fromGit = def(TWO_STEPS);
+        var head = new WorkflowDefinitionVersionEntity(
+                "d1:1", "d1", 1, "Demo", "{}", service.legacyContentHash(fromGit), null);
+        when(versions.findTopByDefinitionIdOrderByVersionDesc("d1")).thenReturn(Optional.of(head));
+
+        assertThat(service.reconcile(fromGit)).isEqualTo(1);
+        verify(versions, never()).save(any());
+    }
 }

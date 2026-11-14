@@ -114,7 +114,7 @@ workflow:
         timeout: PT5M
       local:
         provider: openai                        # OpenAI, or any OpenAI-compatible server
-        base-url: http://vllm.internal:8000
+        base-url: http://vllm.internal:8000/v1  # the API root, /v1 included
         model: llama-4-scout
         api-key: ${LOCAL_LLM_API_KEY}
         temperature: 0.2
@@ -125,12 +125,28 @@ workflow:
 |---|---|---|
 | `provider` | `anthropic` | `anthropic` or `openai` |
 | `model` | — | The model steps use unless they name another |
-| `base-url` | the provider's | A gateway, a proxy, a self-hosted OpenAI-compatible server |
+| `base-url` | the provider's | A gateway, a proxy, a self-hosted OpenAI-compatible server — see [below](#base-url-and-v1) for whether it includes `/v1` |
 | `api-key` | — | Required. Configuration only |
 | `temperature` | unset | Default temperature |
 | `max-tokens` | `4096` | Default most output tokens |
 | `timeout` | `PT60S` | One call's limit; a longer one fails as `LLM_IO` |
 | `structured-output` | `prompt` | `prompt` or `native` (above) |
+
+### `base-url` and `/v1`
+
+The two providers read `base-url` the opposite way, because their clients do:
+
+| Provider | `base-url` is | Called | Example |
+|---|---|---|---|
+| `openai` | the API root **including** the version — what comes before `/chat/completions` | `<base-url>/chat/completions` | `https://api.openai.com/v1`, `http://vllm.internal:8000/v1`, `http://ollama:11434/v1` |
+| `anthropic` | the host (or proxy prefix) **without** `/v1` | `<base-url>/v1/messages` | `https://api.anthropic.com`, `https://gateway.internal/anthropic` |
+
+Both forms are tolerated, so `/v1` is never doubled nor missing:
+
+- `openai`: a `base-url` with **no path** (`http://vllm.internal:8000`) gets `/v1` added; one with a path is used as written (`https://gateway.internal/openai/v1`, or a server that serves the API under a prefix of its own, such as the workshop's `http://localhost:8095/fake/llm`); a pasted full endpoint (`…/v1/chat/completions`) is cut back to its root.
+- `anthropic`: a trailing `/v1` (or `/v1/messages`) is cut off.
+
+A trailing `/` is ignored in every case. The adjustment is logged at `INFO` when the connection is built.
 
 `workflow.llm.topic` (default `llm-calls`) is the topic the worker serves in kafka mode; `workflow.llm.enabled=false` leaves the task out. An application that builds its models some other way provides its own `ChatModelFactory` bean.
 
