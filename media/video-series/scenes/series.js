@@ -86,11 +86,13 @@
         html += '\n';
         const tOut = t0 + cmd.length / cps + (r.wait ?? 0.35);
         const n = t < tOut ? 0 : Math.floor((t - tOut) / lineGap) + 1;
+        if (n < r.data.lines.length) cursorAt = true;               // output still arriving: no prompt yet
         const lines = r.data.lines.slice(0, n).map((l) => {
           const c = /BUILD SUCCESS|Tests run:.*Failures: 0, Errors: 0|PASS/.test(l) ? 'ok' : /BUILD FAILURE|ERROR|FAIL/.test(l) ? 'bad' : 'out';
           return `<span class="${c}">${esc(r.trim ? r.trim(l) : l)}</span>`;
         });
         html += lines.join('\n') + (lines.length ? '\n' : '');
+        if (cursorAt) break;
       }
       if (!cursorAt && runs.length && t >= at(sc, runs[0].at ?? 0.3)) html += `<span class="ps">${esc(runs[runs.length - 1].prompt ?? D.prompt ?? '~/workshop-hotel-booking $')}</span> <span class="cur"></span>`;
       box.innerHTML = html;
