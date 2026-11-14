@@ -50,7 +50,11 @@ public class WorkflowDefinitionVersioningService {
     public int reconcile(WorkflowDefinition definition) {
         String hash = contentHash(definition);
         var latest = versions.findTopByDefinitionIdOrderByVersionDesc(definition.id());
-        if (latest.isPresent() && hash.equals(latest.get().getContentHash())) {
+        if (latest.isPresent() && (hash.equals(latest.get().getContentHash())
+                // A head recorded before the hash was normalized (see contentHash) is matched by the
+                // hash of the definition as given, so upgrading does not mint a version of unchanged
+                // content either.
+                || legacyContentHash(definition).equals(latest.get().getContentHash()))) {
             return latest.get().getVersion();
         }
         int next = latest.map(v -> v.getVersion() + 1).orElse(1);
@@ -79,8 +83,22 @@ public class WorkflowDefinitionVersioningService {
      * the fields are written in a fixed order so the same content always hashes the same, regardless
      * of step declaration order or map iteration order — otherwise a re-import would spuriously bump.
      * Excludes {@code version} and the runtime flags by construction.
+     *
+     * <p>Normalized so the source a definition came from does not show in its hash: every step is
+     * stamped with the definition's id, as the head row stores it. The classpath import stamps the
+     * steps and the directory / Git import does not, so the same file imported from the classpath
+     * and then from Git used to hash twice and record v2 with identical content.
      */
     String contentHash(WorkflowDefinition d) {
+        return contentHash(d, true);
+    }
+
+    /** The hash as it was computed before the steps were normalized: the steps as given. */
+    String legacyContentHash(WorkflowDefinition d) {
+        return contentHash(d, false);
+    }
+
+    private String contentHash(WorkflowDefinition d, boolean normalizeSteps) {
         var canonical = new LinkedHashMap<String, Object>();
         canonical.put("name", d.name());
         canonical.put("description", d.description());
@@ -139,6 +157,7 @@ public class WorkflowDefinitionVersioningService {
         }
         canonical.put("defaultMaxStepExecutions", d.defaultMaxStepExecutions());
         canonical.put("steps", d.steps().stream()
+                .map(step -> normalizeSteps ? step.withWorkflowDefinitionId(d.id()) : step)
                 .sorted(Comparator.comparing(Step::id, Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(io.mateu.core.infra.JsonSerializer::toJson)
                 .toList());
