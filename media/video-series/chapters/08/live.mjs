@@ -56,7 +56,7 @@ export async function run(c) {
   }, { scene: 'payment', from: 'c2' });
 
   // between: the sender's step, as it is in the file.
-  c.term('cleaning-yaml', "sed -n '/id: announce-ready/,/messageVariables/p' src/main/resources/workflows/room-cleaning.ec.yaml", { ...SA, show: 'grep -A6 announce-ready room-cleaning.ec.yaml' });
+  c.term('cleaning-yaml', "grep -A6 'id: announce-ready' src/main/resources/workflows/room-cleaning.ec.yaml", SA);
 
   // checkin: CHECKIN-1 waits for room 305; CLEAN-305 sends room-ready; the keys are handed over.
   c.term('checkin-1', `scripts/start.sh guest-checkin CHECKIN-1 '{"guest": "Bob", "room": "305"}' | jq '{businessKey, status}'`, SA);
