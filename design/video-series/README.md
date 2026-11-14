@@ -273,3 +273,18 @@ Defaults agreed with the owner; the owner can override any of them.
   — laptop-only, and stated as such in the docs and on screen.
 - **Uploads:** unlisted until the docs link is live, then public — and each one only after the owner's
   OK on the MP4s and texts.
+
+## After the series: more languages (owner decision, 2026-11-14)
+
+Same plan as the Mateu series, once all EN/ES chapters are published:
+1. Brazilian Portuguese.
+2. Chinese — only if someone drives it on Bilibili.
+3. French and Italian.
+4. Russian — only if there is concrete demand.
+
+## Published
+
+| # | EN | ES |
+|---|---|---|
+| 1 | https://youtu.be/KwMrPGUcPuU | https://youtu.be/cl1U10Bzn5M |
+| 4 | https://youtu.be/Q9TKf2Unh9A | https://youtu.be/mmH3OUxnMnQ |

@@ -5,6 +5,11 @@ description: Handling failures, timeouts, and saga compensation in EventConducto
 
 EventConductor provides built-in support for retries, timeouts, and compensation (saga pattern) — all configured declaratively in the workflow definition JSON.
 
+<div style="max-width: 860px; margin: 1.5rem 0;">
+  <iframe src="https://www.youtube-nocookie.com/embed/Q9TKf2Unh9A" title="EventConductor · 4. All rooms or none: sagas and compensation" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; border-radius: 12px;"></iframe>
+  <p style="font-size: 0.9em; margin-top: 0.5rem;">Chapter 4 of <em>EventConductor in N minutes</em> (3 min) · <a href="https://youtu.be/mmH3OUxnMnQ">versión en español</a></p>
+</div>
+
 ## Retries
 
 Set the `retries` field on a step to automatically re-dispatch the task when it reports an `ERROR` or times out.
