@@ -8,12 +8,9 @@ import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -22,7 +19,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 
 /**
- * Reads workflow definitions from classpath:/workflows/ — {@code *.json}, {@code *.yaml}/{@code *.yml}
+ * Reads workflow definitions from every {@code workflows/} directory on the classpath (see
+ * {@link ClasspathDefinitionFiles}, which also says which copy wins when an id is in two of them) — {@code *.json}, {@code *.yaml}/{@code *.yml}
  * (including {@code *.workflow.yaml} and {@code *.ec.yaml}) and {@code *.ec}; see
  * {@link DefinitionFileFormat#CLASSPATH_PATTERNS}. Each file must contain a serialized
  * {@link WorkflowDefinition}.
@@ -100,25 +98,21 @@ public class ClasspathWorkflowDefinitionRepository implements WorkflowDefinition
     }
 
     private void loadFromClasspath() {
-        var resolver = new PathMatchingResourcePatternResolver();
         try {
-            // The same files the JPA importer reads: .json, .yaml/.yml (order.workflow.yaml and
-            // order.ec.yaml among them) and .ec, whose content is sniffed for JSON or YAML.
-            var resources = new java.util.ArrayList<Resource>();
-            for (var pattern : DefinitionFileFormat.CLASSPATH_PATTERNS) {
-                resources.addAll(Arrays.asList(resolver.getResources("classpath:/workflows/" + pattern)));
-            }
-            // cron.yaml sits next to the definitions but holds schedules (ClasspathCronScheduleLoader).
-            resources.removeIf(r -> io.mateu.workflow.analysis.ScheduleRules.isCronFileName(r.getFilename()));
-            // events.yaml too: event triggers naming their workflow (ClasspathEventTriggerLoader).
-            resources.removeIf(r -> io.mateu.workflow.analysis.EventTriggerRules.isEventFileName(r.getFilename()));
-            for (var resource : resources) {
+            // The same files the JPA importer reads, from every classpath root: .json, .yaml/.yml
+            // (order.workflow.yaml and order.ec.yaml among them) and .ec, whose content is sniffed for
+            // JSON or YAML. The same id in two roots: the first on the classpath wins.
+            var firstWins = new ClasspathDefinitionFiles.FirstWins();
+            for (var file : ClasspathDefinitionFiles.scan()) {
                 try {
-                    String filename = resource.getFilename();
-                    byte[] bytes = resource.getInputStream().readAllBytes();
+                    String filename = file.filename();
+                    byte[] bytes = file.bytes();
                     WorkflowDefinition def = DefinitionFileFormat.isYaml(filename, bytes)
                             ? YAML_MAPPER.readValue(bytes, WorkflowDefinition.class)
                             : pojoFromJson(new String(bytes, java.nio.charset.StandardCharsets.UTF_8), WorkflowDefinition.class);
+                    if (!firstWins.claim(def.id(), file)) {
+                        continue;
+                    }
                     if (def.steps() != null) {
                         final String defId = def.id();
                         List<Step> stepsWithId = def.steps().stream()
@@ -149,9 +143,9 @@ public class ClasspathWorkflowDefinitionRepository implements WorkflowDefinition
                     io.mateu.workflow.application.services.WorkflowDefinitionValidator.requireKeysFor(def, encryption);
                     requirePublishedAgents(def);
                     definitions.put(def.id(), def);
-                    log.info("Loaded workflow definition '{}' from classpath:{}", def.id(), resource.getFilename());
+                    log.info("Loaded workflow definition '{}' from {}", def.id(), file.location());
                 } catch (Exception e) {
-                    log.error("Failed to load workflow definition from classpath:{}", resource.getFilename(), e);
+                    log.error("Failed to load workflow definition from {}", file.location(), e);
                 }
             }
         } catch (IOException e) {

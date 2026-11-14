@@ -13,7 +13,8 @@ The workshop runs against a **fake model** the app serves itself (`FakeLanguageM
 workflow.llm.connections.assistant.provider=anthropic
 workflow.llm.connections.assistant.model=claude-sonnet-5-5
 workflow.llm.connections.assistant.api-key=${ANTHROPIC_API_KEY}
-# or OpenAI / any OpenAI-compatible server: provider=openai, base-url, model, api-key
+# or OpenAI / any OpenAI-compatible server: provider=openai, base-url (the API root with /v1,
+# e.g. http://localhost:11434/v1 for Ollama), model, api-key
 ```
 
 Take the key from the environment or a secret store — never from a file in the repository, and never in a definition (the build refuses one). See [LLM Calls](/guides/llm-calls/#connections).
