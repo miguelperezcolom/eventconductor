@@ -15,7 +15,9 @@ case "$1" in
     mkdir -p "$here/build"
     (cd "$repo/$2" && nohup mvn -B -q spring-boot:run > "$log" 2>&1 & echo $! > "$pidf")
     for i in $(seq 1 120); do
-      [ "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$PORT/workflow/api/processes")" = 200 ] && { echo "app up on :$PORT ($2)"; exit 0; }
+      # Ready when Spring says so: the API answers before the startup runners have imported the definitions.
+      grep -qE 'Started [A-Za-z]+ in [0-9.]+ seconds' "$log" 2>/dev/null \
+        && [ "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$PORT/workflow/api/processes")" = 200 ] && { echo "app up on :$PORT ($2)"; exit 0; }
       sleep 2
     done
     echo "app did not start — see $log" >&2; exit 1 ;;

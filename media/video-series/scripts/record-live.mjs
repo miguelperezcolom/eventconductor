@@ -55,10 +55,10 @@ const CURSOR = () => {
 };
 
 class Shot {
-  constructor(page, scene, dir) {
-    this.page = page; this.scene = scene; this.dir = dir; this.frames = []; this.f = 0;
-    this.mouse = { x: VW * 0.62, y: VH * 0.72 };
-    this.cam = { cx: VW / 2, cy: VH / 2, z: 1 };
+  constructor(page, scene, dir, vw, vh) {
+    this.page = page; this.scene = scene; this.dir = dir; this.frames = []; this.f = 0; this.vw = vw; this.vh = vh;
+    this.mouse = { x: vw * 0.62, y: vh * 0.72 };
+    this.cam = { cx: vw / 2, cy: vh / 2, z: 1 };
     this.camAnim = null; this.ring = null; this.cursor = true;
   }
   get t() { return this.f / FPS; }
@@ -109,6 +109,8 @@ class Shot {
     this.mouse = to;
     await this.page.mouse.move(to.x, to.y);
   }
+  /** Park the cursor in the bottom-right corner, out of the way. */
+  async park(dur = 0.5) { await this.moveTo({ x: this.vw - 60, y: this.vh - 40 }, dur); }
   async click(target, { dur = 0.8, double = false } = {}) {
     if (target) await this.moveTo(target, dur);
     this.ring = this.f;
@@ -125,37 +127,39 @@ class Shot {
   async camera(target, { z = null, dur = 1.2, pad = 60, zmax = 2.2 } = {}) {
     let to;
     try { to = await this.camTarget(target, { z, pad, zmax }); } catch (e) { console.warn(`  ! camera target not found in ${this.scene.id} at ${this.t.toFixed(1)}s: ${e.message.split('\n')[0]}`); process.exitCode = 3; return; }
+    if (process.env.DEBUG_CAM) console.log(`  cam ${this.scene.id} f=${this.f} →`, JSON.stringify(to));
     this.camAnim = { f0: this.f, n: Math.max(1, Math.round(dur * FPS)), from: { ...this.cam }, to };
   }
   async camTarget(target, { z, pad, zmax }) {
     let to;
-    if (target === 'full') to = { cx: VW / 2, cy: VH / 2, z: 1 };
+    if (target === 'full') to = { cx: this.vw / 2, cy: this.vh / 2, z: 1 };
     else if (target && typeof target.x === 'number' && typeof target.width === 'number') to = this.frameBox(target, { z, pad, zmax });
     else {
-      const many = typeof target === 'object' && !Array.isArray(target) && target.count && (await target.count()) > 1;
-      const b = Array.isArray(target) ? union(await Promise.all(target.map((t) => this.box(t))))
-        : many ? union((await target.evaluateAll((es) => es.map((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }))).filter((r) => r.width > 0))
-        : await this.box(target);
+      const rects = async (t) => (typeof t === 'object' && t.count && (await t.count()) > 1)
+        ? (await t.evaluateAll((es) => es.map((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }))).filter((r) => r.width > 0)
+        : [await this.box(t)];
+      const b = union((await Promise.all((Array.isArray(target) ? target : [target]).map(rects))).flat());
       const w = b.width + 2 * pad, h = b.height + 2 * pad;
-      to = { cx: b.x + b.width / 2, cy: b.y + b.height / 2, z: z ?? Math.max(1, Math.min(zmax, VW / w, VH / h)) };
-      const hw = VW / 2 / to.z, hh = VH / 2 / to.z;   // keep the view inside the page
-      to.cx = Math.min(VW - hw, Math.max(hw, to.cx)); to.cy = Math.min(VH - hh, Math.max(hh, to.cy));
+      to = { cx: b.x + b.width / 2, cy: b.y + b.height / 2, z: z ?? Math.max(1, Math.min(zmax, this.vw / w, this.vh / h)) };
+      const hw = this.vw / 2 / to.z, hh = this.vh / 2 / to.z;   // keep the view inside the page
+      to.cx = Math.min(this.vw - hw, Math.max(hw, to.cx)); to.cy = Math.min(this.vh - hh, Math.max(hh, to.cy));
     }
     return to;
   }
   frameBox(b, { z = null, pad = 60, zmax = 2.2 } = {}) {
     const w = b.width + 2 * pad, h = b.height + 2 * pad;
-    const to = { cx: b.x + b.width / 2, cy: b.y + b.height / 2, z: z ?? Math.max(1, Math.min(zmax, VW / w, VH / h)) };
-    const hw = VW / 2 / to.z, hh = VH / 2 / to.z;
-    to.cx = Math.min(VW - hw, Math.max(hw, to.cx)); to.cy = Math.min(VH - hh, Math.max(hh, to.cy));
+    const to = { cx: b.x + b.width / 2, cy: b.y + b.height / 2, z: z ?? Math.max(1, Math.min(zmax, this.vw / w, this.vh / h)) };
+    const hw = this.vw / 2 / to.z, hh = this.vh / 2 / to.z;
+    to.cx = Math.min(this.vw - hw, Math.max(hw, to.cx)); to.cy = Math.min(this.vh - hh, Math.max(hh, to.cy));
     return to;
   }
-  /** The row of a grid/table that holds `text`: the text's box, widened to the grid. */
-  async rowBox(textLocator, gridSel = 'vaadin-grid, table, [role="grid"], [role="table"]') {
+  /** The part of a grid row that holds `text`: from just before the text, `span` px to the right (within the grid). */
+  async rowBox(textLocator, { before = 40, span = 1100 } = {}, gridSel = 'vaadin-grid, table, [role="grid"], [role="table"]') {
     const t = await this.box(textLocator);
     const grids = await this.page.locator(gridSel).evaluateAll((es) => es.map((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }));
     const g = grids.find((r) => r.width > 0 && t.y >= r.y && t.y <= r.y + r.height) || { x: 96, width: 1728 };
-    return { x: g.x, y: t.y - 14, width: g.width, height: t.height + 28 };
+    const x0 = Math.max(g.x, t.x - before), x1 = Math.min(g.x + g.width, x0 + span);
+    return { x: x0, y: t.y - 14, width: x1 - x0, height: t.height + 28 };
   }
   /** Set the camera instantly (before the first frame). */
   async cameraNow(target, opts = {}) { await this.camera(target, { ...opts, dur: 0.001 }); if (this.camAnim) { this.cam = this.camAnim.to; this.camAnim = null; } }
@@ -188,13 +192,13 @@ const ctx = {
   },
 
   /** Film live scene `id` (skipped when the chapter has no such scene). */
-  async shot(id, open, script) {
+  async shot(id, open, script, { viewport = { w: VW, h: VH }, scale = viewport.w < VW ? 3 : SCALE } = {}) {
     const scene = scenes[id];
     if (!scene) throw new Error(`no scene ${id} in the timeline`);
     if (only && !only.has(id)) return;
     const dir = `${build}/live/${id}`;
     rmSync(dir, { recursive: true, force: true }); mkdirSync(dir, { recursive: true });
-    const context = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: SCALE, colorScheme: 'dark', reducedMotion: 'no-preference' });
+    const context = await browser.newContext({ viewport: { width: viewport.w, height: viewport.h }, deviceScaleFactor: scale, colorScheme: 'dark', reducedMotion: 'no-preference' });
     const page = await context.newPage();
     await page.addInitScript(CURSOR);
     const t0 = new Date('2026-11-14T09:00:00Z');
@@ -207,12 +211,12 @@ const ctx = {
     await cdp.send('Animation.setPlaybackRate', { playbackRate: Number(process.env.ANIM_RATE || 0.3) });
     for (let i = 0; i < 40; i++) { await page.clock.runFor(100); await sleep(40); }
     await page.waitForLoadState('networkidle').catch(() => {});
-    const s = new Shot(page, scene, dir);
+    const s = new Shot(page, scene, dir, viewport.w, viewport.h);
     await page.mouse.move(s.mouse.x, s.mouse.y);
     const started = Date.now();
     await script(s, page);
     await s.toEnd();
-    writeFileSync(`${dir}/index.json`, JSON.stringify({ fps: FPS, viewport: { w: VW, h: VH }, scale: SCALE, frames: s.frames }));
+    writeFileSync(`${dir}/index.json`, JSON.stringify({ fps: FPS, viewport, scale, frames: s.frames }));
     console.log(`shot ${id}: ${s.frames.length} frames (${scene.dur.toFixed(1)}s) in ${((Date.now() - started) / 1000).toFixed(0)}s`);
     await context.close();
   },

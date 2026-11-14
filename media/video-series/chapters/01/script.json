@@ -50,7 +50,7 @@
         "emphasis": [
           { "at": "c2", "match": ["^  - id: approve", "type: USER_TASK", "formId:"] },
           { "at": "c3", "match": ["^  - id: decision", "type: CHOICE", "expression:"] },
-          { "at": "c4", "match": ["^    type: HTTP_CALL", "forEach:", "retries: 3", "timeout: PT15S", "Idempotency-Key"] },
+          { "at": "c4", "match": ["name: Book every room at the hotel", "forEach:", "retries: 3", "timeout: PT15S", "Idempotency-Key"] },
           { "at": "c5", "match": ["compensable: true", "compensationStepId", "^  - id: cancel-room", "method: DELETE"] }
         ],
         "notes": [
@@ -124,8 +124,8 @@
       "id": "tests", "view": "terminal",
       "spec": { "geom": { "x": 90, "y": 70, "w": 1740, "h": 940 }, "title": "examples/workshop-hotel-booking", "items": [{ "id": "mvn-verify", "at": 0.3 }], "opts": { "cps": 30, "lineGap": 0.55 } },
       "narration": {
-        "en": ["Definitions are tested like code.", "The test kit runs a process in memory, with time under your control; scenarios can be plain YAML;", "and one Maven goal validates every definition and fails the build when the tests leave a branch uncovered."],
-        "es": ["Las definiciones se prueban como código.", "El kit de test ejecuta un proceso en memoria y con el tiempo bajo tu control; los escenarios pueden ser YAML sin más;", "y un único goal de Maven valida cada definición y rompe el build si los tests dejan una rama sin cubrir."]
+        "en": ["Definitions are tested like code.", "The test kit runs a process in memory, with time under your control; scenarios can be plain YAML;", "and one Maven goal validates every definition and fails the build when workflow coverage drops below the floor you set."],
+        "es": ["Las definiciones se prueban como código.", "El kit de test ejecuta un proceso en memoria y con el tiempo bajo tu control; los escenarios pueden ser YAML sin más;", "y un único goal de Maven valida cada definición y rompe el build si la cobertura del flujo baja del mínimo que fijes."]
       }
     },
     {

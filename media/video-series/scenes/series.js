@@ -156,8 +156,9 @@
       const g = { x: 88, y: 22, w: 1744, h: 1036 };
       const { body, bw, bh } = windowEl(root, { ...g, title: `<b>localhost:8095</b>  ·  EventConductor console`, cls: 'console' });
       const img = el('img', 'frame', null, body);
-      css(img, { width: 1920, height: 1080 });
-      const base = bw / 1920;
+      const VPW = L.viewport?.w ?? 1920, VPH = L.viewport?.h ?? 1080;
+      css(img, { width: VPW, height: VPH });
+      const base = bw / VPW;
       const terms = (sc.spec.terms || []).map((tm) => {
         const w = windowEl(root, { x: tm.x ?? 150, y: tm.y ?? 520, w: tm.w ?? 1200, h: tm.h ?? 440, title: 'terminal' });
         w.win.querySelector('.body').style.background = 'rgba(8,19,25,.97)';

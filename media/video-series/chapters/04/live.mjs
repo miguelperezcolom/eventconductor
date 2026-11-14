@@ -20,10 +20,10 @@ export async function run(c) {
     await s.hold(0.2);
     await s.click(tab(s, 'Diagram'), { dur: 0.7 });
     await s.settleFrames(6);
-    await s.moveTo({ x: 1860, y: 1040 }, 0.5);
+    await s.park(0.5);
     s.cursor = false;
     await s.untilCue(0, -0.2);
-    await s.camera(s.page.getByText(/Compensated \(/).first(), { z: 2.2, dur: 0.9 });
+    await s.camera([s.page.getByText(/Compensated \(/).first(), graph(s).locator('g.node')], { zmax: 1.6, dur: 0.9, pad: 30 });
     await s.untilCue(1, -0.2);
     await s.camera(node(s, 'Book every room'), { z: 2.2, dur: 1.0 });
     await s.untilCue(2, 0.6);
@@ -48,17 +48,18 @@ export async function run(c) {
     // Drop the selection popover: click an empty corner of the canvas (the view stays).
     const g = await s.box(graph(s));
     await s.click({ x: g.x + 40, y: g.y + 40 }, { dur: 0.6 });
+    await s.press('Escape');
     await s.settleFrames(4);
     await s.camera(rooms, { zmax: 2.2, dur: 1.0 });
-    await s.moveTo({ x: 1860, y: 1040 }, 0.6);
+    await s.park(0.6);
     await s.untilCue(1, -0.9);
     await s.camera('full', { dur: 0.8 });
     await s.hold(0.5);
     await s.click(tab(s, 'Errors'), { dur: 0.7 });
     await s.settleFrames(6);
-    await s.moveTo({ x: 1860, y: 1040 }, 0.5);
+    await s.park(0.5);
     s.cursor = false;
-    await s.camera(await s.rowBox(s.page.getByText(/SOLD_OUT/).first()), { zmax: 1.9, dur: 1.0, pad: 150 });
+    await s.camera(await s.rowBox(s.page.getByText(/SOLD_OUT/).first(), { before: 640, span: 1180 }), { zmax: 1.9, dur: 1.0, pad: 50 });
   });
 
   // Scene "hotel": booking 4 over HTTP — Compensated in the list; the stand-in hotel holds nothing.
@@ -72,10 +73,10 @@ export async function run(c) {
     await s.type('BOOKING-4');
     await s.press('Enter');
     await s.settleFrames(6);
-    await s.moveTo({ x: 1860, y: 1040 }, 0.4);
+    await s.park(0.4);
     s.cursor = false;
-    await s.camera(await s.rowBox(s.page.getByText('BOOKING-4', { exact: true }).last()), { zmax: 1.8, dur: 0.9, pad: 130 });
-  });
+    await s.camera(await s.rowBox(s.page.getByText('BOOKING-4', { exact: true }).last(), { before: 420, span: 900 }), { zmax: 1.6, dur: 0.9, pad: 50 });
+  }, { viewport: { w: 1280, h: 720 } });
 
   // Scene "tested": the real test run (cached across languages: it does not depend on the app).
   c.term('failure-paths-test', 'mvn test -Dtest=FailurePathsTest', { cache: true, keep: /Running com|Tests run:|BUILD (SUCCESS|FAILURE)/ });

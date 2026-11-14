@@ -47,7 +47,7 @@ export async function run(c) {
     s.cursor = true;
     await s.click(tab(s, 'Steps'), { dur: 0.6 });
     await s.settleFrames(6);
-    await s.moveTo({ x: 1860, y: 1040 }, 0.4);
+    await s.park(0.4);
     s.cursor = false;
     await s.camera(s.page.getByText(/rooms · Room 10[123]/), { zmax: 1.6, dur: 1.0, pad: 200 });
   });
@@ -61,7 +61,7 @@ export async function run(c) {
     await s.untilCue(1, 0.3);
     await s.camera([node(s, 'Book every room'), node(s, 'Cancel the room')], { zmax: 2.0, dur: 1.0 });
     await s.untilCue(2, -0.2);
-    await s.camera(s.page.getByText(/Compensated \(/).first(), { z: 2.2, dur: 0.9 });
+    await s.camera([s.page.getByText(/Compensated \(/).first(), graph(s).locator('g.node')], { zmax: 1.6, dur: 0.9, pad: 30 });
   });
 
   // operate: find the run by business key, see why it failed, the retry and batch actions.
@@ -77,8 +77,8 @@ export async function run(c) {
     await s.untilCue(2, -0.6);
     await s.click(tab(s, 'Errors'), { dur: 0.5 });
     await s.settleFrames(5);
-    await s.moveTo({ x: 1860, y: 1040 }, 0.3);
-    await s.camera(await s.rowBox(s.page.getByText(/SOLD_OUT/).first()), { zmax: 1.9, dur: 0.8, pad: 140 });
+    await s.park(0.3);
+    await s.camera(await s.rowBox(s.page.getByText(/non-retryable/).first(), { before: 420, span: 860 }), { zmax: 1.6, dur: 0.8, pad: 50 });
     await s.untilCue(3, -0.5);
     await s.camera('full', { dur: 0.5 });
     await s.click(s.page.getByText('Processes', { exact: true }).first(), { dur: 0.5 });
@@ -87,7 +87,7 @@ export async function run(c) {
     await s.moveTo(s.page.getByText('Retry from failure', { exact: true }).first(), 0.7);
     await s.hold(1.2);
     await s.moveTo(s.page.getByText('Retry all matching', { exact: true }).first(), 0.7);
-  });
+  }, { viewport: { w: 1280, h: 720 } });
 
   // tests: the real build of the workshop (cached across languages).
   c.term('mvn-verify', 'mvn verify', { cache: true,
@@ -100,6 +100,6 @@ export async function run(c) {
     s.cursor = false;
     await s.cameraNow('full');
     await s.hold(0.6);
-    await s.camera(await s.rowBox(s.page.getByText('requestCategory', { exact: true }).first()), { zmax: 1.9, dur: 1.0, pad: 160 });
-  });
+    await s.camera(await s.rowBox(s.page.getByText('requestCategory', { exact: true }).first()), { zmax: 1.6, dur: 1.0, pad: 50 });
+  }, { viewport: { w: 1280, h: 720 } });
 }

@@ -34,7 +34,7 @@
     },
     {
       "id": "byhand", "view": "checklist",
-      "spec": { "head": "byhand.head", "items": "byhand.items", "from": "c1", "to": "e1" },
+      "spec": { "head": "byhand.head", "items": "byhand.items", "from": "c0+0.8", "to": "e1" },
       "narration": {
         "en": ["Written by hand, this is where things go wrong.", "You have to remember which rooms were booked, undo them in reverse order, retry with backoff without booking twice, give up on a hotel that never answers — and cope with an answer that arrives after you gave up."],
         "es": ["Escrito a mano, aquí es donde las cosas salen mal.", "Tienes que recordar qué habitaciones se reservaron, deshacerlas en orden inverso, reintentar con espera creciente sin reservar dos veces, rendirte con un hotel que no contesta… y lidiar con una respuesta que llega después de haberte rendido."]
