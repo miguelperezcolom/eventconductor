@@ -82,6 +82,14 @@ public class SyncInvocationController {
     final ObjectProvider<CallerResolver> callerResolver;
     final WorkflowMetrics workflowMetrics;
 
+    /** Readiness, to tell "not imported yet" (503) from "no such definition" (404); absent when built by hand. */
+    private org.springframework.boot.availability.ApplicationAvailability availability;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setApplicationAvailability(org.springframework.boot.availability.ApplicationAvailability availability) {
+        this.availability = availability;
+    }
+
     /** How many callers may be waiting on this pod at once; past it, new ones get a 429. */
     @org.springframework.beans.factory.annotation.Value("${workflow.sync.max-waiting:200}")
     int maxWaiting = 200;
@@ -453,8 +461,8 @@ public class SyncInvocationController {
     }
 
     @ExceptionHandler(UnknownWorkflowDefinitionException.class)
-    ProblemDetail onUnknownDefinition(UnknownWorkflowDefinitionException e) {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
+    ResponseEntity<ProblemDetail> onUnknownDefinition(UnknownWorkflowDefinitionException e) {
+        return UnknownDefinitionResponses.of(e, availability);
     }
 
     @ExceptionHandler(FlowAuthorizationDeniedException.class)

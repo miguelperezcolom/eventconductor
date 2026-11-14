@@ -4,10 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.mateu.workflow.application.out.TaskContractRepository;
 import io.mateu.workflow.tasks.TaskContract;
+import io.mateu.workflow.infra.in.startup.StartupDefinitionImport;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.io.Resource;
@@ -31,7 +30,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Order(-100)
 @Slf4j
-public class ClasspathTaskContractImporter implements ApplicationRunner {
+public class ClasspathTaskContractImporter implements StartupDefinitionImport {
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final ObjectMapper YAML = new YAMLMapper();
@@ -39,7 +38,7 @@ public class ClasspathTaskContractImporter implements ApplicationRunner {
     final TaskContractRepository taskContractRepository;
 
     @Override
-    public void run(ApplicationArguments args) {
+    public void importDefinitions() {
         var resolver = new PathMatchingResourcePatternResolver();
         try {
             var resources = new ArrayList<Resource>();

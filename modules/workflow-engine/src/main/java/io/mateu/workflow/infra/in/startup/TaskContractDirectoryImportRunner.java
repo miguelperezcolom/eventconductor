@@ -4,8 +4,6 @@ import io.mateu.workflow.application.usecases.taskcontractimport.ImportTasksFrom
 import io.mateu.workflow.infra.config.TaskContractDirectoryImportProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -18,13 +16,13 @@ import org.springframework.stereotype.Component;
 @Order(-100)
 @RequiredArgsConstructor
 @Slf4j
-public class TaskContractDirectoryImportRunner implements ApplicationRunner {
+public class TaskContractDirectoryImportRunner implements StartupDefinitionImport {
 
     final TaskContractDirectoryImportProperties directoryImportProperties;
     final ImportTasksFromDirectoryUseCase importUseCase;
 
     @Override
-    public void run(ApplicationArguments args) {
+    public void importDefinitions() {
         if (directoryImportProperties.getDirectories().isEmpty()) {
             log.debug("No directories configured for task-contract import — skipping.");
             return;

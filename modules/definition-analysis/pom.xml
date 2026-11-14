@@ -35,6 +35,16 @@
             <artifactId>spring-context</artifactId>
             <optional>true</optional>
         </dependency>
+        <!--
+          For DefinitionSchemas only: the one place the bundled definition schemas' validator dialect
+          is configured. Optional for the same reason as spring-context: every user (engine, rule and
+          forms engines, Maven plugin) already depends on it directly. Version from the root BOM.
+        -->
+        <dependency>
+            <groupId>com.networknt</groupId>
+            <artifactId>json-schema-validator</artifactId>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>

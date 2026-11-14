@@ -29,13 +29,13 @@ class ImportRunnersTest {
     void workflowDirectoryImport() {
         var properties = new DirectoryImportProperties();
         var useCase = mock(ImportWorkflowDefinitionsFromDirectoryUseCase.class);
-        new WorkflowDefinitionDirectoryImportRunner(properties, useCase).run(null);
+        new WorkflowDefinitionDirectoryImportRunner(properties, useCase).importDefinitions();
         verifyNoInteractions(useCase);
 
         properties.getDirectories().add("/defs");
         when(useCase.handle()).thenReturn(new ImportWorkflowDefinitionsFromDirectoryUseCase.ImportWorkflowDefinitionsResult(
                 List.of("Order [order]"), List.of("File broken.yaml: bad"), List.of("Gone [gone]")));
-        assertThatCode(() -> new WorkflowDefinitionDirectoryImportRunner(properties, useCase).run(null))
+        assertThatCode(() -> new WorkflowDefinitionDirectoryImportRunner(properties, useCase).importDefinitions())
                 .doesNotThrowAnyException();
         verify(useCase).handle();
     }
@@ -59,13 +59,13 @@ class ImportRunnersTest {
     void taskContractDirectoryImport() {
         var properties = new TaskContractDirectoryImportProperties();
         var useCase = mock(ImportTasksFromDirectoryUseCase.class);
-        new TaskContractDirectoryImportRunner(properties, useCase).run(null);
+        new TaskContractDirectoryImportRunner(properties, useCase).importDefinitions();
         verifyNoInteractions(useCase);
 
         properties.getDirectories().add("/tasks");
         when(useCase.handle()).thenReturn(new ImportTasksFromDirectoryUseCase.ImportTasksResult(
                 List.of("greet@1"), List.of("File broken.ectask: bad")));
-        assertThatCode(() -> new TaskContractDirectoryImportRunner(properties, useCase).run(null))
+        assertThatCode(() -> new TaskContractDirectoryImportRunner(properties, useCase).importDefinitions())
                 .doesNotThrowAnyException();
         verify(useCase).handle();
     }
@@ -74,13 +74,13 @@ class ImportRunnersTest {
     void taskContractGitImport() {
         var properties = new TaskContractGitImportProperties();
         var useCase = mock(ImportTasksFromGitUseCase.class);
-        new TaskContractGitImportRunner(properties, useCase).run(null);
+        new TaskContractGitImportRunner(properties, useCase).importDefinitions();
         verifyNoInteractions(useCase);
 
         properties.getRepositories().add(new TaskContractGitImportProperties.GitRepository());
         when(useCase.handle()).thenReturn(new ImportTasksFromDirectoryUseCase.ImportTasksResult(
                 List.of("greet@1"), List.of("Repository x: unreachable")));
-        assertThatCode(() -> new TaskContractGitImportRunner(properties, useCase).run(null))
+        assertThatCode(() -> new TaskContractGitImportRunner(properties, useCase).importDefinitions())
                 .doesNotThrowAnyException();
         verify(useCase).handle();
     }

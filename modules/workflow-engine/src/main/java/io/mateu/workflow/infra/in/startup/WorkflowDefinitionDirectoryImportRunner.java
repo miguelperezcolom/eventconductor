@@ -4,21 +4,19 @@ import io.mateu.workflow.application.usecases.directoryimport.ImportWorkflowDefi
 import io.mateu.workflow.infra.config.DirectoryImportProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
 /** Imports the configured local directories at startup, the way the git runner imports repositories. */
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class WorkflowDefinitionDirectoryImportRunner implements ApplicationRunner {
+public class WorkflowDefinitionDirectoryImportRunner implements StartupDefinitionImport {
 
     final DirectoryImportProperties directoryImportProperties;
     final ImportWorkflowDefinitionsFromDirectoryUseCase importUseCase;
 
     @Override
-    public void run(ApplicationArguments args) {
+    public void importDefinitions() {
         if (directoryImportProperties.getDirectories().isEmpty()) {
             log.debug("No directories configured for workflow definition import — skipping.");
             return;

@@ -11,7 +11,6 @@ import io.mateu.workflow.infra.out.persistence.WorkflowDefinitionVersionEntityRe
 import io.mateu.workflow.webhook.InMemoryImportedDefinitionsRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.boot.DefaultApplicationArguments;
 
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -97,7 +96,7 @@ class ClasspathThenGitImportVersioningTest {
         var previous = thread.getContextClassLoader();
         try (var loader = new URLClassLoader(new URL[]{classpathRoot.toUri().toURL()}, previous)) {
             thread.setContextClassLoader(loader);
-            importer.run(new DefaultApplicationArguments());
+            importer.importDefinitions();
         } finally {
             thread.setContextClassLoader(previous);
         }

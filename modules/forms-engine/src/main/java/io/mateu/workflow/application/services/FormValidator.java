@@ -3,8 +3,7 @@ package io.mateu.workflow.application.services;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.networknt.schema.InputFormat;
 import com.networknt.schema.Schema;
-import com.networknt.schema.SchemaRegistry;
-import com.networknt.schema.SpecificationVersion;
+import io.mateu.workflow.analysis.DefinitionSchemas;
 import io.mateu.workflow.domain.Form;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +32,7 @@ public class FormValidator {
     @PostConstruct
     void init() throws IOException {
         try (var stream = new ClassPathResource(SCHEMA_RESOURCE).getInputStream()) {
-            schema = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_7).getSchema(stream);
+            schema = DefinitionSchemas.registry().getSchema(stream);
             log.debug("Loaded form JSON schema from classpath:{}", SCHEMA_RESOURCE);
         }
     }

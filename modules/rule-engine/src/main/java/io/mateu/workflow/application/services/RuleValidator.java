@@ -5,8 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.networknt.schema.InputFormat;
 import com.networknt.schema.Schema;
-import com.networknt.schema.SchemaRegistry;
-import com.networknt.schema.SpecificationVersion;
+import io.mateu.workflow.analysis.DefinitionSchemas;
 import io.mateu.workflow.domain.Rule;
 import io.mateu.workflow.domain.RuleType;
 import jakarta.annotation.PostConstruct;
@@ -52,7 +51,7 @@ public class RuleValidator {
     private synchronized Schema schema() throws IOException {
         if (schema == null) {
             try (var stream = new ClassPathResource(SCHEMA_RESOURCE).getInputStream()) {
-                schema = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_7).getSchema(stream);
+                schema = DefinitionSchemas.registry().getSchema(stream);
                 log.debug("Loaded rule JSON schema from classpath:{}", SCHEMA_RESOURCE);
             }
         }
