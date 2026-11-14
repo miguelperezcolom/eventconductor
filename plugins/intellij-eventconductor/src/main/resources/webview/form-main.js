@@ -1,21 +1,15 @@
 // Bridge between the IntelliJ (JCEF) host and the <eventconductor-form-editor> component.
 // The component's `value` is always JSON; this page converts to/from the file's YAML or JSON
-// (via js-yaml), so the Kotlin side only shuttles raw file text. Kotlin injects:
+// (via ec-yaml-edit.js, the same lossless write-back the VS Code extension uses: an edit changes
+// only the lines it has to, keeping comments and quoting), so the Kotlin side only shuttles raw
+// file text. Kotlin injects:
 //   window.__ecSetFileB64(base64)  -> push the file text into the editor
 //   window.__ecOnEdit(fileText)    -> receive an edited file text (installed by Kotlin)
 //   window.__ecSetTheme(boolean)   -> follow the IDE light/dark theme
 (function () {
   var el = document.querySelector("eventconductor-form-editor");
-  var fileIsYaml = false;
+  var fileText = "";   // the file as last pushed by the IDE (or written by us): what edits apply to
   var applying = false;
-
-  // An empty file is YAML: there is nothing to sniff, and a new .ecform the visual editor fills in
-  // should look like the ones in the docs and examples, which are all YAML. Answering JSON here
-  // meant creating a file and editing it produced JSON, a format nobody chose.
-  function looksLikeYaml(t) {
-    var s = t.replace(/^\s+/, "");
-    return !s || (s[0] !== "{" && s[0] !== "[");
-  }
 
   function b64ToUtf8(b64) {
     var bin = atob(b64);
@@ -30,10 +24,11 @@
 
   window.__ecSetFileB64 = function (b64) {
     var text = b64ToUtf8(b64);
-    fileIsYaml = looksLikeYaml(text);
+    fileText = text;
     var obj;
     try {
-      obj = text.trim() ? (fileIsYaml ? window.jsyaml.load(text) : JSON.parse(text))
+      // An empty file is YAML: a new file the editor fills in comes out like the docs' examples.
+      obj = text.trim() ? window.ecYamlEdit.parseDefinition(text)
                         : { name: "New Form", fields: [] };
     } catch (e) {
       return; // leave the editor as-is on a parse error; the text editor shows the problem
@@ -50,9 +45,9 @@
     if (applying) return; // came from us setting the value, not a user edit
     var obj;
     try { obj = JSON.parse(e.detail.value); } catch (_) { return; }
-    var fileText = fileIsYaml
-      ? window.jsyaml.dump(obj, { noRefs: true, lineWidth: 120 })
-      : JSON.stringify(obj, null, 2) + "\n";
-    if (window.__ecOnEdit) window.__ecOnEdit(fileText);
+    var next = window.ecYamlEdit.applyDefinitionEdit(fileText, obj);
+    if (next === fileText) return;
+    fileText = next;
+    if (window.__ecOnEdit) window.__ecOnEdit(next);
   });
 })();

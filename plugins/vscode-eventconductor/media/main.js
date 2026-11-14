@@ -41,7 +41,7 @@
       // ends in the `ec-export-svg` listener below.
       if (typeof el.requestExport === "function") el.requestExport();
     } else if (msg.type === "parseError") {
-      errorBox.textContent = "Could not parse this .ec file: " + msg.message;
+      errorBox.textContent = "Could not parse this workflow file: " + msg.message;
       errorBox.style.display = "block";
     } else if (msg.type === "agentCatalogue") {
       customElements.whenDefined("eventconductor-workflow-graph").then(() => {

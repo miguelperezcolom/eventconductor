@@ -1248,7 +1248,7 @@ function RNn(m) {
 }
 let fr = class extends vP {
   constructor() {
-    super(...arguments), this.value = '{"name":"New Workflow","steps":[]}', this.readOnly = !1, this.agentCatalogueUrl = "/api/workflow-agents", this.hostAgentCatalogue = !1, this.agentCatalogue = [], this.agentCatalogueError = "", this.noExpand = !1, this.hostExecution = !1, this.hostExecutionActive = !1, this.hostExecutionStopping = !1, this.heatmap = !1, this.overlay = "", this.dark = !1, this.wf = { name: "New Workflow", steps: [] }, this.overlayData = {}, this.positions = {}, this.expanded = /* @__PURE__ */ new Set(), this.beforeExpansion = null, this.bodyFrames = [], this.bodyPath = [], this.expansionSignature = "", this.layoutReady = !1, this.layoutPending = !1, this.layoutGeneration = 0, this.selectedId = null, this.selectedEdge = null, this.palettePlacing = null, this.paletteGhost = null, this.paletteHoverNode = null, this.hoverId = null, this.showMeta = !1, this.showHelp = !1, this.layoutError = null, this.fullscreen = !1, this.flowOn = !1, this.flowSpeed = 260, this.heatmapOn = !1, this.heatDays = 30, this.heatMax = 0, this.flowRaf = 0, this.flowStartTs = 0, this.flowPaths = [], this.flowPathIndex = 0, this.pulsedThisPath = /* @__PURE__ */ new Set(), this.pulseAt = {}, this.pulseColor = {}, this.pulseCount = {}, this.flowPrevPosD = 0, this.focusMode = "auto", this.focusNodeId = null, this.activePaths = [], this.focusPaint = null, this.edgeCache = /* @__PURE__ */ new Map(), this.compTargetsCache = /* @__PURE__ */ new Set(), this.compTargetsFor = null, this.draggingId = null, this.dragOffset = { x: 0, y: 0 }, this.svgEl = null, this.elkPositioned = /* @__PURE__ */ new Set(), this.linkingFrom = null, this.guardHover = null, this.linkingKind = "precondition", this.linkCursor = null, this.linkHoverId = null, this.zoomK = 1, this.panX = 0, this.panY = 0, this.viewW = 0, this.viewH = 0, this.didInitialFit = !1, this.viewportSetup = !1, this.panning = !1, this.panMoved = !1, this.panStart = { x: 0, y: 0, panX: 0, panY: 0 }, this.miniDrag = !1, this.minimapCollapsed = dNn(), this.onFullscreenChange = () => {
+    super(...arguments), this.value = '{"name":"New Workflow","steps":[]}', this.readOnly = !1, this.agentCatalogueUrl = "/api/workflow-agents", this.hostAgentCatalogue = !1, this.agentCatalogue = [], this.agentCatalogueError = "", this.noExpand = !1, this.hostExecution = !1, this.hostExecutionActive = !1, this.hostExecutionStopping = !1, this.heatmap = !1, this.overlay = "", this.dark = !1, this.wf = { name: "New Workflow", steps: [] }, this.overlayData = {}, this.positions = {}, this.expanded = /* @__PURE__ */ new Set(), this.beforeExpansion = null, this.bodyFrames = [], this.bodyPath = [], this.expansionSignature = "", this.layoutReady = !1, this.layoutPending = !1, this.layoutGeneration = 0, this.selectedId = null, this.selectedEdge = null, this.palettePlacing = null, this.paletteGhost = null, this.paletteHoverNode = null, this.hoverId = null, this.showMeta = !1, this.showHelp = !1, this.layoutError = null, this.fullscreen = !1, this.flowOn = !1, this.flowSpeed = 260, this.heatmapOn = !1, this.heatDays = 30, this.heatMax = 0, this.flowRaf = 0, this.flowStartTs = 0, this.flowPaths = [], this.flowPathIndex = 0, this.pulsedThisPath = /* @__PURE__ */ new Set(), this.pulseAt = {}, this.pulseColor = {}, this.pulseCount = {}, this.flowPrevPosD = 0, this.focusMode = "auto", this.focusNodeId = null, this.activePaths = [], this.focusPaint = null, this.edgeCache = /* @__PURE__ */ new Map(), this.compTargetsCache = /* @__PURE__ */ new Set(), this.compTargetsFor = null, this.draggingId = null, this.dragOffset = { x: 0, y: 0 }, this.svgEl = null, this.elkPositioned = /* @__PURE__ */ new Set(), this.linkingFrom = null, this.guardHover = null, this.linkingKind = "precondition", this.linkCursor = null, this.linkHoverId = null, this.zoomK = 1, this.panX = 0, this.panY = 0, this.viewW = 0, this.viewH = 0, this.didInitialFit = !1, this.viewportSetup = !1, this.panning = !1, this.panMoved = !1, this.dragMoved = !1, this.panStart = { x: 0, y: 0, panX: 0, panY: 0 }, this.miniDrag = !1, this.minimapCollapsed = dNn(), this.onFullscreenChange = () => {
       const m = document.fullscreenElement === this;
       this.fullscreen !== m && (this.fullscreen = m), m || document.removeEventListener("fullscreenchange", this.onFullscreenChange);
     }, this.onPaletteMove = (m) => {
@@ -1260,17 +1260,16 @@ let fr = class extends vP {
       m.clientX >= D.left && m.clientX <= D.right && m.clientY >= D.top && m.clientY <= D.bottom && (I ? this.addStepConnectedTo(I, E) : this.addStepOfType(E, this.toSvgPoint(m)));
     }, this.onMouseMove = (m) => {
       if (!this.draggingId || !this.svgEl) return;
-      const E = this.toSvgPoint(m);
-      this.elkPositioned.add(this.draggingId), this.positions = {
-        ...this.positions,
-        [this.draggingId]: {
-          x: Math.max(0, E.x - this.dragOffset.x),
-          y: Math.max(0, E.y - this.dragOffset.y)
-        }
-      };
+      const E = this.toSvgPoint(m), I = {
+        x: Math.max(0, E.x - this.dragOffset.x),
+        y: Math.max(0, E.y - this.dragOffset.y)
+      }, D = this.positions[this.draggingId];
+      D && Math.round(D.x) === Math.round(I.x) && Math.round(D.y) === Math.round(I.y) || (this.dragMoved = !0, this.elkPositioned.add(this.draggingId), this.positions = { ...this.positions, [this.draggingId]: I });
     }, this.onMouseUp = () => {
       const m = this.draggingId;
-      this.draggingId = null, window.removeEventListener("mousemove", this.onMouseMove), window.removeEventListener("mouseup", this.onMouseUp), m && this.captureLayout();
+      this.draggingId = null, window.removeEventListener("mousemove", this.onMouseMove), window.removeEventListener("mouseup", this.onMouseUp);
+      const E = this.dragMoved;
+      this.dragMoved = !1, m && E && this.captureLayout();
     }, this.onLinkMove = (m) => {
       this.linkingFrom && (this.linkCursor = this.toSvgPoint(m), this.linkHoverId = this.nodeAt(this.linkCursor));
     }, this.onLinkUp = () => {
@@ -1728,7 +1727,7 @@ let fr = class extends vP {
       return;
     }
     if (this.readOnly) return;
-    m.preventDefault(), this.draggingId = E;
+    m.preventDefault(), this.draggingId = E, this.dragMoved = !1;
     const D = this.positions[E] ?? { x: 0, y: 0 }, L = this.toSvgPoint(m);
     this.dragOffset = { x: L.x - D.x, y: L.y - D.y }, this.svgEl = m.currentTarget.closest("svg"), window.addEventListener("mousemove", this.onMouseMove), window.addEventListener("mouseup", this.onMouseUp);
   }

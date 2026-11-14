@@ -28,7 +28,7 @@ import javax.swing.JComponent
 /**
  * The visual half of the split editor for `.ecform` files: a JCEF browser hosting the shared
  * form-editor web component, kept in sync with the file's document. The web page owns the
- * JSON<->YAML conversion (it has js-yaml), so this class only shuttles the raw file text in and
+ * JSON<->YAML conversion (ec-yaml-edit.js, which writes an edit back as the smallest text change), so this class only shuttles the raw file text in and
  * out. Mirrors {@link EcGraphFileEditor}.
  */
 class FormGraphFileEditor(
@@ -93,7 +93,8 @@ class FormGraphFileEditor(
             applyingFromEditor = true
             try {
                 WriteCommandAction.runWriteCommandAction(project, "Edit EventConductor Form", null, Runnable {
-                    doc.setText(newText)
+                    // Only the span that differs: the caret, folding and undo steps of the text half stay put.
+                    replaceChangedSpan(doc, newText)
                 })
             } finally {
                 applyingFromEditor = false
@@ -102,7 +103,7 @@ class FormGraphFileEditor(
     }
 
     private fun buildHtml(): String {
-        val jsYaml = readResource("/webview/js-yaml.min.js")
+        val yamlEdit = readResource("/webview/ec-yaml-edit.js")
         val bundle = readResource("/webview/form-editor.js")
         val main = readResource("/webview/form-main.js")
         return """
@@ -112,7 +113,7 @@ class FormGraphFileEditor(
             <body>
             <!-- no-expand: this editor pane is already the whole surface the editor can have -->
             <eventconductor-form-editor no-expand></eventconductor-form-editor>
-            <script>$jsYaml</script>
+            <script>$yamlEdit</script>
             <script type="module">$bundle</script>
             <script>$main</script>
             </body></html>
