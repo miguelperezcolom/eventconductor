@@ -267,10 +267,10 @@ public class MigrateProcessUseCase {
                 stopTask(iteration, children);
             }
             iteration.migrateTo(targetJson, container.getOrder(), process, false,
-                    "Iteration " + iteration.getItemIndex() + " of step " + iteration.getStepId() + " moved to " + to
+                    iteration.iterationPhrase() + " of step " + iteration.getStepId() + " moved to " + to
                             + (redispatch ? "; its task changed: cancelled and dispatched again." : "."));
             if (redispatch) {
-                iteration.resetForRerun("Iteration " + iteration.getItemIndex() + " re-dispatched by the migration.");
+                iteration.resetForRerun(iteration.iterationPhrase() + " re-dispatched by the migration.");
             }
             saved.add(iteration);
         }

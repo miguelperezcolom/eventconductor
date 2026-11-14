@@ -37,4 +37,21 @@ class ForEachLabelTest {
         assertThat(unnamed).hasSize(2).allSatisfy(i -> assertThat(i.getItemLabel()).isNull());
         assertThat(ProcessGraphProjection.rowName(unnamed.get(0))).isEqualTo("broken · item 0");
     }
+
+    @Test
+    void theCompensationOfAnIterationCarriesTheLabelOfTheRunItUndoes(WorkflowTestRuntime runtime) {
+        runtime.whenTask("reserve-labelled-room").thenAnswer(task -> "102".equals(task.variable("room"))
+                ? TaskOutcome.fail("FULL", false)
+                : TaskOutcome.complete(Map.of()));
+        runtime.whenTask("release-labelled-room").thenComplete();
+
+        var run = runtime.start("rooms-compensate-labelled", "labels-2", Map.of("rooms", List.of("101", "102", "103")));
+
+        assertThat(run).isCompensated();
+        // The Steps tab, the graph's lanes and the errors read "release · Room 103", not "release · item 0".
+        var undone = iterations(run, "release");
+        assertThat(undone).extracting(StepExecution::getItemLabel).containsExactlyInAnyOrder("Room 101", "Room 103");
+        assertThat(undone).extracting(ProcessGraphProjection::rowName)
+                .containsExactlyInAnyOrder("release · Room 101", "release · Room 103");
+    }
 }

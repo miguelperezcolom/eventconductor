@@ -113,6 +113,7 @@ public final class ProcessGraphProjection {
      */
     public static String rowName(StepExecution se) {
         if (se.isIteration()) {
+            // Read through the getters (not StepExecution#iterationName) so a mocked execution reads the same.
             return se.getStepId() + " · " + (se.getItemLabel() != null && !se.getItemLabel().isBlank() ? se.getItemLabel()
                     : "item " + (se.getItemIndex() == null ? "?" : se.getItemIndex()))
                     + (se.getIteration() > 0 ? " (run " + (se.getIteration() + 1) + ")" : "");

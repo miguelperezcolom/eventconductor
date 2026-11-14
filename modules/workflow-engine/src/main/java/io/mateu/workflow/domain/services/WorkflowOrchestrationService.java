@@ -310,7 +310,7 @@ public class WorkflowOrchestrationService {
         boolean waitsForEveryIteration = !compensation && forEach.waitsForEveryIteration();
         if (failedIteration != null && !waitsForEveryIteration) {
             cancelIterations(iterations, pass);
-            container.failIterations(failedIteration.getStatus(), "Iteration " + failedIteration.getItemIndex()
+            container.failIterations(failedIteration.getStatus(), failedIteration.iterationPhrase()
                     + " of step " + container.getStepId() + " ended " + failedIteration.getStatus()
                     + (compensation ? "; the compensation cannot go on." : "; the step fails."));
             pass.save(container);
@@ -327,7 +327,7 @@ public class WorkflowOrchestrationService {
             if (ForEach.COMPENSATE_ALL.equals(forEach.failurePolicy())) {
                 container.failIterations(failedIteration == null ? StepExecutionStatus.ERROR : failedIteration.getStatus(), failed + " of " + total + " iterations of step "
                         + container.getStepId() + " failed or were cancelled"
-                        + (failedIteration == null ? "" : " (first failure: iteration " + failedIteration.getItemIndex() + ")")
+                        + (failedIteration == null ? "" : " (first failure: " + failedIteration.iterationName() + ")")
                         + "; onIterationFailure compensateAll: the step fails and the " + completed
                         + " completed ones are compensated.");
                 pass.save(container);
