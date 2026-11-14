@@ -175,6 +175,16 @@
             "at": "c5",
             "key": "declare.n4"
           }
+        ],
+        "pills": [
+          {
+            "key": "release.compensate",
+            "from": "c5",
+            "x": null,
+            "y": 990,
+            "cls": "amber",
+            "right": 130
+          }
         ]
       },
       "narration": {
@@ -369,6 +379,13 @@
             "key": "standin.hotel",
             "from": "c1",
             "right": 130,
+            "y": 950,
+            "cls": "amber"
+          },
+          {
+            "key": "release.compensate",
+            "from": "c2",
+            "x": 150,
             "y": 950,
             "cls": "amber"
           }
@@ -576,5 +593,8 @@
         ]
       }
     }
+  ],
+  "release": [
+    "release.compensate.text"
   ]
 }

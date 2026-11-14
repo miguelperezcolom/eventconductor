@@ -1,0 +1,4 @@
+{
+  "release.compensate": "`compensate: true` en END — en main, en la próxima versión (después de la 2.41.0)",
+  "release.compensate.text": "END compensate: true está en main y sale en la próxima versión (después de la v2.41.0)."
+}

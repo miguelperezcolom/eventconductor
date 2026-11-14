@@ -8,7 +8,10 @@
   "appArgs": "--workflow.git-import.repositories[0].url=file://{here}/build/hotel-definitions --workflow.git-import.repositories[0].branch=main",
   "docs": "guides/operating-running-processes/",
   "code": "examples/video-series",
-  "title": { "en": "Operating running processes", "es": "Operar procesos en marcha" },
+  "title": {
+    "en": "Operating running processes",
+    "es": "Operar procesos en marcha"
+  },
   "hook": {
     "en": "The channel manager went down overnight and three syncs failed. Find them, see why, fix them all at once — and change the process while bookings are still waiting.",
     "es": "El channel manager se cayó por la noche y fallaron tres sincronizaciones. Encuéntralas, mira por qué, arréglalas todas a la vez, y cambia el proceso con reservas todavía esperando."
@@ -22,20 +25,60 @@
     "es": "el channel manager y el hotel son sustitutos locales que sirve la propia app de la serie"
   },
   "youtubeChapters": [
-    { "at": "title", "en": "The night the channel manager went down", "es": "La noche en que se cayó el channel manager" },
-    { "at": "find", "en": "Find it", "es": "Encontrarlo" },
-    { "at": "incident", "en": "Why it failed: incidents", "es": "Por qué falló: incidencias" },
-    { "at": "retry", "en": "Retry them all", "es": "Reintentarlas todas" },
-    { "at": "byhand", "en": "Operations by hand", "es": "Operaciones a mano" },
-    { "at": "change", "en": "A new version", "es": "Una nueva versión" },
-    { "at": "migrate", "en": "Migrate a running process", "es": "Migrar un proceso en marcha" },
-    { "at": "recap", "en": "Recap", "es": "Resumen" }
+    {
+      "at": "title",
+      "en": "The night the channel manager went down",
+      "es": "La noche en que se cayó el channel manager"
+    },
+    {
+      "at": "find",
+      "en": "Find it",
+      "es": "Encontrarlo"
+    },
+    {
+      "at": "incident",
+      "en": "Why it failed: incidents",
+      "es": "Por qué falló: incidencias"
+    },
+    {
+      "at": "retry",
+      "en": "Retry them all",
+      "es": "Reintentarlas todas"
+    },
+    {
+      "at": "byhand",
+      "en": "Operations by hand",
+      "es": "Operaciones a mano"
+    },
+    {
+      "at": "change",
+      "en": "A new version",
+      "es": "Una nueva versión"
+    },
+    {
+      "at": "migrate",
+      "en": "Migrate a running process",
+      "es": "Migrar un proceso en marcha"
+    },
+    {
+      "at": "recap",
+      "en": "Recap",
+      "es": "Resumen"
+    }
   ],
   "scenes": [
     {
       "id": "title",
       "view": "title",
-      "spec": { "eyebrow": "eyebrow", "title": "title", "sub": "sub", "subAt": "c2", "top": 190, "visual": "flow", "size": 112},
+      "spec": {
+        "eyebrow": "eyebrow",
+        "title": "title",
+        "sub": "sub",
+        "subAt": "c2",
+        "top": 190,
+        "visual": "flow",
+        "size": 112
+      },
       "narration": {
         "en": [
           "Overnight, the channel manager went down, and three availability syncs failed.",
@@ -67,12 +110,16 @@
         "en": [
           "Every run is in the process list, with its business key and how far it got.",
           "Search by the key you were given: booking nine, compensated.",
-          { "text": "Or filter: only errors. Three syncs, stopped a third of the way." }
+          {
+            "text": "Or filter: only errors. Three syncs, stopped a third of the way."
+          }
         ],
         "es": [
           "Cada ejecución está en la lista de procesos, con su clave de negocio y hasta dónde llegó.",
           "Busca por la clave que te han dado: la reserva nueve, compensada.",
-          { "text": "O filtra: solo errores. Tres sincronizaciones, paradas a un tercio del camino." }
+          {
+            "text": "O filtra: solo errores. Tres sincronizaciones, paradas a un tercio del camino."
+          }
         ]
       }
     },
@@ -83,7 +130,9 @@
       "extra": 0.6,
       "narration": {
         "en": [
-          { "text": "Open one. The Errors tab says why: the channel manager answered 503, after the step's retries ran out." },
+          {
+            "text": "Open one. The Errors tab says why: the channel manager answered 503, after the step's retries ran out."
+          },
           "The Incidents page groups failures by workflow, step and cause.",
           "One incident, three processes: the same outage."
         ],
@@ -101,8 +150,35 @@
       "id": "retry",
       "view": "live",
       "spec": {
-        "terms": [{"items": [{"id": "outage-off", "at": 0.2}], "opts": {"cps": 70}, "from": 0, "to": "c1-0.3", "x": 210, "y": 560, "w": 1500, "h": 260}],
-        "pills": [{"key": "standin.cm", "from": 0.4, "to": "c1-0.3", "right": 130, "y": 860, "cls": "amber"}]
+        "terms": [
+          {
+            "items": [
+              {
+                "id": "outage-off",
+                "at": 0.2
+              }
+            ],
+            "opts": {
+              "cps": 70
+            },
+            "from": 0,
+            "to": "c1-0.3",
+            "x": 210,
+            "y": 560,
+            "w": 1500,
+            "h": 260
+          }
+        ],
+        "pills": [
+          {
+            "key": "standin.cm",
+            "from": 0.4,
+            "to": "c1-0.3",
+            "right": 130,
+            "y": 860,
+            "cls": "amber"
+          }
+        ]
       },
       "extra": 0.8,
       "narration": {
@@ -113,7 +189,10 @@
           "Nothing that had already succeeded ran twice."
         ],
         "es": [
-          { "text": "El channel manager vuelve a funcionar.", "say": "El chánel mánayer vuelve a funcionar." },
+          {
+            "text": "El channel manager vuelve a funcionar.",
+            "say": "El chánel mánayer vuelve a funcionar."
+          },
           "Reintentar todo, con un motivo: cada proceso de la incidencia se reintenta, desde donde falló, como una operación por lotes.",
           "El lote corre en segundo plano: tres procesos, tres con éxito.",
           "Nada de lo que ya había ido bien se ejecutó dos veces."
@@ -144,10 +223,29 @@
       "id": "change",
       "view": "terminal",
       "spec": {
-        "geom": { "x": 140, "y": 150, "w": 1640, "h": 760},
+        "geom": {
+          "x": 140,
+          "y": 150,
+          "w": 1640,
+          "h": 760
+        },
         "title": "a Git repository of definitions",
-        "items": [{"id": "change-def", "at": 0.3, "prompt": "hotel-definitions $"}, {"id": "git-webhook", "at": "c2", "prompt": "hotel-definitions $"}],
-        "opts": { "cps": 80, "lineGap": 0.08}
+        "items": [
+          {
+            "id": "change-def",
+            "at": 0.3,
+            "prompt": "hotel-definitions $"
+          },
+          {
+            "id": "git-webhook",
+            "at": "c2",
+            "prompt": "hotel-definitions $"
+          }
+        ],
+        "opts": {
+          "cps": 80,
+          "lineGap": 0.08
+        }
       },
       "extra": 0.8,
       "narration": {
@@ -156,7 +254,9 @@
           {
             "text": "Here the definitions are imported from a Git repository. The managers want to be reminded after four hours, not a day: one line, one commit."
           },
-          { "text": "The repository's webhook tells the engine, and it imports the new version. No build, no restart." }
+          {
+            "text": "The repository's webhook tells the engine, and it imports the new version. No build, no restart."
+          }
         ],
         "es": [
           "Los procesos también sobreviven a sus definiciones.",
@@ -199,29 +299,58 @@
     {
       "id": "recap",
       "view": "cards",
-      "spec": { "head": "recap.head", "items": "recap.items", "cols": 3, "strip": "recap.strip", "stripAt": "c2", "stripTop": 720, "cardH": 220},
+      "spec": {
+        "head": "recap.head",
+        "items": "recap.items",
+        "cols": 3,
+        "strip": "recap.strip",
+        "stripAt": "c2",
+        "stripTop": 720,
+        "cardH": 220
+      },
       "narration": {
         "en": [
           "Find a run by its key, see why it failed, group failures into incidents.",
           "Fix one by hand or thousands with a batch, from where they stopped.",
-          { "text": "Change the process, and decide which runs follow. Every operation leaves a reason in the audit trail." }
+          {
+            "text": "Change the process, and decide which runs follow. Every operation leaves a reason in the audit trail."
+          }
         ],
         "es": [
           "Encuentra una ejecución por su clave, mira por qué falló, agrupa los fallos en incidencias.",
           "Arregla una a mano o miles con un lote, desde donde se pararon.",
-          { "text": "Cambia el proceso, y decide qué ejecuciones lo siguen. Cada operación deja un motivo en la auditoría." }
+          {
+            "text": "Cambia el proceso, y decide qué ejecuciones lo siguen. Cada operación deja un motivo en la auditoría."
+          }
         ]
       }
     },
     {
       "id": "close",
       "view": "close",
-      "spec": { "line": "close.line", "next": "close.next", "links": ["close.docs", "close.app", "close.license"]},
+      "spec": {
+        "line": "close.line",
+        "next": "close.next",
+        "links": [
+          "close.docs",
+          "close.app",
+          "close.license"
+        ]
+      },
       "extra": 1.5,
       "narration": {
-        "en": ["Running processes, in hand.", "Next: testing workflows."],
-        "es": ["Los procesos en marcha, bajo control.", "Próximo capítulo: probar los flujos."]
+        "en": [
+          "Running processes, in hand.",
+          "Next: testing workflows."
+        ],
+        "es": [
+          "Los procesos en marcha, bajo control.",
+          "Próximo capítulo: probar los flujos."
+        ]
       }
     }
+  ],
+  "release": [
+    "release.compensate.text"
   ]
 }

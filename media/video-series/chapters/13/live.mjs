@@ -26,9 +26,15 @@ export async function run(c) {
     await c.waitFor(async () => /Imported 1 workflow definition/.test(spawnSync('docker', ['logs', 'orchestrator'], { encoding: 'utf8' }).stdout), 'the definition import', 300000);
     c.term('compose-ps', `${COMPOSE} ps --format 'table {{.Name}}\\t{{.Image}}\\t{{.Status}}'`, { cwd: ROOT });
 
-    // dc-run: the workshop's rooms-booking-http, unchanged, on the orchestrator → compensated.
+    // dc-run: the workshop's rooms-booking-http, unchanged, on the orchestrator → the refused room set aside, the run
+    // waiting for the guest (the guest-decides story; the cancel path's END compensate: true is after 2.41.0).
     c.term('booking-13', `ENGINE=http://admin:changeme@localhost:8105 scripts/start.sh rooms-booking-http BOOKING-13 '${ROOMS_13}' | jq '{businessKey, status}'`, { cwd: WS });
-    const p = await c.waitFor(async () => { const l = await dc('/workflow/api/processes?businessKey=BOOKING-13'); const x = l?.content?.[0]; return x?.status === 'COMPENSATED' && x; }, 'BOOKING-13 compensated on the orchestrator', 120000);
+    const p = await c.waitFor(async () => {
+      const x = (await dc('/workflow/api/processes?businessKey=BOOKING-13'))?.content?.[0];
+      if (!x) return false;
+      const steps = await dc(`/workflow/api/processes/${x.id}/steps`);
+      return (Array.isArray(steps) ? steps : steps?.content || []).some((st) => st.stepId === 'wait-for-guest' && st.status === 'PENDING') && x;
+    }, 'BOOKING-13 waiting for the guest on the orchestrator', 120000);
     await c.shot('dc-run', async (page) => {
       await c.open(`${DC}/workflow/processes/${p.id}`, 'text=Diagram')(page);
       await page.getByText('Diagram', { exact: true }).first().click();
@@ -37,9 +43,9 @@ export async function run(c) {
       s.cursor = false;
       await s.cameraNow('full');
       await s.untilCue(1, 0.2);
-      await s.camera([node(s, 'Book every room'), node(s, 'Cancel the room')], { zmax: 2.0, dur: 1.0 });
+      await s.camera([node(s, 'Book every room'), node(s, 'Wait for the guest')], { zmax: 2.0, dur: 1.0 });
       await s.untilCue(2, -0.2);
-      await s.camera([s.page.getByText(/Compensated \(/).first(), graph(s).locator('g.node')], { zmax: 1.6, dur: 0.9, pad: 30 });
+      await s.camera(graph(s).locator('g.node'), { zmax: 1.6, dur: 0.9, pad: 30 });
     }, { context: { httpCredentials: AUTH } });
 
     // topics: the broker's topics in Redpanda Console.

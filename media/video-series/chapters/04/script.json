@@ -317,6 +317,16 @@
             "at": "c3",
             "key": "decide.n3"
           }
+        ],
+        "pills": [
+          {
+            "key": "release.compensate",
+            "from": "c3",
+            "x": null,
+            "y": 990,
+            "cls": "amber",
+            "right": 130
+          }
         ]
       },
       "narration": {
@@ -479,6 +489,15 @@
             "y": 600,
             "w": 1480,
             "h": 240
+          }
+        ],
+        "pills": [
+          {
+            "key": "release.compensate",
+            "from": 0.4,
+            "x": 150,
+            "y": 980,
+            "cls": "amber"
           }
         ]
       },
@@ -653,7 +672,17 @@
     {
       "id": "policies",
       "view": "policies",
-      "spec": {},
+      "spec": {
+        "pills": [
+          {
+            "key": "release.compensate",
+            "from": "c4",
+            "x": 150,
+            "y": 990,
+            "cls": "amber"
+          }
+        ]
+      },
       "narration": {
         "en": [
           "Continue is one of three policies.",
@@ -779,5 +808,8 @@
         ]
       }
     }
+  ],
+  "release": [
+    "release.compensate.text"
   ]
 }

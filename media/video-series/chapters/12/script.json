@@ -4,7 +4,10 @@
   "app": "examples/workshop-hotel-booking",
   "docs": "guides/testing-workflows/",
   "code": "examples/workshop-hotel-booking",
-  "title": { "en": "Testing workflows", "es": "Probar los flujos" },
+  "title": {
+    "en": "Testing workflows",
+    "es": "Probar los flujos"
+  },
   "hook": {
     "en": "A process that waits three days for a manager can be tested in milliseconds — and a change that would strand the bookings already waiting can fail the build before it ships.",
     "es": "Un proceso que espera tres días a un responsable se puede probar en milisegundos, y un cambio que dejaría tiradas las reservas que ya esperan puede romper el build antes de salir."
@@ -13,52 +16,126 @@
     "en": "The workflow-test kit as of 2.41.0: @EventConductorTest with stubbed steps and time under your control, escalation, compensation and per-iteration assertions, scenarios as YAML data, the workflow coverage report, and eventconductor:verify — validation, the migration check and the coverage floors in one goal — failing on a change that strands running processes, then green. Every terminal is a real run on the workshop project (examples/workshop-hotel-booking).",
     "es": "El kit de test de flujos en la 2.41.0: @EventConductorTest con pasos simulados y el tiempo bajo tu control, aserciones de escalado, de compensación y por iteración, escenarios como datos en YAML, el informe de cobertura de flujos y eventconductor:verify —validación, la comprobación de migración y los mínimos de cobertura en un solo goal— fallando con un cambio que deja tirados procesos en marcha, y luego en verde. Cada terminal es una ejecución real sobre el proyecto del taller (examples/workshop-hotel-booking)."
   },
-  "standIns": { "en": "the tests stub the hotel and the workers, as tests do", "es": "los tests simulan el hotel y los workers, como hacen los tests" },
+  "standIns": {
+    "en": "the tests stub the hotel and the workers, as tests do",
+    "es": "los tests simulan el hotel y los workers, como hacen los tests"
+  },
   "youtubeChapters": [
-    { "at": "title", "en": "Tested like code", "es": "Probado como código" },
-    { "at": "kit", "en": "The test kit", "es": "El kit de test" },
-    { "at": "scenarios", "en": "Scenarios as data", "es": "Escenarios como datos" },
-    { "at": "run", "en": "Running them", "es": "Ejecutarlos" },
-    { "at": "coverage", "en": "Workflow coverage", "es": "Cobertura de flujos" },
-    { "at": "gap", "en": "eventconductor:verify", "es": "eventconductor:verify" },
-    { "at": "ci", "en": "In CI", "es": "En CI" }
+    {
+      "at": "title",
+      "en": "Tested like code",
+      "es": "Probado como código"
+    },
+    {
+      "at": "kit",
+      "en": "The test kit",
+      "es": "El kit de test"
+    },
+    {
+      "at": "scenarios",
+      "en": "Scenarios as data",
+      "es": "Escenarios como datos"
+    },
+    {
+      "at": "run",
+      "en": "Running them",
+      "es": "Ejecutarlos"
+    },
+    {
+      "at": "coverage",
+      "en": "Workflow coverage",
+      "es": "Cobertura de flujos"
+    },
+    {
+      "at": "gap",
+      "en": "eventconductor:verify",
+      "es": "eventconductor:verify"
+    },
+    {
+      "at": "ci",
+      "en": "In CI",
+      "es": "En CI"
+    }
   ],
   "scenes": [
     {
       "id": "title",
       "view": "title",
-      "spec": { "eyebrow": "eyebrow", "title": "title", "sub": "sub", "subAt": "c2", "top": 190, "visual": "flow", "size": 112},
+      "spec": {
+        "eyebrow": "eyebrow",
+        "title": "title",
+        "sub": "sub",
+        "subAt": "c2",
+        "top": 190,
+        "visual": "flow",
+        "size": 112
+      },
       "narration": {
         "en": [
           "This booking waits up to three days for a manager.",
           "Testing that by hand means waiting three days, or not testing it.",
-          { "text": "This chapter: testing workflows, in EventConductor.", "say": "This chapter: testing workflows, in Event Conductor." }
+          {
+            "text": "This chapter: testing workflows, in EventConductor.",
+            "say": "This chapter: testing workflows, in Event Conductor."
+          }
         ],
         "es": [
           "Esta reserva espera hasta tres días a un responsable.",
           "Probarlo a mano es esperar tres días, o no probarlo.",
-          { "text": "En este capítulo: probar los flujos, en EventConductor.", "say": "En este capítulo: probar los flujos, en Event Conductor." }
+          {
+            "text": "En este capítulo: probar los flujos, en EventConductor.",
+            "say": "En este capítulo: probar los flujos, en Event Conductor."
+          }
         ]
       }
     },
     {
       "id": "kit",
       "view": "code",
-      "code": { "file": "examples/workshop-hotel-booking/src/test/java/com/example/hotel/TimeTest.java", "from": "^/\\*\\* Testing, part c", "to": "^    }$" },
+      "code": {
+        "file": "examples/workshop-hotel-booking/src/test/java/com/example/hotel/TimeTest.java",
+        "from": "^/\\*\\* Testing, part c",
+        "to": "^    }$"
+      },
       "spec": {
-        "geom": { "x": 70, "y": 120, "w": 1780, "h": 760},
+        "geom": {
+          "x": 70,
+          "y": 120,
+          "w": 1780,
+          "h": 760
+        },
         "fontSize": 22,
         "emphasis": [
-          { "at": "c0", "match": ["@EventConductorTest", "WorkflowTestRuntime runtime"]},
-          { "at": "c1", "match": ["whenStep"]},
-          { "at": "c2", "match": ["advanceTime\\(Duration.ofMinutes", "invocationsOf", "isFailed"]}
+          {
+            "at": "c0",
+            "match": [
+              "@EventConductorTest",
+              "WorkflowTestRuntime runtime"
+            ]
+          },
+          {
+            "at": "c1",
+            "match": [
+              "whenStep"
+            ]
+          },
+          {
+            "at": "c2",
+            "match": [
+              "advanceTime\\(Duration.ofMinutes",
+              "invocationsOf",
+              "isFailed"
+            ]
+          }
         ]
       },
       "narration": {
         "en": [
           "The test kit gives every test its own engine, in memory: no server, no broker, no database.",
           "You say how each step answers: complete, fail, or never answer at all.",
-          { "text": "And time is yours: five minutes pass in a millisecond. The hotel that never answers was tried three times, then given up on." }
+          {
+            "text": "And time is yours: five minutes pass in a millisecond. The hotel that never answers was tried three times, then given up on."
+          }
         ],
         "es": [
           "El kit de test le da a cada test su propio motor, en memoria: sin servidor, sin broker, sin base de datos.",
@@ -78,17 +155,49 @@
         "to": "hasNotPassedSteps\\(\"rooms\"\\)"
       },
       "spec": {
-        "geom": { "x": 70, "y": 80, "w": 1780, "h": 500},
+        "geom": {
+          "x": 70,
+          "y": 80,
+          "w": 1780,
+          "h": 500
+        },
         "fontSize": 22,
         "emphasis": [
-          { "at": "c0", "match": ["advanceTime\\(Duration.ofDays\\(2\\)\\)", "hasEscalated"]},
-          { "at": "c1", "match": ["ofDays\\(1\\).plusMinutes", "TIMEOUT", "hasNotPassedSteps"]}
+          {
+            "at": "c0",
+            "match": [
+              "advanceTime\\(Duration.ofDays\\(2\\)\\)",
+              "hasEscalated"
+            ]
+          },
+          {
+            "at": "c1",
+            "match": [
+              "ofDays\\(1\\).plusMinutes",
+              "TIMEOUT",
+              "hasNotPassedSteps"
+            ]
+          }
         ],
         "term": {
-          "geom": { "x": 70, "y": 620, "w": 1780, "h": 380},
+          "geom": {
+            "x": 70,
+            "y": 620,
+            "w": 1780,
+            "h": 380
+          },
           "from": "c2",
-          "items": [{"id": "iterations-src", "at": "c2+0.3", "prompt": "~/workshop-hotel-booking $"}],
-          "opts": { "cps": 90, "lineGap": 0.1}
+          "items": [
+            {
+              "id": "iterations-src",
+              "at": "c2+0.3",
+              "prompt": "~/workshop-hotel-booking $"
+            }
+          ],
+          "opts": {
+            "cps": 90,
+            "lineGap": 0.1
+          }
         }
       },
       "narration": {
@@ -110,33 +219,77 @@
     {
       "id": "scenarios",
       "view": "code",
-      "code": { "file": "examples/workshop-hotel-booking/src/test/scenarios/rooms-booking.yaml", "from": 1, "to": 35},
+      "code": {
+        "file": "examples/workshop-hotel-booking/src/test/scenarios/rooms-booking.yaml",
+        "from": 1,
+        "to": "invocations: \\{ cancel-room-booking: 1 \\}"
+      },
       "spec": {
-        "geom": { "x": 70, "y": 50, "w": 1250, "h": 980},
+        "geom": {
+          "x": 70,
+          "y": 50,
+          "w": 1250,
+          "h": 980
+        },
         "fontSize": 21,
         "emphasis": [
-          { "at": "c0", "match": ["^steps:", "register-booking:", "create-room-booking:", "when: \"room.type", "complete: \\{ roomBookingId"]},
+          {
+            "at": "c0",
+            "match": [
+              "^steps:",
+              "register-booking:",
+              "create-room-booking:",
+              "when: \"room.type",
+              "complete: \\{ roomBookingId"
+            ]
+          },
           {
             "at": "c1",
             "match": [
-              "^  - name: a sold-out",
-              "workflow: rooms-booking-safe",
-              "rooms: \\[ \\{ number: \"101\", type: double \\}, \\{ number: \"900\"",
+              "^  - name: the guest cancels",
+              "sendMessage",
               "status: COMPENSATED",
-              "passedSteps: \\[register-booking, cancel",
-              "notPassedSteps"
+              "cancelled-by-guest"
             ]
           },
-          { "at": "c2", "match": ["ScenariosTest"]}
+          {
+            "at": "c2",
+            "match": [
+              "ScenariosTest"
+            ]
+          }
         ],
-        "notes": [{"at": "c0", "key": "scen.n1"}, {"at": "c1", "key": "scen.n2"}, {"at": "c2", "key": "scen.n3"}]
+        "notes": [
+          {
+            "at": "c0",
+            "key": "scen.n1"
+          },
+          {
+            "at": "c1",
+            "key": "scen.n2"
+          },
+          {
+            "at": "c2",
+            "key": "scen.n3"
+          }
+        ],
+        "pills": [
+          {
+            "key": "release.compensate",
+            "from": "c1",
+            "x": null,
+            "y": 990,
+            "cls": "amber",
+            "right": 130
+          }
+        ]
       },
       "narration": {
         "en": [
           {
             "text": "A test can also be data. The file says how the steps answer, here, the first answer whose condition holds: a penthouse is sold out."
           },
-          "Each scenario names a definition, its variables, and how it must end: compensated, the guest never told.",
+          "Each scenario names a definition, its variables, what happens on the way — here, the guest's answer — and how it must end: the guest cancels, so the run ends compensated.",
           {
             "text": "A five-line test class runs every file in the directory, each scenario as a test of its own. Anyone can add one without writing Java."
           }
@@ -156,10 +309,23 @@
       "id": "run",
       "view": "terminal",
       "spec": {
-        "geom": { "x": 120, "y": 120, "w": 1680, "h": 760},
+        "geom": {
+          "x": 120,
+          "y": 120,
+          "w": 1680,
+          "h": 760
+        },
         "title": "examples/workshop-hotel-booking",
-        "items": [{"id": "mvn-test", "at": 0.3}],
-        "opts": { "cps": 40, "lineGap": 0.25}
+        "items": [
+          {
+            "id": "mvn-test",
+            "at": 0.3
+          }
+        ],
+        "opts": {
+          "cps": 40,
+          "lineGap": 0.25
+        }
       },
       "extra": 0.8,
       "narration": {
@@ -177,10 +343,23 @@
       "id": "coverage",
       "view": "terminal",
       "spec": {
-        "geom": { "x": 80, "y": 90, "w": 1760, "h": 900},
+        "geom": {
+          "x": 80,
+          "y": 90,
+          "w": 1760,
+          "h": 900
+        },
         "title": "target/eventconductor-coverage/coverage.txt",
-        "items": [{"id": "coverage", "at": 0.3}],
-        "opts": { "cps": 50, "lineGap": 0.12}
+        "items": [
+          {
+            "id": "coverage",
+            "at": 0.3
+          }
+        ],
+        "opts": {
+          "cps": 50,
+          "lineGap": 0.12
+        }
       },
       "extra": 1.0,
       "narration": {
@@ -198,21 +377,38 @@
       "id": "gap",
       "view": "terminal",
       "spec": {
-        "geom": { "x": 80, "y": 110, "w": 1760, "h": 820},
+        "geom": {
+          "x": 80,
+          "y": 110,
+          "w": 1760,
+          "h": 820
+        },
         "title": "examples/workshop-hotel-booking",
-        "items": [{"id": "verify-gap", "at": 0.3}],
-        "opts": { "cps": 90, "lineGap": 0.12}
+        "items": [
+          {
+            "id": "verify-gap",
+            "at": 0.3
+          }
+        ],
+        "opts": {
+          "cps": 90,
+          "lineGap": 0.12
+        }
       },
       "extra": 0.8,
       "narration": {
         "en": [
           "Now a change: rename the approval step.",
-          { "text": "It validates, and the definition still makes sense. But bookings are waiting in that step right now, in production." },
+          {
+            "text": "It validates, and the definition still makes sense. But bookings are waiting in that step right now, in production."
+          },
           "eventconductor:verify compares with the previous version in git, and fails the build: a process waiting there could not be migrated."
         ],
         "es": [
           "Ahora un cambio: renombrar el paso de aprobación.",
-          { "text": "Valida, y la definición sigue teniendo sentido. Pero ahora mismo hay reservas esperando en ese paso, en producción." },
+          {
+            "text": "Valida, y la definición sigue teniendo sentido. Pero ahora mismo hay reservas esperando en ese paso, en producción."
+          },
           {
             "text": "eventconductor:verify compara con la versión anterior en git, y rompe el build: un proceso que espera ahí no se podría migrar.",
             "say": "Event conductor verify compara con la versión anterior en guit, y rompe el build: un proceso que espera ahí no se podría migrar."
@@ -224,20 +420,37 @@
       "id": "green",
       "view": "terminal",
       "spec": {
-        "geom": { "x": 80, "y": 140, "w": 1760, "h": 700},
+        "geom": {
+          "x": 80,
+          "y": 140,
+          "w": 1760,
+          "h": 700
+        },
         "title": "examples/workshop-hotel-booking",
-        "items": [{"id": "verify-green", "at": 0.3}],
-        "opts": { "cps": 60, "lineGap": 0.3}
+        "items": [
+          {
+            "id": "verify-green",
+            "at": 0.3
+          }
+        ],
+        "opts": {
+          "cps": 60,
+          "lineGap": 0.3
+        }
       },
       "extra": 1.0,
       "narration": {
         "en": [
           "Without the rename, one command runs everything: validation, the tests, the migration check, and the coverage floors set in the pom.",
-          { "text": "Every check runs, and the build fails once, with what each one found. Here, every check passed." }
+          {
+            "text": "Every check runs, and the build fails once, with what each one found. Here, every check passed."
+          }
         ],
         "es": [
           "Sin el cambio de nombre, un solo comando lo ejecuta todo: validación, los tests, la comprobación de migración y los mínimos de cobertura del pom.",
-          { "text": "Se ejecutan todas las comprobaciones, y el build falla una sola vez, con lo que encontró cada una. Aquí, todas pasaron." }
+          {
+            "text": "Se ejecutan todas las comprobaciones, y el build falla una sola vez, con lo que encontró cada una. Aquí, todas pasaron."
+          }
         ]
       }
     },
@@ -250,14 +463,52 @@
         "to": "path: target/eventconductor-coverage"
       },
       "spec": {
-        "geom": { "x": 70, "y": 50, "w": 1250, "h": 980},
+        "geom": {
+          "x": 70,
+          "y": 50,
+          "w": 1250,
+          "h": 980
+        },
         "fontSize": 22,
         "emphasis": [
-          { "at": "c0", "match": ["pull_request:", "branches: \\[main\\]"]},
-          { "at": "c1", "match": ["fetch-depth: 0", "mvn -B verify", "FROM:"]},
-          { "at": "c2", "match": ["upload-artifact", "workflow-coverage", "path: target"]}
+          {
+            "at": "c0",
+            "match": [
+              "pull_request:",
+              "branches: \\[main\\]"
+            ]
+          },
+          {
+            "at": "c1",
+            "match": [
+              "fetch-depth: 0",
+              "mvn -B verify",
+              "FROM:"
+            ]
+          },
+          {
+            "at": "c2",
+            "match": [
+              "upload-artifact",
+              "workflow-coverage",
+              "path: target"
+            ]
+          }
         ],
-        "notes": [{"at": "c0", "key": "ci.n1"}, {"at": "c1", "key": "ci.n2"}, {"at": "c2", "key": "ci.n3"}]
+        "notes": [
+          {
+            "at": "c0",
+            "key": "ci.n1"
+          },
+          {
+            "at": "c1",
+            "key": "ci.n2"
+          },
+          {
+            "at": "c2",
+            "key": "ci.n3"
+          }
+        ]
       },
       "narration": {
         "en": [
@@ -275,12 +526,29 @@
     {
       "id": "close",
       "view": "close",
-      "spec": { "line": "close.line", "next": "close.next", "links": ["close.docs", "close.workshop", "close.license"]},
+      "spec": {
+        "line": "close.line",
+        "next": "close.next",
+        "links": [
+          "close.docs",
+          "close.workshop",
+          "close.license"
+        ]
+      },
       "extra": 1.5,
       "narration": {
-        "en": ["Definitions, tested like code.", "Next: from laptop to cluster."],
-        "es": ["Definiciones probadas como código.", "Próximo capítulo: del portátil al clúster."]
+        "en": [
+          "Definitions, tested like code.",
+          "Next: from laptop to cluster."
+        ],
+        "es": [
+          "Definiciones probadas como código.",
+          "Próximo capítulo: del portátil al clúster."
+        ]
       }
     }
+  ],
+  "release": [
+    "release.compensate.text"
   ]
 }

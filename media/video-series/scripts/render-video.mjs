@@ -24,7 +24,9 @@ const read = (p) => readFileSync(p, 'utf8');
 const json = (p) => JSON.parse(read(p));
 
 const script = json(`${chDir}/script.json`);
-const strings = json(`${chDir}/strings.${lang}.json`);
+// Release notes shared by every chapter (one place to flip when a release ships), then the chapter's own strings.
+const releasePath = resolve(here, `scenes/release.${lang}.json`);
+const strings = { ...(existsSync(releasePath) ? json(releasePath) : {}), ...json(`${chDir}/strings.${lang}.json`) };
 const svg = read(resolve(repo, 'doc/public/favicon.svg'));
 const logo = svg.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
 

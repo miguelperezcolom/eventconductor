@@ -31,6 +31,7 @@ const L = {
   },
 };
 
+const release = (lang) => { const p = resolve(here, `scenes/release.${lang}.json`); return existsSync(p) ? json(p) : {}; };
 function description(textLang, tl) {
   const byId = Object.fromEntries(tl.scenes.map((s) => [s.id, s]));
   const marks = script.youtubeChapters.map((c) => ({ t: byId[c.at].start, label: c[textLang] }));
@@ -38,7 +39,9 @@ function description(textLang, tl) {
   for (let i = 1; i < marks.length; i++) if (marks[i].t - marks[i - 1].t < 10) console.warn(`! youtube chapter "${marks[i - 1].label}" is under 10 s (${tl.lang})`);
   const x = L[textLang];
   return [script.hook[textLang], '', script.about[textLang], '', `${x.chapters}:`, ...marks.map((m) => `${mmss(m.t)} ${m.label}`), '',
-    `${x.docs}: ${docsUrl}`, `${x.code}: ${codeUrl}`, '', x.rec(lastTag)].join('\n');
+    `${x.docs}: ${docsUrl}`, `${x.code}: ${codeUrl}`, '', x.rec(lastTag),
+    // release notes: one shared entry per language (scenes/release.<lang>.json), flipped when the release ships
+    ...(script.release || []).map((k) => release(textLang)[k] ?? '')].filter((l, i, a) => !(l === '' && i === a.length - 1)).join('\n');
 }
 
 let md = `# Chapter ${N} — ${script.title.en}\n\nNothing is uploaded by the pipeline: these are the texts for the owner's review.\n`;
