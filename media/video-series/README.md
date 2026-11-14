@@ -39,7 +39,7 @@ frame-by-frame rendering); nothing rendered is committed — it all goes under `
 | `scripts/render-video.mjs` | frames → silent master; `--stills t1,t2` for single frames; `--thumb` |
 | `scripts/mix.py`, `scripts/srt.mjs`, `scripts/assemble.sh` | narration track; `.srt` in EN and ES timed to the master; final encode |
 | `scripts/youtube.mjs` | `chNN-youtube.md`: titles, EN/ES descriptions with chapter timestamps, playlist, visibility — for review, nothing is uploaded |
-| `scripts/app.sh` | starts the chapter's app fresh on its own port (8095 workshop, 8096 series app) or `PORT`, stops it |
+| `scripts/app.sh` | starts the chapter's app fresh on its port (`port` in script.json — 8096 for the series app —, default 8095; `PORT` overrides), stops it |
 | `scripts/check-asr.py` | optional self-check: Whisper transcribes every sentence back and flags garbled lines |
 
 ## Use
@@ -58,3 +58,14 @@ Needs JDK 21, Maven, Node 20+, ffmpeg (libx264), Python 3.12, and the app's port
 elsewhere — commands shown on screen then say that port). `MAVEN_ARGS` is passed to every Maven run (e.g. a separate
 local repository). Iterating: `SKIP_RECORD=1` reuses the recorded frames, `ONLY=lanes,hotel` re-records
 some shots, `node scripts/render-video.mjs 04 en --stills 12,40.5` renders single frames.
+
+### Optional per chapter (additive, chapters 9–14 use them)
+
+- `script.json`: `port` (the app's own port: console title, `ENGINE`, `--server.port`), `prompt` (terminal prompt),
+  `appArgs` (Spring arguments; `{here}` = this directory), `before` (shell, at the repo root, before the app starts),
+  `apps` (`[{name, app, port, appArgs}]`: more apps, exported to the recorder as `ENGINE_<NAME>`).
+- Scene specs: `host` / `app` on a live scene (another app's window title), `pills` on a code scene.
+- Recorder: `c.term(id, cmd, { env })`, `c.shot(id, open, script, { context })` (Playwright context options, e.g.
+  `httpCredentials`), `c.open(url)` with a full URL for another app's page.
+- A narration string with several sentences becomes several cues (`tts.py` splits it); write `{"text": …}` to keep
+  it one cue, so `cN` and `s.untilCue(N)` mean the same entry in both languages.

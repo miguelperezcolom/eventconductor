@@ -2,6 +2,8 @@
  "chapter": 8,
  "slug": "time-and-messages",
  "app": "examples/video-series",
+ "port": 8096,
+ "prompt": "~/video-series $",
  "docs": "guides/scheduling-and-deadlines/",
  "code": "examples/video-series",
  "title": {

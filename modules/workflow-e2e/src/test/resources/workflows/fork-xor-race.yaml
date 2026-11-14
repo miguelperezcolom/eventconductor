@@ -1,0 +1,13 @@
+id: fork-xor-race
+name: Book with two suppliers at once, keep the first and undo the other
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: fork, type: FORK, name: Ask both, preconditionStepId: start }
+  - { id: book-a, type: ACTION, name: Book with A, topic: work, preconditionStepId: fork, compensable: true, compensationStepId: cancel-a }
+  - { id: book-b, type: ACTION, name: Book with B, topic: work, preconditionStepId: fork, compensable: true, compensationStepId: cancel-b }
+  - { id: first, type: JOIN, name: First to confirm, joinType: XOR, compensateLosers: true, preconditionStepIds: [book-a, book-b] }
+  - { id: confirm, type: ACTION, name: Confirm, topic: work, preconditionStepId: first }
+  - { id: end, type: END, name: End, preconditionStepId: confirm }
+  - { id: cancel-a, type: ACTION, name: Cancel A, topic: work }
+  - { id: cancel-b, type: ACTION, name: Cancel B, topic: work }

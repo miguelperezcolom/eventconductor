@@ -1,0 +1,309 @@
+{
+  "chapter": 10,
+  "slug": "ai-in-the-process",
+  "app": "examples/video-series",
+  "port": 8096,
+  "prompt": "~/video-series $",
+  "apps": [{"name": "ws", "app": "examples/workshop-hotel-booking", "port": 8095}],
+  "docs": "guides/llm-calls/",
+  "code": "examples/video-series",
+  "title": { "en": "AI in the process", "es": "IA dentro del proceso" },
+  "hook": {
+    "en": "A guest writes a special request in plain words. A model can read it, an agent can prepare it — and the process still decides what happens next.",
+    "es": "Un huésped escribe una petición especial con sus palabras. Un modelo puede leerla, un agente puede prepararla, y el proceso sigue decidiendo qué pasa después."
+  },
+  "about": {
+    "en": "Language models and agents as steps of a process: LLM_CALL with a response schema, output mapping and token usage (on the workshop's local stand-in model), how to point it at a real provider, sensitive variables kept out of prompts, the AGENT step running against a demo stand-in agent catalogue and runtime, and the engine's opt-in MCP server driven by a scripted client making real requests. Recorded on the workshop app and the series app.",
+    "es": "Modelos de lenguaje y agentes como pasos de un proceso: LLM_CALL con un esquema de respuesta, mapeo de la salida y consumo de tokens (sobre el modelo sustituto local del taller), cómo apuntarlo a un proveedor real, las variables sensibles fuera de los prompts, el paso AGENT ejecutándose contra un catálogo y un runtime de agentes de demostración, y el servidor MCP opcional del motor manejado por un cliente con guion que hace peticiones reales. Grabado sobre la app del taller y la app de la serie."
+  },
+  "standIns": {
+    "en": "the language model is the workshop app's local stand-in, the agent catalogue and runtime are a demo stand-in (rules, not a model), and the MCP client is a script",
+    "es": "el modelo de lenguaje es el sustituto local de la app del taller, el catálogo y el runtime de agentes son un sustituto de demostración (reglas, no un modelo) y el cliente MCP es un guion"
+  },
+  "youtubeChapters": [
+    { "at": "title", "en": "AI in the process", "es": "IA dentro del proceso" },
+    { "at": "llm", "en": "LLM_CALL", "es": "LLM_CALL" },
+    { "at": "providers", "en": "Real providers, sensitive data", "es": "Proveedores reales, datos sensibles" },
+    { "at": "agent", "en": "The AGENT step", "es": "El paso AGENT" },
+    { "at": "mcp", "en": "MCP", "es": "MCP" },
+    { "at": "recap", "en": "Recap", "es": "Resumen" }
+  ],
+  "scenes": [
+    {
+      "id": "title",
+      "view": "title",
+      "spec": { "eyebrow": "eyebrow", "title": "title", "sub": "sub", "subAt": "c2", "top": 190, "visual": "flow", "size": 112},
+      "narration": {
+        "en": [
+          "A guest writes a special request, in plain words.",
+          "A model can read it, an agent can prepare it, and an assistant can ask the engine what happened.",
+          { "text": "This chapter: AI in the process, in EventConductor.", "say": "This chapter: A I in the process, in Event Conductor." }
+        ],
+        "es": [
+          "Un huésped escribe una petición especial, con sus palabras.",
+          "Un modelo puede leerla, un agente puede prepararla, y un asistente puede preguntarle al motor qué pasó.",
+          {
+            "text": "En este capítulo: IA dentro del proceso, en EventConductor.",
+            "say": "En este capítulo: i a dentro del proceso, en Event Conductor."
+          }
+        ]
+      }
+    },
+    {
+      "id": "llm",
+      "view": "code",
+      "code": {
+        "file": "examples/workshop-hotel-booking/src/main/resources/workflows/05-special-request.ec.yaml",
+        "from": "^  - id: classify-request",
+        "to": "usageVariable"
+      },
+      "spec": {
+        "geom": { "x": 70, "y": 120, "w": 1250, "h": 860},
+        "fontSize": 22,
+        "emphasis": [
+          { "at": "c0", "match": ["type: LLM_CALL", "connection: assistant"]},
+          { "at": "c1", "match": ["system:", "prompt:"]},
+          { "at": "c2", "match": ["responseSchema:", "type: object", "required:", "properties:", "category:", "needsStaff:", "summary:"]},
+          { "at": "c3", "match": ["retries: 2", "timeout: PT60S"]},
+          { "at": "c4", "match": ["output:", "requestCategory:", "needsStaff: \"json", "usageVariable"]}
+        ],
+        "notes": [
+          { "at": "c0", "key": "llm.n1" },
+          { "at": "c2", "key": "llm.n2" },
+          { "at": "c3", "key": "llm.n3" },
+          { "at": "c4", "key": "llm.n4" }
+        ]
+      },
+      "narration": {
+        "en": [
+          {
+            "text": "A step can ask a language model. The connection is a name; the provider and its key live in configuration, never in the definition.",
+            "say": "A step can ask a language model. The connection is a name; the provider and its key live in configuration, never in the definition."
+          },
+          "The prompt is filled in from the process variables.",
+          "The answer must be JSON, valid against this schema.",
+          "If it is not, the step fails with an error that is retried, so its retries apply.",
+          "The output maps fields of the answer to variables, and the usage variable records the tokens spent."
+        ],
+        "es": [
+          {
+            "text": "Un paso puede preguntar a un modelo de lenguaje. La conexión es un nombre; el proveedor y su clave están en la configuración, nunca en la definición."
+          },
+          { "text": "El prompt se rellena con las variables del proceso.", "say": "El prompt se rellena con las variables del proceso." },
+          {
+            "text": "La respuesta tiene que ser JSON, válido según este esquema.",
+            "say": "La respuesta tiene que ser yeisón, válido según este esquema."
+          },
+          "Si no lo es, el paso falla con un error que se reintenta, así que se aplican sus reintentos.",
+          "La salida lleva campos de la respuesta a variables, y la variable de consumo registra los tokens gastados."
+        ]
+      }
+    },
+    {
+      "id": "llm-run",
+      "view": "live",
+      "spec": {
+        "host": "localhost:8095",
+        "terms": [
+          {
+            "items": [{"id": "request-6", "at": 0.2, "prompt": "~/workshop-hotel-booking $"}],
+            "opts": { "cps": 90, "lineGap": 0.05},
+            "from": 0,
+            "to": "c1-0.2",
+            "x": 210,
+            "y": 520,
+            "w": 1500,
+            "h": 400
+          }
+        ],
+        "pills": [{"key": "standin.model", "from": 0.4, "right": 130, "y": 990, "cls": "amber"}]
+      },
+      "extra": 0.8,
+      "narration": {
+        "en": [
+          "A booking with a request: the guest uses a wheelchair.",
+          { "text": "The run completed. The model's answer became variables: the category, accessibility, and whether staff must act." },
+          "And the usage: the model, and the tokens in and out."
+        ],
+        "es": [
+          "Una reserva con una petición: el huésped usa silla de ruedas.",
+          {
+            "text": "La ejecución terminó. La respuesta del modelo se convirtió en variables: la categoría, accesibilidad, y si el personal tiene que actuar."
+          },
+          "Y el consumo: el modelo, y los tokens de entrada y de salida."
+        ]
+      }
+    },
+    {
+      "id": "providers",
+      "view": "code",
+      "code": {
+        "file": "examples/workshop-hotel-booking/src/main/resources/application.properties",
+        "from": "^# --- The language model",
+        "to": "assistant.api-key"
+      },
+      "spec": {
+        "geom": { "x": 70, "y": 140, "w": 1780, "h": 520},
+        "fontSize": 22,
+        "emphasis": [
+          { "at": "c0", "match": ["provider=openai", "base-url=", "model=fake-model", "api-key=not-a-real-key"]},
+          { "at": "c1", "match": ["provider=anthropic", "model=claude", "ANTHROPIC_API_KEY"]}
+        ],
+        "pills": [{"key": "providers.sensitive", "from": "c2", "x": 150, "y": 720}]
+      },
+      "narration": {
+        "en": [
+          "In this video the model is a stand-in that the workshop app serves itself: no key, nothing leaves the laptop.",
+          "For a real one, set the provider, anthropic, or openai for OpenAI and any compatible server, the model, and the key from the environment.",
+          "And variables a definition declares sensitive never reach a prompt, unless the step opts in."
+        ],
+        "es": [
+          "En este vídeo el modelo es un sustituto que sirve la propia app del taller: sin clave, nada sale del portátil.",
+          {
+            "text": "Para uno real, indica el proveedor, anthropic, u openai para OpenAI y cualquier servidor compatible, el modelo, y la clave desde el entorno.",
+            "say": "Para uno real, indica el proveedor, ánthropic, u open ei ai para open ei ai y cualquier servidor compatible, el modelo, y la clave desde el entorno."
+          },
+          "Y las variables que una definición declara sensibles nunca llegan a un prompt, salvo que el paso lo permita expresamente."
+        ]
+      }
+    },
+    {
+      "id": "agent",
+      "view": "code",
+      "code": {
+        "file": "examples/video-series/src/main/resources/workflows/special-request-agent.ec.yaml",
+        "from": "^  - id: prepare-request",
+        "to": "json:parse"
+      },
+      "spec": {
+        "geom": { "x": 70, "y": 120, "w": 1250, "h": 860},
+        "fontSize": 22,
+        "emphasis": [
+          { "at": "c0", "match": ["type: AGENT", "agent:", "ref: front-desk-assistant", "taskPrompt:", "input:", "outputVariable: preparation"]},
+          { "at": "c1", "match": ["ref: front-desk-assistant"]},
+          { "at": "c2", "match": ["retries: 0", "timeout: PT5M"]},
+          { "at": "c3", "match": ["type: CHOICE", "json:parse\\(preparation\\)"]}
+        ],
+        "notes": [
+          { "at": "c0", "key": "agent.n1" },
+          { "at": "c1", "key": "agent.n2" },
+          { "at": "c2", "key": "agent.n3" },
+          { "at": "c3", "key": "agent.n4" }
+        ]
+      },
+      "narration": {
+        "en": [
+          "An AGENT step hands a task to a published agent: which agent, a task prompt, its input, and the variable for its result.",
+          "The reference is checked against the agent catalogue when the definition is imported.",
+          "An agent's failure is final, so its retries stay at zero.",
+          "Its result is JSON, so the next step can branch on it."
+        ],
+        "es": [
+          {
+            "text": "Un paso AGENT le pasa una tarea a un agente publicado: qué agente, un prompt de la tarea, su entrada y la variable para su resultado.",
+            "say": "Un paso éiyent le pasa una tarea a un agente publicado: qué agente, un prompt de la tarea, su entrada y la variable para su resultado."
+          },
+          "La referencia se comprueba contra el catálogo de agentes cuando se importa la definición.",
+          "El fallo de un agente es definitivo, así que sus reintentos se quedan en cero.",
+          {
+            "text": "Su resultado es JSON, así que el paso siguiente puede decidir según él.",
+            "say": "Su resultado es yeisón, así que el paso siguiente puede decidir según él."
+          }
+        ]
+      }
+    },
+    {
+      "id": "agent-run",
+      "view": "live",
+      "spec": {
+        "terms": [
+          {
+            "items": [{"id": "agent-1", "at": 0.2}],
+            "opts": { "cps": 90, "lineGap": 0.05},
+            "from": 0,
+            "to": "c1-0.2",
+            "x": 210,
+            "y": 560,
+            "w": 1500,
+            "h": 330
+          }
+        ],
+        "pills": [{"key": "standin.agent", "from": 0.4, "right": 130, "y": 990, "cls": "amber"}]
+      },
+      "extra": 0.8,
+      "narration": {
+        "en": [
+          "Here the catalogue and the runtime are a demo stand-in that answers by rules, so every run gives the same answer.",
+          "A wheelchair request: the agent says staff must act, and the choice takes that branch.",
+          "Its whole answer is a variable of the run: category, actions, and a summary."
+        ],
+        "es": [
+          "Aquí el catálogo y el runtime son un sustituto de demostración que responde con reglas, así que cada ejecución da la misma respuesta.",
+          "Una petición de silla de ruedas: el agente dice que el personal tiene que actuar, y la decisión toma esa rama.",
+          "Su respuesta completa es una variable de la ejecución: categoría, acciones y un resumen."
+        ]
+      }
+    },
+    {
+      "id": "mcp",
+      "view": "terminal",
+      "spec": {
+        "geom": { "x": 100, "y": 50, "w": 1720, "h": 900},
+        "title": "examples/video-series — a scripted MCP client",
+        "items": [{"id": "mcp-demo", "at": 0.3}],
+        "opts": { "cps": 70, "lineGap": 0.32},
+        "pills": [{"key": "mcp.optin", "from": 0.4, "right": 100, "y": 985, "cls": "amber"}]
+      },
+      "extra": 1.0,
+      "narration": {
+        "en": [
+          { "text": "And the engine can be a tool for an assistant. Its MCP server is opt-in: a dependency you add." },
+          "This is a scripted client, with no model in the loop, making real requests to it.",
+          "It lists the tools and the definitions, publishes a booking event, which starts onboarding through its trigger, and reads the run back, with its log.",
+          "There is no tool that starts a process outright: processes start from their doors, here an event."
+        ],
+        "es": [
+          {
+            "text": "Y el motor puede ser una herramienta para un asistente. Su servidor MCP es opcional: una dependencia que añades.",
+            "say": "Y el motor puede ser una herramienta para un asistente. Su servidor eme ce pe es opcional: una dependencia que añades."
+          },
+          "Esto es un cliente con guion, sin ningún modelo de por medio, haciéndole peticiones reales.",
+          "Lista las herramientas y las definiciones, publica un evento de reserva, que arranca el alta mediante su disparador, y vuelve a leer la ejecución, con su registro.",
+          "No hay ninguna herramienta que arranque un proceso sin más: los procesos arrancan por sus puertas, aquí un evento."
+        ]
+      }
+    },
+    {
+      "id": "recap",
+      "view": "cards",
+      "spec": { "head": "recap.head", "items": "recap.items", "cols": 3, "strip": "recap.strip", "stripAt": "c3", "stripTop": 680, "cardH": 400},
+      "narration": {
+        "en": [
+          "A model for a judgement, with its answer checked against a schema.",
+          "An agent for a task, with its result in a variable.",
+          "And MCP, so an assistant can operate the engine, once you switch it on.",
+          "In every case, the process decides what happens next, and every step is on record."
+        ],
+        "es": [
+          "Un modelo para un juicio, con su respuesta comprobada contra un esquema.",
+          "Un agente para una tarea, con su resultado en una variable.",
+          {
+            "text": "Y MCP, para que un asistente pueda operar el motor, cuando lo actives.",
+            "say": "Y eme ce pe, para que un asistente pueda operar el motor, cuando lo actives."
+          },
+          "En todos los casos, el proceso decide qué pasa después, y cada paso queda registrado."
+        ]
+      }
+    },
+    {
+      "id": "close",
+      "view": "close",
+      "spec": { "line": "close.line", "next": "close.next", "links": ["close.docs", "close.app", "close.license"]},
+      "extra": 1.5,
+      "narration": {
+        "en": ["AI where it helps, the process in charge.", "Next: operating running processes."],
+        "es": ["IA donde ayuda, y el proceso al mando.", "Próximo capítulo: operar procesos en marcha."]
+      }
+    }
+  ]
+}

@@ -98,7 +98,7 @@ class Shot {
     await p.evaluate(([rp, show, x, y]) => { window.__recPos?.(x, y); window.__recRing?.(rp); window.__recShow?.(show); }, [ringP, this.cursor, this.mouse.x, this.mouse.y]);
     if (ringP >= 1) this.ring = null;
     const name = String(this.f).padStart(5, '0') + '.jpg';
-    await p.screenshot({ path: `${this.dir}/${name}`, type: 'jpeg', quality: 90, animations: 'allow', caret: 'initial' });
+    await p.screenshot({ path: `${this.dir}/${name}`, type: 'jpeg', quality: 90, animations: 'allow', caret: 'initial', timeout: 180000 });
     this.frames.push({ f: name, cam: { ...this.cam } });
     this.f++;
   }
@@ -110,7 +110,7 @@ class Shot {
 
   async box(target) {
     const loc = typeof target === 'string' ? this.page.locator(target).first() : target;
-    await loc.waitFor({ state: 'visible', timeout: 15000 });
+    await loc.waitFor({ state: 'visible', timeout: 60000 });
     const b = await loc.boundingBox();
     if (!b) throw new Error(`no box for ${target}`);
     return b;
@@ -202,16 +202,16 @@ const ctx = {
   base: BASE, port: PORT, lang, chapter, repo, here, build, scenes,
   api: async (path, init) => { const r = await fetch(BASE + path, init); if (!r.ok) throw new Error(`${path}: ${r.status}`); return r.json(); },
   processByKey: async (key) => (await ctx.api(`/workflow/api/processes?size=200`)).content.find((p) => p.businessKey === key),
-  waitFor: async (fn, what, ms = 30000) => { const t0 = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t0 > ms) throw new Error(`timeout waiting for ${what}`); await sleep(300); } },
+  waitFor: async (fn, what, ms = 120000) => { const t0 = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t0 > ms) throw new Error(`timeout waiting for ${what}`); await sleep(300); } },
 
   /** Run a REAL command (bash, in cwd relative to the repo) and keep its output for terminal scene `id`. */
-  term(id, cmd, { cwd = 'examples/workshop-hotel-booking', keep = null, cache = false, show = cmd } = {}) {
+  term(id, cmd, { cwd = 'examples/workshop-hotel-booking', keep = null, cache = false, show = cmd, env = {} } = {}) {
     const dir = cache ? resolve(here, `build/ch${chapter}/term`) : `${build}/term`;
     mkdirSync(dir, { recursive: true });
     const file = `${dir}/${id}.json`;
     if (cache && existsSync(file) && !process.env.FRESH) { console.log(`term ${id}: cached`); return JSON.parse(readFileSync(file, 'utf8')); }
     console.log(`term ${id}: $ ${cmd}`);
-    const r = spawnSync('bash', ['-c', cmd], { cwd: resolve(repo, cwd), encoding: 'utf8', env: { ...process.env, ENGINE: BASE }, maxBuffer: 64 << 20 });
+    const r = spawnSync('bash', ['-c', cmd], { cwd: resolve(repo, cwd), encoding: 'utf8', env: { ...process.env, ENGINE: BASE, ...env }, maxBuffer: 64 << 20 });
     let lines = (r.stdout + r.stderr).replace(/\x1b\[[0-9;]*m/g, '').split('\n').filter((l) => l.trim().length);
     if (keep) lines = lines.filter((l) => keep.test(l));
     // Paths as a viewer would see them from the example's directory (no machine-specific prefixes).
@@ -226,7 +226,7 @@ const ctx = {
    * Film live scene `id` (or a part of scene `opts.scene`: [opts.from, opts.until), scene times — so the
    * scene can show a state before a real command and the state after it; parts are filmed in order).
    */
-  async shot(id, open, script, { viewport = { w: VW, h: VH }, scale = viewport.w < VW ? 3 : SCALE, cookies = [], scene: sceneId = id, from = null, until = null } = {}) {
+  async shot(id, open, script, { viewport = { w: VW, h: VH }, scale = viewport.w < VW ? 3 : SCALE, cookies = [], context: contextOptions = {}, scene: sceneId = id, from = null, until = null } = {}) {
     const scene = scenes[sceneId];
     if (!scene) throw new Error(`no scene ${sceneId} in the timeline`);
     if (only && !only.has(sceneId)) return;
@@ -235,7 +235,7 @@ const ctx = {
     const dir = `${build}/live/${sceneId}`;
     if (t0s === 0) rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
-    const context = await browser.newContext({ viewport: { width: viewport.w, height: viewport.h }, deviceScaleFactor: scale, colorScheme: 'dark', reducedMotion: 'no-preference' });
+    const context = await browser.newContext({ viewport: { width: viewport.w, height: viewport.h }, deviceScaleFactor: scale, colorScheme: 'dark', reducedMotion: 'no-preference', ...contextOptions });
     if (cookies.length) await context.addCookies(cookies.map((k) => ({ url: BASE, ...k })));
     const page = await context.newPage();
     await page.addInitScript(CURSOR);
@@ -342,7 +342,7 @@ const ctx = {
   },
   /** Open a console page and wait until `ready` (a selector or function) is there — off camera. */
   open: (path, ready) => async (page) => {
-    await page.goto(BASE + path);
+    await page.goto(/^https?:/.test(path) ? path : BASE + path);   // another app's page: a full URL
     for (let i = 0; i < 100; i++) {
       await page.clock.runFor(100); await sleep(50);
       const ok = typeof ready === 'function' ? await ready(page) : await page.locator(ready).first().isVisible().catch(() => false);

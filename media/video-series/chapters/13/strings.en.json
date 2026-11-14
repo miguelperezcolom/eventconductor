@@ -1,0 +1,79 @@
+{
+  "eyebrow": "EventConductor · Chapter 13",
+  "title": "From laptop **to cluster**",
+  "sub": "Embedded · Kafka · Helm",
+  "flow": [
+    [
+      "embedded · memory",
+      "az",
+      "c0"
+    ],
+    [
+      "embedded · JPA",
+      "az",
+      "c0"
+    ],
+    [
+      "kafka + JPA",
+      "amb",
+      "c1"
+    ],
+    [
+      "Helm chart",
+      "amb",
+      "c1"
+    ]
+  ],
+  "embedded.pill": "`workflow.mode` = embedded | kafka   ·   `workflow.persistence` = memory | jpa",
+  "topo.head": "Same definitions, every topology",
+  "topo.items": [
+    [
+      "embedded · memory",
+      "",
+      "inside your app; tests and demos",
+      "c0"
+    ],
+    [
+      "embedded · JPA",
+      "",
+      "inside your app, state in its database; survives restarts",
+      "c0+1.0"
+    ],
+    [
+      "kafka + JPA",
+      "",
+      "an orchestrator owns each process; workers on topics, any language (HTTP workers too)",
+      "c1"
+    ]
+  ],
+  "topo.strip": [
+    "built-in workers in the orchestrator (since 2.35): `HTTP_CALL` · `LLM_CALL` · `PUBLISH_EVENT`"
+  ],
+  "compose.pins": "+ chapters/13/compose.2.41.0.yml: image 2.41.0 · postgres:16 · healthcheck · ports (the file alone fails today: reported)",
+  "standin.hotel": "hotel: local stand-in, served by the workshop app on the host",
+  "recap.head": "From laptop to cluster",
+  "recap.items": [
+    [
+      "laptop",
+      "embedded",
+      "memory or your database — two properties",
+      "c0"
+    ],
+    [
+      "cluster",
+      "kafka",
+      "orchestrator + workers over Kafka · the Helm chart",
+      "c1"
+    ]
+  ],
+  "recap.strip": [
+    "definitions from Git, re-imported on a signed webhook: **change without redeploying**"
+  ],
+  "close.line": "One definition, **every topology.**",
+  "close.next": "Next · Secure and observable by default",
+  "close.docs": "eventconductor.mateu.io · Deployment modes",
+  "close.chart": "charts/eventconductor",
+  "close.license": "Open source · MIT",
+  "thumb.title": "From laptop **to cluster**",
+  "thumb.sub": "Embedded · Kafka · Helm"
+}

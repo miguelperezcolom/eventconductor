@@ -2,6 +2,8 @@
  "chapter": 6,
  "slug": "branches-loops-and-sub-processes",
  "app": "examples/video-series",
+ "port": 8096,
+ "prompt": "~/video-series $",
  "docs": "guides/loops-and-multi-instance/",
  "code": "examples/video-series",
  "title": {

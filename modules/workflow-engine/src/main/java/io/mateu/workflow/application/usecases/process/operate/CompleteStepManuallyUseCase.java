@@ -180,7 +180,7 @@ public class CompleteStepManuallyUseCase {
                 "completed step " + target.getStepId() + " (was " + wasStatus + ")"
                         + (outputs.isEmpty() ? "" : " with "
                         + String.join(", ", outputs.stream().map(v -> v.name() + " = " + OperatorAudit.quote(audited, v.name(), v.value())).toList()))
-                        + (target.isIteration() ? " (iteration " + target.getItemIndex() + " of its forEach)" : "")
+                        + (target.isIteration() ? " (i" + target.iterationPhrase().substring(1) + " of its forEach)" : "")
                         + (reopens ? "; the process is running again" : ""));
 
         if (!ProcessStatus.PAUSED.equals(updated.getStatus())) {

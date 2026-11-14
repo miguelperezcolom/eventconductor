@@ -24,7 +24,7 @@ class AbandonedBranchServiceTest {
         var step = pojoFromJson(json, Step.class);
         steps.put(step.id(), step);
         executions.put(step.id(), StepExecution.builder().id(step.id() + "-x").stepId(step.id()).status(status)
-                .finishedAt(finishedAt).build());
+                .stepJson(json).finishedAt(finishedAt).build());
     }
 
     @Test
@@ -62,14 +62,62 @@ class AbandonedBranchServiceTest {
     }
 
     @Test
-    void twoLinksSatisfiedWhenTheJoinFiredLeaveNoLoser() {
+    void whenBothLinksCompletedBeforeTheJoinFiredTheFirstToCompleteIsTheOnlyWinner() {
+        // A single worker thread finishes both branches before the join is even looked at.
+        step("{\"id\":\"start\",\"type\":\"START\"}", StepExecutionStatus.COMPLETED, T0);
+        step("{\"id\":\"fork\",\"type\":\"FORK\",\"preconditionStepId\":\"start\"}", StepExecutionStatus.COMPLETED, T0);
+        step("{\"id\":\"a\",\"type\":\"ACTION\",\"preconditionStepId\":\"fork\"}", StepExecutionStatus.COMPLETED, T0.plusSeconds(2));
+        step("{\"id\":\"b\",\"type\":\"ACTION\",\"preconditionStepId\":\"fork\"}", StepExecutionStatus.COMPLETED, T0.plusSeconds(1));
+        step("{\"id\":\"first\",\"type\":\"JOIN\",\"joinType\":\"XOR\",\"compensateLosers\":true,\"preconditionStepIds\":[\"a\",\"b\"]}",
+                StepExecutionStatus.COMPLETED, T0.plusSeconds(3));
+
+        assertThat(AbandonedBranchService.losingBranches(executions.get("first"), steps.get("first"), executions,
+                new AbandonedBranchService.Graph(steps))).isEqualTo(Set.of("a"));
+    }
+
+    @Test
+    void twoLinksThatCompletedAtTheSameInstantAreSettledByTheJoinsLinkOrder() {
         step("{\"id\":\"start\",\"type\":\"START\"}", StepExecutionStatus.COMPLETED, T0);
         step("{\"id\":\"a\",\"type\":\"ACTION\",\"preconditionStepId\":\"start\"}", StepExecutionStatus.COMPLETED, T0.plusSeconds(1));
         step("{\"id\":\"b\",\"type\":\"ACTION\",\"preconditionStepId\":\"start\"}", StepExecutionStatus.COMPLETED, T0.plusSeconds(1));
-        step("{\"id\":\"first\",\"type\":\"JOIN\",\"joinType\":\"XOR\",\"preconditionStepIds\":[\"a\",\"b\"]}",
+        step("{\"id\":\"first\",\"type\":\"JOIN\",\"joinType\":\"XOR\",\"preconditionStepIds\":[\"b\",\"a\"]}",
                 StepExecutionStatus.COMPLETED, T0.plusSeconds(1));
 
         assertThat(AbandonedBranchService.losingBranches(executions.get("first"), steps.get("first"), executions,
-                new AbandonedBranchService.Graph(steps))).isEmpty();
+                new AbandonedBranchService.Graph(steps))).isEqualTo(Set.of("a"));
+    }
+
+    @Test
+    void aStepReportingOnABranchThatAlreadyLostIsOnALosingBranch() {
+        step("{\"id\":\"start\",\"type\":\"START\"}", StepExecutionStatus.COMPLETED, T0);
+        step("{\"id\":\"fork\",\"type\":\"FORK\",\"preconditionStepId\":\"start\"}", StepExecutionStatus.COMPLETED, T0);
+        step("{\"id\":\"fast\",\"type\":\"ACTION\",\"preconditionStepId\":\"fork\"}", StepExecutionStatus.COMPLETED, T0.plusSeconds(1));
+        step("{\"id\":\"hold\",\"type\":\"ACTION\",\"preconditionStepId\":\"fork\"}", StepExecutionStatus.RUNNING, null);
+        step("{\"id\":\"quote\",\"type\":\"ACTION\",\"preconditionStepId\":\"hold\"}", StepExecutionStatus.CREATED, null);
+        step("{\"id\":\"first\",\"type\":\"JOIN\",\"joinType\":\"XOR\",\"compensateLosers\":true,\"preconditionStepIds\":[\"fast\",\"quote\"]}",
+                StepExecutionStatus.CREATED, null);
+        var all = java.util.List.copyOf(executions.values());
+
+        // The join has not fired yet, but 'fast' got there first: what 'hold' and 'quote' report now loses.
+        assertThat(AbandonedBranchService.isOnALosingBranch("hold", all)).isTrue();
+        assertThat(AbandonedBranchService.isOnALosingBranch("quote", all)).isTrue();
+        assertThat(AbandonedBranchService.isOnALosingBranch("fast", all)).isFalse();
+        assertThat(AbandonedBranchService.isOnALosingBranch("fork", all)).isFalse();
+    }
+
+    @Test
+    void nothingLosesBeforeAnyLinkCompletesNorWithoutCompensateLosers() {
+        step("{\"id\":\"start\",\"type\":\"START\"}", StepExecutionStatus.COMPLETED, T0);
+        step("{\"id\":\"a\",\"type\":\"ACTION\",\"preconditionStepId\":\"start\"}", StepExecutionStatus.RUNNING, null);
+        step("{\"id\":\"b\",\"type\":\"ACTION\",\"preconditionStepId\":\"start\"}", StepExecutionStatus.RUNNING, null);
+        step("{\"id\":\"first\",\"type\":\"JOIN\",\"joinType\":\"XOR\",\"compensateLosers\":true,\"preconditionStepIds\":[\"a\",\"b\"]}",
+                StepExecutionStatus.CREATED, null);
+        assertThat(AbandonedBranchService.isOnALosingBranch("b", java.util.List.copyOf(executions.values()))).isFalse();
+
+        // 'a' won — but a plain XOR join leaves the other branch to run on, and what it reports stands.
+        step("{\"id\":\"a\",\"type\":\"ACTION\",\"preconditionStepId\":\"start\"}", StepExecutionStatus.COMPLETED, T0.plusSeconds(1));
+        step("{\"id\":\"first\",\"type\":\"JOIN\",\"joinType\":\"XOR\",\"preconditionStepIds\":[\"a\",\"b\"]}",
+                StepExecutionStatus.CREATED, null);
+        assertThat(AbandonedBranchService.isOnALosingBranch("b", java.util.List.copyOf(executions.values()))).isFalse();
     }
 }

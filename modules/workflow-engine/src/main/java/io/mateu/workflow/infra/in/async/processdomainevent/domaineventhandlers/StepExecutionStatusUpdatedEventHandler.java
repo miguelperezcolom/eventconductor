@@ -208,7 +208,8 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
             run.markCleanup(cleanup.reason());
             stepExecutionRepository.save(run);
             for (int i = 0; i < units.size(); i++) {
-                stepExecutionRepository.save(StepExecution.iterationOf(run, run.getStepJson(), i, compensationScope(units.get(i))));
+                stepExecutionRepository.save(StepExecution.iterationOf(run, run.getStepJson(), i, compensationScope(units.get(i)),
+                        units.get(i).getItemLabel()));
             }
             log.info("Process {}: compensating {} run(s) of step {} left by an abandoned branch ({}).",
                     process.getId(), units.size(), units.get(0).getStepId(), cleanup.reason());
@@ -264,7 +265,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
                     compensation.beginIterations(process, units.size(), units.get(0).getStepId(), idsOf(units));
                     for (int i = 0; i < units.size(); i++) {
                         stepExecutionRepository.save(io.mateu.workflow.domain.aggregates.StepExecution.iterationOf(
-                                compensation, compensation.getStepJson(), i, compensationScope(units.get(i))));
+                                compensation, compensation.getStepJson(), i, compensationScope(units.get(i)), units.get(i).getItemLabel()));
                     }
                 } else {
                     compensation.start(process);
@@ -308,7 +309,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
         stepExecutionRepository.save(again);
         for (int i = 0; i < units.size(); i++) {
             stepExecutionRepository.save(io.mateu.workflow.domain.aggregates.StepExecution.iterationOf(
-                    again, again.getStepJson(), i, compensationScope(units.get(i))));
+                    again, again.getStepJson(), i, compensationScope(units.get(i)), units.get(i).getItemLabel()));
         }
         if (ProcessStatus.COMPENSATED.equals(process.getStatus())
                 || ProcessStatus.COMPENSATION_FAILED.equals(process.getStatus())) {

@@ -102,4 +102,26 @@ class GraphReadabilityJourneyTest extends AbstractUiE2eTest {
                 .anySatisfy(s -> assertThat(s).startsWith("repeat:poll:↻ until iteration >= 2"))
                 .anySatisfy(s -> assertThat(s).startsWith("loop-chip:↺ while iteration < 2"));
     }
+
+    /**
+     * The minimap sits in the bottom-right corner, and a graph centred in a 1280×720 window used to
+     * put its last step — the END, the one a reader looks for — right under it. The fit now keeps
+     * every step clear of it, and the reader can fold it away.
+     */
+    @Test
+    void theMinimapCoversNoStepAt1280x720AndFoldsAway() {
+        page.setViewportSize(1280, 720);
+        var id = startProcess("ui-saga", "graph-minimap");
+
+        var detail = ui.goToProcesses().open(id);
+        detail.openTab("Diagram");
+
+        awaitUntil(THE_GRAPH_LAYS_OUT, () -> "open".equals(detail.minimapState()) && !detail.stepOrderNumbers().isEmpty());
+        assertThat(detail.nodesUnderMinimap()).as("no step drawn beneath the minimap").isEmpty();
+
+        detail.foldMinimap();
+
+        awaitUntil(THE_GRAPH_LAYS_OUT, () -> "folded".equals(detail.minimapState()));
+        assertThat(detail.nodesUnderMinimap()).as("nor beneath the button that brings it back").isEmpty();
+    }
 }

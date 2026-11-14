@@ -1,0 +1,21 @@
+{
+  "eyebrow": "EventConductor · Chapter 11",
+  "title": "Operating **running processes**",
+  "sub": "Search · incidents · batches · migration",
+  "flow": [["find", "az", "c1"], ["why", "az", "c1"], ["fix — one or all", "good", "c1"], ["change, migrate", "amb", "c1"]],
+  "standin.cm": "channel manager: local stand-in, with an outage switch",
+  "recap.head": "Operating running processes",
+  "recap.items": [
+    ["find", "", "business key · filters · Errors tab · **Incidents** by cause", "c0"],
+    ["fix", "", "retry from failure · restart · complete or retry a step · **batch operations**", "c1"],
+    ["change", "", "versions side by side (JPA) · **Migrate…** with a dry run", "c2"]
+  ],
+  "recap.strip": ["every operation asks for a **reason**, recorded with your name in the process's audit trail"],
+  "close.line": "Running processes, **in hand.**",
+  "close.next": "Next · Testing workflows",
+  "close.docs": "eventconductor.mateu.io · Operating running processes",
+  "close.app": "examples/video-series",
+  "close.license": "Open source · MIT",
+  "thumb.title": "Operating **running processes**",
+  "thumb.sub": "Search · incidents · batches · migration"
+}

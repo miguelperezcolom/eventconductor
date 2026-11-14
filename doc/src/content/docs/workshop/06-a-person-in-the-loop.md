@@ -109,13 +109,27 @@ The process stops at the approval, drawn yellow; everything after it waits, fade
 
 The **forms engine** runs inside the app (the `forms-engine` dependency): it reads the `booking-approval` form from `forms/booking-approval.ecform` at startup (`forms.directory-import.directories` in `application.properties`), takes the USER_TASK from the engine — no broker in between — and puts it in the **task inbox** of the `front-desk-managers` group. A manager claims the task and submits the form; the form's values (`approved`, `comment`) become process variables.
 
-The workshop has no login server, so act as the manager with the script, which calls the forms engine's task API (`/forms/api/tasks`) as *mia*, of `front-desk-managers`:
+The console shows that inbox under **Forms → Tasks** (the workshop's console mounts the forms engine's `FormsOperationsMenu` beside the engine's `WorkflowMenu`, in `ui/Home.java`). The approval is offered to `front-desk-managers` only, so the inbox looks empty until you are one of them.
+
+The workshop has no login server, so act as the manager with its **laptop-only user switch**: open
+
+```text
+http://localhost:8095/dev/act-as/manager
+```
+
+The browser is now *mia*, of `front-desk-managers`, and lands on **Forms → Tasks**. Pick BOOKING-7's *booking-approval* task, **Run** it, **Claim** it, tick *Approve this booking*, write a comment (`Regular guest`) and **Complete**. `http://localhost:8095/dev/act-as/nobody` makes the browser anonymous again.
+
+:::caution[Local use only]
+The switch (`dev/ActAs.java`) leaves an **unsigned** token where the console keeps its sign-in token (the `__mateu_auth_token` cookie), and the app believes it only because the workshop sets `workflow.security.trust-forwarded-token=true` — a shortcut for what a gateway does after verifying a real login. Anybody can type such a token. The switch answers only while that setting is on and only to a browser on the same machine, but neither it nor the setting belongs in anything reachable from a network: there, sign in for real (Spring Security, or a gateway in front that verifies the token).
+:::
+
+Or, from a terminal, the script does the same through the forms engine's task API (`/forms/api/tasks`), as *mia*:
 
 ```bash
 scripts/approve.sh BOOKING-7 true 'Regular guest'
 ```
 
-(It finds the booking's open task, claims it and completes it with `{"approved": true, "comment": "Regular guest"}`. The app takes the caller from the token as it comes — `workflow.security.trust-forwarded-token=true`, a laptop-only shortcut for what a gateway does after verifying a real login.)
+(It finds the booking's open task, claims it and completes it with `{"approved": true, "comment": "Regular guest"}`, sending the same unsigned token as a bearer header.)
 
 An operator can also decide it from the console, without the form: **Complete step**, step `approve`, output variable `approved = true`, and a reason — which goes to the process's audit trail with your name. That is the way out when the manager approved by phone (module 7).
 
@@ -125,10 +139,11 @@ The CHOICE takes the approved branch, the rooms are booked at the hotel, the gue
 
 ![Booked: approval, choice, rooms 3/3, guest told](/workshop/06-booked.jpg)
 
-Start another one (BOOKING-8) and reject it — `scripts/approve.sh BOOKING-8 false`: the CHOICE takes the default branch, and the run finishes through the *Rejected* end (status *Completed* — rejecting is a normal outcome, not a failure) without touching the hotel.
+Start another one (BOOKING-8) and reject it — leave *Approve this booking* unticked in the form, or `scripts/approve.sh BOOKING-8 false`: the CHOICE takes the default branch, and the run finishes through the *Rejected* end (status *Completed* — rejecting is a normal outcome, not a failure) without touching the hotel.
 
 ## Check
 
 - [ ] BOOKING-7 waits at *Manager approval* until you complete it.
+- [ ] As the manager (`/dev/act-as/manager`), its task is under **Forms → Tasks**, and completing the form there moves the process on.
 - [ ] With `approved = true` it ends at **Booked**; with `false`, at **Rejected** — and the hotel holds nothing for it.
 - [ ] In a test, the three days of the timeout pass in milliseconds — [Part 9 · Time](/workshop/testing/time/).

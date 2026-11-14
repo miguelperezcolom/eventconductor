@@ -192,27 +192,62 @@ public class AbandonedBranchService {
     }
 
     /**
-     * The steps of the branches an XOR join did not go on with: those that lead into it only through an
-     * incoming link that was not satisfied when it fired. A branch's steps are the ancestors of that
-     * link's step, minus everything that also leads to a winning link (the shared part upstream of the
-     * split), and minus any step that also leads somewhere other than this join — that one is still
-     * needed by the rest of the flow.
+     * The steps of the branches an XOR join did not go on with.
+     *
+     * <p>Exactly one incoming link wins: the <b>first to complete</b> — the earliest {@code finishedAt}
+     * among the links whose step had completed when the join fired, ties broken by the order the join
+     * lists its links in. Every other link loses, whether its step was still running or had completed
+     * too: on a single worker thread both branches routinely finish before the join is even looked at,
+     * and "both completed in time" must not mean "both won" (neither would be cleaned up).
+     *
+     * <p>A branch's steps are the ancestors of a losing link's step, minus everything that also leads to
+     * the winning link (the shared part upstream of the split), and minus any step that also leads
+     * somewhere other than this join — that one is still needed by the rest of the flow.
      */
     static Set<String> losingBranches(StepExecution join, Step step, Map<String, StepExecution> byStepId, Graph graph) {
         var firedAt = join.getFinishedAt() != null ? join.getFinishedAt() : join.getStartedAt();
-        Set<String> winners = new HashSet<>();
-        Set<String> losers = new HashSet<>();
-        for (Precondition link : step.resolvedPreconditions()) {
-            var source = byStepId.get(link.stepId());
-            boolean won = source != null && source.getStatus() == StepExecutionStatus.COMPLETED
-                    && (firedAt == null || source.getFinishedAt() == null || !source.getFinishedAt().isAfter(firedAt));
-            (won ? winners : losers).add(link.stepId());
-        }
-        losers.removeAll(winners);
-        if (winners.isEmpty() || losers.isEmpty()) {
+        var winner = winningLink(step, byStepId, firedAt);
+        if (winner == null) {
             return Set.of();
         }
-        var shared = graph.ancestorsInclusive(winners);
+        return branchesLosingTo(winner, step, graph);
+    }
+
+    /**
+     * The incoming link of an XOR join that wins: the first, among those whose step has completed (by
+     * {@code firedAt}, when it is given), to have completed — ties broken by the join's own link order.
+     * Null when no link has completed.
+     */
+    static String winningLink(Step join, Map<String, StepExecution> byStepId, java.time.LocalDateTime firedAt) {
+        String winner = null;
+        java.time.LocalDateTime winnerAt = null;
+        for (Precondition link : join.resolvedPreconditions()) {
+            var source = byStepId.get(link.stepId());
+            if (source == null || source.getStatus() != StepExecutionStatus.COMPLETED) {
+                continue;
+            }
+            var at = source.getFinishedAt();
+            if (firedAt != null && at != null && at.isAfter(firedAt)) {
+                continue; // completed after the join fired: it cannot have been the one the join went on with
+            }
+            if (winner == null || (at != null && (winnerAt == null || at.isBefore(winnerAt)))) {
+                winner = link.stepId();
+                winnerAt = at;
+            }
+        }
+        return winner;
+    }
+
+    private static Set<String> branchesLosingTo(String winner, Step join, Graph graph) {
+        Set<String> losers = new HashSet<>();
+        for (Precondition link : join.resolvedPreconditions()) {
+            losers.add(link.stepId());
+        }
+        losers.remove(winner);
+        if (losers.isEmpty()) {
+            return Set.of();
+        }
+        var shared = graph.ancestorsInclusive(Set.of(winner));
         Set<String> branch = new HashSet<>(graph.ancestorsInclusive(losers));
         branch.removeAll(shared);
         // Prune what also feeds something outside the branch and this join.
@@ -221,7 +256,7 @@ public class AbandonedBranchService {
             changed = false;
             for (var stepId : List.copyOf(branch)) {
                 for (var successor : graph.successors(stepId)) {
-                    if (!branch.contains(successor) && !successor.equals(step.id())) {
+                    if (!branch.contains(successor) && !successor.equals(join.id())) {
                         branch.remove(stepId);
                         changed = true;
                         break;
@@ -230,6 +265,52 @@ public class AbandonedBranchService {
             }
         }
         return branch;
+    }
+
+    /**
+     * Whether {@code stepId} sits on a branch that has already lost an XOR join with
+     * {@code compensateLosers}: another incoming link of that join has completed first (see
+     * {@link #losingBranches}), so whatever this step reports now cannot be the outcome the flow goes on
+     * with. Its variables are then kept on its own run — where its compensation reads them (the booking
+     * id to cancel) — instead of being written over the winner's on the process.
+     */
+    public static boolean isOnALosingBranch(String stepId, List<StepExecution> executions) {
+        if (stepId == null || executions == null || executions.isEmpty()) {
+            return false;
+        }
+        var current = StepExecutions.current(executions);
+        Map<String, StepExecution> byStepId = new HashMap<>();
+        Map<String, Step> steps = new HashMap<>();
+        for (var execution : current) {
+            byStepId.put(execution.getStepId(), execution);
+            try {
+                steps.put(execution.getStepId(), pojoFromJson(execution.getStepJson(), Step.class));
+            } catch (RuntimeException e) {
+                // A step whose JSON cannot be read takes no part in the graph.
+            }
+        }
+        Graph graph = null;
+        for (var join : steps.values()) {
+            if (join.type() != StepType.JOIN || join.joinType() != JoinType.XOR || !join.compensatesLosers()) {
+                continue;
+            }
+            var joinExecution = byStepId.get(join.id());
+            java.time.LocalDateTime firedAt = null;
+            if (joinExecution != null && joinExecution.getStatus() == StepExecutionStatus.COMPLETED) {
+                firedAt = joinExecution.getFinishedAt() != null ? joinExecution.getFinishedAt() : joinExecution.getStartedAt();
+            }
+            var winner = winningLink(join, byStepId, firedAt);
+            if (winner == null || winner.equals(stepId)) {
+                continue;
+            }
+            if (graph == null) {
+                graph = new Graph(steps);
+            }
+            if (branchesLosingTo(winner, join, graph).contains(stepId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The definition's links, read off the steps' preconditions. */

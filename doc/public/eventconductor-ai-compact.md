@@ -88,7 +88,7 @@ are optional, to keep egress and its secrets out of the orchestrator.
   A compensable step cancelled while running (rollback, END in another branch, XOR join) whose work
   completes anyway is kept as completed and undone too (in a non-failed process as a *cleanup*: status
   unchanged, a failed cleanup = incident). Opt-ins: `compensateLosers: true` on an XOR `JOIN` (cancel and
-  undo the losing branches), `compensateAbandoned: true` on `END` (undo what the cut-short branches did).
+  undo the losing branches; one winner = first link to complete, losers' outputs discarded), `compensateAbandoned: true` on `END` (undo what the cut-short branches did).
   A running child PROCESS the engine cuts short (parent rollback, `failFast` forEach, those two opt-ins)
   rolls itself back first (child ends `COMPENSATED`; the parent waits for it, and its `compensationStepId`
   is not run for that child); a child that already completed is undone by the parent's

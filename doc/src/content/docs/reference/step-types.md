@@ -605,9 +605,21 @@ branches running: they finish on their own, and what they did stands. With `comp
 the join **abandons** them the moment it goes on: their steps still waiting or running are cancelled,
 and every [compensable](/guides/retries-timeouts-compensation/#branches-the-flow-abandons) step of
 theirs that completed is compensated, newest first, as a *cleanup* beside the flow — the process
-carries on down the winning branch. A losing branch is what leads into the join only through a link
-that was not satisfied when it fired; a step that also feeds some other part of the flow is not part
-of it. `compensateLosers` on any other step is a validation error.
+carries on down the winning branch. `compensateLosers` on any other step is a validation error.
+
+There is **exactly one winner**: the incoming branch whose link step **completed first** (earliest
+completion time; at the same instant, the one listed first in `preconditionStepIds`). Every other
+branch is a loser — also one that had completed too by the time the join was evaluated, which is what
+routinely happens when both answer quickly (on the embedded engine's default single worker thread, it
+always does). A losing branch is what leads into the join only through a losing link; a step that also
+feeds some other part of the flow is not part of it.
+
+**A loser's outputs are discarded.** Once a branch has reached the join first, what a step of a losing
+branch reports (worker variables, an `HTTP_CALL`'s `output`, a message payload) is **not** written to
+the process: it is kept on that step's own run, where its compensation reads it (the booking id to
+cancel), and the winner's variables stand. What a losing branch wrote *before* the winner reached the
+join — while the race was still open — is not rolled back from the variables; give the branches'
+outputs the same names only where the winner's value is the one the flow should keep.
 
 ```yaml
 - { id: first, type: JOIN, name: First answer, joinType: XOR, compensateLosers: true, preconditionStepIds: [fast, quote] }

@@ -1,0 +1,19 @@
+{
+  "eyebrow": "EventConductor · Capítulo 12",
+  "title": "Probar **los flujos**",
+  "sub": "Kit de test · escenarios · cobertura · eventconductor:verify",
+  "flow": [["@EventConductorTest", "az", "c1"], ["escenarios", "az", "c1"], ["cobertura", "good", "c1"], ["verify", "amb", "c1"]],
+  "scen.n1": "cómo contestan los pasos — la primera respuesta cuyo `when` se cumple",
+  "scen.n2": "un escenario: `workflow` · `variables` · `expect`",
+  "scen.n3": "`ScenariosTest` ejecuta cada uno como un test · nuevo en 2.41",
+  "ci.n1": "cada pull request, cada push a main",
+  "ci.n2": "`check-migration` contra la rama base: `fetch-depth: 0`",
+  "ci.n3": "el informe de cobertura guardado como artefacto",
+  "close.line": "Definiciones **probadas como código.**",
+  "close.next": "Próximo · Del portátil al clúster",
+  "close.docs": "eventconductor.mateu.io · Testing workflows",
+  "close.workshop": "Taller · Automate it",
+  "close.license": "Código abierto · MIT",
+  "thumb.title": "Probar **los flujos**",
+  "thumb.sub": "Kit de test · escenarios · cobertura · verify"
+}

@@ -2,6 +2,8 @@
  "chapter": 7,
  "slug": "people-in-the-loop",
  "app": "examples/video-series",
+ "port": 8096,
+ "prompt": "~/video-series $",
  "docs": "guides/user-tasks/",
  "code": "examples/video-series",
  "title": {
@@ -399,7 +401,8 @@
      "items": [
       {
        "id": "time-test",
-       "at": "c1+0.3"
+       "at": "c1+0.3",
+       "prompt": "~/workshop-hotel-booking $"
       }
      ],
      "opts": {

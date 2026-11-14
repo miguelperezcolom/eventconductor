@@ -1,0 +1,343 @@
+{
+  "chapter": 9,
+  "slug": "events-in-events-out",
+  "app": "examples/video-series",
+  "port": 8096,
+  "prompt": "~/video-series $",
+  "docs": "guides/domain-event-triggers/",
+  "code": "examples/video-series",
+  "title": { "en": "Events in, events out", "es": "Eventos que entran, eventos que salen" },
+  "hook": {
+    "en": "A booking created somewhere else should start a process here — and when it is done, other systems want to hear about it.",
+    "es": "Una reserva creada en otro sistema debería arrancar aquí un proceso y, cuando termine, otros sistemas quieren enterarse."
+  },
+  "about": {
+    "en": "How processes meet the rest of the world through events: a domain-event trigger declared in events.yaml, a signed generic webhook turned into a CloudEvent, the Received events page, PUBLISH_EVENT (a built-in worker since 2.35), and request/response with a synchronous invocation answered by a REPLY step. Recorded on the series app (examples/video-series).",
+    "es": "Cómo se comunican los procesos con el resto del mundo mediante eventos: un disparador de eventos de dominio declarado en events.yaml, un webhook genérico firmado que se convierte en un CloudEvent, la página de eventos recibidos, PUBLISH_EVENT (un worker integrado desde la 2.35) y petición/respuesta con una invocación síncrona que contesta un paso REPLY. Grabado sobre la app de la serie (examples/video-series)."
+  },
+  "standIns": {
+    "en": "the channel manager and the event log are local stand-ins served by the series app",
+    "es": "el channel manager y el registro de eventos son sustitutos locales que sirve la propia app de la serie"
+  },
+  "youtubeChapters": [
+    { "at": "title", "en": "Events in, events out", "es": "Eventos que entran y salen" },
+    { "at": "trigger", "en": "A domain-event trigger", "es": "Un disparador de eventos" },
+    { "at": "webhook", "en": "A signed webhook", "es": "Un webhook firmado" },
+    { "at": "publish", "en": "PUBLISH_EVENT", "es": "PUBLISH_EVENT" },
+    { "at": "reply", "en": "Request and response: REPLY", "es": "Petición y respuesta: REPLY" },
+    { "at": "recap", "en": "Recap", "es": "Resumen" }
+  ],
+  "scenes": [
+    {
+      "id": "title",
+      "view": "title",
+      "spec": { "eyebrow": "eyebrow", "title": "title", "sub": "sub", "subAt": "c3", "top": 190, "visual": "flow", "size": 112},
+      "narration": {
+        "en": [
+          "A booking is created at the channel manager.",
+          "A process here should start on its own, and when it is done, other systems want to hear about it.",
+          "Sometimes a caller just wants an answer, right now.",
+          {
+            "text": "This chapter: events in, and events out, in EventConductor.",
+            "say": "This chapter: events in, and events out, in Event Conductor."
+          }
+        ],
+        "es": [
+          { "text": "Se crea una reserva en el channel manager.", "say": "Se crea una reserva en el chánel mánayer." },
+          "Aquí debería arrancar un proceso por sí solo y, cuando termine, otros sistemas quieren enterarse.",
+          "A veces, quien llama solo quiere una respuesta, y ya.",
+          {
+            "text": "En este capítulo: eventos que entran y eventos que salen, en EventConductor.",
+            "say": "En este capítulo: eventos que entran y eventos que salen, en Event Conductor."
+          }
+        ]
+      }
+    },
+    {
+      "id": "trigger",
+      "view": "code",
+      "code": { "file": "examples/video-series/src/main/resources/workflows/events.yaml" },
+      "spec": {
+        "geom": { "x": 70, "y": 120, "w": 1250, "h": 620},
+        "fontSize": 24,
+        "emphasis": [
+          { "at": "c1", "match": ["workflow: booking-onboarding", "destination: bookings", "type: com.example"]},
+          { "at": "c2", "match": ["businessKey:", "variables:", "bookingId:", "guest:", "checkIn:"]},
+          { "at": "c3", "match": ["at most once per event"]}
+        ],
+        "notes": [{"at": "c1", "key": "trigger.n1"}, {"at": "c2", "key": "trigger.n2"}, {"at": "c3", "key": "trigger.n3"}]
+      },
+      "narration": {
+        "en": [
+          "A process can start from a domain event.",
+          "The trigger is a few lines in a file beside the definitions: a CloudEvent of this type, on the bookings destination, starts booking onboarding.",
+          "The business key and the variables are taken from the event's data.",
+          "And the same event, with the same source and id, never starts two processes through one trigger."
+        ],
+        "es": [
+          "Un proceso puede arrancar con un evento de dominio.",
+          {
+            "text": "El disparador son unas pocas líneas en un fichero junto a las definiciones: un CloudEvent de este tipo, en el destino bookings, arranca booking onboarding.",
+            "say": "El disparador son unas pocas líneas en un fichero junto a las definiciones: un claud ivent de este tipo, en el destino búkings, arranca búking ónbording."
+          },
+          "La clave de negocio y las variables salen de los datos del evento.",
+          "Y el mismo evento, con el mismo origen e identificador, nunca arranca dos procesos por el mismo disparador."
+        ]
+      }
+    },
+    {
+      "id": "webhook",
+      "view": "code",
+      "code": {
+        "file": "examples/video-series/src/main/resources/application.properties",
+        "from": "^# --- The generic webhook",
+        "to": "endpoints.channel-manager.secret"
+      },
+      "spec": {
+        "geom": { "x": 70, "y": 120, "w": 1780, "h": 470},
+        "fontSize": 21,
+        "emphasis": [
+          { "at": "c1", "match": ["provider=generic", "secret="]},
+          { "at": "c2", "match": ["destination=bookings", "type=com.example"]},
+          { "at": "c3", "match": ["transport=rest", "engine.url"]}
+        ],
+        "pills": [{"key": "webhook.main", "from": "c3", "x": 150, "y": 640, "cls": "amber"}]
+      },
+      "narration": {
+        "en": [
+          "The channel manager does not speak Kafka: it calls a webhook.",
+          "The generic webhook gateway checks the HMAC signature of the body,",
+          "turns the delivery into a CloudEvent with a fixed type, on the bookings destination,",
+          { "text": "and hands it to the engine. Here the gateway runs inside the app itself." }
+        ],
+        "es": [
+          { "text": "El channel manager no habla Kafka: llama a un webhook.", "say": "El chánel mánayer no habla Kafka: llama a un uébjuk." },
+          {
+            "text": "La pasarela de webhooks genérica comprueba la firma HMAC del cuerpo,",
+            "say": "La pasarela de uébjuks genérica comprueba la firma hache mac del cuerpo,"
+          },
+          {
+            "text": "convierte la entrega en un CloudEvent con un tipo fijo, en el destino bookings,",
+            "say": "convierte la entrega en un claud ivent con un tipo fijo, en el destino búkings,"
+          },
+          { "text": "y se lo entrega al motor. Aquí la pasarela corre dentro de la propia app." }
+        ]
+      }
+    },
+    {
+      "id": "received",
+      "view": "live",
+      "spec": {
+        "terms": [{"items": [{"id": "webhook", "at": 0.2}], "opts": {"cps": 70}, "from": 0, "to": "c1-0.2", "x": 210, "y": 540, "w": 1500, "h": 330}],
+        "pills": [{"key": "standin.cm", "from": 0.4, "to": "c1-0.2", "right": 130, "y": 900, "cls": "amber"}]
+      },
+      "extra": 0.6,
+      "narration": {
+        "en": [
+          "A signed delivery, for booking CM-2002.",
+          {
+            "text": "Received events shows what every event did. This one started booking onboarding, under the business key built from the booking id."
+          },
+          "An event that could not be used says why, on the same page."
+        ],
+        "es": [
+          { "text": "Una entrega firmada, para la reserva CM-2002.", "say": "Una entrega firmada, para la reserva ce eme dos mil dos." },
+          {
+            "text": "La página de eventos recibidos muestra qué hizo cada evento. Este arrancó booking onboarding, con la clave de negocio construida a partir del identificador de la reserva.",
+            "say": "La página de eventos recibidos muestra qué hizo cada evento. Este arrancó búking ónbording, con la clave de negocio construida a partir del identificador de la reserva."
+          },
+          "Un evento que no se pudo usar dice por qué, en la misma página."
+        ]
+      }
+    },
+    {
+      "id": "publish",
+      "view": "code",
+      "code": {
+        "file": "examples/video-series/src/main/resources/workflows/booking-onboarding.ec.yaml",
+        "from": "^steps:",
+        "to": "preconditionStepId: guest-welcomed"
+      },
+      "spec": {
+        "geom": { "x": 70, "y": 50, "w": 1250, "h": 980},
+        "fontSize": 22,
+        "emphasis": [
+          { "at": "c0", "match": ["^  - id: guest-welcomed", "type: PUBLISH_EVENT", "name: Announce"]},
+          {
+            "at": "c1",
+            "match": [
+              "event:",
+              "destination: guest-events",
+              "type: com.example.guest",
+              "key:",
+              "payload:",
+              "bookingId: \"\\$",
+              "guest: \"\\$",
+              "guestId:",
+              "checkIn: \"\\$"
+            ]
+          },
+          { "at": "c3", "match": ["retries: 2"]}
+        ],
+        "notes": [{"at": "c1", "key": "publish.n1"}, {"at": "c2", "key": "publish.n2"}, {"at": "c3", "key": "publish.n3"}]
+      },
+      "narration": {
+        "en": [
+          { "text": "On the way out: PUBLISH_EVENT.", "say": "On the way out: publish event." },
+          "A destination, a type, a key and a payload, filled in from the process variables.",
+          {
+            "text": "Since 2.35 it is a built-in worker: distributed, it travels on the event-publications topic; embedded, it goes to the application's own publisher.",
+            "say": "Since two point thirty-five it is a built-in worker: distributed, it travels on the event publications topic; embedded, it goes to the application's own publisher."
+          },
+          "Delivery is at least once, and the event's id is the step execution id, so a consumer can spot a duplicate."
+        ],
+        "es": [
+          { "text": "A la salida: PUBLISH_EVENT.", "say": "A la salida: páblish ivent." },
+          "Un destino, un tipo, una clave y un contenido, rellenados con las variables del proceso.",
+          {
+            "text": "Desde la 2.35 es un worker integrado: en distribuido viaja por el topic event-publications; embebido, va al publicador de la propia aplicación.",
+            "say": "Desde la dos punto treinta y cinco es un worker integrado: en distribuido viaja por el tópic ivent publicéishons; embebido, va al publicador de la propia aplicación."
+          },
+          "La entrega es al menos una vez, y el identificador del evento es el de la ejecución del paso, así que un consumidor puede detectar un duplicado."
+        ]
+      }
+    },
+    {
+      "id": "published",
+      "view": "live",
+      "spec": {
+        "terms": [
+          {
+            "items": [{"id": "events", "at": "c1+0.3"}],
+            "opts": { "cps": 60, "lineGap": 0.06},
+            "from": "c1",
+            "to": "end",
+            "x": 260,
+            "y": 470,
+            "w": 1400,
+            "h": 500
+          }
+        ],
+        "pills": [{"key": "standin.events", "from": "c1+0.5", "right": 130, "y": 990, "cls": "amber"}]
+      },
+      "extra": 1.2,
+      "narration": {
+        "en": [
+          "The onboarding ran: guest registered, new guest announced.",
+          "And this is what left the process: guest welcomed, keyed by the booking, with the guest's id in the payload."
+        ],
+        "es": [
+          "El alta se ejecutó: huésped registrado y nuevo huésped anunciado.",
+          {
+            "text": "Y esto es lo que salió del proceso: guest welcomed, con la reserva como clave y el identificador del huésped en el contenido.",
+            "say": "Y esto es lo que salió del proceso: guest uélcomd, con la reserva como clave y el identificador del huésped en el contenido."
+          }
+        ]
+      }
+    },
+    {
+      "id": "reply",
+      "view": "code",
+      "code": { "file": "examples/video-series/src/main/resources/workflows/room-quote.ec.yaml", "from": "^id: room-quote", "to": "duration: PT15M" },
+      "spec": {
+        "geom": { "x": 70, "y": 50, "w": 1250, "h": 980},
+        "fontSize": 22,
+        "emphasis": [
+          { "at": "c1", "match": ["syncInvocation:", "enabled: true", "onFailure:", "defaultDeadlineMs"]},
+          { "at": "c2", "match": ["^  - id: answer", "type: REPLY", "replyVariables"]},
+          { "at": "c3", "match": ["^  - id: hold-quote", "type: TIMER", "name: Hold the price", "duration: PT15M"]}
+        ],
+        "notes": [{"at": "c1", "key": "reply.n1"}, {"at": "c2", "key": "reply.n2"}, {"at": "c3", "key": "reply.n3"}]
+      },
+      "narration": {
+        "en": [
+          "Request and response.",
+          "Synchronous invocation is switched on per definition, with a deadline.",
+          "The caller waits, and the REPLY step answers with three variables as soon as the price is known.",
+          "The process carries on after answering: it holds the quote for fifteen minutes."
+        ],
+        "es": [
+          "Petición y respuesta.",
+          "La invocación síncrona se activa en cada definición, con un plazo.",
+          {
+            "text": "Quien llama espera, y el paso REPLY contesta con tres variables en cuanto se conoce el precio.",
+            "say": "Quien llama espera, y el paso riplái contesta con tres variables en cuanto se conoce el precio."
+          },
+          "El proceso sigue después de contestar: mantiene el presupuesto durante quince minutos."
+        ]
+      }
+    },
+    {
+      "id": "invoke",
+      "view": "terminal",
+      "spec": {
+        "geom": { "x": 140, "y": 130, "w": 1640, "h": 820},
+        "title": "examples/video-series",
+        "items": [{"id": "invoke", "at": 0.3}],
+        "opts": { "cps": 80, "lineGap": 0.07}
+      },
+      "extra": 0.8,
+      "narration": {
+        "en": [
+          "Ask for a quote, and wait.",
+          "The answer is the reply's variables, while the process keeps running behind it.",
+          "If the deadline passes first, the caller gets a 202 and a link to read the answer later."
+        ],
+        "es": [
+          "Pide un presupuesto y espera.",
+          "La respuesta son las variables de la contestación, mientras el proceso sigue en marcha detrás.",
+          {
+            "text": "Si el plazo vence antes, quien llama recibe un 202 y un enlace para leer la respuesta más tarde.",
+            "say": "Si el plazo vence antes, quien llama recibe un doscientos dos y un enlace para leer la respuesta más tarde."
+          }
+        ]
+      }
+    },
+    {
+      "id": "quote",
+      "view": "live",
+      "spec": {},
+      "extra": 0.6,
+      "narration": {
+        "en": [
+          "The console keeps the reply on the run: the outcome, the payload, and the step that answered.",
+          "On the diagram, the caller has been answered, and the price is being held."
+        ],
+        "es": [
+          "La consola guarda la respuesta en la ejecución: el resultado, el contenido y el paso que contestó.",
+          "En el diagrama, ya se ha contestado a quien llamó, y el precio se mantiene."
+        ]
+      }
+    },
+    {
+      "id": "recap",
+      "view": "cards",
+      "spec": { "head": "recap.head", "items": "recap.items", "cols": 2, "strip": "recap.strip", "stripAt": "c2", "stripTop": 790, "cardH": 250},
+      "narration": {
+        "en": [
+          "Two ways in: an event on a destination, or a signed webhook, from GitHub or any sender.",
+          "Two ways out: an event published at least once, or a reply to a caller who is waiting.",
+          "Distributed, the destinations are Kafka topics, and nothing in the definition changes."
+        ],
+        "es": [
+          {
+            "text": "Dos formas de entrar: un evento en un destino, o un webhook firmado, de GitHub o de cualquier emisor.",
+            "say": "Dos formas de entrar: un evento en un destino, o un uébjuk firmado, de guít jab o de cualquier emisor."
+          },
+          "Dos formas de salir: un evento publicado al menos una vez, o una respuesta a quien está esperando.",
+          "En distribuido, los destinos son topics de Kafka, y nada cambia en la definición."
+        ]
+      }
+    },
+    {
+      "id": "close",
+      "view": "close",
+      "spec": { "line": "close.line", "next": "close.next", "links": ["close.docs", "close.app", "close.license"]},
+      "extra": 1.5,
+      "narration": {
+        "en": ["Events in, events out.", "Next: AI in the process."],
+        "es": ["Eventos que entran, eventos que salen.", "Próximo capítulo: IA dentro del proceso."]
+      }
+    }
+  ]
+}

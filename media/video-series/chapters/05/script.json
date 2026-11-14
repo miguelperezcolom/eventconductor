@@ -363,15 +363,12 @@
       "say": "Now a booking with the penthouse, which this hotel always refuses with a four-oh-nine."
      },
      "The Errors tab says which room, which status and what the hotel answered — and that it was not retried.",
-     "The two rooms already booked are cancelled with DELETE calls: chapter four tells that part."
+     "The step fails at once; what then happens to the rooms already booked is the process's decision — chapter four shows one way."
     ],
     "es": [
      "Ahora una reserva con el ático, que este hotel rechaza siempre con un 409.",
      "La pestaña de errores dice qué habitación, qué estado y qué respondió el hotel, y que no se reintentó.",
-     {
-      "text": "Las dos habitaciones ya reservadas se cancelan con llamadas DELETE: eso lo cuenta el capítulo cuatro.",
-      "say": "Las dos habitaciones ya reservadas se cancelan con llamadas delete: eso lo cuenta el capítulo cuatro."
-     }
+     "El paso falla en el acto; qué pasa luego con las habitaciones ya reservadas lo decide el proceso: el capítulo cuatro muestra una forma."
     ]
    }
   },

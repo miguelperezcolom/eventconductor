@@ -81,7 +81,7 @@
         if (t < t0) break;
         const cmd = r.data.cmd, typed = Math.floor((t - t0) * cps);
         const shown = cmd.slice(0, typed);
-        html += `<span class="ps">${esc(r.prompt ?? '~/workshop-hotel-booking $')}</span> <span class="cmd">${esc(shown)}</span>`;
+        html += `<span class="ps">${esc(r.prompt ?? D.prompt ?? '~/workshop-hotel-booking $')}</span> <span class="cmd">${esc(shown)}</span>`;
         if (typed < cmd.length) { cursorAt = true; html += '<span class="cur"></span>'; break; }
         html += '\n';
         const tOut = t0 + cmd.length / cps + (r.wait ?? 0.35);
@@ -92,7 +92,7 @@
         });
         html += lines.join('\n') + (lines.length ? '\n' : '');
       }
-      if (!cursorAt && runs.length && t >= at(sc, runs[0].at ?? 0.3)) html += `<span class="ps">${esc(runs[runs.length - 1].prompt ?? '~/workshop-hotel-booking $')}</span> <span class="cur"></span>`;
+      if (!cursorAt && runs.length && t >= at(sc, runs[0].at ?? 0.3)) html += `<span class="ps">${esc(runs[runs.length - 1].prompt ?? D.prompt ?? '~/workshop-hotel-booking $')}</span> <span class="cur"></span>`;
       box.innerHTML = html;
       const over = box.scrollHeight - body.clientHeight;          // keep the newest line in view
       box.style.transform = over > 0 ? `translateY(${-over}px)` : '';
@@ -127,7 +127,9 @@
         termWin = tw.win; termDraw = terminal(tw.body, sc, spec.term.items, spec.term.opts);
         termWin.querySelector('.term').style.fontSize = '21px';
       }
+      const pills = pillEls(root, sc);   // labels over a code scene too (spec.pills)
       return (t) => {
+        pills(t);
         let cur = null; for (const m of marks) if (t >= m.t) cur = m;
         const reveal = spec.reveal ? Math.floor(lerp(0, c.lines.length, seg(t, at(sc, spec.reveal.from), at(sc, spec.reveal.to)))) : c.lines.length;
         lineEls.forEach((e, i) => { e.className = 'l' + (cur ? (cur.set.has(i) ? ' em' : ' dim') : ''); e.style.visibility = i < reveal ? 'visible' : 'hidden'; });
@@ -154,8 +156,8 @@
       const L = D.live[sc.id];
       if (!L) throw new Error(`no live frames for ${sc.id} — run record-live first`);
       const g = { x: 88, y: 22, w: 1744, h: 1036 };
-      const title = sc.spec.title ? rich(S(sc.spec.title)) : L.origin === 'vscode' ? '<b>Visual Studio Code</b>  ·  EventConductor extension'
-        : `<b>${esc(L.origin || 'localhost:8095')}</b>  ·  EventConductor console`;
+      const title = L.origin === 'vscode' ? '<b>Visual Studio Code</b>  ·  EventConductor extension'
+        : `<b>${esc(sc.spec.host ?? L.origin ?? D.host ?? 'localhost:8095')}</b>  ·  ${esc(sc.spec.app ?? 'EventConductor console')}`;
       const { body, bw, bh } = windowEl(root, { ...g, title, cls: 'console' });
       const img = el('img', 'frame', null, body);
       const VPW = L.viewport?.w ?? 1920, VPH = L.viewport?.h ?? 1080;
