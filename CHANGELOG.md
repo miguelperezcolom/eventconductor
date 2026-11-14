@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Mateu 3.0-beta.67: the console's cached page layouts are kept per app and per build, so a different Mateu app served earlier on the same address no longer causes a "not allowed" (403) message on every page; a cached screen the server refuses recovers on its own.
+
 ## [2.41.0] - 2026-11-14
 
 ### Added
