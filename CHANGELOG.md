@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.41.0] - 2026-11-14
+
 ### Added
 - **Workflow coverage in the test kit.** Every `@EventConductorTest` test records which steps its processes ran and which routes they took — CHOICE branches, guarded links, timeout routes (`onTimeoutStepId`), compensations, loop-backs and plain links — for every definition the engine knows (inline `PROCESS` bodies included; one no test starts shows 0%). After each test the report of the run so far is written to `target/eventconductor-coverage/`: `coverage.txt` (a table per definition, then everything not covered) and `coverage.json`. `WorkflowCoverage.current().report()` returns it in a test; `-Deventconductor.coverage.enabled=false` turns it off, `eventconductor.coverage.directory` moves it.
 - **Scenarios as data.** A test case as a YAML/JSON file: the definition to start, its variables, how tasks (`tasks` by task id or topic, `steps` by step id), `http`, `llm` and `agents` answer — in order, or the first answer whose `when` (JEXL over the task's variables) holds, with `${…}` filled in — what happens next (`then`: `advanceTime`, `sendMessage`, `completeUserTask`, `completeTask`, `failTask`, `publishEvent`, `update`, `cancel`) and how it must end (`expect`: `status`, `passedSteps`, `notPassedSteps`, `waitingAt`, `variables`, `missingVariables`, `publishedEvents`, `reply`, `invocations`). Run every scenario of a directory as its own test with `@ParameterizedTest @ScenarioSource("src/test/scenarios")` + `runtime.run(scenario)`, or from a `@TestFactory` with `runtime.scenarios(...)`. New: `Scenario`, `ScenarioSource`, `WorkflowCoverage`.
