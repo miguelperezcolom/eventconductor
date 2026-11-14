@@ -571,6 +571,7 @@ interface BodyFrame {
     zoomK: number;
     panX: number;
     panY: number;
+    viewTouched: boolean;
     selectedId: string | null;
     overlayData: Record<string, StepOverlay>;
 }
@@ -1751,6 +1752,16 @@ export class MateuWorkflowElk extends LitElement {
     private didInitialFit = false;
     private viewportSetup = false;
     private resizeObs?: ResizeObserver;
+    /**
+     * The reader has zoomed or panned by hand since the graph was last fitted. While false the
+     * graph follows its container: hiding VS Code's Explorer after a file is open widens the panel,
+     * and the fit made for the narrower one left the nodes huddled (or cut off) on one side. Once
+     * the reader has chosen a viewport, a resize keeps it. The Fit button hands control back.
+     */
+    private viewTouched = false;
+    /** Last measured size of the workspace (canvas + palette + step panel): the HOST's resize signal. */
+    private hostW = 0;
+    private hostH = 0;
     /** Background pan drag state. */
     private panning = false;
     private panMoved = false;
@@ -1859,12 +1870,33 @@ export class MateuWorkflowElk extends LitElement {
         if (!svg || !wrap) return;
         this.viewportSetup = true;
         this.svgEl = svg;
-        const measure = () => { this.viewW = wrap.clientWidth; this.viewH = wrap.clientHeight; };
+        // The canvas is measured for the fit; the workspace around it says whether the HOST changed
+        // size. Opening the step panel narrows the canvas but not the workspace, and re-fitting on
+        // every selection would rescale the graph under the pointer that just clicked it.
+        const host = (root.querySelector(".workspace") as HTMLElement | null) ?? wrap;
+        const measure = () => this.onViewportResize(
+            {w: wrap.clientWidth, h: wrap.clientHeight}, {w: host.clientWidth, h: host.clientHeight});
         measure();
         this.resizeObs = new ResizeObserver(measure);
         this.resizeObs.observe(wrap);
+        if (host !== wrap) this.resizeObs.observe(host);
         // Native listener (not @wheel) so we can preventDefault the page scroll while zooming.
         svg.addEventListener("wheel", this.onWheel, {passive: false});
+    }
+
+    /**
+     * Records the canvas size and, when the host itself changed size, re-fits the graph — unless the
+     * reader has zoomed or panned by hand, whose viewport is kept as they left it.
+     */
+    private onViewportResize(view: {w: number; h: number}, host: {w: number; h: number}) {
+        this.viewW = view.w;
+        this.viewH = view.h;
+        const hostChanged = host.w !== this.hostW || host.h !== this.hostH;
+        this.hostW = host.w;
+        this.hostH = host.h;
+        if (!hostChanged || !this.didInitialFit || this.viewTouched) return;
+        if (!this.layoutReady || this.layoutPending || view.w === 0 || view.h === 0) return;
+        this.fitToView();
     }
 
     /**
@@ -2723,7 +2755,8 @@ export class MateuWorkflowElk extends LitElement {
         this.bodyFrames = [...this.bodyFrames, {
             stepId, wf: this.wf, positions: this.positions, elkPositioned: this.elkPositioned,
             expanded: this.expanded, beforeExpansion: this.beforeExpansion,
-            zoomK: this.zoomK, panX: this.panX, panY: this.panY, selectedId: this.selectedId,
+            zoomK: this.zoomK, panX: this.panX, panY: this.panY, viewTouched: this.viewTouched,
+            selectedId: this.selectedId,
             overlayData: this.overlayData,
         }];
         this.bodyPath = this.bodyFrames.map(f => f.stepId);
@@ -2737,6 +2770,7 @@ export class MateuWorkflowElk extends LitElement {
         this.elkPositioned = new Set();
         this.layoutReady = false;
         this.didInitialFit = false;
+        this.viewTouched = false;
         void this.runElkLayout();
     }
 
@@ -2755,7 +2789,7 @@ export class MateuWorkflowElk extends LitElement {
         this.elkPositioned = f.elkPositioned;
         this.expanded = f.expanded;
         this.beforeExpansion = f.beforeExpansion;
-        this.zoomK = f.zoomK; this.panX = f.panX; this.panY = f.panY;
+        this.zoomK = f.zoomK; this.panX = f.panX; this.panY = f.panY; this.viewTouched = f.viewTouched;
         this.selectedId = f.selectedId;
         this.selectedEdge = null;
         this.overlayData = f.overlayData;
@@ -2775,7 +2809,7 @@ export class MateuWorkflowElk extends LitElement {
         this.elkPositioned = outer.elkPositioned;
         this.expanded = outer.expanded;
         this.beforeExpansion = outer.beforeExpansion;
-        this.zoomK = outer.zoomK; this.panX = outer.panX; this.panY = outer.panY;
+        this.zoomK = outer.zoomK; this.panX = outer.panX; this.panY = outer.panY; this.viewTouched = outer.viewTouched;
         this.selectedId = null;
         this.selectedEdge = null;
         this.overlayData = outer.overlayData;
@@ -3032,6 +3066,7 @@ export class MateuWorkflowElk extends LitElement {
         this.zoomK = fit.k;
         this.panX = fit.panX;
         this.panY = fit.panY;
+        this.viewTouched = false;
     };
 
     /** The minimap's box on screen (canvas coords, margin included), or null when none is drawn. */
@@ -3209,6 +3244,7 @@ export class MateuWorkflowElk extends LitElement {
         const sx = (cx - this.panX) / this.zoomK, sy = (cy - this.panY) / this.zoomK;
         this.panX = cx - sx * newK; this.panY = cy - sy * newK;
         this.zoomK = newK;
+        this.viewTouched = true;
     };
 
     private onCanvasMouseDown = (e: MouseEvent) => {
@@ -3227,7 +3263,7 @@ export class MateuWorkflowElk extends LitElement {
     private onPanMove = (e: MouseEvent) => {
         if (!this.panning) return;
         const dx = e.clientX - this.panStart.x, dy = e.clientY - this.panStart.y;
-        if (Math.abs(dx) + Math.abs(dy) > 3) this.panMoved = true;
+        if (Math.abs(dx) + Math.abs(dy) > 3) { this.panMoved = true; this.viewTouched = true; }
         this.panX = this.panStart.panX + dx; this.panY = this.panStart.panY + dy;
     };
     private onPanUp = () => {
@@ -3247,6 +3283,7 @@ export class MateuWorkflowElk extends LitElement {
     private centerOn(sceneX: number, sceneY: number) {
         this.panX = this.viewW / 2 - this.zoomK * sceneX;
         this.panY = this.viewH / 2 - this.zoomK * sceneY;
+        this.viewTouched = true;
     }
 
     /** Center-plus-size box of a step (by id), honouring its per-type shape size. */
