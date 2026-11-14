@@ -83,6 +83,29 @@ jobs:
           path: modules/workflow-ui-e2e/target/ui-e2e/
           if-no-files-found: ignore
 
+  video-series-example:
+    name: Series app (examples/video-series)
+    runs-on: ubuntu-latest
+    # The app the video series is recorded from: its definitions, scenarios, coverage floors
+    # (eventconductor:verify) and an end-to-end run of the whole app. It builds against the engine
+    # of this commit, so a change that breaks what the videos show breaks here.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          java-version: 21
+          distribution: zulu
+          cache: maven
+
+      - name: Build the modules the app uses (unit tests already run in the build job)
+        run: mvn -B -ntp -pl modules/workflow-engine,modules/builtin-workers,modules/forms-engine,modules/webhook-gateway,modules/workflow-test,modules/workflow-maven-plugin -am -DskipTests -Djacoco.skip=true install
+
+      - name: Test and verify the app
+        working-directory: examples/video-series
+        run: mvn -B -ntp verify
+
   dist-e2e:
     name: Distributed suite (Testcontainers)
     runs-on: ubuntu-latest

@@ -26,7 +26,7 @@ import java.util.Map;
  *       {@code githubaction}, the repository and the sender's login.</li>
  * </ul>
  */
-public class GitHubWebhookProvider implements WebhookProvider {
+public class GitHubWebhookProvider implements WebhookDeliveryProvider {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 

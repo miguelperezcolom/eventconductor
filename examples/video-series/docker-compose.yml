@@ -1,0 +1,41 @@
+# Chapter 14 — observability for the series app running on the host (mvn spring-boot:run, port 8096).
+#   docker compose --profile observability up -d
+#   mvn spring-boot:run -Dspring-boot.run.profiles=observability     # tracing ON (it is OFF by default)
+# Then: Grafana http://localhost:3000 (anonymous viewer; admin/admin to edit) → dashboard "EventConductor",
+#       Prometheus http://localhost:9090, Jaeger http://localhost:16686 (service video-series).
+# Every service is in the `observability` profile, so a plain `docker compose up` starts nothing.
+services:
+  prometheus:
+    image: prom/prometheus:v3.7.3
+    profiles: [observability]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-lifecycle
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # the app on the host (Linux needs this; Docker Desktop has it)
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:12.2.1
+    profiles: [observability]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: admin       # a laptop-only demo
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/eventconductor.json
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on: [prometheus, jaeger]
+
+  jaeger:
+    image: jaegertracing/jaeger:2.11.0
+    profiles: [observability]
+    ports:
+      - "16686:16686"                         # UI
+      - "4318:4318"                           # OTLP over HTTP: the app's management.opentelemetry.tracing.export.otlp.endpoint

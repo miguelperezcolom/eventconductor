@@ -1,0 +1,32 @@
+# Chapter 11 — Operating running processes. Push a room's availability to the channel manager (a LOCAL STAND-IN,
+# /fake/channel-manager). While the stand-in is in an outage (POST /fake/channel-manager/outage) every call
+# answers 503: the step is retried, then the process stops on an incident (ERROR) — nothing to compensate — for
+# an operator to retry from the failure once the outage is over.
+id: channel-sync
+name: Sync availability to the channel manager
+steps:
+  - id: start
+    type: START
+    name: Availability changed
+
+  - id: push-availability
+    type: HTTP_CALL
+    name: Push availability
+    preconditionStepId: start
+    retries: 2
+    timeout: PT10S
+    http:
+      connection: channel-manager
+      method: PUT
+      path: "/availability/${room}"
+      body:
+        room: "${room}"
+        date: "${date}"
+        available: "${available}"
+      output:
+        channelVersion: "body.version"
+
+  - id: done
+    type: END
+    name: Synced
+    preconditionStepId: push-availability

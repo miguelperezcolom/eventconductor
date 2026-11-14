@@ -1,0 +1,54 @@
+# Chapter 10 — an AGENT step running for real. The agent, front-desk-assistant, is published in this app's
+# DEMO STAND-IN catalogue (agents/DemoAgentCatalogue) and run by its DEMO STAND-IN runtime (agents/DemoAgentRuntime,
+# the run-agent@1 task): deterministic rules instead of a model, so every run gives the same answer. A real
+# deployment points workflow.agents.catalogue-url at the IA catalogue and runs the IA agent runtime.
+id: special-request-agent
+name: Let an agent prepare the special request
+steps:
+  - id: start
+    type: START
+    name: Special request received
+
+  - id: prepare-request
+    type: AGENT
+    name: Prepare the special request
+    preconditionStepId: start
+    timeout: PT5M
+    retries: 0                                # an AGENT failure is final
+    agent:
+      ref: front-desk-assistant
+      taskPrompt: "Prepare what the front desk needs for this request: ${specialRequest}"
+      input:
+        guest: "${guest}"
+        room: "${room}"
+        request: "${specialRequest}"
+      outputVariable: preparation
+
+  - id: needs-staff
+    type: CHOICE
+    name: Does staff need to act?
+    preconditionStepId: prepare-request
+
+  - id: alert-front-desk
+    type: ACTION
+    name: Alert the front desk
+    preconditions:
+      - stepId: needs-staff
+        expression: "json:parse(preparation).needsStaff == true"
+
+  - id: nothing-to-do
+    type: ACTION
+    name: Note it on the booking
+    preconditions:
+      - stepId: needs-staff                   # default branch
+
+  - id: outcome
+    type: JOIN
+    name: Outcome
+    joinType: XOR
+    preconditionStepIds: [alert-front-desk, nothing-to-do]
+
+  - id: done
+    type: END
+    name: Done
+    preconditionStepId: outcome

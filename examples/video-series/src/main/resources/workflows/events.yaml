@@ -1,0 +1,12 @@
+# Chapter 9 — event triggers beside the definitions (never imported as a definition). A CloudEvent of this type
+# on this destination starts the workflow, at most once per event; the business key names the workflow, since
+# business keys are unique across all of them.
+- id: on-booking-created
+  workflow: booking-onboarding
+  destination: bookings                       # what the webhook endpoint publishes to
+  type: com.example.booking.created
+  businessKey: "booking-onboarding-${data.bookingId}"
+  variables:
+    bookingId: "${data.bookingId}"
+    guest: "${data.guest}"
+    checkIn: "${data.checkIn}"

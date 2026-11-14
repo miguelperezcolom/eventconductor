@@ -17,7 +17,7 @@ import java.util.UUID;
  * {@code type} always uses that type and ignores the type header (a replayed body cannot be relabelled);
  * the id still comes from an unsigned header, so de-duplication of a replay relies on the sender's id.
  */
-public class GenericWebhookProvider implements WebhookProvider {
+public class GenericWebhookProvider implements WebhookDeliveryProvider {
 
     @Override
     public WebhookEvent read(String endpointName, WebhookGatewayProperties.Endpoint endpoint, Map<String, String> headers,

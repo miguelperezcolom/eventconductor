@@ -1,0 +1,20 @@
+# Chapter 8 — started by a schedule, not by a caller: see cron.yaml (every night at 03:00, Madrid time). The
+# console's Schedules page lists it, pauses it and runs it now.
+id: nightly-occupancy
+name: Nightly occupancy report
+steps:
+  - id: start
+    type: START
+    name: 03:00
+
+  - id: count-occupancy
+    type: ACTION
+    name: Count tonight's occupancy
+    preconditionStepId: start
+    timeout: PT1M
+    retries: 2
+
+  - id: done
+    type: END
+    name: Reported
+    preconditionStepId: count-occupancy

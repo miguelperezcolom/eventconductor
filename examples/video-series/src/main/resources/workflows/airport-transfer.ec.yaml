@@ -1,0 +1,93 @@
+# Chapter 6 — a race. Ask two taxi companies at the same time (FORK) and take the first that confirms (XOR JOIN).
+# The losing booking is not left behind: compensateLosers (opt-in, since 2.39) cancels the losing branch and
+# undoes what it completed, here by cancelling that taxi.
+id: airport-transfer
+name: Airport transfer
+steps:
+  - id: start
+    type: START
+    name: Transfer requested
+
+  - id: ask-both
+    type: FORK
+    name: Ask both companies
+    preconditionStepId: start
+
+  - id: book-city-cabs
+    type: HTTP_CALL
+    name: Book with City Cabs
+    preconditionStepId: ask-both
+    retries: 1
+    timeout: PT20S
+    compensable: true
+    compensationStepId: cancel-city-cabs
+    http:
+      connection: taxis
+      method: POST
+      path: /city-cabs/bookings
+      headers:
+        Idempotency-Key: "${businessKey}-city-cabs"
+      body:
+        ref: "${businessKey}"
+        pickup: "${flight}"
+      output:
+        taxi: "'City Cabs'"
+        taxiBookingId: "body.id"
+
+  - id: book-airport-express
+    type: HTTP_CALL
+    name: Book with Airport Express
+    preconditionStepId: ask-both
+    retries: 1
+    timeout: PT20S
+    compensable: true
+    compensationStepId: cancel-airport-express
+    http:
+      connection: taxis
+      method: POST
+      path: /airport-express/bookings
+      headers:
+        Idempotency-Key: "${businessKey}-airport-express"
+      body:
+        ref: "${businessKey}"
+        pickup: "${flight}"
+      output:
+        taxi: "'Airport Express'"
+        taxiBookingId: "body.id"
+
+  - id: first-confirmed
+    type: JOIN
+    name: First to confirm
+    joinType: XOR
+    compensateLosers: true                    # cancel the slower branch and undo what it booked
+    preconditionStepIds: [book-city-cabs, book-airport-express]
+
+  - id: confirm-transfer
+    type: ACTION
+    name: Send the guest the pickup details
+    preconditionStepId: first-confirmed
+
+  - id: done
+    type: END
+    name: Transfer booked
+    preconditionStepId: confirm-transfer
+
+  - id: cancel-city-cabs                      # compensations: no preconditions
+    type: HTTP_CALL
+    name: Cancel City Cabs
+    retries: 3
+    http:
+      connection: taxis
+      method: DELETE
+      path: "/city-cabs/bookings/by-ref/${businessKey}"
+      successStatus: [200, 204, 404]
+
+  - id: cancel-airport-express
+    type: HTTP_CALL
+    name: Cancel Airport Express
+    retries: 3
+    http:
+      connection: taxis
+      method: DELETE
+      path: "/airport-express/bookings/by-ref/${businessKey}"
+      successStatus: [200, 204, 404]

@@ -1,0 +1,37 @@
+# Chapter 8 — a message between processes. Each side alone here; GuestCheckinTest runs them together.
+steps:
+  hand-over-keys: { complete: { keyCard: "KEY-${room}" } }
+  offer-lounge: { complete: { loungePass: "LOUNGE-${room}" } }
+  clean-room: { complete: { cleanedBy: Lucía } }
+
+scenarios:
+  - name: the keys are handed over when the room-ready message for the guest's room arrives
+    workflow: guest-checkin
+    variables: { guest: Bob, room: "204" }
+    then:
+      - sendMessage: { name: room-ready, correlationKey: "999", variables: { cleanedBy: Someone } }   # another room's
+      - sendMessage: { name: room-ready, correlationKey: "204", variables: { cleanedBy: Lucía } }
+    expect:
+      status: COMPLETED
+      passedSteps: [wait-room-ready, hand-over-keys]
+      notPassedSteps: [offer-lounge]
+      variables: { keyCard: KEY-204, cleanedBy: Lucía }
+
+  - name: a room not ready in two hours sends the guest to the lounge
+    workflow: guest-checkin
+    variables: { guest: Bob, room: "205" }
+    then:
+      - advanceTime: PT2H1M
+    expect:
+      status: COMPLETED
+      passedSteps: [offer-lounge]
+      notPassedSteps: [hand-over-keys]
+      variables: { loungePass: LOUNGE-205 }
+
+  - name: housekeeping cleans the room and tells the front desk
+    workflow: room-cleaning
+    variables: { room: "206" }
+    expect:
+      status: COMPLETED
+      passedSteps: [clean-room, announce-ready]
+      variables: { cleanedBy: Lucía }

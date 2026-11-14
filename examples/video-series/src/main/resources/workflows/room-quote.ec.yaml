@@ -1,0 +1,41 @@
+# Chapter 9 — request/response. A caller asks for a quote over HTTP and waits for the answer (synchronous
+# invocation: POST /workflow/api/definitions/room-quote/invocations). The REPLY step answers it as soon as the
+# price is known; the process carries on afterwards, holding the quote for 15 minutes.
+id: room-quote
+name: Room quote
+syncInvocation:
+  enabled: true
+  onFailure: REPLY_IMMEDIATELY
+  defaultDeadlineMs: 5000
+steps:
+  - id: start
+    type: START
+    name: Quote requested
+
+  - id: price-stay
+    type: ACTION
+    name: Price the stay
+    preconditionStepId: start
+    timeout: PT10S
+
+  - id: answer
+    type: REPLY
+    name: Answer the caller
+    preconditionStepId: price-stay
+    replyVariables: [quoteId, price, currency]
+
+  - id: hold-quote
+    type: TIMER
+    name: Hold the price for 15 minutes
+    preconditionStepId: answer
+    duration: PT15M
+
+  - id: expire-quote
+    type: ACTION
+    name: Expire the quote
+    preconditionStepId: hold-quote
+
+  - id: done
+    type: END
+    name: Quote closed
+    preconditionStepId: expire-quote
