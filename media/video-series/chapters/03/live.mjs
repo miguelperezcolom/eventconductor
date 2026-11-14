@@ -42,6 +42,8 @@ export async function run(c) {
     const name = ed(vs).locator('input').nth(2);
     await s.click(name, { dur: 0.5 });
     await vs.page.keyboard.press('Meta+A');
+    await vs.page.keyboard.press('Backspace');
+    await s.settleFrames(4);                  // let the field settle, or the first letter is lost
     await s.type('Leader confirms the rooming list');
     await s.settleFrames(4);
     const close = ed(vs).locator('button.close-btn:visible').first();
