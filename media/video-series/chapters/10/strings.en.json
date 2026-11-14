@@ -1,0 +1,32 @@
+{
+  "eyebrow": "EventConductor · Chapter 10",
+  "title": "AI **in the process**",
+  "sub": "LLM_CALL · AGENT · MCP",
+  "flow": [["special request", "az", "c0"], ["LLM_CALL", "good", "c1"], ["AGENT", "good", "c1"], ["MCP", "amb", "c1"]],
+  "llm.n1": "`connection` — a name; provider and key are **configuration**",
+  "llm.n2": "`responseSchema` — the answer must be **valid JSON** for it",
+  "llm.n3": "invalid answer → `LLM_INVALID_OUTPUT`, retryable: `retries` apply",
+  "llm.n4": "`output` → variables · `usageVariable` → model and tokens",
+  "standin.model": "model: local stand-in served by the workshop app (/fake/llm)",
+  "providers.sensitive": "sensitive variables stay out of prompts · opt-in per step: `allowSensitiveVariables: true` (since 2.32)",
+  "agent.n1": "`AGENT` — `ref` · `taskPrompt` · `input` · `outputVariable`",
+  "agent.n2": "`ref` checked against the **agent catalogue** at import",
+  "agent.n3": "`retries: 0` — an agent's failure is final",
+  "agent.n4": "a JSON result → the next step branches on it",
+  "standin.agent": "agent catalogue + runtime: demo stand-in (rules, not a model)",
+  "mcp.optin": "MCP server: opt-in (spring-ai-starter-mcp-server-webmvc) · client: a script, no model",
+  "recap.head": "AI in the process",
+  "recap.items": [
+    ["LLM_CALL", "since 2.26", "a judgement from a model — answer checked against `responseSchema`, usage recorded", "c0"],
+    ["AGENT", "since 2.34", "a task for a published agent — result in a variable; needs the agent catalogue and runtime", "c1"],
+    ["MCP", "opt-in", "the engine's operations as tools for an assistant — a dependency to switch on", "c2"]
+  ],
+  "recap.strip": ["the process decides what happens next — **every step is on record**", "in this video: the workshop's stand-in model · a demo agent runtime · a scripted MCP client"],
+  "close.line": "AI where it helps, **the process in charge.**",
+  "close.next": "Next · Operating running processes",
+  "close.docs": "eventconductor.mateu.io · LLM calls",
+  "close.app": "examples/video-series",
+  "close.license": "Open source · MIT",
+  "thumb.title": "AI **in the process**",
+  "thumb.sub": "LLM_CALL · AGENT · MCP"
+}

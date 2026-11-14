@@ -1,0 +1,13 @@
+id: end-compensate-fork
+name: Cancelling while a parallel branch is still at work
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: fork, type: FORK, name: Fork, preconditionStepId: start }
+  - { id: hold, type: ACTION, name: Hold a room, topic: work, preconditionStepId: fork, compensable: true, compensationStepId: release }
+  - { id: ask, type: ACTION, name: Ask the guest, topic: work, preconditionStepId: hold }
+  - { id: cancelled, type: END, name: Cancelled, compensate: true, preconditionStepId: ask }
+  - { id: transfer, type: ACTION, name: Book a transfer, topic: work, preconditionStepId: fork, compensable: true, compensationStepId: cancel-transfer }
+  - { id: transfer-done, type: ACTION, name: Transfer booked, topic: work, preconditionStepId: transfer }
+  - { id: release, type: ACTION, name: Release the room, topic: work }
+  - { id: cancel-transfer, type: ACTION, name: Cancel the transfer, topic: work }

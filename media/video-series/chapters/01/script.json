@@ -4,173 +4,576 @@
   "app": "examples/workshop-hotel-booking",
   "docs": "",
   "code": "examples/workshop-hotel-booking",
-  "title": { "en": "EventConductor in 3 minutes", "es": "EventConductor en 3 minutos" },
+  "title": {
+    "en": "EventConductor in 3 minutes",
+    "es": "EventConductor en 3 minutos"
+  },
   "hook": {
     "en": "How much of your code is actually the business? EventConductor is an engine for business processes: you write the steps, it handles the plumbing.",
     "es": "¿Cuánto de tu código es realmente negocio? EventConductor es un motor de procesos de negocio: tú escribes los pasos y él se encarga de la fontanería."
   },
   "about": {
-    "en": "The whole idea in one hotel booking: the process declared in YAML, a worker in plain Java, a run waiting for a manager's approval, a booking that undoes itself when the hotel refuses a room, operating runs from the console, tests and coverage in the Maven build, the deployment topologies, and an LLM step with structured output. Recorded on the workshop app (examples/workshop-hotel-booking).",
-    "es": "Toda la idea en una reserva de hotel: el proceso declarado en YAML, un worker en Java normal, una ejecución esperando la aprobación de un responsable, una reserva que se deshace sola cuando el hotel rechaza una habitación, la operación desde la consola, tests y cobertura en el build de Maven, las topologías de despliegue y un paso con un modelo de lenguaje y salida estructurada. Grabado sobre la app del taller (examples/workshop-hotel-booking)."
+    "en": "The whole idea in one hotel booking: the process declared in YAML, a worker in plain Java, a run waiting for a manager's approval, a room the hotel refuses, where the guest decides and only the guest's cancel undoes what was booked, operating runs from the console, tests and coverage in the Maven build, the deployment topologies, and an LLM step with structured output. Recorded on the workshop app (examples/workshop-hotel-booking).",
+    "es": "Toda la idea en una reserva de hotel: el proceso declarado en YAML, un worker en Java normal, una ejecución esperando la aprobación de un responsable, una habitación que el hotel rechaza, donde decide el cliente y solo su cancelación deshace lo reservado, la operación desde la consola, tests y cobertura en el build de Maven, las topologías de despliegue y un paso con un modelo de lenguaje y salida estructurada. Grabado sobre la app del taller (examples/workshop-hotel-booking)."
   },
-  "standIns": { "en": "the hotel and the language model are local stand-ins served by the workshop app", "es": "el hotel y el modelo de lenguaje son sustitutos locales que sirve la propia app del taller" },
+  "standIns": {
+    "en": "the hotel and the language model are local stand-ins served by the workshop app",
+    "es": "el hotel y el modelo de lenguaje son sustitutos locales que sirve la propia app del taller"
+  },
   "youtubeChapters": [
-    { "at": "hook", "en": "The idea", "es": "La idea" },
-    { "at": "declare", "en": "Declare the process", "es": "Declarar el proceso" },
-    { "at": "start", "en": "Run it", "es": "Ejecutarlo" },
-    { "at": "penthouse", "en": "When a room fails", "es": "Cuando falla una habitación" },
-    { "at": "operate", "en": "Operate", "es": "Operar" },
-    { "at": "tests", "en": "Test", "es": "Probar" },
-    { "at": "topologies", "en": "Deploy", "es": "Desplegar" },
-    { "at": "ai-code", "en": "AI steps", "es": "Pasos con IA" }
+    {
+      "at": "hook",
+      "en": "The idea",
+      "es": "La idea"
+    },
+    {
+      "at": "declare",
+      "en": "Declare the process",
+      "es": "Declarar el proceso"
+    },
+    {
+      "at": "start",
+      "en": "Run it",
+      "es": "Ejecutarlo"
+    },
+    {
+      "at": "penthouse",
+      "en": "When a room is sold out",
+      "es": "Cuando una habitación está agotada"
+    },
+    {
+      "at": "operate",
+      "en": "Operate",
+      "es": "Operar"
+    },
+    {
+      "at": "tests",
+      "en": "Test",
+      "es": "Probar"
+    },
+    {
+      "at": "topologies",
+      "en": "Deploy",
+      "es": "Desplegar"
+    },
+    {
+      "at": "ai-code",
+      "en": "AI steps",
+      "es": "Pasos con IA"
+    }
   ],
   "scenes": [
     {
-      "id": "hook", "view": "hook",
+      "id": "hook",
+      "view": "hook",
       "spec": {},
       "narration": {
-        "en": ["How much of your code is actually the business?", { "text": "EventConductor is an engine for business processes: you write the steps, it handles the plumbing.", "say": "Event Conductor is an engine for business processes: you write the steps, it handles the plumbing." }],
-        "es": ["¿Cuánto de tu código es realmente negocio?", { "text": "EventConductor es un motor de procesos de negocio: tú escribes los pasos y él se encarga de la fontanería.", "say": "Event Conductor es un motor de procesos de negocio: tú escribes los pasos y él se encarga de la fontanería." }]
+        "en": [
+          "How much of your code is actually the business?",
+          {
+            "text": "EventConductor is an engine for business processes: you write the steps, it handles the plumbing.",
+            "say": "Event Conductor is an engine for business processes: you write the steps, it handles the plumbing."
+          }
+        ],
+        "es": [
+          "¿Cuánto de tu código es realmente negocio?",
+          {
+            "text": "EventConductor es un motor de procesos de negocio: tú escribes los pasos y él se encarga de la fontanería.",
+            "say": "Event Conductor es un motor de procesos de negocio: tú escribes los pasos y él se encarga de la fontanería."
+          }
+        ]
       }
     },
     {
-      "id": "plumbing", "view": "plumbing",
+      "id": "plumbing",
+      "view": "plumbing",
       "spec": {},
       "narration": {
-        "en": ["A hotel booking is three steps: a manager approves it, each room is booked at the hotel, the guest is told.", "Production adds the rest:", "undo what was booked when a later room fails, retry without booking twice, survive a restart halfway, wait days for a person, change the process while runs are in flight."],
-        "es": ["Una reserva de hotel son tres pasos: un responsable la aprueba, se reserva cada habitación en el hotel y se avisa al cliente.", "Producción añade el resto:", "deshacer lo reservado cuando falla una habitación posterior, reintentar sin reservar dos veces, sobrevivir a un reinicio a medias, esperar días a una persona y cambiar el proceso con ejecuciones en marcha."]
+        "en": [
+          "A hotel booking is three steps: a manager approves it, each room is booked at the hotel, the guest is told.",
+          "Production adds the rest:",
+          "ask the guest when a room is sold out and undo what was booked only if they cancel, retry without booking twice, survive a restart halfway, wait days for a person, change the process while runs are in flight."
+        ],
+        "es": [
+          "Una reserva de hotel son tres pasos: un responsable la aprueba, se reserva cada habitación en el hotel y se avisa al cliente.",
+          "Producción añade el resto:",
+          "preguntar al cliente cuando una habitación está agotada y deshacer lo reservado solo si cancela, reintentar sin reservar dos veces, sobrevivir a un reinicio a medias, esperar días a una persona y cambiar el proceso con ejecuciones en marcha."
+        ]
       }
     },
     {
-      "id": "declare", "view": "code",
-      "code": { "file": "examples/workshop-hotel-booking/src/main/resources/workflows/06-hotel-booking.ec.yaml" },
+      "id": "declare",
+      "view": "code",
+      "code": {
+        "file": "examples/workshop-hotel-booking/src/main/resources/workflows/06-hotel-booking.ec.yaml"
+      },
       "spec": {
-        "geom": { "x": 70, "y": 50, "w": 1250, "h": 980 }, "fontSize": 22,
-        "reveal": { "from": 0.2, "to": "c1+0.6" },
+        "geom": {
+          "x": 70,
+          "y": 50,
+          "w": 1250,
+          "h": 980
+        },
+        "fontSize": 22,
+        "reveal": {
+          "from": 0.2,
+          "to": "c1+0.6"
+        },
         "emphasis": [
-          { "at": "c2", "match": ["^  - id: approve", "type: USER_TASK", "formId:"] },
-          { "at": "c3", "match": ["^  - id: decision", "type: CHOICE", "expression:"] },
-          { "at": "c4", "match": ["name: Book every room at the hotel", "forEach:", "retries: 3", "timeout: PT15S", "Idempotency-Key"] },
-          { "at": "c5", "match": ["compensable: true", "compensationStepId", "^  - id: cancel-room", "method: DELETE"] }
+          {
+            "at": "c2",
+            "match": [
+              "^  - id: approve",
+              "type: USER_TASK",
+              "formId:"
+            ]
+          },
+          {
+            "at": "c3",
+            "match": [
+              "^  - id: decision",
+              "type: CHOICE",
+              "expression:"
+            ]
+          },
+          {
+            "at": "c4",
+            "match": [
+              "name: Book every room at the hotel",
+              "forEach:",
+              "retries: 3",
+              "timeout: PT15S",
+              "Idempotency-Key"
+            ]
+          },
+          {
+            "at": "c5",
+            "match": [
+              "compensable: true",
+              "compensationStepId",
+              "compensate: true",
+              "answer == 'cancel'",
+              "^  - id: cancel-room$",
+              "method: DELETE"
+            ]
+          }
         ],
         "notes": [
-          { "at": "c2", "key": "declare.n1" },
-          { "at": "c3", "key": "declare.n2" },
-          { "at": "c4", "key": "declare.n3" },
-          { "at": "c5", "key": "declare.n4" }
+          {
+            "at": "c2",
+            "key": "declare.n1"
+          },
+          {
+            "at": "c3",
+            "key": "declare.n2"
+          },
+          {
+            "at": "c4",
+            "key": "declare.n3"
+          },
+          {
+            "at": "c5",
+            "key": "declare.n4"
+          }
         ]
       },
       "narration": {
-        "en": [{ "text": "With EventConductor you declare the process.", "say": "With Event Conductor you declare the process." }, "This is the real definition:", "a user task for the approval,", "a choice on the answer,", "one HTTP call per room — with retries, a timeout and an idempotency key —", "and a compensation that cancels a room if the booking as a whole fails."],
-        "es": [{ "text": "Con EventConductor declaras el proceso.", "say": "Con Event Conductor declaras el proceso." }, "Esta es la definición real:", "una tarea de usuario para la aprobación,", "una decisión según la respuesta,", { "text": "una llamada HTTP por habitación, con reintentos, timeout y clave de idempotencia,", "say": "una llamada hache te te pe por habitación, con reintentos, taim-aut y clave de idempotencia," }, "y una compensación que cancela la habitación si la reserva en conjunto falla."]
+        "en": [
+          {
+            "text": "With EventConductor you declare the process.",
+            "say": "With Event Conductor you declare the process."
+          },
+          "This is the real definition:",
+          "a user task for the approval,",
+          "a choice on the answer,",
+          "one HTTP call per room — with retries, a timeout and an idempotency key —",
+          "and a compensation that cancels the rooms that were booked — only if the guest decides to cancel."
+        ],
+        "es": [
+          {
+            "text": "Con EventConductor declaras el proceso.",
+            "say": "Con Event Conductor declaras el proceso."
+          },
+          "Esta es la definición real:",
+          "una tarea de usuario para la aprobación,",
+          "una decisión según la respuesta,",
+          {
+            "text": "una llamada HTTP por habitación, con reintentos, timeout y clave de idempotencia,",
+            "say": "una llamada hache te te pe por habitación, con reintentos, taim-aut y clave de idempotencia,"
+          },
+          "y una compensación que cancela las habitaciones reservadas, solo si el cliente decide cancelar."
+        ]
       }
     },
     {
-      "id": "worker", "view": "code",
-      "code": { "file": "examples/workshop-hotel-booking/src/main/java/com/example/hotel/workers/HotelTaskHandlers.java", "from": "public record CreateRoomBookingInput", "to": "^}$" },
+      "id": "worker",
+      "view": "code",
+      "code": {
+        "file": "examples/workshop-hotel-booking/src/main/java/com/example/hotel/workers/HotelTaskHandlers.java",
+        "from": "public record CreateRoomBookingInput",
+        "to": "record CancelRoomBookingInput"
+      },
       "spec": {
-        "geom": { "x": 70, "y": 50, "w": 1780, "h": 980 }, "fontSize": 22,
+        "geom": {
+          "x": 70,
+          "y": 50,
+          "w": 1780,
+          "h": 980
+        },
+        "fontSize": 22,
         "emphasis": [
-          { "at": "c1", "match": ["@Bean", "TaskRegistration<"] },
-          { "at": "c2", "match": ["return new CreateRoomBookingOutput", "throw new TaskFailure"] },
-          { "at": "c3", "match": ["Books one room"] }
+          {
+            "at": "c1",
+            "match": [
+              "@Bean",
+              "TaskRegistration<"
+            ]
+          },
+          {
+            "at": "c2",
+            "match": [
+              "return new CreateRoomBookingOutput",
+              "throw new TaskFailure"
+            ]
+          },
+          {
+            "at": "c3",
+            "match": [
+              "Books one room"
+            ]
+          }
         ]
       },
       "narration": {
-        "en": ["Business logic stays in plain Java.", "A worker is a Spring bean bound to a task:", "it returns to complete the step, or throws to fail it.", "It never retries or rolls back by itself — the engine does."],
-        "es": ["La lógica de negocio sigue siendo Java normal.", "Un worker es un bean de Spring asociado a una tarea:", "devuelve un resultado para completar el paso o lanza una excepción para fallarlo.", "Nunca reintenta ni deshace por su cuenta: eso lo hace el motor."]
+        "en": [
+          "Business logic stays in plain Java.",
+          "A worker is a Spring bean bound to a task:",
+          "it returns to complete the step, or throws to fail it.",
+          "It never retries or rolls back by itself — the engine does."
+        ],
+        "es": [
+          "La lógica de negocio sigue siendo Java normal.",
+          "Un worker es un bean de Spring asociado a una tarea:",
+          "devuelve un resultado para completar el paso o lanza una excepción para fallarlo.",
+          "Nunca reintenta ni deshace por su cuenta: eso lo hace el motor."
+        ]
       }
     },
     {
-      "id": "start", "view": "live",
+      "id": "start",
+      "view": "live",
       "spec": {
-        "terms": [{ "items": [{ "id": "booking-7", "at": 0.3, "prompt": "$" }], "opts": { "cps": 110 }, "from": 0, "to": "c1+1.2", "x": 220, "y": 470, "w": 1480, "h": 420 }]
+        "terms": [
+          {
+            "items": [
+              {
+                "id": "booking-7",
+                "at": 0.3,
+                "prompt": "$"
+              }
+            ],
+            "opts": {
+              "cps": 110
+            },
+            "from": 0,
+            "to": "c1+1.2",
+            "x": 220,
+            "y": 470,
+            "w": 1480,
+            "h": 420
+          }
+        ]
       },
       "narration": {
-        "en": ["The engine runs inside your Spring Boot app — here, one process with an embedded database.", "Start a booking over REST, and the console draws it live:", "it is waiting for the manager."],
-        "es": ["El motor corre dentro de tu aplicación Spring Boot; aquí, un único proceso con base de datos embebida.", "Arrancas una reserva por REST y la consola la dibuja en vivo:", "está esperando al responsable."]
+        "en": [
+          "The engine runs inside your Spring Boot app — here, one process with an embedded database.",
+          "Start a booking over REST, and the console draws it live:",
+          "it is waiting for the manager."
+        ],
+        "es": [
+          "El motor corre dentro de tu aplicación Spring Boot; aquí, un único proceso con base de datos embebida.",
+          "Arrancas una reserva por REST y la consola la dibuja en vivo:",
+          "está esperando al responsable."
+        ]
       }
     },
     {
-      "id": "approve", "view": "live",
+      "id": "approve",
+      "view": "live",
       "spec": {
-        "terms": [{ "items": [{ "id": "approve-7", "at": 0.2, "prompt": "$" }], "opts": { "cps": 70 }, "from": 0, "to": "c1-0.1", "x": 220, "y": 600, "w": 1480, "h": 240 }]
+        "terms": [
+          {
+            "items": [
+              {
+                "id": "approve-7",
+                "at": 0.2,
+                "prompt": "$"
+              }
+            ],
+            "opts": {
+              "cps": 70
+            },
+            "from": 0,
+            "to": "c1-0.1",
+            "x": 220,
+            "y": 600,
+            "w": 1480,
+            "h": 240
+          }
+        ]
       },
       "narration": {
-        "en": ["The manager approves.", "The choice takes the approved branch, each room is booked at the hotel, the guest is told.", "Every step, with its inputs, outputs and timing, is on record."],
-        "es": ["El responsable aprueba.", "La decisión toma la rama aprobada, se reserva cada habitación y se avisa al cliente.", "Cada paso queda registrado, con sus entradas, salidas y tiempos."]
+        "en": [
+          "The manager approves.",
+          "The choice takes the approved branch, each room is booked at the hotel, the guest is told.",
+          "Every step, with its inputs, outputs and timing, is on record."
+        ],
+        "es": [
+          "El responsable aprueba.",
+          "La decisión toma la rama aprobada, se reserva cada habitación y se avisa al cliente.",
+          "Cada paso queda registrado, con sus entradas, salidas y tiempos."
+        ]
       }
     },
     {
-      "id": "penthouse", "view": "live",
+      "id": "penthouse",
+      "view": "live",
       "spec": {
-        "terms": [{ "items": [{ "id": "booking-8", "at": 0.2, "prompt": "$" }], "opts": { "cps": 120 }, "from": 0, "to": "c1-0.2", "x": 220, "y": 560, "w": 1480, "h": 300 }],
-        "pills": [{ "key": "standin.hotel", "from": "c1", "right": 130, "y": 950, "cls": "amber" }]
+        "terms": [
+          {
+            "items": [
+              {
+                "id": "booking-8",
+                "at": 0.2,
+                "prompt": "$"
+              },
+              {
+                "id": "answer-8",
+                "at": "c2-1.0",
+                "prompt": "$"
+              }
+            ],
+            "opts": {
+              "cps": 120
+            },
+            "from": 0,
+            "to": "c2+0.4",
+            "x": 220,
+            "y": 520,
+            "w": 1480,
+            "h": 340
+          }
+        ],
+        "pills": [
+          {
+            "key": "standin.hotel",
+            "from": "c1",
+            "right": 130,
+            "y": 950,
+            "cls": "amber"
+          }
+        ]
       },
       "narration": {
-        "en": ["Now a booking with a penthouse, which is always sold out.", { "text": "The hotel refuses it, so EventConductor cancels the rooms that were already booked, on its own, newest first.", "say": "The hotel refuses it, so Event Conductor cancels the rooms that were already booked, on its own, newest first." }, "The process ends compensated: nothing is left booked."],
-        "es": ["Ahora una reserva con un ático, que siempre está agotado.", { "text": "El hotel lo rechaza, así que EventConductor cancela por su cuenta las habitaciones ya reservadas, de la más reciente a la más antigua.", "say": "El hotel lo rechaza, así que Event Conductor cancela por su cuenta las habitaciones ya reservadas, de la más reciente a la más antigua." }, "El proceso termina compensado: no queda nada reservado."]
+        "en": [
+          "Now a booking with a penthouse, which is always sold out.",
+          "The hotel refuses it, but the rooms it booked stay booked: the hotel offers another room, and the guest decides.",
+          {
+            "text": "The guest cancels — so EventConductor cancels the rooms that were booked, newest first, and the process ends compensated.",
+            "say": "The guest cancels — so Event Conductor cancels the rooms that were booked, newest first, and the process ends compensated."
+          }
+        ],
+        "es": [
+          "Ahora una reserva con un ático, que siempre está agotado.",
+          "El hotel lo rechaza, pero lo reservado sigue reservado: el hotel ofrece otra habitación y decide el cliente.",
+          {
+            "text": "El cliente cancela, así que EventConductor cancela las habitaciones reservadas, de la más reciente a la más antigua, y el proceso termina compensado.",
+            "say": "El cliente cancela, así que Event Conductor cancela las habitaciones reservadas, de la más reciente a la más antigua, y el proceso termina compensado."
+          }
+        ]
       }
     },
     {
-      "id": "operate", "view": "live",
+      "id": "operate",
+      "view": "live",
       "spec": {},
       "narration": {
-        "en": ["Operating is built in.", "Find any run by its business key,", "see why a step failed,", "retry from where it stopped, or repair many runs at once with a batch operation."],
-        "es": ["La operación viene incluida.", "Encuentras cualquier ejecución por su clave de negocio,", "ves por qué falló un paso,", "reintentas desde donde se paró o reparas muchas a la vez con una operación por lotes."]
+        "en": [
+          "Operating is built in.",
+          "Find any run by its business key,",
+          "see why a step failed,",
+          "retry from where it stopped, or repair many runs at once with a batch operation."
+        ],
+        "es": [
+          "La operación viene incluida.",
+          "Encuentras cualquier ejecución por su clave de negocio,",
+          "ves por qué falló un paso,",
+          "reintentas desde donde se paró o reparas muchas a la vez con una operación por lotes."
+        ]
       }
     },
     {
-      "id": "tests", "view": "terminal",
-      "spec": { "geom": { "x": 90, "y": 70, "w": 1740, "h": 940 }, "title": "examples/workshop-hotel-booking", "items": [{ "id": "mvn-verify", "at": 0.3 }], "opts": { "cps": 30, "lineGap": 0.55 } },
+      "id": "tests",
+      "view": "terminal",
+      "spec": {
+        "geom": {
+          "x": 90,
+          "y": 70,
+          "w": 1740,
+          "h": 940
+        },
+        "title": "examples/workshop-hotel-booking",
+        "items": [
+          {
+            "id": "mvn-verify",
+            "at": 0.3
+          }
+        ],
+        "opts": {
+          "cps": 30,
+          "lineGap": 0.55
+        }
+      },
       "narration": {
-        "en": ["Definitions are tested like code.", "The test kit runs a process in memory, with time under your control; scenarios can be plain YAML;", "and one Maven goal validates every definition and fails the build when workflow coverage drops below the floor you set."],
-        "es": ["Las definiciones se prueban como código.", "El kit de test ejecuta un proceso en memoria y con el tiempo bajo tu control; los escenarios pueden ser YAML sin más;", "y un único goal de Maven valida cada definición y rompe el build si la cobertura del flujo baja del mínimo que fijes."]
+        "en": [
+          "Definitions are tested like code.",
+          "The test kit runs a process in memory, with time under your control; scenarios can be plain YAML;",
+          "and one Maven goal validates every definition and fails the build when workflow coverage drops below the floor you set."
+        ],
+        "es": [
+          "Las definiciones se prueban como código.",
+          "El kit de test ejecuta un proceso en memoria y con el tiempo bajo tu control; los escenarios pueden ser YAML sin más;",
+          "y un único goal de Maven valida cada definición y rompe el build si la cobertura del flujo baja del mínimo que fijes."
+        ]
       }
     },
     {
-      "id": "topologies", "view": "topologies",
+      "id": "topologies",
+      "view": "topologies",
       "spec": {},
       "narration": {
-        "en": ["Start embedded, in memory or on a database.", "When you outgrow one process, the same definitions run distributed over Kafka, with workers in any language over HTTP, deployed with the Helm chart."],
-        "es": ["Empieza embebido, en memoria o sobre una base de datos.", "Cuando un solo proceso se te quede corto, las mismas definiciones corren distribuidas sobre Kafka, con workers en cualquier lenguaje vía HTTP, desplegadas con el chart de Helm."]
+        "en": [
+          "Start embedded, in memory or on a database.",
+          "When you outgrow one process, the same definitions run distributed over Kafka, with workers in any language over HTTP, deployed with the Helm chart."
+        ],
+        "es": [
+          "Empieza embebido, en memoria o sobre una base de datos.",
+          "Cuando un solo proceso se te quede corto, las mismas definiciones corren distribuidas sobre Kafka, con workers en cualquier lenguaje vía HTTP, desplegadas con el chart de Helm."
+        ]
       }
     },
     {
-      "id": "ai-code", "view": "code",
-      "code": { "file": "examples/workshop-hotel-booking/src/main/resources/workflows/05-special-request.ec.yaml", "from": "^  - id: classify-request", "to": "usageVariable" },
+      "id": "ai-code",
+      "view": "code",
+      "code": {
+        "file": "examples/workshop-hotel-booking/src/main/resources/workflows/05-special-request.ec.yaml",
+        "from": "^  - id: classify-request",
+        "to": "usageVariable"
+      },
       "spec": {
-        "geom": { "x": 70, "y": 120, "w": 1780, "h": 840 }, "fontSize": 24,
+        "geom": {
+          "x": 70,
+          "y": 120,
+          "w": 1780,
+          "h": 840
+        },
+        "fontSize": 24,
         "emphasis": [
-          { "at": "c0", "match": ["type: LLM_CALL", "connection: assistant"] },
-          { "at": "c1", "match": ["responseSchema", "required:", "category:", "output:", "requestCategory"] }
+          {
+            "at": "c0",
+            "match": [
+              "type: LLM_CALL",
+              "connection: assistant"
+            ]
+          },
+          {
+            "at": "c1",
+            "match": [
+              "responseSchema",
+              "required:",
+              "category:",
+              "output:",
+              "requestCategory"
+            ]
+          }
         ]
       },
       "narration": {
-        "en": ["It also speaks AI:", "a step can ask a language model for structured output, validated against a schema."],
-        "es": ["También habla IA:", "un paso puede pedir a un modelo de lenguaje una salida estructurada, validada contra un esquema."]
+        "en": [
+          "It also speaks AI:",
+          "a step can ask a language model for structured output, validated against a schema."
+        ],
+        "es": [
+          "Y también sabe de inteligencia artificial:",
+          "un paso puede pedir a un modelo de lenguaje una salida estructurada, validada contra un esquema."
+        ]
       }
     },
     {
-      "id": "ai-run", "view": "live",
+      "id": "ai-run",
+      "view": "live",
       "spec": {
         "pills": [
-          { "key": "standin.model", "from": 0.4, "x": 150, "y": 950, "cls": "amber" },
-          { "key": "mcp.optin", "from": "c1", "right": 130, "y": 950 }
+          {
+            "key": "standin.model",
+            "from": 0.4,
+            "x": 150,
+            "y": 950,
+            "cls": "amber"
+          },
+          {
+            "key": "mcp.optin",
+            "from": "c1",
+            "right": 130,
+            "y": 950
+          }
         ]
       },
       "narration": {
-        "en": ["The answer lands in the process variables.", "And with the MCP server switched on, every operation is a tool for your assistant."],
-        "es": ["La respuesta queda en las variables del proceso.", "Y con el servidor MCP activado, cada operación es una herramienta para tu asistente."]
+        "en": [
+          "The answer lands in the process variables.",
+          "And with the MCP server switched on, every operation is a tool for your assistant."
+        ],
+        "es": [
+          "La respuesta queda en las variables del proceso.",
+          "Y con el servidor MCP activado, cada operación es una herramienta para tu asistente."
+        ]
       }
     },
     {
-      "id": "close", "view": "close",
-      "spec": { "line": "close.line", "next": "close.next", "links": ["close.docs", "close.repo", "close.license"] },
+      "id": "close",
+      "view": "close",
+      "spec": {
+        "line": "close.line",
+        "next": "close.next",
+        "links": [
+          "close.docs",
+          "close.repo",
+          "close.license"
+        ]
+      },
       "extra": 1.5,
       "narration": {
-        "en": [{ "text": "EventConductor. Open source, MIT.", "say": "Event Conductor. Open source, M I T." }, { "text": "This series takes one topic at a time — start with the hands-on workshop at eventconductor.mateu.io.", "say": "This series takes one topic at a time — start with the hands-on workshop at event conductor dot mateu dot io." }],
-        "es": [{ "text": "EventConductor. Código abierto, licencia MIT.", "say": "Event Conductor. Código abierto, licencia eme i te." }, { "text": "Esta serie trata un tema cada vez; empieza por el taller práctico en eventconductor.mateu.io.", "say": "Esta serie trata un tema cada vez; empieza por el taller práctico en event conductor punto mateu punto io." }]
+        "en": [
+          {
+            "text": "EventConductor. Open source, MIT.",
+            "say": "Event Conductor. Open source, M I T."
+          },
+          {
+            "text": "This series takes one topic at a time — start with the hands-on workshop at eventconductor.mateu.io.",
+            "say": "This series takes one topic at a time — start with the hands-on workshop at event conductor dot mateu dot io."
+          }
+        ],
+        "es": [
+          {
+            "text": "EventConductor. Código abierto, licencia MIT.",
+            "say": "Event Conductor. Código abierto, licencia eme i te."
+          },
+          {
+            "text": "Esta serie trata un tema cada vez; empieza por el taller práctico en eventconductor.mateu.io.",
+            "say": "Esta serie trata un tema cada vez; empieza por el taller práctico en event conductor punto mateu punto io."
+          }
+        ]
       }
     }
   ]

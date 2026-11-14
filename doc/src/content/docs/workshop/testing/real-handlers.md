@@ -18,9 +18,12 @@ class RealHandlersTest {
     }
 
     @Test
-    void theRealHandlerRefusesThePenthouseAndTheRestIsUndone(WorkflowTestRuntime runtime) {
+    void theRealHandlerRefusesThePenthouseAndTheGuestDecides(WorkflowTestRuntime runtime) {
         var booking = runtime.start("rooms-booking-safe", "REAL-2",
                 Map.of("guest", "Fay", "rooms", Rooms.WITH_A_PENTHOUSE));
+        assertThat(booking).isWaitingAt("wait-for-guest").hasNoCompensations();
+
+        runtime.sendMessage("guest-answer", "REAL-2", Map.of("answer", "cancel"));
 
         assertThat(booking).isCompensated().hasCompensated("rooms");
         assertThat(booking).iterations("rooms").hasOnlyFailed("Room 900").hasCompensated("Room 101", "Room 102");
@@ -39,5 +42,5 @@ class RealHandlersTest {
 ```
 
 - `classes = {WorkflowTestApplication.class, HotelTaskHandlers.class}` adds the handlers' configuration to the kit's engine. (The workshop does not boot the whole `HotelBookingApplication` here: the console and the fakes are not needed to test the process.)
-- The second test is the penthouse failure of module 3, with **the real handler** refusing it — the same thing you saw in the console, in milliseconds.
+- The second test is the penthouse of module 3, with **the real handler** refusing it: the booking waits for the guest with nothing undone, and the guest's `cancel` — a message sent by the test — compensates the two rooms. The same thing you saw in the console, in milliseconds.
 - A **mock always wins** over a handler, so one dependency — the mail server — can be made to fail while the rest stays real.

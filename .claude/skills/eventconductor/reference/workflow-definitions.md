@@ -59,8 +59,9 @@ for autocomplete. The schema forbids unknown keys. Examples: [patterns.md](patte
 | (child rollback) | PROCESS | a running child the engine cuts short (parent rollback, `failFast` forEach, `compensateLosers`, `compensateAbandoned`) rolls itself back (`COMPENSATED`) before the parent finishes its rollback; the parent's `compensationStepId` runs only for a child that completed |
 | `steps` | PROCESS | the child workflow **in line** (same syntax as a definition's steps), instead of `childWorkflowDefinitionId` — exactly one of the two. Runs as child definition `<workflow>.<step>`, versioned with the parent, not startable on its own |
 | `joinType` | JOIN | `AND` (default) \| `XOR` |
-| `compensateLosers` | XOR JOIN | `true`: cancel the losing branches as the join fires and compensate their completed compensable steps (cleanup; default `false` = they run on) |
+| `compensateLosers` | XOR JOIN | `true`: cancel the losing branches as the join fires and compensate their completed compensable steps (cleanup; default `false` = they run on). One winner: the first link step to complete (ties: first listed); a branch that also completed before the join was evaluated still loses; losers' outputs are kept on their runs, never written to the process |
 | `compensateAbandoned` | END | `true`: compensate the completed compensable steps of the branches this END cut short (cleanup after `COMPLETED`) |
+| `compensate` | END | `true`: reaching it rolls the process back on purpose — in-flight work cancelled, every completed compensable step compensated newest first, process ends `COMPENSATED` (`COMPENSATION_FAILED` if an undo fails). For a business decision to undo; not with `compensateAbandoned`. In a child, fails the parent's PROCESS step |
 | `lockName`, `lockKey` | LOCK/UNLOCK | JEXL key |
 | `replyVariables` \| `replyExpression` \| `replyTemplate` | REPLY | at most one |
 | `event` | PUBLISH_EVENT | `{destination, type, key?, payload \| payloadTemplate \| payloadVariables, format?}` |

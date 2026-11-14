@@ -200,6 +200,15 @@ public class UpdateStepExecutionUseCase {
             // A forEach iteration never writes the process: parallel iterations would race on the same
             // variables. What it reports stays on it, for its container's output to collect.
             execution.recordOutput(resultVariables);
+        } else if (resultVariables != null && !resultVariables.isEmpty()
+                && io.mateu.workflow.domain.services.AbandonedBranchService.isOnALosingBranch(execution.getStepId(),
+                        repository.findByProcessId(execution.getProcessId()))) {
+            // Its branch already lost an XOR join with compensateLosers — another branch reached the
+            // join first. What it reports is not the outcome the flow goes on with, so it must not
+            // overwrite the winner's variables: it stays on this run, where its compensation reads it.
+            execution.recordOutput(resultVariables);
+            execution.logInfo("Step " + execution.getStepId() + " reported after its branch lost an XOR join "
+                    + "(compensateLosers): its variables are kept on this run, not written to the process.");
         } else {
             process.updateVariables(resultVariables);
         }

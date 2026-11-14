@@ -1,0 +1,539 @@
+{
+ "chapter": 2,
+ "slug": "your-first-process",
+ "app": "examples/workshop-hotel-booking",
+ "docs": "workshop/01-first-flow/",
+ "code": "examples/workshop-hotel-booking",
+ "title": {
+  "en": "Your first process",
+  "es": "Tu primer proceso"
+ },
+ "hook": {
+  "en": "From a Spring Boot app to a running process: two dependencies, two properties, one definition file, one Java bean and one REST call.",
+  "es": "De una aplicación Spring Boot a un proceso en marcha: dos dependencias, dos propiedades, un fichero de definición, un bean de Java y una llamada REST."
+ },
+ "about": {
+  "en": "The smallest useful EventConductor process, end to end: the Maven dependencies, the embedded engine on JPA, a three-step definition in YAML, the task handler that serves its ACTION, starting a run over the REST API (idempotent on the business key), and the run in the console — Steps, Variables and Diagram. Recorded on the workshop app (examples/workshop-hotel-booking), module 1.",
+  "es": "El proceso útil más pequeño de EventConductor, de principio a fin: las dependencias de Maven, el motor embebido sobre JPA, una definición de tres pasos en YAML, el task handler que sirve su ACTION, arrancar una ejecución por la API REST (idempotente por la clave de negocio) y la ejecución en la consola: Steps, Variables y Diagram. Grabado sobre la app del taller (examples/workshop-hotel-booking), módulo 1."
+ },
+ "standIns": {
+  "en": "the app runs on a laptop with an in-memory database",
+  "es": "la app corre en un portátil con una base de datos en memoria"
+ },
+ "youtubeChapters": [
+  {
+   "at": "title",
+   "en": "Start",
+   "es": "Inicio"
+  },
+  {
+   "at": "pom",
+   "en": "Dependencies",
+   "es": "Dependencias"
+  },
+  {
+   "at": "props",
+   "en": "Configuration",
+   "es": "Configuración"
+  },
+  {
+   "at": "definition",
+   "en": "The definition",
+   "es": "La definición"
+  },
+  {
+   "at": "worker",
+   "en": "The worker",
+   "es": "El worker"
+  },
+  {
+   "at": "boot",
+   "en": "Run the app",
+   "es": "Arrancar la app"
+  },
+  {
+   "at": "start",
+   "en": "Start a process",
+   "es": "Arrancar un proceso"
+  },
+  {
+   "at": "console",
+   "en": "In the console",
+   "es": "En la consola"
+  }
+ ],
+ "scenes": [
+  {
+   "id": "title",
+   "view": "title",
+   "spec": {
+    "eyebrow": "eyebrow",
+    "title": "title",
+    "sub": "sub",
+    "subAt": "c1",
+    "visual": "pieces"
+   },
+   "narration": {
+    "en": [
+     "From an empty Spring Boot app to a running process.",
+     {
+      "text": "This chapter: your first process with EventConductor — two dependencies, two properties, one definition, one Java bean, and one REST call.",
+      "say": "This chapter: your first process with Event Conductor — two dependencies, two properties, one definition, one Java bean, and one REST call."
+     }
+    ],
+    "es": [
+     {
+      "text": "De una aplicación Spring Boot vacía a un proceso en marcha.",
+      "say": "De una aplicación Spring Bút vacía a un proceso en marcha."
+     },
+     {
+      "text": "En este capítulo: tu primer proceso con EventConductor — dos dependencias, dos propiedades, una definición, un bean de Java y una llamada REST.",
+      "say": "En este capítulo: tu primer proceso con Event Conductor: dos dependencias, dos propiedades, una definición, un bin de Java y una llamada rest."
+     }
+    ]
+   }
+  },
+  {
+   "id": "pom",
+   "view": "code",
+   "code": {
+    "file": "examples/workshop-hotel-booking/pom.xml",
+    "from": 40,
+    "to": 52
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 120,
+     "w": 1250,
+     "h": 600
+    },
+    "fontSize": 24,
+    "emphasis": [
+     {
+      "at": "c1",
+      "match": [
+       "<artifactId>workflow-engine</artifactId>"
+      ]
+     },
+     {
+      "at": "c2",
+      "match": [
+       "<artifactId>builtin-workers</artifactId>",
+       "HTTP_CALL, LLM_CALL"
+      ]
+     }
+    ],
+    "notes": [
+     {
+      "at": "c1",
+      "key": "pom.n1"
+     },
+     {
+      "at": "c2",
+      "key": "pom.n2"
+     },
+     {
+      "at": "c3",
+      "key": "pom.n3"
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     "Start from a Spring Boot application and add two dependencies.",
+     "workflow-engine is the engine itself.",
+     "builtin-workers runs, in the same process, the HTTP and language-model calls and your own task handlers.",
+     "The workshop app also brings the web console, JPA and an in-memory H2 database."
+    ],
+    "es": [
+     {
+      "text": "Parte de una aplicación Spring Boot y añade dos dependencias.",
+      "say": "Parte de una aplicación Spring Bút y añade dos dependencias."
+     },
+     {
+      "text": "workflow-engine es el motor.",
+      "say": "Uórkflou énllin es el motor."
+     },
+     {
+      "text": "builtin-workers ejecuta, en el mismo proceso, las llamadas HTTP y a modelos de lenguaje, y tus propios task handlers.",
+      "say": "Bíltin uórkers ejecuta, en el mismo proceso, las llamadas hache te te pe y a modelos de lenguaje, y tus propios task jándlers."
+     },
+     {
+      "text": "La app del taller trae además la consola web, JPA y una base de datos H2 en memoria.",
+      "say": "La ap del taller trae además la consola web, jota pe a y una base de datos hache dos en memoria."
+     }
+    ]
+   }
+  },
+  {
+   "id": "props",
+   "view": "code",
+   "code": {
+    "file": "examples/workshop-hotel-booking/src/main/resources/application.properties",
+    "from": 1,
+    "to": 18
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 70,
+     "w": 1250,
+     "h": 860
+    },
+    "fontSize": 22,
+    "emphasis": [
+     {
+      "at": "c0",
+      "match": [
+       "^workflow\\.mode=embedded"
+      ]
+     },
+     {
+      "at": "c1",
+      "match": [
+       "^workflow\\.persistence=jpa",
+       "^spring\\.datasource\\.url"
+      ]
+     },
+     {
+      "at": "c2",
+      "match": [
+       "^workflow\\.message-api\\.allow-anonymous=true",
+       "NEVER in anything reachable"
+      ]
+     }
+    ],
+    "notes": [
+     {
+      "at": "c0",
+      "key": "props.n1"
+     },
+     {
+      "at": "c1",
+      "key": "props.n2"
+     },
+     {
+      "at": "c2",
+      "key": "props.n3"
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     "Mode embedded: the engine runs inside this application — no broker, no second service.",
+     "Persistence JPA: every process is stored in the database; here, an in-memory H2 the console reads.",
+     {
+      "text": "And one switch for a laptop only: since 2.27 the API refuses anonymous callers, and allow-anonymous lifts that so you can call it without a login. Never on a network.",
+      "say": "And one switch for a laptop only: since two point twenty-seven the API refuses anonymous callers, and allow-anonymous lifts that so you can call it without a login. Never on a network."
+     }
+    ],
+    "es": [
+     {
+      "text": "Modo embedded: el motor corre dentro de esta aplicación, sin broker y sin un segundo servicio.",
+      "say": "Modo embéded: el motor corre dentro de esta aplicación, sin bróker y sin un segundo servicio."
+     },
+     {
+      "text": "Persistencia JPA: cada proceso se guarda en la base de datos; aquí, una H2 en memoria que lee la consola.",
+      "say": "Persistencia jota pe a: cada proceso se guarda en la base de datos; aquí, una hache dos en memoria que lee la consola."
+     },
+     {
+      "text": "Y un interruptor solo para el portátil: desde la 2.27 la API rechaza a quien llama sin identificarse, y allow-anonymous lo levanta para llamarla sin login. Nunca en una red.",
+      "say": "Y un interruptor solo para el portátil: desde la dos punto veintisiete la a pe i rechaza a quien llama sin identificarse, y alóu anónimus lo levanta para llamarla sin login. Nunca en una red."
+     }
+    ]
+   }
+  },
+  {
+   "id": "definition",
+   "view": "code",
+   "code": {
+    "file": "examples/workshop-hotel-booking/src/main/resources/workflows/01-first-booking.ec.yaml"
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 120,
+     "w": 1250,
+     "h": 760
+    },
+    "fontSize": 26,
+    "emphasis": [
+     {
+      "at": "c1",
+      "match": [
+       "type: START",
+       "type: ACTION",
+       "type: END"
+      ]
+     },
+     {
+      "at": "c2",
+      "match": [
+       "preconditionStepId"
+      ]
+     }
+    ],
+    "notes": [
+     {
+      "at": "c0",
+      "key": "def.n0"
+     },
+     {
+      "at": "c1",
+      "key": "def.n1"
+     },
+     {
+      "at": "c2",
+      "key": "def.n2"
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     "The process is a file under workflows on the classpath, named dot ec dot yaml: plain YAML to every tool.",
+     "Three steps: a START, an ACTION that registers the booking, and an END.",
+     "There are no arrows to draw: each step says what it waits for, and the graph is derived from that."
+    ],
+    "es": [
+     {
+      "text": "El proceso es un fichero bajo workflows en el classpath, con nombre .ec.yaml: YAML normal para cualquier herramienta.",
+      "say": "El proceso es un fichero bajo uórkflous en el clás-path, con nombre punto e ce punto yámel: yámel normal para cualquier herramienta."
+     },
+     {
+      "text": "Tres pasos: un START, un ACTION que registra la reserva y un END.",
+      "say": "Tres pasos: un start, un ácshon que registra la reserva y un end."
+     },
+     "No hay flechas que dibujar: cada paso dice a qué espera, y el grafo se deduce de eso."
+    ]
+   }
+  },
+  {
+   "id": "worker",
+   "view": "code",
+   "code": {
+    "file": "examples/workshop-hotel-booking/src/main/java/com/example/hotel/workers/HotelTaskHandlers.java",
+    "from": "public record RegisterBookingInput",
+    "to": "^    }$"
+   },
+   "spec": {
+    "geom": {
+     "x": 70,
+     "y": 140,
+     "w": 1780,
+     "h": 640
+    },
+    "fontSize": 24,
+    "emphasis": [
+     {
+      "at": "c0",
+      "match": [
+       "@Bean",
+       "TaskRegistration<RegisterBookingInput"
+      ]
+     },
+     {
+      "at": "c1",
+      "match": [
+       "new TaskRegistration<>\\(\"register-booking\""
+      ]
+     },
+     {
+      "at": "c2",
+      "match": [
+       "record RegisterBookingInput",
+       "record RegisterBookingOutput",
+       "return new RegisterBookingOutput"
+      ]
+     }
+    ]
+   },
+   "narration": {
+    "en": [
+     "The ACTION is served by a task handler: plain Java, a Spring bean.",
+     "With no task named in the step, the handler whose id is the step's id serves it: register-booking.",
+     "The variables are bound into the input record by name — guest and rooms — and the output record's fields become process variables: the booking number."
+    ],
+    "es": [
+     {
+      "text": "El ACTION lo sirve un task handler: Java normal, un bean de Spring.",
+      "say": "El ácshon lo sirve un task jándler: Java normal, un bin de Spring."
+     },
+     {
+      "text": "Si el paso no nombra ninguna tarea, lo sirve el handler cuyo id es el del paso: register-booking.",
+      "say": "Si el paso no nombra ninguna tarea, lo sirve el jándler cuyo aidí es el del paso: réyister búking."
+     },
+     "Las variables entran en el record de entrada por nombre —el huésped y las habitaciones— y los campos del record de salida pasan a ser variables del proceso: el número de reserva."
+    ]
+   }
+  },
+  {
+   "id": "boot",
+   "view": "terminal",
+   "spec": {
+    "geom": {
+     "x": 140,
+     "y": 170,
+     "w": 1640,
+     "h": 700
+    },
+    "title": "examples/workshop-hotel-booking",
+    "items": [
+     {
+      "id": "boot",
+      "at": 0.3
+     }
+    ],
+    "opts": {
+     "cps": 30,
+     "lineGap": 0.35
+    }
+   },
+   "narration": {
+    "en": [
+     "Run it like any Spring Boot app.",
+     "One process holds the engine, its database, the REST API and the console — and the definition is imported at startup."
+    ],
+    "es": [
+     {
+      "text": "Se arranca como cualquier aplicación Spring Boot.",
+      "say": "Se arranca como cualquier aplicación Spring Bút."
+     },
+     {
+      "text": "Un único proceso contiene el motor, su base de datos, la API REST y la consola; y la definición se importa al arrancar.",
+      "say": "Un único proceso contiene el motor, su base de datos, la a pe i rest y la consola; y la definición se importa al arrancar."
+     }
+    ]
+   }
+  },
+  {
+   "id": "start",
+   "view": "terminal",
+   "spec": {
+    "geom": {
+     "x": 90,
+     "y": 110,
+     "w": 1740,
+     "h": 820
+    },
+    "title": "examples/workshop-hotel-booking",
+    "items": [
+     {
+      "id": "start-1",
+      "at": 0.3,
+      "prompt": "$"
+     },
+     {
+      "id": "start-1-again",
+      "at": "c2",
+      "prompt": "$"
+     }
+    ],
+    "opts": {
+     "cps": 95,
+     "lineGap": 0.06
+    }
+   },
+   "extra": 1,
+   "narration": {
+    "en": [
+     "Start a process over the REST API: which definition, a business key — your own reference for the run, here the booking's — and the variables.",
+     "It answers at once with the new process; the engine runs it in the background.",
+     "Starting is idempotent on the business key: send the same request again, and you get the same process back — completed by now — not a second booking."
+    ],
+    "es": [
+     {
+      "text": "Arranca un proceso por la API REST: qué definición, una clave de negocio —tu propia referencia de la ejecución, aquí la de la reserva— y las variables.",
+      "say": "Arranca un proceso por la a pe i rest: qué definición, una clave de negocio —tu propia referencia de la ejecución, aquí la de la reserva— y las variables."
+     },
+     "Responde al momento con el proceso nuevo; el motor lo ejecuta en segundo plano.",
+     "Arrancar es idempotente por la clave de negocio: repite la misma petición y recibes el mismo proceso —ya completado—, no una segunda reserva."
+    ]
+   }
+  },
+  {
+   "id": "console",
+   "view": "live",
+   "spec": {},
+   "narration": {
+    "en": [
+     "In the console, under Workflow, Processes, the run is completed.",
+     "The Steps tab lists each step, when it started and when it finished.",
+     "Variables holds the guest, the rooms, and the booking number the worker wrote.",
+     "And the Diagram draws the definition with this run on top: every step it passed is green."
+    ],
+    "es": [
+     {
+      "text": "En la consola, en Workflow, Processes, la ejecución está completada.",
+      "say": "En la consola, en Uórkflou, Prócesses, la ejecución está completada."
+     },
+     {
+      "text": "La pestaña Steps lista cada paso, cuándo empezó y cuándo terminó.",
+      "say": "La pestaña «steps» lista cada paso, cuándo empezó y cuándo terminó."
+     },
+     {
+      "text": "Variables guarda el huésped, las habitaciones y el número de reserva que escribió el worker.",
+      "say": "Variables guarda el huésped, las habitaciones y el número de reserva que escribió el uórker."
+     },
+     {
+      "text": "Y Diagram dibuja la definición con esta ejecución encima: cada paso por el que pasó, en verde.",
+      "say": "Y «dáyagram» dibuja la definición con esta ejecución encima: cada paso por el que pasó, en verde."
+     }
+    ]
+   }
+  },
+  {
+   "id": "recap",
+   "view": "recap",
+   "spec": {},
+   "narration": {
+    "en": [
+     {
+      "text": "That is the whole shape of an EventConductor app.",
+      "say": "That is the whole shape of an Event Conductor app."
+     },
+     "The process is declared in a file; the work is plain Java; the engine runs the steps, stores every run and shows it."
+    ],
+    "es": [
+     {
+      "text": "Esa es toda la forma de una aplicación EventConductor.",
+      "say": "Esa es toda la forma de una aplicación Event Conductor."
+     },
+     "El proceso se declara en un fichero; el trabajo es Java normal; el motor ejecuta los pasos, guarda cada ejecución y la muestra."
+    ]
+   }
+  },
+  {
+   "id": "close",
+   "view": "close",
+   "spec": {
+    "line": "close.line",
+    "next": "close.next",
+    "links": [
+     "close.docs",
+     "close.workshop",
+     "close.license"
+    ]
+   },
+   "extra": 1.5,
+   "narration": {
+    "en": [
+     "One file, one bean, one call.",
+     "Next: definitions — as YAML, as a graph, and in your IDE.",
+     "Module 1 of the workshop is linked below."
+    ],
+    "es": [
+     {
+      "text": "Un fichero, un bean, una llamada.",
+      "say": "Un fichero, un bin, una llamada."
+     },
+     {
+      "text": "Próximo capítulo: las definiciones, como YAML, como grafo y en tu IDE.",
+      "say": "Próximo capítulo: las definiciones, como yámel, como grafo y en tu i de e."
+     },
+     "El módulo 1 del taller está enlazado abajo."
+    ]
+   }
+  }
+ ]
+}

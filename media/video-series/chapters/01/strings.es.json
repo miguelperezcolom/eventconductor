@@ -9,7 +9,7 @@
   ],
   "plumb.head": "Producción añade el resto.",
   "plumb": [
-    "deshacer lo reservado",
+    "deshacer lo reservado, si el cliente cancela",
     "reintentar sin reservar dos veces",
     "sobrevivir a un reinicio a medias",
     "esperar días a una persona",
@@ -18,7 +18,7 @@
   "declare.n1": "`USER_TASK` — la aprobación del responsable",
   "declare.n2": "`CHOICE` — según la respuesta",
   "declare.n3": "`HTTP_CALL` × habitación — reintentos, timeout, `Idempotency-Key`",
-  "declare.n4": "`compensationStepId` — cancela la habitación si la reserva falla",
+  "declare.n4": "`compensate: true`: cancelar lo reservado **cuando el cliente cancela**",
   "standin.hotel": "hotel falso: sustituto local",
   "standin.model": "modelo: sustituto local",
   "mcp.optin": "servidor MCP: opcional",

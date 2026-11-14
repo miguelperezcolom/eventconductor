@@ -48,6 +48,19 @@ public final class ProcessGraphProjection {
                 return rb != ra ? (rb > ra ? b : a) : (b.getAttemptCount() >= a.getAttemptCount() ? b : a);
             });
         }
+        // A loop section's later pass that the run cancelled — the CHOICE took another way out — is the
+        // step's current execution, and drawn as it stood the node read as cancelled, the grey of a
+        // step that never ran, when it had run (and completed) on an earlier pass. The node stands for
+        // the pass that ran; the cancelled one is noted on it.
+        var cancelledPass = new HashMap<String, StepExecution>();
+        for (var entry : new ArrayList<>(byStep.entrySet())) {
+            if (entry.getValue().getStatus() != StepExecutionStatus.CANCELLED) continue;
+            var ran = lastCompletedEarlierPass(entry.getValue(), steps);
+            if (ran != null) {
+                cancelledPass.put(entry.getKey(), entry.getValue());
+                byStep.put(entry.getKey(), ran);
+            }
+        }
         var errors = latestErrorByStepExecution(logs);
         var order = executionOrder(byStep.values());
         var overlay = new HashMap<String, Object>();
@@ -55,6 +68,12 @@ public final class ProcessGraphProjection {
         byStep.forEach((id, execution) -> {
             var entry = overlayEntry(execution, errors.get(execution.id()), sensitive);
             if (order.containsKey(id)) entry.put("order", order.get(id));
+            var cancelled = cancelledPass.get(id);
+            if (cancelled != null) {
+                entry.put("cancelledPass", cancelled.getIteration() + 1);
+                entry.put("reason", "Completed on run " + (execution.getIteration() + 1)
+                        + "; run " + (cancelled.getIteration() + 1) + " was cancelled");
+            }
             putRunsAndIterations(entry, execution, steps, children, errors, bodies);
             var child = execution.id() == null ? null : children.get(execution.id());
             if (child != null && !execution.isContainer()) {
@@ -65,6 +84,23 @@ public final class ProcessGraphProjection {
             overlay.put(id, entry);
         });
         return new Graph(withInjectedSteps(definition, steps), overlay);
+    }
+
+    /**
+     * The latest earlier pass of {@code current}'s step that completed — a superseded top-level
+     * execution of the same step, not one a restart discarded — or null when none did.
+     */
+    static StepExecution lastCompletedEarlierPass(StepExecution current, List<StepExecution> all) {
+        StepExecution best = null;
+        for (var e : all) {
+            if (e == current || e.getParentExecutionId() != null || !e.isSuperseded()) continue;
+            if (!Objects.equals(current.getStepId(), e.getStepId())) continue;
+            if (e.getStatus() != StepExecutionStatus.COMPLETED) continue;
+            if (StepExecution.LOOP_DISCARDED.equals(e.getLoopDecision())) continue;
+            if (e.getIteration() >= current.getIteration()) continue;
+            if (best == null || e.getIteration() > best.getIteration()) best = e;
+        }
+        return best;
     }
 
     public static io.mateu.workflow.domain.aggregates.WorkflowDefinition safeDefinition(String definitionJson) {
@@ -113,6 +149,7 @@ public final class ProcessGraphProjection {
      */
     public static String rowName(StepExecution se) {
         if (se.isIteration()) {
+            // Read through the getters (not StepExecution#iterationName) so a mocked execution reads the same.
             return se.getStepId() + " · " + (se.getItemLabel() != null && !se.getItemLabel().isBlank() ? se.getItemLabel()
                     : "item " + (se.getItemIndex() == null ? "?" : se.getItemIndex()))
                     + (se.getIteration() > 0 ? " (run " + (se.getIteration() + 1) + ")" : "");
@@ -394,15 +431,39 @@ public final class ProcessGraphProjection {
         if (se.getDeadlineAt() != null) entry.put("deadlineAt", se.getDeadlineAt().toString());
         if (se.getStartedAt() != null) entry.put("startedAt", se.getStartedAt().toString());
         if (se.getWorkerId() != null) entry.put("worker", se.getWorkerId());
+        var userTask = step != null && step.type() == StepType.USER_TASK;
+        if (userTask) {
+            // What the card says instead of the task's plumbing: the form it shows and who it is for.
+            if (step.formId() != null && !step.formId().isBlank()) entry.put("form", step.formId());
+            var assignment = se.assignment();
+            if (assignment != null) {
+                if (assignment.assignee() != null) entry.put("assignee", assignment.assignee());
+                var offered = new ArrayList<String>();
+                assignment.candidateUsers().forEach(offered::add);
+                assignment.candidateGroups().forEach(g -> offered.add("group " + g));
+                if (!offered.isEmpty()) entry.put("candidates", String.join(", ", offered));
+            }
+        }
         var vars = se.getVariables();
         if (vars != null && !vars.isEmpty()) {
             entry.put("variables", vars.stream()
+                    .filter(v -> !isEngineInternal(v.name(), userTask))
                     .limit(12)
                     .map(v -> Map.of("name", v.name() == null ? "" : v.name(),
                             "value", v.value() == null ? "" : io.mateu.workflow.application.services.SensitiveVariableMasking.shown(v.name(), v.value(), sensitive)))
                     .toList());
         }
         return entry;
+    }
+
+    /**
+     * A variable the engine put on the step for its own use, not one of the process's: the
+     * {@code __}-prefixed request/assignment/escalation snapshots ({@code __task}, {@code __http},
+     * {@code __escalations}…), and a USER_TASK's {@code formId}, which the card shows as its form.
+     */
+    static boolean isEngineInternal(String name, boolean userTask) {
+        if (name == null || name.isBlank()) return true;
+        return io.mateu.workflow.dtos.humantasks.HumanTaskAssignment.isInternalVariable(name) || (userTask && "formId".equals(name));
     }
 
     /**

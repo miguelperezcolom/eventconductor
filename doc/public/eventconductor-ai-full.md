@@ -183,7 +183,7 @@ YAML (first line):
 ### Visual editor (VS Code / IntelliJ plugins)
 The graph editor edits every field above. Its step panel carries `forEach.onIterationFailure`
 (failFast / continue / compensateAll) and `forEach.label`, `compensateLosers` (XOR joins only) and
-`compensateAbandoned` (END only), with the same validation messages as `eventconductor:validate`;
+`compensateAbandoned` and `compensate` (END only), with the same validation messages as `eventconductor:validate`;
 inline PROCESS bodies are edited in place (see PROCESS). In VS Code's execution view a double-click
 on a PROCESS step (or a lane header) opens that child process. Light and dark themes follow the
 host (`--ec-*` tokens).
@@ -405,7 +405,10 @@ makes it visible). JOIN is the barrier/converge point: its **multiple preconditi
 `joinType: XOR`, the first one to complete. Do not use `parallel: true` — it is deprecated and ignored.
 By default an `XOR` join lets the losing branches run on and keeps what they complete;
 **`compensateLosers: true`** (XOR joins only) cancels them as the join fires and compensates their
-completed compensable steps as a cleanup (see §8).
+completed compensable steps as a cleanup (see §8). Exactly one branch wins: the first whose link step
+completed (ties: the first in `preconditionStepIds`) — a branch that also completed before the join was
+evaluated still loses and is compensated — and a loser's outputs are discarded (kept on its own run for
+its compensation, never written over the winner's variables).
 
 **CHOICE** is the exclusive split: it takes exactly ONE successor — the first whose link guard holds,
 evaluated from the longest guard expression to the shortest; a link with no guard is the default (tried
@@ -524,7 +527,7 @@ Ends the run as END does (COMPLETED, outcome `continued`, other branches cancell
 ```json
 { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "last-step" }
 ```
-One per workflow (recommended; the process also completes when nothing is runnable). Transitions the process to `COMPLETED`. With parallel branches, precede it with a JOIN. Branches still running are cancelled; what they completed in time stands unless **`compensateAbandoned: true`** (END only), which compensates the completed compensable steps of the branches this END cut short, as a cleanup after `COMPLETED` (§8).
+One per workflow (recommended; the process also completes when nothing is runnable). Transitions the process to `COMPLETED`. With parallel branches, precede it with a JOIN. Branches still running are cancelled; what they completed in time stands unless **`compensateAbandoned: true`** (END only), which compensates the completed compensable steps of the branches this END cut short, as a cleanup after `COMPLETED` (§8). **`compensate: true`** (END only, not with `compensateAbandoned`) ends the process by rolling it back on purpose — for a business decision to undo (the guest cancelled), where nothing failed: what is in flight is cancelled, every completed compensable step is compensated newest first, and the process ends **`COMPENSATED`** (`COMPENSATION_FAILED` if a compensation fails), also when there was nothing to undo; not counted as a failed process. In a child process it fails the parent's PROCESS step (§8). The graph draws it with BPMN's rewind marker.
 
 ### Common step fields
 
@@ -892,6 +895,7 @@ class BookingSagaTest {
 - `retries: N` — retry a step up to N times on `ERROR` or `TIMEOUT`.
 - `timeout` — on expiry the step goes `TIMEOUT`, then retries if attempts remain, else `ERROR`. A process in `ERROR` (after retries exhausted) can be retried, transitioning back to `RUNNING`.
 - **Saga**: mark steps `compensable: true` with a `compensationStepId`. When any step fails after exhausting retries, the engine runs the compensations of **every completed compensable step** (never the step that failed — its work did not happen) **sequentially, in reverse completion order** — latest undone first, each starting only once the previous compensation completes; a step that ran several times (forEach iterations, loop passes) is compensated once per completed run, newest first. When the whole chain finishes the process ends in the terminal **`COMPENSATED`** state; if a compensation itself fails after its own retries, the chain halts and the process ends **`COMPENSATION_FAILED`** (partially rolled back — alert on `eventconductor.compensations.failed`). If nothing compensable had completed, the process stays `ERROR`. Define compensation steps as ordinary `ACTION` steps with **no preconditions** — being named as a `compensationStepId` is what makes them reachable, and the dataflow never starts a step that has nothing to wait for. (Older definitions anchor them with `"preconditionExpression": "false"`; still supported. An anchor without the guard is a live branch of the happy path.)
+- **Compensation on a business decision.** Compensation is the mechanism; who decides to trigger it is your business rule. A failure triggers it automatically (above) — right for a technical all-or-nothing unit (charge + reserve within one request). When undoing is a *decision* (the hotel could not book one room: tell the guest, propose an alternative, cancel only if the guest says so), keep the work (`forEach.onIterationFailure: continue`), route on the decision (`CHOICE`), and end the cancel branch with an `END` with **`compensate: true`**: it cancels what is in flight, compensates every completed compensable step newest first (a forEach's completed iterations each once, its failed ones not at all) and ends `COMPENSATED`. A child process that does so fails its parent's PROCESS step, which may roll the parent back in turn.
 - **Late completion.** The engine cancels still-running steps at the end of a rollback, when another branch reaches `END`, and when an XOR join with `compensateLosers` fires. If such a step had started and its work completes anyway (a worker reporting after the cancellation, a child PROCESS already `COMPLETED`), and the step declares a compensation, that late `COMPLETED` is kept as a completed run (its reported variables on the run, not the process) and undone: in a failed process by the rollback (if it had already finished, the process goes back to `ERROR`, a new pass of the compensation undoes just that run, and it ends `COMPENSATED` again); in a process that did not fail, as a cleanup. Late answers for a step without compensation, or in a process an operator cancelled, are still ignored.
 - **Cleanup compensations** (late work in a non-failed process, `compensateLosers` on an XOR join, `compensateAbandoned` on an END): one at a time, newest first; they do not change the process status (an END cleanup runs after `COMPLETED`; reaching END never cancels one); a cleanup that fails after its retries is an **incident** in the Errors tab, and the process neither fails nor rolls back; a run a cleanup undid is not undone twice.
 - **Child processes cut short** by the engine (parent rollback, `failFast` forEach, `compensateLosers`, `compensateAbandoned`) roll themselves back before the parent's rollback ends; a child that already completed is undone by the parent's `compensationStepId`. An operator cancel never rolls back. See PROCESS (§4).

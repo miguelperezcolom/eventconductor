@@ -349,6 +349,88 @@ class WorkflowDefinitionInvariantsTest {
     }
 
     @Test
+    void doesNotWarnAboutTheRouteToAStepsOwnTimeoutBranch() throws Exception {
+        // The documented onTimeoutStepId pattern, verbatim from guides/request-response.md: the normal
+        // successor (book) and, reached only on timeout (a false guard), the on-timeout branch (no-quote).
+        // That is one flow out of ask-quote plus its timeout route — not two flows that want a FORK.
+        var yaml = """
+                id: booking-quote
+                name: Book with a quote (asks, then waits for the answer)
+                version: 1
+                steps:
+                  - id: start
+                    type: START
+                    name: Start
+                  - id: ask-quote
+                    type: PUBLISH_EVENT
+                    name: Ask for a quote and wait for it
+                    preconditionStepId: start
+                    timeout: PT5M                                    # the whole exchange: request and reply
+                    retries: 0
+                    onTimeoutStepId: no-quote
+                    event:
+                      destination: quote-requests
+                      type: com.acme.quote.requested
+                      key: "${process.businessKey}"
+                      payload:
+                        requestId: "${process.businessKey}"          # the correlation id the answer must carry
+                        item: "${item}"
+                    awaitReply:
+                      messageName: quote-ready
+                      correlationExpression: businessKey             # known before the request leaves
+                      onEvent:
+                        destination: quote-replies
+                        type: com.acme.quote.ready
+                        correlationKey: "${data.requestId}"
+                        variables:
+                          price: "${data.price}"
+                  - id: book
+                    type: ACTION
+                    name: Book at the quoted price
+                    topic: booking
+                    preconditionStepId: ask-quote
+                  - id: no-quote
+                    type: ACTION
+                    name: Tell the customer there is no quote
+                    topic: booking
+                    preconditions:
+                      - stepId: ask-quote
+                        expression: "false"                          # reached only through ask-quote's onTimeoutStepId
+                  - id: outcome
+                    type: JOIN
+                    name: Outcome
+                    joinType: XOR
+                    preconditionStepIds: [book, no-quote]
+                  - id: end
+                    type: END
+                    name: End
+                    preconditionStepId: outcome
+                """;
+        var definition = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper()
+                .readValue(yaml, WorkflowDefinition.class);
+        assertThatNoException().isThrownBy(definition::checkInvariants);
+        assertThat(definition.topologyWarnings()).isEmpty();
+    }
+
+    @Test
+    void stillWarnsAboutASecondFlowThatIsNotTheTimeoutRoute() {
+        // The timeout route is excluded, and only it: a third successor is a real second flow.
+        var wait = io.mateu.core.infra.JsonSerializer.pojoFromJson("""
+                {"id": "wait", "workflowDefinitionId": "wd-1", "type": "WAIT_FOR_MESSAGE", "name": "Wait",
+                 "preconditionStepId": "start", "messageName": "paid", "correlationExpression": "businessKey",
+                 "timeout": "PT2H", "onTimeoutStepId": "expire"}
+                """, Step.class);
+        var expire = io.mateu.core.infra.JsonSerializer.pojoFromJson("""
+                {"id": "expire", "workflowDefinitionId": "wd-1", "type": "ACTION", "name": "Expire", "topic": "t",
+                 "preconditions": [{"stepId": "wait", "expression": "false"}]}
+                """, Step.class);
+        var steps = List.of(startStep(), wait, step("ship", "wait", null), step("notify", "wait", null), expire,
+                gateway("done", StepType.JOIN, List.of("ship", "notify", "expire")), endStep("end", "done"));
+        assertThat(definition(steps).topologyWarnings())
+                .contains("Step 'wait' has 2 outgoing flows but is not a FORK — split through a FORK to keep the graph unambiguous.");
+    }
+
+    @Test
     void doesNotWarnWhenForkAndJoinAreUsed() {
         var steps = List.of(
                 startStep(),

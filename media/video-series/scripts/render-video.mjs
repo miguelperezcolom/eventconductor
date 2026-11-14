@@ -60,9 +60,11 @@ function data() {
   for (const s of scenes) if (s.view === 'live') {
     const idx = `${build}/live/${s.id}/index.json`;
     if (!existsSync(idx)) throw new Error(`missing ${idx}: run record-live.mjs ${chapter} ${lang}`);
-    { const ix = json(idx); live[s.id] = { dir: `../build/ch${chapter}/${lang}/live/${s.id}`, viewport: ix.viewport, frames: ix.frames }; }
+    { const ix = json(idx); live[s.id] = { dir: `../build/ch${chapter}/${lang}/live/${s.id}`, viewport: ix.viewport, origin: ix.origin, frames: ix.frames }; }
   }
-  return { chapter: script.chapter, lang, strings, logo, duration: tl.duration, scenes, code, term, live };
+  // The console window's title and the terminal prompt: the chapter's app (script.json `port`, `prompt`), else the workshop's.
+  const host = script.port ? `localhost:${script.port}` : undefined;
+  return { chapter: script.chapter, lang, strings, logo, duration: tl.duration, scenes, code, term, live, host, prompt: script.prompt };
 }
 
 const DATA = data();
@@ -82,7 +84,10 @@ await page.waitForTimeout(300);
 async function frameAt(t) {
   await page.evaluate((tt) => window.render(tt), t);
   await page.evaluate(() => window.pending);
-  return page.screenshot({ type: 'png', animations: 'disabled' });
+  for (let i = 0; ; i++) {
+    try { return await page.screenshot({ type: 'png', animations: 'disabled', timeout: 180000 }); }
+    catch (e) { if (i >= 2) throw e; console.warn(`  ! screenshot at t=${t.toFixed(2)} retried: ${e.message.split('\n')[0]}`); }
+  }
 }
 
 if (flag('thumb')) {

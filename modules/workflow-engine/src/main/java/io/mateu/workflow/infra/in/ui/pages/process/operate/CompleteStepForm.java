@@ -65,7 +65,7 @@ public class CompleteStepForm implements OptionsSupplier {
         }
         return candidates().stream()
                 .map(se -> new Option(se.getId(), se.getStepId()
-                        + (se.isIteration() ? " [item " + se.getItemIndex() + "]" : "")
+                        + (se.isIteration() ? " [" + se.iterationName() + "]" : "")
                         + (se.getIteration() > 0 ? " (run " + (se.getIteration() + 1) + ")" : "")
                         + " — " + se.getStatus()))
                 .toList();

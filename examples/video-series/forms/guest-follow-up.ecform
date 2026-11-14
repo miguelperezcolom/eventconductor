@@ -1,0 +1,20 @@
+id: guest-follow-up
+name: Guest follow-up
+description: The guest has not answered the hotel's proposal. The front desk calls them and records what they decided.
+fields:
+  - id: answer
+    label: What does the guest want?
+    dataType: string
+    stereotype: radio
+    required: true
+    options:
+      - value: accept
+        label: Book the alternative the hotel offered
+      - value: keep
+        label: Keep the rooms that were booked, without the alternative
+      - value: cancel
+        label: Cancel the whole booking (the booked rooms are cancelled)
+  - id: comment
+    label: Comment
+    dataType: string
+    stereotype: textarea

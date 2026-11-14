@@ -46,6 +46,14 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
     io.mateu.workflow.domain.services.AbandonedBranchService abandonedBranchService =
             new io.mateu.workflow.domain.services.AbandonedBranchService();
 
+    /**
+     * Tells a parent PROCESS step that this child's rollback ended. Not a constructor dependency, so
+     * hand-built handlers (tests) still compile; absent, nobody is told (as before).
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.usecases.process.parentnotify.NotifyParentStepService>
+            notifyParentStepService;
+
     /** What a terminal process still holds that can never run now. */
     private static final java.util.Set<StepExecutionStatus> CANCELLABLE_AT_THE_END = java.util.Set.of(
             StepExecutionStatus.CREATED,
@@ -208,7 +216,8 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
             run.markCleanup(cleanup.reason());
             stepExecutionRepository.save(run);
             for (int i = 0; i < units.size(); i++) {
-                stepExecutionRepository.save(StepExecution.iterationOf(run, run.getStepJson(), i, compensationScope(units.get(i))));
+                stepExecutionRepository.save(StepExecution.iterationOf(run, run.getStepJson(), i, compensationScope(units.get(i)),
+                        units.get(i).getItemLabel()));
             }
             log.info("Process {}: compensating {} run(s) of step {} left by an abandoned branch ({}).",
                     process.getId(), units.size(), units.get(0).getStepId(), cleanup.reason());
@@ -264,7 +273,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
                     compensation.beginIterations(process, units.size(), units.get(0).getStepId(), idsOf(units));
                     for (int i = 0; i < units.size(); i++) {
                         stepExecutionRepository.save(io.mateu.workflow.domain.aggregates.StepExecution.iterationOf(
-                                compensation, compensation.getStepJson(), i, compensationScope(units.get(i))));
+                                compensation, compensation.getStepJson(), i, compensationScope(units.get(i)), units.get(i).getItemLabel()));
                     }
                 } else {
                     compensation.start(process);
@@ -308,7 +317,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
         stepExecutionRepository.save(again);
         for (int i = 0; i < units.size(); i++) {
             stepExecutionRepository.save(io.mateu.workflow.domain.aggregates.StepExecution.iterationOf(
-                    again, again.getStepJson(), i, compensationScope(units.get(i))));
+                    again, again.getStepJson(), i, compensationScope(units.get(i)), units.get(i).getItemLabel()));
         }
         if (ProcessStatus.COMPENSATED.equals(process.getStatus())
                 || ProcessStatus.COMPENSATION_FAILED.equals(process.getStatus())) {
@@ -454,6 +463,23 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
             compensated = compensated.withFinished(EngineClock.now());
         }
         processRepository.save(compensated);
+        notifyParentOfTheEnd(compensated);
+    }
+
+    /**
+     * A child that rolled itself back — its flow reached an END with {@code compensate: true} — has a
+     * parent PROCESS step still waiting on it, which hears now that it ended (and fails: the child did
+     * not complete). For every other child this is a no-op: one that failed told its parent when it went
+     * ERROR, and one the engine rolled back from outside has its parent step already CANCELLED.
+     */
+    private void notifyParentOfTheEnd(Process process) {
+        if (process.getParentStepExecutionId() == null || notifyParentStepService == null) {
+            return;
+        }
+        var notifier = notifyParentStepService.getIfAvailable();
+        if (notifier != null) {
+            notifier.processReachedTerminalStatus(process);
+        }
     }
 
     /**
@@ -480,6 +506,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
             failed = failed.withFinished(EngineClock.now());
         }
         processRepository.save(failed);
+        notifyParentOfTheEnd(failed);
         workflowMetrics.compensationFailed(process.getWorkflowDefinitionId());
         log.warn("Saga rollback halted for process {} (definition {}): a compensation step failed after "
                         + "its retries, leaving the process partially rolled back. It is now "

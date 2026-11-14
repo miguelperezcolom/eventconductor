@@ -9,7 +9,10 @@ const normal = value => JSON.parse(JSON.stringify(value));
 const disposable = () => ({ dispose() {} });
 
 // Exercise the actual activated provider without depending on an installed VS Code process.
-function extensionHost({ trusted = true, endpoint = 'http://127.0.0.1:18105/api/workflow-agents', fetch, applyEdit = async () => true } = {}) {
+function extensionHost({ trusted = true, endpoint = 'http://127.0.0.1:18105/api/workflow-agents', fetch, applyEdit, text = '{"name":"Test","steps":[]}', file = '/workflow.ec' } = {}) {
+  const doc = { text };
+  // By default an edit really lands in the mock document, so a test can read the file it produced.
+  applyEdit = applyEdit || (async edit => { for (const [start, end, value] of edit.replacements) doc.text = doc.text.slice(0, start) + value + doc.text.slice(end); return true; });
   const providers = new Map();
   const fetched = [];
   const runs = [];
@@ -26,8 +29,8 @@ function extensionHost({ trusted = true, endpoint = 'http://127.0.0.1:18105/api/
     },
   };
   const vscode = {
-    WorkspaceEdit: class { replace() {} },
-    Range: class {},
+    WorkspaceEdit: class { constructor() { this.replacements = []; } replace(_uri, range, value) { this.replacements.push([range.start, range.end, value]); } },
+    Range: class { constructor(start, end) { this.start = start; this.end = end; } },
     Uri: { joinPath: (base, ...parts) => uri(path.posix.join(base.path, ...parts)) },
     window: { showErrorMessage: message => errors.push(message), registerCustomEditorProvider: (type, provider) => { providers.set(type, provider); return disposable(); } },
     commands: { registerCommand: disposable, executeCommand: async (name, uri) => runs.push({name, uri:uri.toString()}) },
@@ -50,6 +53,7 @@ function extensionHost({ trusted = true, endpoint = 'http://127.0.0.1:18105/api/
       if (name === 'vscode') return vscode;
       if (name === 'js-yaml') return { load: JSON.parse, dump: JSON.stringify };
       if (name === './taskProject') return {};
+      if (name === './yamlEdit') return require('../out/yamlEdit');
       if (name === './agentCatalogue') return {
         catalogueEndpoint: value => new URL(value),
         fetchAgentCatalogue: async (...args) => {
@@ -83,13 +87,14 @@ function extensionHost({ trusted = true, endpoint = 'http://127.0.0.1:18105/api/
     };
     const panel = { webview, onDidDispose: handler => { dispose = handler; return disposable(); } };
     providers.get(type).resolveCustomTextEditor({
-      uri: uri('/workflow.ec'),
-      getText: () => '{"name":"Test","steps":[]}',
-      lineCount: 1,
+      uri: uri(file),
+      getText: () => doc.text,
+      positionAt: offset => offset,   // offsets stand in for positions: the mock Range keeps them
+      get lineCount() { return doc.text.split('\n').length; },
     }, panel);
     return { webview, messages, receive: message => receive(message), dispose: () => dispose() };
   }
-  return { open, fetched, secretReads, authorization, runs, errors };
+  return { open, fetched, secretReads, authorization, runs, errors, doc };
 }
 
 test('graph opts into the host bridge and uses only configured endpoint and SecretStorage auth', async () => {
@@ -269,4 +274,34 @@ test('Run waits for preceding graph edits and refuses to execute when the docume
   await broken.receive({type:'edit',value:'{"name":"Edited","steps":[]}'});
   await broken.receive({type:'runWorkflow'}); assert.equal(failed.runs.length,0);
   assert.match(failed.errors.at(-1),/could not be applied/);
+});
+
+test('a graph edit rewrites only what changed: comments, quoting and untouched lines survive', async () => {
+  const text = [
+    '# Orders: what happens to a paid order.',
+    'name: "Order processing"   # shown in the console',
+    '',
+    'steps:',
+    '  # the entry point',
+    "  - id: start",
+    "    type: START",
+    "    name: 'Start'",
+    '  - id: end',
+    '    type: END',
+    '    preconditionStepId: start   # straight through',
+    '',
+  ].join('\n');
+  const h = extensionHost({ text, file: '/orders.ec.yaml' }); const graph = h.open();
+  await graph.receive({ type: 'ready' });
+  const shown = JSON.parse(graph.messages.find(m => m.type === 'setValue').value);
+  // What a palette drop sends back: the whole definition, one step longer.
+  shown.steps.push({ id: 'n1', type: 'ACTION', name: 'New Action' });
+  await graph.receive({ type: 'edit', value: JSON.stringify(shown) });
+  assert.equal(h.doc.text, text + [
+    '  - id: n1',
+    '    type: ACTION',
+    '    name: New Action',
+    '',
+  ].join('\n'));
+  assert.equal(h.doc.text.includes('layout'), false);
 });

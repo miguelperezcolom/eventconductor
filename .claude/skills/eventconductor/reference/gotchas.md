@@ -18,8 +18,11 @@
 - **Double undo of a sub-process** — a child cut short undoes its own steps; the parent's
   `compensationStepId` runs only for a child that had already completed. Don't also undo the child's
   work in the parent's compensation for the cut-short case.
-- **`compensateLosers` / `compensateAbandoned` elsewhere** — only on an XOR `JOIN` / an `END`;
-  refused on any other step.
+- **`compensateLosers` / `compensateAbandoned` / `compensate` elsewhere** — only on an XOR `JOIN` / an
+  `END` / an `END`; refused on any other step, and `compensate` is refused beside `compensateAbandoned`.
+- **Failing on purpose to undo** — don't make a step fail (or a fake worker throw) to get a rollback
+  for a business decision ("the guest cancelled"): end that branch with `END` `compensate: true`. It
+  reads as a decision, not an incident, and is not counted as a failed process.
 - **AND-JOIN after a CHOICE or guarded branch** — the branches not taken never complete, the JOIN never
   fires, and the process completes implicitly, cancelling everything after it. Use `joinType: XOR`
   after a CHOICE; the plugin warns about JOINs on guarded steps.

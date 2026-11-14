@@ -30,7 +30,7 @@ import javax.swing.JComponent
 /**
  * The graph half of the split editor: a JCEF browser hosting the shared workflow-graph web
  * component, kept in sync with the file's document. The web page owns the JSON<->YAML conversion
- * (it has js-yaml), so this class only shuttles the raw file text in and out.
+ * (ec-yaml-edit.js, which writes an edit back as the smallest text change), so this class only shuttles the raw file text in and out.
  */
 class EcGraphFileEditor(
     private val project: Project,
@@ -140,7 +140,8 @@ class EcGraphFileEditor(
             applyingFromGraph = true
             try {
                 WriteCommandAction.runWriteCommandAction(project, "Edit EventConductor Graph", null, Runnable {
-                    doc.setText(newText)
+                    // Only the span that differs: the caret, folding and undo steps of the text half stay put.
+                    replaceChangedSpan(doc, newText)
                 })
             } finally {
                 applyingFromGraph = false
@@ -149,7 +150,7 @@ class EcGraphFileEditor(
     }
 
     private fun buildHtml(): String {
-        val jsYaml = readResource("/webview/js-yaml.min.js")
+        val yamlEdit = readResource("/webview/ec-yaml-edit.js")
         val bundle = readResource("/webview/workflow-graph.js")
         val main = readResource("/webview/ec-main.js")
         return """
@@ -159,7 +160,7 @@ class EcGraphFileEditor(
             <body>
             <!-- no-expand: this editor pane is already the whole surface the graph can have -->
             <eventconductor-workflow-graph no-expand></eventconductor-workflow-graph>
-            <script>$jsYaml</script>
+            <script>$yamlEdit</script>
             <script type="module">$bundle</script>
             <script>$main</script>
             </body></html>

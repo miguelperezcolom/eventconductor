@@ -120,6 +120,12 @@ Install from the JetBrains Marketplace (search *EventConductor*), or from the `.
 → ⚙ → **Install Plugin from Disk…**.
 
 :::note
-Graphical edits round-trip the definition through the model, so YAML comments and exact
-formatting are not preserved when you edit in the graph — use the text view to keep them.
+In both IDEs, graphical edits are written back as the smallest change to the file: only the lines of what
+changed are touched, so YAML comments, quoting, indentation and blank lines everywhere else stay
+exactly as they were (a JSON file is rewritten as formatted JSON — it has no comments to keep).
+Node positions live in the definition's own `layout` block, so everybody who opens the file sees
+the same picture. It is written only when you drag a node — clicking one to select it, or dropping
+a new step on an unarranged graph, writes no coordinates. The first drag records every step's
+position (half an arrangement would let the unrecorded steps land on top of the recorded ones);
+after that, moving a node changes only that node's `x`/`y` lines. **Re-layout** removes the block.
 :::

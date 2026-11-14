@@ -37,14 +37,14 @@ Ten lines, readable, testable. If every call were local, instant and infallible,
 
 Each of the following is a real failure mode, and each one adds code.
 
-1. **A call fails halfway.** Room 3 is refused after rooms 1 and 2 were created. The `@Transactional` does not reach the hotel's system, so rooms 1 and 2 stay booked. You add compensation: remember what succeeded and cancel it, in reverse order.
+1. **A call fails halfway.** Room 3 is refused after rooms 1 and 2 were created. The `@Transactional` does not reach the hotel's system, so rooms 1 and 2 stay booked — and cancelling them behind the guest's back is not the answer either. You tell the guest, wait — maybe for days — for their decision, and if they cancel, you add compensation: remember what succeeded and cancel exactly that, in reverse order.
 2. **The call times out.** Did the hotel create the booking or not? You cannot know. You add retries — and because a retry may repeat a booking that did happen, you add an idempotency key, and the compensation has to cope with a booking whose id you never received.
 3. **The pod dies between room 2 and room 3.** Everything in memory is gone. You add a table with the booking's progress, a status column and a step counter, and a job that finds stuck bookings and resumes them.
 4. **Writing to that table and calling the hotel are two systems.** One can succeed while the other fails — the dual-write problem. You add an outbox table and a relay that publishes what was committed.
 5. **You run two pods.** Both pick up the same stuck booking. You add locking, or a partitioning scheme so that one booking has one owner.
-6. **A reply arrives late.** The hotel answers room 4 after you already gave up on it and cancelled the rest. Now it is booked and nobody will ever undo it. You add handling for answers to work you thought was cancelled.
+6. **A reply arrives late.** The hotel answers room 4 after you already gave up on it and the guest cancelled the rest. Now it is booked and nobody will ever undo it. You add handling for answers to work you thought was cancelled.
 7. **Some steps need a person.** A manager must approve bookings above a threshold, and may take two days. You add a task table, an inbox UI, reminders, escalation, and a way to resume when they answer.
-8. **Some steps must wait.** Release unconfirmed rooms after 24 hours. You add a scheduler, persisted timers, and their recovery after a restart.
+8. **Some steps must wait.** The guest has two days to answer; after that, the front desk calls them. You add a scheduler, persisted timers, and their recovery after a restart.
 9. **Rooms should be booked in parallel.** You add a fan-out, a join that knows when all are done, a policy for when one fails, and a merge of their results.
 10. **The code changes while bookings are in flight.** A booking started yesterday is halfway through the old logic. You add versioning of in-flight state, or a migration, or you wait until nothing is running.
 11. **Support asks "where is booking 123, and why is it stuck?"** You add logging of every transition, a search, and an admin screen that shows the steps.
@@ -63,18 +63,24 @@ With an engine, the process is a definition, and every concern above is either t
   type: START
   name: Booking received
 
+- id: approve
+  type: USER_TASK
+  name: Manager approval
+  preconditionStepId: start
+  formId: booking-approval
+
 - id: rooms
   type: PROCESS
   name: Book every room
-  preconditionStepId: start
+  preconditionStepId: approve
   compensable: true
-  compensationStepId: cancelRoom        # undoes each room that completed
+  compensationStepId: cancelRoom        # how to undo a room that completed — if the guest cancels
   outputVariables: [roomBookingId]
   forEach:
     items: rooms
     as: room
     label: "'Room ' + room.number"      # how each branch is named in the console
-    onIterationFailure: compensateAll   # all rooms or none
+    onIterationFailure: continue        # a refused room stops nothing: keep what was booked
     output: roomBookings
     outputElement: roomBookingId
   steps:                                # what happens for one room
@@ -94,22 +100,68 @@ With an engine, the process is a definition, and every concern above is either t
         output: { roomBookingId: "body.id" }
     - { id: end, type: END, name: End, preconditionStepId: create }
 
-- id: approve
-  type: USER_TASK
-  name: Manager approval
+- id: all-booked
+  type: CHOICE
+  name: Every room booked?
   preconditionStepId: rooms
-  formId: booking-approval
 
-- id: confirm
+- id: confirm                           # the default: every room was booked
   type: ACTION
   name: Confirm to the customer
-  preconditionStepId: approve
+  preconditionStepId: all-booked
   topic: notifications
 
 - id: done
   type: END
   name: Done
-  preconditionStepId: confirm
+  preconditionStepIds: [confirm, confirmKept]
+
+- id: askGuest                          # a room was refused: tell the guest, ask
+  type: ACTION
+  name: Ask the guest
+  topic: notifications
+  preconditions:
+    - { stepId: all-booked, expression: "roomBookings =~ '.*FAILED.*'" }
+
+- id: guestAnswer
+  type: WAIT_FOR_MESSAGE
+  name: Wait for the guest's answer
+  preconditionStepId: askGuest
+  messageName: guest-answer
+  correlationExpression: businessKey
+  timeout: P2D
+  onTimeoutStepId: frontDesk            # no answer is not a cancellation: a person follows up
+
+- id: frontDesk
+  type: USER_TASK
+  name: Front desk calls the guest
+  formId: guest-follow-up
+  preconditions:
+    - { stepId: guestAnswer, expression: "false" }   # reached only through onTimeoutStepId
+
+- id: answered
+  type: JOIN
+  name: Answered
+  joinType: XOR
+  preconditionStepIds: [guestAnswer, frontDesk]
+
+- id: decision
+  type: CHOICE
+  name: What did the guest decide?
+  preconditionStepId: answered
+
+- id: cancelledByGuest                  # the guest's decision: undo what was booked
+  type: END
+  name: Cancelled by the guest
+  compensate: true
+  preconditions:
+    - { stepId: decision, expression: "answer == 'cancel'" }
+
+- id: confirmKept                       # the default: keep the rooms that were booked
+  type: ACTION
+  name: Confirm the rooms kept
+  preconditionStepId: decision
+  topic: notifications
 
 - id: cancelRoom                        # the compensation: runs once per completed room
   type: HTTP_CALL
@@ -126,7 +178,7 @@ Read against the list above:
 
 | Concern | Written by hand | With EventConductor |
 |---|---|---|
-| 1. Partial failure | Track what succeeded, undo in reverse | `compensable` + `compensationStepId`; undone in reverse order of actual completion |
+| 1. Partial failure | Track what succeeded, ask, wait, undo in reverse | `onIterationFailure: continue` keeps what succeeded; a `WAIT_FOR_MESSAGE` waits for the guest; `compensable` + `compensationStepId` say how to undo, an `END` with `compensate: true` says when — undone in reverse order of actual completion |
 | 2. Timeouts and retries | Counters, backoff, idempotency | `timeout`, `retries`; HTTP calls send an `Idempotency-Key` on every attempt ([patterns](/guides/http-calls/#not-creating-duplicates-in-the-target-system)) |
 | 3. Crash between steps | Progress table, stuck-job sweeper | Every transition is persisted; a restarted engine carries on |
 | 4. Dual writes | Outbox + relay | Built in: state and events commit together (transactional outbox) |

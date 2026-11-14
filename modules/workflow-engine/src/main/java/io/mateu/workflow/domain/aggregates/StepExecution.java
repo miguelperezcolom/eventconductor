@@ -1176,6 +1176,21 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     }
 
     /**
+     * How an iteration is named to a person: its forEach label ({@code "Room 101"}) when it has one,
+     * {@code "item 2"} otherwise. A compensation's iteration carries the label of the run it undoes.
+     */
+    public String iterationName() {
+        return itemLabel != null && !itemLabel.isBlank() ? itemLabel
+                : "item " + (itemIndex == null ? "?" : itemIndex);
+    }
+
+    /** {@code "Iteration 2"}, or {@code "Iteration 2 (Room 101)"} when the iteration has a label. */
+    public String iterationPhrase() {
+        return "Iteration " + itemIndex
+                + (itemLabel != null && !itemLabel.isBlank() ? " (" + itemLabel + ")" : "");
+    }
+
+    /**
      * Whether this is a forEach container: a top-level execution of a step with a {@code forEach}, or
      * one that runs a compensation over several units (it then carries a scope).
      */
@@ -1280,7 +1295,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      */
     public void completeAfterCancellation(List<Variable> reported) {
         recordOutput(reported);
-        send(new TaskLogEmitted(id, MessageType.Info, (isIteration() ? "Iteration " + itemIndex + " of step " : "Step ")
+        send(new TaskLogEmitted(id, MessageType.Info, (isIteration() ? iterationPhrase() + " of step " : "Step ")
                 + stepId + " completed after it had been cancelled: kept as a completed run, so the saga compensates it."));
         updateStatus(StepExecutionStatus.COMPLETED);
     }

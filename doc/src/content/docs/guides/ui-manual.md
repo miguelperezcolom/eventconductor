@@ -44,6 +44,13 @@ less. The routes underneath are unchanged — `/workflow/definitions` is still
 An application embedding the engine's menu directly still mounts `WorkflowMenu` (or `FormsMenu`)
 and gets every section, as before. Mount `WorkflowOperationsMenu` and `WorkflowAdminMenu` instead
 to take the halves apart.
+
+An embedded application with the forms engine shows its task inbox in the same console by
+mounting `FormsOperationsMenu` (or `FormsMenu`) beside `WorkflowMenu`, as a field named `forms`:
+the inbox is then **Forms → Tasks** (`/forms/tasks`) and a task's **Run** opens its form at
+`/forms/task/{id}` — both resolve under a console mounted at the root (`@UI("")`) as well as under
+`/_forms`. The inbox lists what the signed-in person may answer, so it needs an identity: Spring
+Security, or a verified token forwarded by a gateway (`workflow.security.trust-forwarded-token`).
 :::
 
 ### Dashboard
@@ -161,6 +168,15 @@ The diagram follows the process while the page is open: it polls, and each step'
 with the refresh, so a step that starts, fails or is cancelled while somebody is watching changes
 colour under them. The picture is repainted in place, so the zoom and whatever is selected survive
 it.
+
+The minimap in the bottom-right corner frames the part of the graph on screen; click or drag in it
+to move there. **Fit** keeps every step clear of it — when a centred fit would put a step beneath
+the minimap, the graph is fitted beside or above it instead. Its **×** folds it into a small map
+button (the browser remembers the choice); the button brings it back.
+
+A forEach's iterations are named by their `forEach.label` wherever they appear — the Steps and
+Errors tabs, the iteration lanes of the diagram and the messages — and so are the runs of a
+compensation that undoes them: `cancel-room · Room 101`, not `cancel-room · item 0`.
 
 The numbers answer what the shape cannot. A workflow drawn top to bottom is not a list of what
 happened in that order: branches drawn side by side ran in some order, a step drawn between two
@@ -383,7 +399,7 @@ http://localhost:8191/_workflow-admin    Workflow Engine — administration
 http://localhost:8191/_forms             Forms Engine — operations
   └─ Forms → Executions                 Form executions (user tasks)
   └─ Forms → Tasks                      Pending tasks simplified view
-  └─ Forms → Tasks v 2                  Pending tasks, second view
+  └─ Forms → Task inbox                 Pending tasks, each with its form inline (FormsMenu only)
   └─ /my-tasks                          Personal task inbox
 
 http://localhost:8191/_forms-admin       Forms Engine — administration

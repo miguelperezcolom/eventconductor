@@ -83,7 +83,7 @@ public class Tasks extends Crud<TaskRow, TaskRow, TaskRow, TaskFilters, TaskRow,
                         task.dueDate() == null ? "" : DUE.format(task.dueDate()) + " UTC",
                         task.isOverdue(now) ? new Status(StatusType.DANGER, "Overdue")
                                 : task.escalations() > 0 ? new Status(StatusType.WARNING, "Escalated")
-                                : new Status(StatusType.NONE, ""),
+                                : null,
                         task.userId(),
                         offeredTo(task),
                         mapStatus(task.status().name()),

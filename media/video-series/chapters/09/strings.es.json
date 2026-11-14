@@ -1,0 +1,33 @@
+{
+  "eyebrow": "EventConductor · Capítulo 9",
+  "title": "Eventos que entran, **eventos que salen**",
+  "sub": "Disparadores, webhooks, PUBLISH_EVENT y REPLY",
+  "flow": [["reserva creada", "az", "c0"], ["webhook firmado", "az", "c1"], ["proceso", "good", "c1"], ["huésped dado de alta", "amb", "c1"], ["respuesta, ya", "amb", "c2"]],
+  "trigger.n1": "un CloudEvent de este `type` en este `destination` arranca el `workflow`",
+  "trigger.n2": "`businessKey` y `variables` a partir de `data` del evento",
+  "trigger.n3": "mismo origen + id → **nunca dos procesos** por un disparador",
+  "webhook.main": "embebida junto al motor: necesita un arreglo en main, posterior a 2.41.0 · en 2.41.0, la pasarela como servicio aparte",
+  "standin.cm": "channel manager: sustituto local (scripts/webhook.sh)",
+  "publish.n1": "`destination` · `type` · `key` · `payload` — con las variables del proceso",
+  "publish.n2": "desde la 2.35: un **worker integrado** — topic `event-publications` en distribuido",
+  "publish.n3": "al menos una vez · id del evento = id de la ejecución del paso",
+  "standin.events": "GET /fake/events: lo que recibió el publicador de la app (sustituto local)",
+  "reply.n1": "`syncInvocation` — opcional, por definición, con un plazo",
+  "reply.n2": "`REPLY` — contesta a quien espera con `replyVariables`",
+  "reply.n3": "…y el proceso **sigue** después de contestar",
+  "recap.head": "Eventos que entran y salen",
+  "recap.items": [
+    ["disparador", "entra", "un CloudEvent en un destino → `events.yaml` o la definición", "c0"],
+    ["webhook", "entra", "firmado (HMAC) · `github` o `generic` → un CloudEvent", "c0+1.2"],
+    ["PUBLISH_EVENT", "sale", "worker integrado · al menos una vez", "c1"],
+    ["REPLY", "sale", "quien llama de forma síncrona recibe su respuesta; el proceso sigue", "c1+1.2"]
+  ],
+  "recap.strip": ["en distribuido (`workflow.mode=kafka`): los destinos son **topics de Kafka** — las definiciones no cambian"],
+  "close.line": "Eventos que entran, **eventos que salen.**",
+  "close.next": "Próximo · IA dentro del proceso",
+  "close.docs": "eventconductor.mateu.io · Domain-event triggers",
+  "close.app": "examples/video-series",
+  "close.license": "Código abierto · MIT",
+  "thumb.title": "Eventos que entran, **eventos que salen**",
+  "thumb.sub": "Disparadores · webhooks · PUBLISH_EVENT · REPLY"
+}

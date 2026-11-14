@@ -73,6 +73,10 @@ export const iconSitemap = icon(svg`
 export const iconFit = icon(svg`
     <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"></path>`);
 
+/** A folded map: shows the collapsed minimap again. */
+export const iconMinimap = icon(svg`
+    <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"></path><path d="M9 4v14M15 6v14"></path>`);
+
 /** Microphone. */
 export const iconMicrophone = icon(svg`
     <rect x="9" y="2" width="6" height="12" rx="3"></rect>

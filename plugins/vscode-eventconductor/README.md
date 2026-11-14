@@ -17,6 +17,16 @@ plain **YAML/JSON** with schema validation — both views edit the same file.
   or command palette) to edit the YAML/JSON directly, and **Open as Graph** to go back.
 - **`.ec` is JSON *or* YAML**: the format is detected from the file's content and preserved
   on graphical edits.
+- **Lossless edits**: graphical edits are written back as the smallest change to the file: only the lines of what
+  changed are touched, so YAML comments, quoting, indentation and blank lines everywhere else stay
+  exactly as they were (a JSON file is rewritten as formatted JSON — it has no comments to keep).
+  Node positions live in the definition's own `layout` block, so everybody who opens the file sees
+  the same picture. It is written only when you drag a node — clicking one to select it, or dropping
+  a new step on an unarranged graph, writes no coordinates. The first drag records every step's
+  position (half an arrangement would let the unrecorded steps land on top of the recorded ones);
+  after that, moving a node changes only that node's `x`/`y` lines. **Re-layout** removes the block.
+- **Run Workflow** is in the explorer context menu of every workflow file (`*.ec.yaml`, `.ec`,
+  `*.workflow.yaml`, and their `.yml` twins) in a trusted workspace.
 - **Schema validation**: workflow files (`.ec`, `*.workflow.yaml`, `*.ec.yaml`) are validated
   against the workflow-definition JSON schema, and `.ecform` / `.ecrule` / `.ectask` against
   theirs, through *YAML* by Red Hat (installed with this extension): the schemas are contributed
@@ -170,12 +180,13 @@ npm run compile     # syncs the graph bundle + schema, then compiles TypeScript
 npm test            # compiles and tests catalogue/execution transport, sessions and editor bridges
 ```
 
-Then press **F5** in VS Code (Extension Development Host) and open a `.ec` file.
+Then press **F5** in VS Code (Extension Development Host) and open a `*.ec.yaml` file.
 
 `npm run compile` runs `scripts/sync-assets.js`, which copies the graph bundle
 (`workflow-graph.js`) and the JSON schema from the main repo into the extension, so the
 extension always ships the current component. Re-run it after rebuilding the frontend.
 
-> Note: graphical edits round-trip the definition through the model, so YAML comments and
-> exact formatting are not preserved when you edit in the graph — use the text editor when
-> you need to keep them.
+The write-back lives in `src/yamlEdit.ts` and is shared with the IntelliJ plugin, whose webviews
+load a browser bundle of it (`../intellij-eventconductor/src/main/resources/webview/ec-yaml-edit.js`).
+After changing it, run `npm run bundle-intellij` and commit the bundle — `npm test` fails while the
+two differ.

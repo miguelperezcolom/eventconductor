@@ -1,0 +1,32 @@
+{
+  "eyebrow": "EventConductor · Capítulo 10",
+  "title": "IA **dentro del proceso**",
+  "sub": "LLM_CALL · AGENT · MCP",
+  "flow": [["petición especial", "az", "c0"], ["LLM_CALL", "good", "c1"], ["AGENT", "good", "c1"], ["MCP", "amb", "c1"]],
+  "llm.n1": "`connection` — un nombre; proveedor y clave van en la **configuración**",
+  "llm.n2": "`responseSchema` — la respuesta tiene que ser **JSON válido** para él",
+  "llm.n3": "respuesta inválida → `LLM_INVALID_OUTPUT`, reintentable: se aplican los `retries`",
+  "llm.n4": "`output` → variables · `usageVariable` → modelo y tokens",
+  "standin.model": "modelo: sustituto local que sirve la app del taller (/fake/llm)",
+  "providers.sensitive": "las variables sensibles no llegan a los prompts · opcional por paso: `allowSensitiveVariables: true` (desde 2.32)",
+  "agent.n1": "`AGENT` — `ref` · `taskPrompt` · `input` · `outputVariable`",
+  "agent.n2": "`ref` se comprueba contra el **catálogo de agentes** al importar",
+  "agent.n3": "`retries: 0` — el fallo de un agente es definitivo",
+  "agent.n4": "un resultado JSON → el paso siguiente decide según él",
+  "standin.agent": "catálogo y runtime de agentes: sustituto de demostración (reglas, no un modelo)",
+  "mcp.optin": "servidor MCP: opcional (spring-ai-starter-mcp-server-webmvc) · cliente: un guion, sin modelo",
+  "recap.head": "IA dentro del proceso",
+  "recap.items": [
+    ["LLM_CALL", "desde 2.26", "un juicio de un modelo — respuesta comprobada con `responseSchema`, consumo registrado", "c0"],
+    ["AGENT", "desde 2.34", "una tarea para un agente publicado — resultado en una variable; necesita catálogo y runtime de agentes", "c1"],
+    ["MCP", "opcional", "las operaciones del motor como herramientas de un asistente — una dependencia que activar", "c2"]
+  ],
+  "recap.strip": ["el proceso decide qué pasa después — **cada paso queda registrado**", "en este vídeo: el modelo sustituto del taller · un runtime de agentes de demostración · un cliente MCP con guion"],
+  "close.line": "IA donde ayuda, **el proceso al mando.**",
+  "close.next": "Próximo · Operar procesos en marcha",
+  "close.docs": "eventconductor.mateu.io · LLM calls",
+  "close.app": "examples/video-series",
+  "close.license": "Código abierto · MIT",
+  "thumb.title": "IA **dentro del proceso**",
+  "thumb.sub": "LLM_CALL · AGENT · MCP"
+}

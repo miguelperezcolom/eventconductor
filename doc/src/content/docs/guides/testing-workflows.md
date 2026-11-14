@@ -514,18 +514,18 @@ A key the format does not know is a mistake, reported with the scenario's name a
 Every `@EventConductorTest` test records what its processes did. After each one, `target/eventconductor-coverage/` holds the coverage of the run so far, for **every definition the engine knows** — one no test starts shows as 0%:
 
 ```text
-EventConductor workflow coverage — 21 test(s), 11 definition(s)
+EventConductor workflow coverage — 35 test(s), 11 definition(s)
 
-definition                    steps              branches           edges
-hotel-booking                 8/8 (100.0%)       3/3 (100.0%)       7/7 (100.0%)
-rooms-booking-tolerant        3/4 (75.0%)        0/1 (0.0%)         2/3 (66.7%)
+definition                       steps              branches           edges
+hotel-booking                    21/21 (100.0%)     10/13 (76.9%)      24/27 (88.9%)
+rooms-booking-all-or-none        3/4 (75.0%)        1/1 (100.0%)       2/3 (66.7%)
 …
-TOTAL                         46/47 (97.9%)      5/6 (83.3%)        35/36 (97.2%)
+TOTAL                            76/77 (98.7%)      23/28 (82.1%)      70/76 (92.1%)
 
 Not covered:
-  rooms-booking-tolerant
-    step cancel-room-booking
-    compensation rooms → cancel-room-booking
+  rooms-booking-all-or-none
+    step done
+    sequence rooms → done
 ```
 
 | Counted | Covered when, in one process … |

@@ -29,7 +29,7 @@ The app is laptop-only: `workflow.message-api.allow-anonymous=true` (no login fo
 
 | Definition (`src/main/resources/workflows`) | Shows | Chapter |
 |---|---|---|
-| `hotel-booking.ec.yaml` | the workshop's booking: USER_TASK + form, escalation, timeout, CHOICE, HTTP forEach saga | 7 |
+| `hotel-booking.ec.yaml` | the workshop's booking: USER_TASK + form, escalation, timeout, CHOICE, HTTP forEach with `continue`; a room the hotel cannot book → alternatives, the guest decides (WAIT_FOR_MESSAGE with a reminder, then a front-desk USER_TASK); `cancel` → an `END` with `compensate: true` | 1, 4, 7 |
 | `group-arrival.ec.yaml` | CHOICE (+ default), XOR JOIN, FORK / AND JOIN, forEach over a **named** PROCESS with label and `onIterationFailure: continue` | 6 |
 | `prepare-room.ec.yaml` | the named sub-process: `repeat` (one step until clean) and `loopBack` (inspect → fix, again) | 6 |
 | `airport-transfer.ec.yaml` | a race: FORK, XOR JOIN with `compensateLosers` (opt-in), late completion undone | 6 |
@@ -84,7 +84,7 @@ scripts/seed.sh
 | # | Record |
 |---|---|
 | 6 | `group-arrival` GROUP-1 (lanes per room, one *Error*: room 304 out of order, the step still completes), `prepare-room` children (repeat, loopBack), `airport-transfer` TRANSFER-1 (amber *Cancel Airport Express*) |
-| 7 | `hotel-booking` BOOKING-7 waiting at *Manager approval*; Forms → Tasks; or `scripts/approve.sh BOOKING-7 true` |
+| 7 | `hotel-booking` BOOKING-7 waiting at *Manager approval*; Forms → Tasks; or `scripts/approve.sh BOOKING-7 true`; BOOKING-9 *Compensated* because the guest cancelled (`scripts/message.sh guest-answer BOOKING-9 '{"answer": "cancel"}'`) |
 | 8 | `balance-reminder` BALANCE-1 (timer armed for 09:00), BALANCE-2 (waiting for the payment, deadline shown), `scripts/message.sh payment-received BALANCE-2`; `guest-checkin` CHECKIN-1 + `scripts/start.sh room-cleaning CLEAN-305 '{"room": "305"}'`; Schedules page (`nightly-occupancy`) |
 | 9 | `scripts/webhook.sh CM-2002 Bea 2026-12-24` → Received events, the onboarding, `curl localhost:8096/fake/events`; `scripts/invoke.sh QUOTE-2 double 2` |
 | 10 | `special-request-agent` AGENT-1 / AGENT-2 (Variables: `preparation`), labelled *demo stand-in*; `node scripts/mcp-demo.mjs` |

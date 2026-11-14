@@ -50,7 +50,7 @@ public class StepCrudAdapter  {
             public List<Step> findAll() {
                 return repository.findAllByProcessIdOrderByOrder(processId).stream()
                         .map(entity -> new Step(processId, entity.getId(), entity.getStepId(),
-                                map(entity.getStatus()),
+                                map(entity.getStatus()), attempts(entity),
                                 Step.format(entity.getStartedAt()), Step.format(entity.getFinishedAt())))
                         .toList();
             }
@@ -60,6 +60,18 @@ public class StepCrudAdapter  {
                 throw new UnsupportedOperationException();
             }
         };
+    }
+
+    private static String attempts(io.mateu.workflow.infra.out.persistence.StepExecutionEntity entity) {
+        var step = io.mateu.workflow.infra.in.monitoring.ProcessGraphProjection.safeStep(entity.getStepJson());
+        StepExecutionStatus status;
+        try {
+            status = StepExecutionStatus.valueOf(entity.getStatus());
+        } catch (RuntimeException e) {
+            status = StepExecutionStatus.CREATED;
+        }
+        return Step.attempts(entity.getAttemptCount(), step == null ? 0 : step.retries(),
+                Step.tried(status, entity.getStartedAt()));
     }
 
     private Status map(String rawStatus) {
