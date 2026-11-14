@@ -1754,6 +1754,8 @@ export class MateuWorkflowElk extends LitElement {
     /** Background pan drag state. */
     private panning = false;
     private panMoved = false;
+    /** Whether the node being pressed has actually been dragged anywhere since mousedown. */
+    private dragMoved = false;
     private panStart = {x: 0, y: 0, panX: 0, panY: 0};
     /** True while dragging inside the minimap to scrub the viewport. */
     private miniDrag = false;
@@ -2378,6 +2380,7 @@ export class MateuWorkflowElk extends LitElement {
         if (this.readOnly) return;
         e.preventDefault();
         this.draggingId = id;
+        this.dragMoved = false;
         const pos = this.positions[id] ?? {x: 0, y: 0};
         const pt = this.toSvgPoint(e);
         this.dragOffset = {x: pt.x - pos.x, y: pt.y - pos.y};
@@ -2389,15 +2392,17 @@ export class MateuWorkflowElk extends LitElement {
     private onMouseMove = (e: MouseEvent) => {
         if (!this.draggingId || !this.svgEl) return;
         const pt = this.toSvgPoint(e);
+        const next = {
+            x: Math.max(0, pt.x - this.dragOffset.x),
+            y: Math.max(0, pt.y - this.dragOffset.y),
+        };
+        const pos = this.positions[this.draggingId];
+        // A press that does not move the node (a click to select it) is not an arrangement.
+        if (pos && Math.round(pos.x) === Math.round(next.x) && Math.round(pos.y) === Math.round(next.y)) return;
+        this.dragMoved = true;
         // Mark as manually positioned so ELK won't override it next run
         this.elkPositioned.add(this.draggingId);
-        this.positions = {
-            ...this.positions,
-            [this.draggingId]: {
-                x: Math.max(0, pt.x - this.dragOffset.x),
-                y: Math.max(0, pt.y - this.dragOffset.y),
-            },
-        };
+        this.positions = {...this.positions, [this.draggingId]: next};
     };
 
     private onMouseUp = () => {
@@ -2406,8 +2411,12 @@ export class MateuWorkflowElk extends LitElement {
         window.removeEventListener("mousemove", this.onMouseMove);
         window.removeEventListener("mouseup", this.onMouseUp);
         // On the way up, not on every frame of the way across: emitting from onMouseMove would ask
-        // the host to rewrite the file a few hundred times for one drag.
-        if (moved) this.captureLayout();
+        // the host to rewrite the file a few hundred times for one drag. Only when the node really
+        // moved: a click that selects a node used to write the whole `layout` block into a file
+        // nobody had arranged.
+        const dragged = this.dragMoved;
+        this.dragMoved = false;
+        if (moved && dragged) this.captureLayout();
     };
 
     // ── Edge drawing ────────────────────────────────────────────────────────────

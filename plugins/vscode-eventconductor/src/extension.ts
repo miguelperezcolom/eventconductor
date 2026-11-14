@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as yaml from "js-yaml";
 import { registerWorkflowExecution, GraphExecutionController, executionMarkup } from "./execution";
 import { catalogueEndpoint, fetchAgentCatalogue } from "./agentCatalogue";
+import { applyDefinitionEdit, parseDefinition } from "./yamlEdit";
 import {
   applicationYaml,
   artifactIdFor,
@@ -376,9 +377,8 @@ class EventConductorEditorProvider implements vscode.CustomTextEditorProvider {
     };
     webview.html = this.getHtml(webview);
 
-    // The component speaks JSON; the file may be YAML — remember which so edits round-trip back
-    // into the author's chosen format.
-    let docIsYaml = looksLikeYaml(document.getText());
+    // The component speaks JSON; the file may be YAML. An edit is written back as the smallest text
+    // change that says it (see yamlEdit.ts), so comments, quoting and untouched lines survive.
     let applyingOwnEdit = false;
     let disposed = false;
     let catalogueRequestId = 0;
@@ -407,7 +407,6 @@ class EventConductorEditorProvider implements vscode.CustomTextEditorProvider {
 
     const pushToWebview = () => {
       const text = document.getText();
-      docIsYaml = looksLikeYaml(text);
       try {
         const obj = text.trim() ? parseDefinition(text) : this.config.emptyValue();
         webview.postMessage({ type: "setValue", value: JSON.stringify(obj, null, 2) });
@@ -455,14 +454,18 @@ class EventConductorEditorProvider implements vscode.CustomTextEditorProvider {
           } catch {
             return; // ignore malformed payloads
           }
-          const newText = serialize(obj, docIsYaml);
-          if (newText === document.getText()) return;
+          const oldText = document.getText();
+          const newText = applyDefinitionEdit(oldText, obj);
+          if (newText === oldText) return;
           applyingOwnEdit = true;
+          // Only the span that differs is replaced, so the cursor, folding and undo history of a
+          // text editor open beside the graph stay where they were.
           const edit = new vscode.WorkspaceEdit();
+          const [from, to, replacement] = changedSpan(oldText, newText);
           edit.replace(
             document.uri,
-            new vscode.Range(0, 0, document.lineCount, 0),
-            newText
+            new vscode.Range(document.positionAt(from), document.positionAt(to)),
+            replacement
           );
           try {
             if (!await vscode.workspace.applyEdit(edit)) throw new Error("VS Code refused the graph changes.");
@@ -539,25 +542,17 @@ class EventConductorEditorProvider implements vscode.CustomTextEditorProvider {
 }
 
 /**
- * A .ec / .ecform body is YAML unless it clearly starts as JSON (a leading '{' or '[').
- *
- * An empty file is YAML too: there is nothing to sniff, and a new file that the visual editor fills
- * in should come out looking like the ones in the documentation and the examples, all of which are
- * YAML. It used to answer JSON here, so creating a file and drawing in it produced JSON — a format
- * nobody chose, from a file that had not said anything.
+ * The one span where two texts differ: [start, end) in the old text and what replaces it. Common
+ * prefix and suffix are left alone.
  */
-function looksLikeYaml(text: string): boolean {
-  const t = text.trimStart();
-  if (!t) return true;
-  return !(t.startsWith("{") || t.startsWith("["));
-}
-
-function parseDefinition(text: string): unknown {
-  return looksLikeYaml(text) ? yaml.load(text) : JSON.parse(text);
-}
-
-function serialize(obj: unknown, asYaml: boolean): string {
-  return asYaml ? yaml.dump(obj, { noRefs: true, lineWidth: 120 }) : JSON.stringify(obj, null, 2) + "\n";
+function changedSpan(oldText: string, newText: string): [number, number, string] {
+  let start = 0;
+  const max = Math.min(oldText.length, newText.length);
+  while (start < max && oldText[start] === newText[start]) start++;
+  let oldEnd = oldText.length;
+  let newEnd = newText.length;
+  while (oldEnd > start && newEnd > start && oldText[oldEnd - 1] === newText[newEnd - 1]) { oldEnd--; newEnd--; }
+  return [start, oldEnd, newText.slice(start, newEnd)];
 }
 
 function getNonce(): string {
