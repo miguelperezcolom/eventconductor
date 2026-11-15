@@ -10,7 +10,7 @@
     ["arreglar", "", "reintentar desde el fallo · reiniciar · completar o reintentar un paso · **operaciones por lotes**", "c1"],
     ["cambiar", "", "versiones en paralelo (JPA) · **Migrate…** con simulación", "c2"]
   ],
-  "recap.strip": ["cada operación pide un **motivo**, registrado con tu nombre en la auditoría del proceso"],
+  "recap.strip": ["cada operación pide un **motivo**, registrado en la auditoría del proceso junto con quién lo hizo"],
   "close.line": "Los procesos en marcha, **bajo control.**",
   "close.next": "Próximo · Probar los flujos",
   "close.docs": "eventconductor.mateu.io · Operating running processes",

@@ -8,6 +8,6 @@
 | Forms engine serves the form in the same app (embedded) | CHANGELOG 2.40.0 l. 61 |
 | Submitted values become process variables | `doc/.../guides/user-tasks.md`; filmed (BOOKING-7 goes on) |
 | Task inbox (Forms → Tasks), claim, complete | `user-tasks.md` 50–54; **the Run → form route needs PR #657** (on main today Run answers "Page not found") |
-| Complete step by hand, reason mandatory, audited; Operations tab | CHANGELOG 2.30.0 (#545, l. ~322); dialog text "Mandatory: recorded with your name in the process's audit trail" |
+| Complete step by hand, reason mandatory, audited; Operations tab | CHANGELOG 2.30.0 (#545, l. ~322); dialog text "Mandatory: recorded in the process's audit trail together with who did it" |
 | Test kit: `advanceTime`, `hasEscalated` | CHANGELOG 2.41.0 l. 38; `examples/workshop-hotel-booking/.../TimeTest.java` 34–47 (same definition as the series app's, diffed) |
 | `trust-forwarded-token` is laptop-only | `examples/video-series/src/main/resources/application.properties` (forms section); design/video-series decision "Chapter 7 sign-in" |

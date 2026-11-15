@@ -33,7 +33,7 @@ public class BatchOperationForm {
     @Label("Operation")
     @Help("What is done to each process: CANCEL, RETRY (pick an ERROR or CANCELLED process up where it stopped),"
             + " RESTART (run it again from the beginning), PAUSE, RESUME, SET_VARIABLES, RETRY_FROM_STEP or MIGRATE (a"
-            + " live process, audited with your name and the reason; MIGRATE needs the definition). A process the operation does not apply to is skipped,"
+            + " live process, audited with who did it and the reason; MIGRATE needs the definition). A process the operation does not apply to is skipped,"
             + " not failed.")
     BatchOperationType type;
 
@@ -93,7 +93,7 @@ public class BatchOperationForm {
     String stepMapping;
 
     @Label("Reason")
-    @Help("Mandatory for SET_VARIABLES, RETRY_FROM_STEP and MIGRATE: recorded with your name in each process's audit trail.")
+    @Help("Mandatory for SET_VARIABLES, RETRY_FROM_STEP and MIGRATE: recorded in each process's audit trail together with who did it.")
     String reason;
 
     /** The parameters the form describes. */

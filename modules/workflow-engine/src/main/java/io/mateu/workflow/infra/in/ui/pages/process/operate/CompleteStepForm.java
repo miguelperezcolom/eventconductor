@@ -41,7 +41,7 @@ public class CompleteStepForm implements OptionsSupplier {
 
     @NotEmpty
     @Label("Reason")
-    @Help("Mandatory: recorded with your name in the process's audit trail")
+    @Help("Mandatory: recorded in the process's audit trail together with who did it")
     @Stereotype(FieldStereotype.textarea)
     String reason;
 
