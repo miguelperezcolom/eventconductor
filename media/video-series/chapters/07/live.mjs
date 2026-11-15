@@ -109,13 +109,15 @@ export async function run(c) {
     await s.untilCue(1, -0.3);
     await s.click(await plusButton(s.page), { dur: 0.5 });
     await s.settleFrames(6);
-    await s.click(s.page.locator('vaadin-text-field#name input').last(), { dur: 0.4 });
+    // the "New variable" panel opens inside the dialog, partly below the fold: scroll each field in first
+    const inView = async (loc) => { await loc.scrollIntoViewIfNeeded(); await s.settleFrames(3); return loc; };
+    await s.click(await inView(s.page.locator('vaadin-text-field#name input').last()), { dur: 0.4 });
     await s.type('approved');
-    await s.click(s.page.locator('vaadin-text-field#value input').last(), { dur: 0.4 });
+    await s.click(await inView(s.page.locator('vaadin-text-field#value input').last()), { dur: 0.4 });
     await s.type('true');
-    await s.click(s.page.locator('#variables_create').last(), { dur: 0.4 });
+    await s.click(await inView(s.page.locator('#variables_create').last()), { dur: 0.4 });
     await s.settleFrames(6);
-    await s.click(s.page.locator('vaadin-text-area#reason textarea').last(), { dur: 0.5 });
+    await s.click(await inView(s.page.locator('vaadin-text-area#reason textarea').last()), { dur: 0.5 });
     await s.type('Manager away: approved by phone');
     await s.page.locator('vaadin-button#apply').last().scrollIntoViewIfNeeded();
     await s.settleFrames(2);
