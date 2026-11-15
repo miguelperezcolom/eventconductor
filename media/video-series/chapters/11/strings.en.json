@@ -47,7 +47,7 @@
     ]
   ],
   "recap.strip": [
-    "every operation asks for a **reason**, recorded with your name in the process's audit trail"
+    "every operation asks for a **reason**, recorded with who did it in the process's audit trail"
   ],
   "close.line": "Running processes, **in hand.**",
   "close.next": "Next · Testing workflows",

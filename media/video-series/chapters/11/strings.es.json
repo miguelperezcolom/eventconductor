@@ -47,7 +47,7 @@
     ]
   ],
   "recap.strip": [
-    "cada operación pide un **motivo**, registrado con tu nombre en la auditoría del proceso"
+    "cada operación pide un **motivo**, registrado en la auditoría del proceso con quién lo hizo"
   ],
   "close.line": "Los procesos en marcha, **bajo control.**",
   "close.next": "Próximo · Probar los flujos",

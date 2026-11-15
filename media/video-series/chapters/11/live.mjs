@@ -138,6 +138,7 @@ export async function run(c) {
     s.cursor = true;
     await s.click(s.page.getByText('Migrate…', { exact: true }).first(), { dur: 0.6 });
     await s.settleFrames(10);
+    await s.camera([s.page.getByText('Migrate to another version').first(), s.page.getByRole('button', { name: 'Preview' }).last()], { zmax: 1.9, dur: 0.8, pad: 60 });
     await typeInto(s, 'Reason', 'Managers want the 4-hour reminder');
     const preview = s.page.getByRole('button', { name: 'Preview' }).last();
     await preview.scrollIntoViewIfNeeded();
