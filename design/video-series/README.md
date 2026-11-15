@@ -294,7 +294,7 @@ Defaults agreed with the owner; the owner can override any of them.
 | 4 | https://youtu.be/hp2AEy1vulI |
 | 5 | https://youtu.be/n3cMXX2Sn2s |
 | 6 | https://youtu.be/MdymKIE3ymk |
-| 7 | (pending) |
+| 7 | https://youtu.be/bfbAxTrIpN4 |
 | 8 | https://youtu.be/8LuZNoXceBk |
 | 9 | https://youtu.be/SHAphxkMJCU |
 | 10 | https://youtu.be/kqU0-Vw06jo |

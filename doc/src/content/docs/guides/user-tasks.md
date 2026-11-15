@@ -5,6 +5,11 @@ description: Pausing workflows for human input using USER_TASK steps and form ex
 
 A `USER_TASK` step pauses a workflow process until a human submits a form. This is useful for approval flows, data entry, and any step that requires human judgement.
 
+<div style="max-width: 860px; margin: 1.5rem 0;">
+  <iframe src="https://www.youtube-nocookie.com/embed/bfbAxTrIpN4" title="EventConductor · 7. People in the loop" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; border-radius: 12px;"></iframe>
+  <p style="font-size: 0.9em; margin-top: 0.5rem;">Chapter 7 of <em>EventConductor in N minutes</em> (2:18) · English, with English and Spanish subtitles</p>
+</div>
+
 ## How it works
 
 1. The orchestrator reaches a `USER_TASK` step
