@@ -24,7 +24,7 @@ services:
   orchestrator:
     image: miguelperezcolom/orchestrator-standalone-app:2.42.0
     ports: !override
-      - "18105:8105"                         # 8105 is often taken by another local stack
+      - "18105:8080"                         # 8105 is often taken by another local stack
     environment:
       WORKFLOW_DEFINITIONS_DIRS: /definitions
       WORKFLOW_HTTP_CONNECTIONS_HOTEL_BASEURL: ${HOTEL_URL:-http://host.docker.internal:8095/fake/hotel}
