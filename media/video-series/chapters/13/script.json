@@ -254,8 +254,8 @@
       "narration": {
         "en": [
           "The same penthouse booking, now against the orchestrator.",
-          "Every hotel call went through Kafka to the orchestrator's built-in HTTP worker: room 301 is booked, the penthouse refused, and the run waits for the guest's answer.",
-          "Exactly as embedded, in the same console, behind a login."
+          "Every hotel call went through Kafka to the orchestrator's built-in HTTP worker: room 301 is booked, the penthouse refused, and the hotel's alternative fetched.",
+          "Ask the guest is now a task on Kafka, waiting for the worker that will serve it — the same process as embedded, in the same console, behind a login."
         ],
         "es": [
           "La misma reserva con ático, ahora contra el orquestador.",
