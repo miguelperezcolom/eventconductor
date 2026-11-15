@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Examples: an unpaid balance is never released automatically.** In `examples/video-series`, `balance-reminder`'s payment deadline (the day before check-in, 12:00) no longer routes straight to *release the room*: it routes to a final notice to the guest and a short grace period, and if the balance is still unpaid a front-desk `USER_TASK` (*Unpaid balance — decide*) chooses — release, extend (balance due at check-in) or paid at the desk. The room is released only on that decision. Tests, the app README and video chapter 8's sources (narration EN/ES, excerpt and emphasis) follow.
+
+### Documentation
+- **Deadlines route to a person, not to a cancellation.** The `deadline` examples in [Scheduling and deadlines](doc/src/content/docs/guides/scheduling-and-deadlines.md) and [Domain-event triggers](doc/src/content/docs/guides/domain-event-triggers.md) route an unpaid booking to `front-desk-review` instead of `cancel-booking`.
+
 ## [2.42.0] - 2026-11-14
 
 ### Changed

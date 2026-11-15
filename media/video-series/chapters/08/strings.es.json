@@ -10,6 +10,7 @@
   "wait.n2": "`correlationExpression` — el mensaje dice **qué reserva**",
   "wait.n3": "`deadline` — el día antes de la llegada, 12:00",
   "wait.n4": "`onTimeoutStepId` — una ruta, **no un fallo**",
+  "wait.n5": "periodo de gracia, y **decide recepción**",
   "between.n1": "correlado por **habitación**, no por reserva",
   "between.n2": "`timeout: PT2H` del paso + su propia ruta",
   "between.n3": "el que envía: `room-cleaning` → `SEND_MESSAGE`",

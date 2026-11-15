@@ -15,8 +15,8 @@
   "es": "«Tres días antes de la llegada, a las nueve, hora del hotel.» «Hasta que llegue el pago.» «Cuando la habitación esté lista.» Los procesos de negocio esperan: a momentos y a mensajes."
  },
  "about": {
-  "en": "Waiting in EventConductor: a TIMER until a business moment computed from the booking (three days before check-in, 09:00 Europe/Madrid), WAIT_FOR_MESSAGE correlated by the business key with a deadline and an onTimeoutStepId route, SEND_MESSAGE from one process to another correlated by room, a step timeout with its own route, and the Schedules page — a cron.yaml schedule paused and run now. Recorded on the series app (examples/video-series).",
-  "es": "Esperar en EventConductor: un TIMER hasta un momento de negocio calculado desde la reserva (tres días antes de la llegada, 09:00 Europe/Madrid), WAIT_FOR_MESSAGE correlado por la clave de negocio con una fecha límite y una ruta onTimeoutStepId, SEND_MESSAGE de un proceso a otro correlado por habitación, el timeout de un paso con su propia ruta, y la página Schedules: una planificación de cron.yaml pausada y lanzada en el acto. Grabado sobre la app de la serie (examples/video-series)."
+  "en": "Waiting in EventConductor: a TIMER until a business moment computed from the booking (three days before check-in, 09:00 Europe/Madrid), WAIT_FOR_MESSAGE correlated by the business key with a deadline and an onTimeoutStepId route (a final notice, then the front desk decides — never an automatic release), SEND_MESSAGE from one process to another correlated by room, a step timeout with its own route, and the Schedules page — a cron.yaml schedule paused and run now. Recorded on the series app (examples/video-series).",
+  "es": "Esperar en EventConductor: un TIMER hasta un momento de negocio calculado desde la reserva (tres días antes de la llegada, 09:00 Europe/Madrid), WAIT_FOR_MESSAGE correlado por la clave de negocio con una fecha límite y una ruta onTimeoutStepId (un último aviso, y después decide recepción: nunca una liberación automática), SEND_MESSAGE de un proceso a otro correlado por habitación, el timeout de un paso con su propia ruta, y la página Schedules: una planificación de cron.yaml pausada y lanzada en el acto. Grabado sobre la app de la serie (examples/video-series)."
  },
  "standIns": {
   "en": "the hotel's payment and housekeeping systems are played by the series app's scripts",
@@ -160,7 +160,7 @@
    "code": {
     "file": "examples/video-series/src/main/resources/workflows/balance-reminder.ec.yaml",
     "from": "^  - id: wait-payment",
-    "to": "reached only through onTimeoutStepId"
+    "to": "name: Unpaid balance — decide"
    },
    "spec": {
     "geom": {
@@ -173,21 +173,28 @@
     "emphasis": [
      {
       "at": "c0",
-      "match": [
-       "type: WAIT_FOR_MESSAGE",
-       "messageName: payment-received"
+      "match": [],
+      "lines": [
+       [
+        31,
+        31
+       ],
+       [
+        34,
+        34
+       ]
       ]
      },
      {
       "at": "c1",
       "match": [
-       "correlationExpression: businessKey"
+       "correlationExpression: businessKey +#"
       ]
      },
      {
       "at": "c2",
       "match": [
-       "deadline:",
+       "deadline:$",
        "offset: -P1D",
        "at: \"12:00\""
       ]
@@ -195,9 +202,17 @@
      {
       "at": "c3",
       "match": [
-       "onTimeoutStepId: release-room",
-       "^  - id: release-room",
+       "onTimeoutStepId: final-notice",
+       "^  - id: final-notice",
        "expression: \"false\""
+      ]
+     },
+     {
+      "at": "c4",
+      "match": [
+       "timeout: PT4H",
+       "onTimeoutStepId: front-desk",
+       "type: USER_TASK"
       ]
      }
     ],
@@ -217,6 +232,10 @@
      {
       "at": "c3",
       "key": "wait.n4"
+     },
+     {
+      "at": "c4",
+      "key": "wait.n5"
      }
     ]
    },
@@ -225,13 +244,15 @@
      "Then the guest gets a payment link, and the process waits for a message: payment received.",
      "Correlated by the business key: the message names the booking it belongs to.",
      "With a deadline, the day before check-in at noon — a business moment again.",
-     "No payment by then, and the process takes the release-room route: an outcome, not a failure."
+     "No payment by then: the process takes another route — a final notice to the guest. An outcome, not a failure.",
+     "A short grace period, and if it's still unpaid, the front desk decides — never a silent release."
     ],
     "es": [
      "Después el huésped recibe un enlace de pago, y el proceso espera un mensaje: pago recibido.",
      "Correlado por la clave de negocio: el mensaje dice a qué reserva pertenece.",
      "Con una fecha límite, el día antes de la llegada a mediodía; otra vez un momento de negocio.",
-     "Si para entonces no hay pago, el proceso toma la ruta de liberar la habitación: un resultado, no un fallo."
+     "Si para entonces no hay pago, el proceso toma otra ruta: un último aviso al huésped. Un resultado, no un fallo.",
+     "Un breve periodo de gracia y, si sigue sin pagarse, decide recepción: nunca una liberación silenciosa."
     ]
    }
   },

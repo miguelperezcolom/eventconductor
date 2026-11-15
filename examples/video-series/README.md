@@ -33,7 +33,7 @@ The app is laptop-only: `workflow.message-api.allow-anonymous=true` (no login fo
 | `group-arrival.ec.yaml` | CHOICE (+ default), XOR JOIN, FORK / AND JOIN, forEach over a **named** PROCESS with label and `onIterationFailure: continue` | 6 |
 | `prepare-room.ec.yaml` | the named sub-process: `repeat` (one step until clean) and `loopBack` (inspect → fix, again) | 6 |
 | `airport-transfer.ec.yaml` | a race: FORK, XOR JOIN with `compensateLosers` (opt-in), late completion undone | 6 |
-| `balance-reminder.ec.yaml` | TIMER `until` "3 days before check-in, 09:00 Madrid", WAIT_FOR_MESSAGE by business key with a `deadline` and `onTimeoutStepId` | 8 |
+| `balance-reminder.ec.yaml` | TIMER `until` "3 days before check-in, 09:00 Madrid", WAIT_FOR_MESSAGE by business key with a `deadline` and `onTimeoutStepId` — unpaid by the deadline: a final notice, a grace period, then the front desk decides (USER_TASK + CHOICE: release, extend, paid at the desk); never an automatic release | 8 |
 | `guest-checkin.ec.yaml` + `room-cleaning.ec.yaml` | SEND_MESSAGE → WAIT_FOR_MESSAGE between processes, correlated by room; step `timeout` + `onTimeoutStepId` | 8 |
 | `nightly-occupancy.ec.yaml` + `cron.yaml` | a schedule (03:00 Europe/Madrid): Schedules page, pause, run now | 8 |
 | `loyalty-statement.ec.yaml` | CONTINUE_AS_NEW (a monthly chain under one business key) | 8 |

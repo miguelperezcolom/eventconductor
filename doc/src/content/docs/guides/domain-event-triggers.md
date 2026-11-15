@@ -104,7 +104,7 @@ Templates and filters run in the same sandbox as every other expression in a def
   messageName: payment-captured          # still required: the message the event becomes
   correlationExpression: bookingId       # over the process, as for any wait
   deadline: { date: "${checkinDate}", offset: -P1D }
-  onTimeoutStepId: cancel-booking
+  onTimeoutStepId: front-desk-review    # unpaid at the deadline: a person decides, never an automatic cancel
   onEvent:
     destination: payments
     type: com.acme.payment.captured
