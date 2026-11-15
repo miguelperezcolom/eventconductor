@@ -17,9 +17,9 @@ So: one room failed, the policy kept the other two, and the flow went on to ask 
 
 ## 2. The Errors tab says what — up to a boundary
 
-![The parent's Errors tab: a child process ended ERROR](/workshop/08-parent-errors.jpg)
+![The parent's Errors tab: Room 900's child process ended ERROR, and why — SOLD_OUT](/workshop/08-parent-errors.jpg)
 
-The parent knows that a **child** failed — each room ran as a child process of its own — but not the child's own reason. Follow it: double-click the failed lane's header (*Room 900*) to open that child run, or find it in the process list.
+The parent lists what failed under it, by lane: each room ran as a **child** process of its own, and *rooms · Room 900* ended `ERROR` because its `create-room-booking` step failed. The child's own run has the whole story. Follow it: double-click the failed lane's header (*Room 900*) to open that child run, or find it in the process list.
 
 ![The child's Errors tab: SOLD_OUT](/workshop/08-child-errors.jpg)
 

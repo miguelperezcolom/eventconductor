@@ -115,9 +115,22 @@ class InstanceOperationsJourneyTest extends AbstractUiE2eTest {
             var dialog = page.getByRole(AriaRole.DIALOG).first();
             assertThat(dialog).isVisible();
             assertThat(dialog.getByLabel("Step mapping").first()).hasValue(java.util.regex.Pattern.compile("wait=wait"));
+
+            // A 1280×720 layout (a 1920×1080 screen at 150 %): the reason and both buttons are on screen
+            // without scrolling — the mapping scrolls in its own region — and so is the dry run's result.
+            page.setViewportSize(1280, 720);
+            var preview = dialog.getByRole(AriaRole.BUTTON, new com.microsoft.playwright.Locator.GetByRoleOptions()
+                    .setName("Preview"));
+            var migrate = dialog.getByRole(AriaRole.BUTTON, new com.microsoft.playwright.Locator.GetByRoleOptions()
+                    .setName("Migrate").setExact(true));
+            assertThat(dialog.getByLabel("Reason").first()).isInViewport();
+            assertThat(preview).isInViewport();
+            assertThat(migrate).isInViewport();
+
             dialog.getByLabel("Reason").first().fill("v2 renames the wait");
-            dialog.getByRole(AriaRole.BUTTON, new com.microsoft.playwright.Locator.GetByRoleOptions().setName("Preview")).click();
-            assertThat(page.getByText(java.util.regex.Pattern.compile("can be migrated")).first()).isVisible();
+            preview.click();
+            assertThat(dialog.getByText(java.util.regex.Pattern.compile("can be migrated")).first()).isInViewport();
+            assertThat(migrate).isInViewport();
             dialog.getByRole(AriaRole.BUTTON, new com.microsoft.playwright.Locator.GetByRoleOptions().setName("Migrate")
                     .setExact(true)).click();
 

@@ -384,6 +384,59 @@ class WorkflowOrchestrationServiceTest {
         assertThat(result.getStepsToSave()).isEmpty();
     }
 
+    // ── An XOR join fed straight from a CHOICE's default branch, and by the CHOICE's other route ──
+
+    /** choice → default: join; choice → 'x == 1': other → join. */
+    private List<StepExecution> joinFedByAChoiceDefault(StepExecutionStatus other, StepExecutionStatus join) {
+        var choice = se(step("choice", StepType.CHOICE, "start", null), StepExecutionStatus.COMPLETED);
+        var guarded = choiceSuccessor("other", "choice", "x == '1'", other);
+        var xor = se(xorJoin("join", List.of("choice", "other")), join);
+        return List.of(choice, guarded, xor);
+    }
+
+    @Test
+    void anXorJoinFedByAChoiceDefaultProceedsOnTheChoicesOtherRoute() {
+        var result = service.calculateNextTransitions(processWith("x", "1"),
+                joinFedByAChoiceDefault(StepExecutionStatus.COMPLETED, StepExecutionStatus.CREATED));
+
+        // The CHOICE took 'other', so the join's link from the CHOICE is a branch not taken — but
+        // its link from 'other' completed, and one branch is all an XOR join needs.
+        assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId).containsExactly("join");
+        assertThat(result.getStepsToSave().get(0).getStatus()).isNotEqualTo(StepExecutionStatus.CREATED);
+    }
+
+    @Test
+    void anXorJoinFedByAChoiceDefaultWaitsWhileTheOtherRouteRuns() {
+        var result = service.calculateNextTransitions(processWith("x", "1"),
+                joinFedByAChoiceDefault(StepExecutionStatus.PENDING, StepExecutionStatus.CREATED));
+
+        assertThat(result.getStepsToSave()).isEmpty();
+    }
+
+    @Test
+    void anXorJoinFedByAChoiceDefaultIsTheDefaultWhenNoGuardHolds() {
+        var result = service.calculateNextTransitions(processWith("x", "2"),
+                joinFedByAChoiceDefault(StepExecutionStatus.CREATED, StepExecutionStatus.CREATED));
+
+        // The default branch: the join itself, and only the join.
+        assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId).containsExactly("join");
+    }
+
+    @Test
+    void aStepWithALinkFromAChoiceAndAnotherStillWaitsForBoth() {
+        var choice = se(step("choice", StepType.CHOICE, "start", null), StepExecutionStatus.COMPLETED);
+        var inFlight = se(step("b", StepType.ACTION, "start", null), StepExecutionStatus.PENDING);
+        var both = se(step("both", StepType.ACTION, null, null)
+                .withPreconditions(List.of(
+                        new io.mateu.workflow.domain.aggregates.Precondition("choice", null),
+                        new io.mateu.workflow.domain.aggregates.Precondition("b", null))),
+                StepExecutionStatus.CREATED);
+
+        // Picked by the CHOICE, but 'b' has not completed: not an XOR join, so it waits for both.
+        assertThat(service.calculateNextTransitions(process(), List.of(choice, inFlight, both)).getStepsToSave())
+                .isEmpty();
+    }
+
     @Test
     void aMessageStartStillArmsItselfWithNoPreconditions() {
         // The exception that keeps its reason: a flow entered by a message has to be subscribed

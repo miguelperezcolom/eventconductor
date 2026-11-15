@@ -67,7 +67,7 @@ Any step that waits — `ACTION`, `USER_TASK`, `RULE`, `WAIT_FOR_MESSAGE`, `PROC
   messageName: payment-received
   correlationExpression: bookingId
   deadline: { date: "${checkinDate}", offset: -P1D, at: "12:00", zone: "${hotelZone}" }
-  onTimeoutStepId: cancel-booking
+  onTimeoutStepId: front-desk-review    # unpaid at the deadline: a person decides, never an automatic cancel
 ```
 
 - Reaching it is a **timeout**: `onTimeoutStepId` if set, else the step fails (and the saga compensates).

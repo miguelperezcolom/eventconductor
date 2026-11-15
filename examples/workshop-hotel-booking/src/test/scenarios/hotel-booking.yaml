@@ -14,7 +14,6 @@ steps:
   notify-guest: { complete: {} }
   ask-guest: { complete: {} }
   remind-guest: { complete: {} }
-  confirm-kept: { complete: {} }
   confirm-alternatives: { complete: {} }
 
 scenarios:
@@ -74,8 +73,8 @@ scenarios:
       - sendMessage: { name: guest-answer, variables: { answer: keep } }
     expect:
       status: COMPLETED
-      passedSteps: [confirm-kept, done]
-      notPassedSteps: [book-alternatives, cancel-room]
+      passedSteps: [guest-decision, done]
+      notPassedSteps: [book-alternatives, confirm-alternatives, cancel-room]
 
   - name: the guest cancels, so the room that was booked is cancelled at the hotel
     http:
@@ -102,7 +101,7 @@ scenarios:
       - sendMessage: { name: guest-answer, variables: { answer: keep } }
     expect:
       status: COMPLETED
-      passedSteps: [remind-guest, wait-after-reminder, confirm-kept]
+      passedSteps: [remind-guest, wait-after-reminder, guest-decision, done]
       notPassedSteps: [front-desk, cancel-room]
 
   - name: no answer at all is never a cancellation — the front desk calls, and decides with the guest

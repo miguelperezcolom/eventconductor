@@ -36,12 +36,7 @@ public class SeriesTaskHandlers {
         return confirming("notify-guest");
     }
 
-    /** The confirmation once the guest has decided: the rooms kept, or the alternatives booked. */
-    @Bean
-    TaskRegistration<NotifyGuestInput, NotifiedAt> confirmKept() {
-        return confirming("confirm-kept");
-    }
-
+    /** The confirmation once the guest has accepted the alternatives and they are booked. */
     @Bean
     TaskRegistration<NotifyGuestInput, NotifiedAt> confirmAlternatives() {
         return confirming("confirm-alternatives");
@@ -171,6 +166,8 @@ public class SeriesTaskHandlers {
     public record PaymentLink(String paymentLink) {}
     public record Guaranteed(Boolean guaranteed) {}
     public record Released(String releasedAt) {}
+    public record FinalNotice(String finalNoticeSentAt) {}
+    public record Extended(String balanceDue) {}
 
     @Bean
     TaskRegistration<BalanceInput, PaymentLink> sendPaymentLink() {
@@ -181,6 +178,19 @@ public class SeriesTaskHandlers {
     @Bean
     TaskRegistration<BalanceInput, Guaranteed> confirmGuarantee() {
         return task("confirm-guarantee", BalanceInput.class, Guaranteed.class, (input, context) -> new Guaranteed(true));
+    }
+
+    @Bean
+    TaskRegistration<BalanceInput, FinalNotice> sendFinalNotice() {
+        return task("final-notice", BalanceInput.class, FinalNotice.class, (input, context) -> {
+            log.info("Final notice to {}: the balance of {} is still unpaid", input.guest(), input.balance());
+            return new FinalNotice(Instant.now().toString());
+        });
+    }
+
+    @Bean
+    TaskRegistration<BalanceInput, Extended> extendBalance() {
+        return task("extend", BalanceInput.class, Extended.class, (input, context) -> new Extended("at-check-in"));
     }
 
     @Bean

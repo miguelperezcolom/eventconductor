@@ -5,10 +5,12 @@ import io.mateu.uidl.annotations.FormLayout;
 import io.mateu.uidl.annotations.Help;
 import io.mateu.uidl.annotations.Hidden;
 import io.mateu.uidl.annotations.Label;
+import io.mateu.uidl.annotations.ReadOnly;
+import io.mateu.uidl.annotations.Section;
 import io.mateu.uidl.annotations.Stereotype;
 import io.mateu.uidl.data.FieldStereotype;
-import io.mateu.uidl.data.Message;
 import io.mateu.uidl.data.Option;
+import io.mateu.uidl.data.State;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.OptionsSupplier;
 import io.mateu.workflow.analysis.MigrationRules;
@@ -27,6 +29,8 @@ import java.util.Map;
  * Pick the version, adjust the step mapping (pre-filled with the default one, a {@code source=target} line
  * per step, {@code source=} for a step with no counterpart), give the variables the target needs, and
  * <em>Preview</em> — the dry run, changing nothing — before <em>Migrate</em>. See {@code MigrateProcessUseCase}.
+ * The reason comes right after the version; the dry run's result, the mapping and the variables share a region
+ * that scrolls on its own, so the dialog fits a 720-pixel-high screen with its buttons in sight.
  */
 @FormLayout(columns = 1)
 public class MigrateForm implements OptionsSupplier {
@@ -39,22 +43,31 @@ public class MigrateForm implements OptionsSupplier {
     @Stereotype(FieldStereotype.select)
     String targetVersion;
 
-    @Label("Step mapping")
-    @Help("One source=target per line: the step of the version the process runs, and the step it becomes."
-            + " source= says it has no counterpart. Steps left out map to the step of the same id.")
+    @NotEmpty
+    @Label("Reason")
+    @Help("Mandatory: recorded in the process's audit trail together with who did it")
     @Stereotype(FieldStereotype.textarea)
-    String stepMapping;
+    String reason;
+
+    @Section(value = "", frameless = true, style = OperationForms.SCROLLING_SECTION)
+    @ReadOnly
+    @Label("Dry run")
+    @Stereotype(FieldStereotype.textarea)
+    String plan = NOT_PREVIEWED;
 
     @Label("Variables to set")
     @Help("One name=value per line: what the target version needs and the process does not have")
     @Stereotype(FieldStereotype.textarea)
     String variables;
 
-    @NotEmpty
-    @Label("Reason")
-    @Help("Mandatory: recorded with your name in the process's audit trail")
+    @Label("Step mapping")
+    @Help("One source=target per line: the step of the version the process runs, and the step it becomes."
+            + " source= says it has no counterpart. Steps left out map to the step of the same id.")
     @Stereotype(FieldStereotype.textarea)
-    String reason;
+    String stepMapping;
+
+    /** What the dry-run field says until Preview has run. */
+    static final String NOT_PREVIEWED = "Not run yet: Preview checks the migration without changing anything.";
 
     public MigrateForm forProcess(String processId) {
         this.processId = processId;
@@ -104,8 +117,8 @@ public class MigrateForm implements OptionsSupplier {
         try {
             var preview = OperationForms.bean(ProcessOperationsService.class).dryRunMigration(processId, version(),
                     mapping(), BatchOperationParameters.assignments(variables), OperationForms.caller());
-            var text = describe(preview);
-            return preview.plan().executable() ? Message.success(text) : Message.error(text);
+            plan = describe(preview);
+            return new State(this);
         } catch (RuntimeException e) {
             return OperationForms.refused(e);
         }
@@ -148,6 +161,6 @@ public class MigrateForm implements OptionsSupplier {
 
     @Override
     public String toString() {
-        return "Migrate";
+        return "";
     }
 }

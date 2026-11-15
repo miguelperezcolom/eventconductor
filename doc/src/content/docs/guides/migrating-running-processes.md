@@ -17,7 +17,7 @@ It is not the tool for undoing what a process has **done** — that is [retry fr
 
 ## Running it
 
-From the process detail page (**Migrate…**: the version, the step mapping pre-filled with the default one, the variables, the reason, a **Preview** and **Migrate**), the [REST API](/reference/processes-rest-api/#migration), the [MCP tools](/guides/mcp-overview/) or a Kafka command on `upstream`:
+From the process detail page (**Migrate…**: the version, the reason, then — in a region that scrolls on its own — the dry run's result, the variables and the step mapping pre-filled with the default one; **Preview** and **Migrate** below), the [REST API](/reference/processes-rest-api/#migration), the [MCP tools](/guides/mcp-overview/) or a Kafka command on `upstream`:
 
 ```http
 POST /workflow/api/processes/{id}/migrate/dry-run

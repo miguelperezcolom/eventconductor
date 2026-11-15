@@ -22,8 +22,11 @@ import java.util.List;
 
 import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
 
-record TaskRow(String id, String name, String form, int priority, String due, Status overdue,
-               String assignedTo, String offeredTo, Status status, ColumnAction run) {}
+// The row's action comes FIRST. Mateu lays a listing's columns out in the row's field order, and
+// a listing has no way to freeze one: last, "Run" sat past the right edge of a 1920px-wide page,
+// behind the grid's horizontal scroll — the one thing a person comes to the inbox to do.
+record TaskRow(ColumnAction run, String id, String name, String form, int priority, String due, Status overdue,
+               String assignedTo, String offeredTo, Status status) {}
 
 @Service
 @Slf4j
@@ -76,6 +79,10 @@ public class Tasks extends Crud<TaskRow, TaskRow, TaskRow, TaskFilters, TaskRow,
         var now = TaskInboxOrder.nowUtc();
         var content = page.items().stream()
                 .map(task -> new TaskRow(
+                        ColumnAction.builder()
+                                .methodNameInCrud("run")
+                                .label("Run")
+                                .build(),
                         task.id(),
                         task.businessKey() != null ? task.businessKey() : task.processId(),
                         task.formId(),
@@ -86,11 +93,7 @@ public class Tasks extends Crud<TaskRow, TaskRow, TaskRow, TaskFilters, TaskRow,
                                 : null,
                         task.userId(),
                         offeredTo(task),
-                        mapStatus(task.status().name()),
-                        ColumnAction.builder()
-                                .methodNameInCrud("run")
-                                .label("Run")
-                                .build()
+                        mapStatus(task.status().name())
                 ))
                 .toList();
         return ListingData.<TaskRow>builder()

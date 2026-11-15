@@ -30,7 +30,7 @@ public class RevealVariableForm {
 
     @NotEmpty
     @Label("Reason")
-    @Help("Mandatory: recorded with your name in the process's audit trail")
+    @Help("Mandatory: recorded in the process's audit trail together with who did it")
     @Stereotype(FieldStereotype.textarea)
     String reason;
 
@@ -53,6 +53,6 @@ public class RevealVariableForm {
 
     @Override
     public String toString() {
-        return "Reveal variable";
+        return "";
     }
 }

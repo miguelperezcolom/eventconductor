@@ -1,6 +1,8 @@
 # Chapter 8 — Time and messages. Three days before check-in, at 09:00 hotel time (a TIMER on a moment computed
 # from the booking), the guest gets a payment link. Then the process waits for the payment message, correlated by
-# the business key, until the day before check-in at 12:00 (a deadline): no payment by then, the room is released.
+# the business key, until the day before check-in at 12:00 (a deadline). No payment by then: the guest gets a final
+# notice and a short grace period, and if it is still unpaid the front desk decides — release, extend, or paid at the
+# desk. The room is never released automatically: only on a person's decision.
 id: balance-reminder
 name: Balance payment before check-in
 steps:
@@ -36,25 +38,70 @@ steps:
       offset: -P1D
       at: "12:00"
       zone: Europe/Madrid
-    onTimeoutStepId: release-room             # no payment by the deadline: this route, not a failure
+    onTimeoutStepId: final-notice             # no payment by the deadline: this route, not a failure
+
+  - id: final-notice
+    type: ACTION
+    name: Send the guest a final notice
+    retries: 2
+    preconditions:
+      - stepId: wait-payment
+        expression: "false"                   # reached only through onTimeoutStepId
+
+  - id: wait-grace
+    type: WAIT_FOR_MESSAGE
+    name: Grace period, still waiting to be paid
+    preconditionStepId: final-notice
+    messageName: payment-received
+    correlationExpression: businessKey
+    timeout: PT4H                             # a short grace period
+    onTimeoutStepId: front-desk               # still unpaid: the front desk decides
+
+  - id: front-desk
+    type: USER_TASK
+    name: Unpaid balance — decide
+    formId: unpaid-balance                    # decision: release, extend or paid-at-desk
+    assignment:
+      candidateGroups: [front-desk]
+    preconditions:
+      - stepId: wait-grace
+        expression: "false"                   # reached only through onTimeoutStepId
+
+  - id: desk-decision
+    type: CHOICE
+    name: What did the front desk decide?
+    preconditionStepId: front-desk
+
+  - id: paid
+    type: JOIN
+    name: Paid
+    joinType: XOR                             # by the deadline, in the grace period, or at the desk (the default)
+    preconditionStepIds: [wait-payment, wait-grace, desk-decision]
 
   - id: confirm-guarantee
     type: ACTION
     name: Confirm the booking is guaranteed
-    preconditionStepId: wait-payment
+    preconditionStepId: paid
+
+  - id: extend
+    type: ACTION
+    name: Hold the room, balance due at check-in
+    preconditions:
+      - stepId: desk-decision
+        expression: "decision == 'extend'"
 
   - id: release-room
     type: ACTION
     name: Release the room
     preconditions:
-      - stepId: wait-payment
-        expression: "false"                   # reached only through onTimeoutStepId
+      - stepId: desk-decision
+        expression: "decision == 'release'"   # only on the front desk's decision
 
   - id: outcome
     type: JOIN
     name: Outcome
     joinType: XOR
-    preconditionStepIds: [confirm-guarantee, release-room]
+    preconditionStepIds: [confirm-guarantee, extend, release-room]
 
   - id: done
     type: END

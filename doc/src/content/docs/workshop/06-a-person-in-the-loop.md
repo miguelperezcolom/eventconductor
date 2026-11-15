@@ -185,12 +185,6 @@ steps:
     retries: 3
     preconditionStepId: book-alternatives
 
-  - id: confirm-kept                         # the default: keep the rooms that were booked
-    type: ACTION
-    name: Confirm the rooms kept
-    retries: 3
-    preconditionStepId: guest-decision
-
   - id: cancelled-by-guest                   # cancel: the guest's decision undoes what was booked
     type: END
     name: Cancelled by the guest
@@ -202,7 +196,7 @@ steps:
   - id: done
     type: END
     name: Booked
-    preconditionStepIds: [notify-guest, confirm-alternatives, confirm-kept]   # whichever comes
+    preconditionStepIds: [notify-guest, confirm-alternatives, guest-decision]   # whichever comes (guest-decision: its default, keep the rooms)
 
   - id: cancel-room
     type: HTTP_CALL
@@ -258,13 +252,13 @@ scripts/approve.sh BOOKING-7 true 'Regular guest'
 
 (It finds the booking's open task, claims it and completes it with `{"approved": true, "comment": "Regular guest"}`, sending the same unsigned token as a bearer header.)
 
-An operator can also decide it from the console, without the form: **Complete step**, step `approve`, output variable `approved = true`, and a reason — which goes to the process's audit trail with your name. That is the way out when the manager approved by phone (module 7).
+An operator can also decide it from the console, without the form: **Complete step**, step `approve`, output variable `approved = true`, and a reason — which goes to the process's audit trail together with who did it. That is the way out when the manager approved by phone (module 7).
 
 ![Completing the approval from the console](/workshop/06-approve-from-console.gif)
 
-The CHOICE takes the approved branch, the rooms are booked at the hotel, the guest is told:
+The CHOICE takes the approved branch, the rooms are booked at the hotel, every room was booked so the guest is told, and the process ends *Booked*:
 
-![Booked: approval, choice, rooms 3/3, guest told](/workshop/06-booked.jpg)
+![Booked: approval, choice, rooms 3/3, every room booked, guest told](/workshop/06-booked.jpg)
 
 Start another one (BOOKING-8) and reject it — leave *Approve this booking* unticked in the form, or `scripts/approve.sh BOOKING-8 false`: the CHOICE takes the default branch, and the run finishes through the *Rejected* end (status *Completed* — rejecting is a normal outcome, not a failure) without touching the hotel.
 
@@ -278,7 +272,7 @@ scripts/start.sh hotel-booking BOOKING-9 '{"guest": "Lee", "rooms": [
 scripts/approve.sh BOOKING-9 true 'VIP'
 ```
 
-Room 401 is booked, the penthouse is refused, the hotel offers suite 901 and the guest is asked: the process waits at *Wait for the guest's answer*. Now the guest decides — `scripts/answer.sh BOOKING-9 accept` books the suite and confirms; `keep` confirms room 401 alone; `cancel` ends at *Cancelled by the guest*, where room 401 is cancelled at the hotel and the process ends **Compensated**.
+Room 401 is booked, the penthouse is refused, the hotel offers suite 901 and the guest is asked: the process waits at *Wait for the guest's answer*. Now the guest decides — `scripts/answer.sh BOOKING-9 accept` books the suite and confirms; `keep` ends *Booked* with room 401 alone; `cancel` ends at *Cancelled by the guest*, where room 401 is cancelled at the hotel and the process ends **Compensated**.
 
 If nobody answers, nothing is cancelled. After a day the guest is reminded; after two, the task *Front desk calls the guest* appears under **Forms → Tasks** (for `front-desk`, and for *mia* of `front-desk-managers` in the workshop): the front desk calls and records what the guest wants. Choosing *Cancel the whole booking* there is the same decision, taken for the guest — and the same compensation.
 

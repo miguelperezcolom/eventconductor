@@ -187,8 +187,6 @@ scripts/start.sh rooms-booking-http BOOKING-5 '{"guest": "Dan", "rooms": [
 curl -s 'http://localhost:8095/fake/hotel/alternatives?booking=BOOKING-5'
 ```
 
-![Over HTTP: Room 900 answered 409, the two others were booked](/workshop/04-http-iterations.jpg)
-
 The hotel answered `409` for the penthouse — a 4xx is not retried, a 409 will not fix itself — so that room is set aside; the other two stay booked. The hotel offers `[{"number":"901","instead":"900","type":"suite"}]`, and the process waits for the guest. Accept it:
 
 ```bash
@@ -196,7 +194,11 @@ scripts/answer.sh BOOKING-5 accept
 curl -s http://localhost:8095/fake/hotel/bookings
 ```
 
-The suite is booked (`BOOKING-5-901`) and the process ends *Booked with alternatives*. Start BOOKING-6 the same way and answer `cancel`: the two rooms it had booked are cancelled with `DELETE` calls — `curl /fake/hotel/bookings` holds nothing of BOOKING-6 — and the process ends **Compensated**.
+The suite is booked (`BOOKING-5-901`) and the process ends *Booked with alternatives*:
+
+![Over HTTP: Room 900 answered 409 and Room 101 and 102 stayed booked; the hotel's alternative was proposed, the guest accepted, the suite was booked (1/1) and the process ended Booked with alternatives — nothing cancelled](/workshop/04-http-iterations.jpg)
+
+Start BOOKING-6 the same way and answer `cancel`: the two rooms it had booked are cancelled with `DELETE` calls — `curl /fake/hotel/bookings` holds nothing of BOOKING-6 — and the process ends **Compensated**.
 
 ## Check
 

@@ -132,12 +132,7 @@ public class HotelTaskHandlers {
         return confirmingToTheGuest("notify-guest");
     }
 
-    /** The confirmation once the guest has decided: rooms kept (module 3 and 6), alternatives booked (6). */
-    @Bean
-    TaskRegistration<NotifyGuestInput, NotifyGuestOutput> confirmKept() {
-        return confirmingToTheGuest("confirm-kept");
-    }
-
+    /** The confirmation once the guest has accepted the alternatives and they are booked (module 6). */
     @Bean
     TaskRegistration<NotifyGuestInput, NotifyGuestOutput> confirmAlternatives() {
         return confirmingToTheGuest("confirm-alternatives");

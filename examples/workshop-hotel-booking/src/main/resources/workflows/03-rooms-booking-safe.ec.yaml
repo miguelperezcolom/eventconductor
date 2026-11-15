@@ -76,12 +76,6 @@ steps:
       - stepId: guest-decision
         expression: "answer == 'cancel'"
 
-  - id: confirm-kept                         # the default: the guest keeps the rooms that were booked
-    type: ACTION
-    name: Confirm the rooms kept
-    retries: 3
-    preconditionStepId: guest-decision
-
   - id: notify-guest                         # the default of all-booked: every room was booked
     type: ACTION
     name: Tell the guest
@@ -91,7 +85,7 @@ steps:
   - id: done
     type: END
     name: Done
-    preconditionStepIds: [notify-guest, confirm-kept]   # an END goes on with whichever comes
+    preconditionStepIds: [notify-guest, guest-decision]   # whichever comes: all booked, or the guest keeps them
 
   - id: tell-front-desk
     type: ACTION
