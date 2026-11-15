@@ -151,10 +151,12 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     String returnTo;
 
     /**
-     * Which toolbar actions this render offers, as one string. Plumbing for {@link #refresh}: the toolbar
-     * is part of the component, not of its state, so a refresh answered with a {@code State} kept the
-     * buttons of the render before — "Complete step" and "Cancel process" still offered on a process
-     * that had just completed. When this changes, the refresh answers with the whole view instead.
+     * Which toolbar actions and which conditional tabs and fields this render shows, as one string.
+     * Plumbing for {@link #refresh}: the toolbar and the set of tabs are part of the component, not of
+     * its state, so a refresh answered with a {@code State} kept the shape of the render before —
+     * "Complete step" and "Cancel process" still offered on a process that had just completed, and no
+     * Operations tab after the first manual operation until a reload. When this changes, the refresh
+     * answers with the whole view instead.
      */
     @Hidden
     String toolbar;
@@ -163,6 +165,14 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     static final List<String> TOOLBAR_ACTIONS = List.of("cancelProcess", "pauseProcess", "resumeProcess",
             "retryProcess", "restartProcess", "setVariables", "revealVariable", "completeStep", "retryFromStep",
             "migrate");
+
+    /**
+     * The members {@link #isHidden} shows or hides by what the process has — a tab ({@code operations},
+     * {@code updates}, the Reply tab through {@code replyOutcome}) or a header field. Each can appear
+     * mid-run, so each is part of {@link #toolbar}.
+     */
+    static final List<String> CONDITIONAL_MEMBERS = List.of("invocation", "continuedFrom", "continuedAs",
+            "replyOutcome", "updates", "operations");
 
     // Explicit tab names: since mateu 379440d83 consecutive @Tab annotations with the SAME
     // value (and bare @Tab means value "") are merged into one tab, which stacked these four
@@ -815,15 +825,19 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         return new State(this);
     }
 
-    /** Whether the actions on offer differ from the ones the page shows ({@code shown}, from its state). */
+    /** Whether the actions on offer or the tabs shown differ from the page's ({@code shown}, from its state). */
     static boolean toolbarChanged(Object shown, Object loaded) {
         return loaded instanceof SimpleProcessViewModel model && model.toolbar != null
                 && !model.toolbar.equals(shown);
     }
 
-    /** The toolbar actions this render offers, comma-separated (see {@link #toolbar}). */
+    /**
+     * The toolbar actions this render offers, comma-separated, then — after a {@code |} — the conditional
+     * tabs and fields it shows (see {@link #toolbar}).
+     */
     String toolbarSignature() {
-        return String.join(",", TOOLBAR_ACTIONS.stream().filter(action -> !isHidden(action, null)).toList());
+        return String.join(",", TOOLBAR_ACTIONS.stream().filter(action -> !isHidden(action, null)).toList())
+                + "|" + String.join(",", CONDITIONAL_MEMBERS.stream().filter(member -> !isHidden(member, null)).toList());
     }
 
 

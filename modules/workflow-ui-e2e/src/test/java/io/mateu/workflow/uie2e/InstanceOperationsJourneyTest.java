@@ -37,6 +37,8 @@ class InstanceOperationsJourneyTest extends AbstractUiE2eTest {
         var id = startProcess("ui-long-running", "operate-1", new Variable("note", "stale"));
 
         var detail = ui.goToProcesses().open(id);
+        // No operation yet, no Operations tab.
+        assertThat(detail.tab("Operations")).hasCount(0);
         detail.runAction("Set variables");
 
         var dialog = page.getByRole(AriaRole.DIALOG).first();
@@ -47,7 +49,9 @@ class InstanceOperationsJourneyTest extends AbstractUiE2eTest {
 
         awaitUntil(Duration.ofSeconds(20), () -> processes.findById(id).orElseThrow().getVariables().stream()
                 .noneMatch(v -> "note".equals(v.name())));
-        page.reload();
+        // The tab comes with the first operation, without a reload: the refresh after the dialog used
+        // to repaint the values only, and the tab bar kept the tabs of the render before.
+        assertThat(detail.tab("Operations")).isVisible();
         detail.openTab("Operations");
         assertThat(page.getByText(java.util.regex.Pattern.compile("\\[set-variables\\] by .*removed note")).first())
                 .isVisible();

@@ -627,9 +627,30 @@ class SimpleProcessViewModelTest {
         view.processStatus = io.mateu.workflow.domain.aggregates.ProcessStatus.COMPLETED;
         view.toolbar = view.toolbarSignature();
 
-        assertThat(view.toolbar).isEmpty();
+        assertThat(view.toolbar).isEqualTo("|");
         assertThat(SimpleProcessViewModel.toolbarChanged(running, view)).isTrue();
-        assertThat(SimpleProcessViewModel.toolbarChanged("", view)).isFalse();
+        assertThat(SimpleProcessViewModel.toolbarChanged("|", view)).isFalse();
         assertThat(SimpleProcessViewModel.toolbarChanged(running, "not a view")).isFalse();
+    }
+
+    /**
+     * The set of tabs is part of the component too: the first manual operation on a running process
+     * brings in the Operations tab, and a State refresh would leave the tab bar without it.
+     */
+    @Test
+    void aRefreshRedrawsTheViewWhenATabAppears() {
+        var view = view(null);
+        view.status = new io.mateu.uidl.data.Status(io.mateu.uidl.data.StatusType.WARNING, "Running");
+        view.processStatus = io.mateu.workflow.domain.aggregates.ProcessStatus.RUNNING;
+        view.operations = List.of();
+        var before = view.toolbarSignature();
+        assertThat(before).doesNotContain("operations");
+
+        view.operations = List.of(new io.mateu.workflow.infra.in.ui.pages.process.childcruds.Message(
+                "p-1", "l-1", java.time.LocalDateTime.now(), "Step approve completed by hand by ops: ok"));
+        view.toolbar = view.toolbarSignature();
+
+        assertThat(view.toolbar).endsWith("|operations");
+        assertThat(SimpleProcessViewModel.toolbarChanged(before, view)).isTrue();
     }
 }

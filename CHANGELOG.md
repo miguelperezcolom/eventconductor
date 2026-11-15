@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Examples: an unpaid balance is never released automatically.** In `examples/video-series`, `balance-reminder`'s payment deadline (the day before check-in, 12:00) no longer routes straight to *release the room*: it routes to a final notice to the guest and a short grace period, and if the balance is still unpaid a front-desk `USER_TASK` (*Unpaid balance — decide*) chooses — release, extend (balance due at check-in) or paid at the desk. The room is released only on that decision. Tests, the app README and video chapter 8's sources (narration EN/ES, excerpt and emphasis) follow.
 
+### Fixed
+- **Console: the Operations tab appears with the first manual operation.** On a running process, the refresh after an operation's dialog repainted the values only, so the tab bar kept the tabs of the render before: no *Operations* tab until a full reload. The process detail now redraws whenever the set of conditional tabs and header fields changes (Operations, Updates, Reply, invocation, continued from/as), as it already did for the toolbar actions.
+
 ### Documentation
 - **Deadlines route to a person, not to a cancellation.** The `deadline` examples in [Scheduling and deadlines](doc/src/content/docs/guides/scheduling-and-deadlines.md) and [Domain-event triggers](doc/src/content/docs/guides/domain-event-triggers.md) route an unpaid booking to `front-desk-review` instead of `cancel-booking`.
 
