@@ -1,4 +1,4 @@
-# Chapter 3 — facts checked (against v2.41.0; VS Code extension 0.2.4 from the Marketplace)
+# Chapter 3 — facts checked (against v2.42.0; VS Code extension 0.2.5 from the Marketplace)
 
 | Claim | Source |
 |---|---|

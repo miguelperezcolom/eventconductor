@@ -1,13 +1,13 @@
 // Chapter 13 — what is really run and filmed, in order. The workshop app (ENGINE, port 8095) runs on the host: its
 // /fake/hotel is the stand-in the distributed stack calls. The distributed stack is the repository's
-// apps/docker-compose.yml plus this chapter's compose.2.41.0.yml (see its header), started here and taken down at
-// the end. Its orchestrator answers on :8105 with the compose default login (admin / changeme).
+// apps/docker-compose.yml plus this chapter's compose.2.42.0.yml (see its header), started here and taken down at
+// the end. Its orchestrator answers on :18105 with the compose default login (admin / changeme).
 
 import { spawnSync } from 'node:child_process';
 
 const ROOT = '.', WS = 'examples/workshop-hotel-booking';
-const COMPOSE = 'docker compose -p ec-series -f apps/docker-compose.yml -f media/video-series/chapters/13/compose.2.41.0.yml';
-const DC = 'http://localhost:8105', AUTH = { username: 'admin', password: 'changeme' };
+const COMPOSE = 'docker compose -p ec-series -f apps/docker-compose.yml -f media/video-series/chapters/13/compose.2.42.0.yml';
+const DC = 'http://localhost:18105', AUTH = { username: 'admin', password: 'changeme' };
 const ROOMS_13 = '{"guest": "Hana", "rooms": [{"number": "301", "type": "double"}, {"number": "900", "type": "penthouse"}]}';
 // The stack reaches the workshop app's stand-in hotel on the host, on the port the app was started on.
 const HOTEL_URL = `http://host.docker.internal:${new URL(process.env.ENGINE || 'http://localhost:8095').port || 8095}/fake/hotel`;
@@ -24,17 +24,19 @@ export async function run(c) {
     await c.waitFor(async () => (await dc('/workflow/api/processes'))?.content, 'the orchestrator to answer', 600000);
     // The directory import runs after "Started": wait for its log line before starting a process.
     await c.waitFor(async () => /Imported 1 workflow definition/.test(spawnSync('docker', ['logs', 'orchestrator'], { encoding: 'utf8' }).stdout), 'the definition import', 300000);
+    // Docker's healthcheck can mark a slow first start (schema migrations) unhealthy for a while: wait until it says healthy
+    await c.waitFor(async () => /healthy/.test(spawnSync('docker', ['inspect', '-f', '{{.State.Health.Status}}', 'orchestrator'], { encoding: 'utf8' }).stdout) && !/unhealthy/.test(spawnSync('docker', ['inspect', '-f', '{{.State.Health.Status}}', 'orchestrator'], { encoding: 'utf8' }).stdout), 'the orchestrator to be healthy', 300000);
     c.term('compose-ps', `${COMPOSE} ps --format 'table {{.Name}}\\t{{.Image}}\\t{{.Status}}'`, { cwd: ROOT });
 
     // dc-run: the workshop's rooms-booking-http, unchanged, on the orchestrator → the refused room set aside, the run
-    // waiting for the guest (the guest-decides story; the cancel path's END compensate: true is after 2.41.0).
-    c.term('booking-13', `ENGINE=http://admin:changeme@localhost:8105 scripts/start.sh rooms-booking-http BOOKING-13 '${ROOMS_13}' | jq '{businessKey, status}'`, { cwd: WS });
+    // 'Ask the guest' queued on Kafka for a worker this stack does not run (the guest-decides story; nothing cancelled).
+    c.term('booking-13', `ENGINE=http://admin:changeme@localhost:18105 scripts/start.sh rooms-booking-http BOOKING-13 '${ROOMS_13}' | jq '{businessKey, status}'`, { cwd: WS });
     const p = await c.waitFor(async () => {
       const x = (await dc('/workflow/api/processes?businessKey=BOOKING-13'))?.content?.[0];
       if (!x) return false;
       const steps = await dc(`/workflow/api/processes/${x.id}/steps`);
-      return (Array.isArray(steps) ? steps : steps?.content || []).some((st) => st.stepId === 'wait-for-guest' && st.status === 'PENDING') && x;
-    }, 'BOOKING-13 waiting for the guest on the orchestrator', 120000);
+      return (Array.isArray(steps) ? steps : steps?.content || []).some((st) => st.stepId === 'ask-guest' && st.status === 'PENDING') && x;
+    }, 'BOOKING-13 at ask-guest on the orchestrator', 120000);
     await c.shot('dc-run', async (page) => {
       await c.open(`${DC}/workflow/processes/${p.id}`, 'text=Diagram')(page);
       await page.getByText('Diagram', { exact: true }).first().click();
@@ -43,7 +45,7 @@ export async function run(c) {
       s.cursor = false;
       await s.cameraNow('full');
       await s.untilCue(1, 0.2);
-      await s.camera([node(s, 'Book every room'), node(s, 'Wait for the guest')], { zmax: 2.0, dur: 1.0 });
+      await s.camera([node(s, 'Book every room'), node(s, 'Ask the guest')], { zmax: 2.0, dur: 1.0 });
       await s.untilCue(2, -0.2);
       await s.camera(graph(s).locator('g.node'), { zmax: 1.6, dur: 0.9, pad: 30 });
     }, { context: { httpCredentials: AUTH } });

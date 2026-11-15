@@ -1,6 +1,6 @@
 # Chapter 13 — what the recording adds to apps/docker-compose.yml (that file uses :latest):
-#   docker compose -f apps/docker-compose.yml -f media/video-series/chapters/13/compose.2.41.0.yml up -d orchestrator redpanda-console
-# - the orchestrator image pinned to the release the series is recorded on, 2.41.0;
+#   docker compose -f apps/docker-compose.yml -f media/video-series/chapters/13/compose.2.42.0.yml up -d orchestrator redpanda-console
+# - the orchestrator image pinned to the release the series is recorded on, 2.42.0;
 # - the workshop's own definition file mounted into it (the standalone app imports WORKFLOW_DEFINITIONS_DIRS);
 # - its `hotel` connection pointed at the workshop app's stand-in hotel on the host (HOTEL_URL to change it);
 # - two host ports moved, because the recording machine already uses 5432 and 8082;
@@ -22,7 +22,9 @@ services:
       - "19092:19092"
       - "18082:8082"
   orchestrator:
-    image: miguelperezcolom/orchestrator-standalone-app:2.41.0
+    image: miguelperezcolom/orchestrator-standalone-app:2.42.0
+    ports: !override
+      - "18105:8080"                         # 8105 is often taken by another local stack
     environment:
       WORKFLOW_DEFINITIONS_DIRS: /definitions
       WORKFLOW_HTTP_CONNECTIONS_HOTEL_BASEURL: ${HOTEL_URL:-http://host.docker.internal:8095/fake/hotel}

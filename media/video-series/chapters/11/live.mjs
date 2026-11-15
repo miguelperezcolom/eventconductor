@@ -16,6 +16,9 @@ const openTab = (c, id, name) => async (page) => {
 };
 /** Type into the field labelled `label` (a dialog's Reason). */
 const typeInto = async (s, label, text) => {
+  // Dialogs taller than the page (Migrate…) keep fields below the fold: scroll the field in, as a user would.
+  await s.page.getByLabel(label).first().scrollIntoViewIfNeeded();
+  await s.settleFrames(4);
   await s.click(s.page.getByLabel(label).first(), { dur: 0.6 });
   await s.type(text);
 };
@@ -114,7 +117,7 @@ export async function run(c) {
   });
 
   // change: a commit in the definitions repository, then its webhook → the engine imports version 2.
-  c.term('change-def', "perl -pi -e 's/after: P1D/after: PT4H/' hotel-booking.ec.yaml && git commit -qam 'Escalate the approval after 4 hours' && git show HEAD --format='%h %s' -U0 | grep -E '^[0-9a-f]{7}|^[-+] '", { cwd: DEFS });
+  c.term('change-def', "perl -pi -e 's/after: P1D(\\s+)# still open after a day/after: PT4H$1# still open after 4 hours/' hotel-booking.ec.yaml && git commit -qam 'Escalate the approval after 4 hours' && git show HEAD --format='%h %s' -U0 | grep -E '^[0-9a-f]{7}|^[-+] '", { cwd: DEFS });
   c.term('git-webhook', "curl -s -o /dev/null -w '%{http_code}\\n' -X POST $ENGINE/workflow/webhooks/generic -H 'Content-Type: application/json' -d '{}'", { cwd: DEFS, show: shown("curl -s -o /dev/null -w '%{http_code}\\n' -X POST $ENGINE/workflow/webhooks/generic -H 'Content-Type: application/json' -d '{}'") });
   await c.waitFor(async () => { const v = await fetch(`${c.base}/workflow/api/definitions/hotel-booking`).then((r) => r.ok ? r.json() : null).catch(() => null); return v && JSON.stringify(v).includes('PT4H'); }, 'hotel-booking v2 imported', 30000).catch((e) => console.warn('  !', e.message));
 
@@ -135,9 +138,16 @@ export async function run(c) {
     s.cursor = true;
     await s.click(s.page.getByText('Migrate…', { exact: true }).first(), { dur: 0.6 });
     await s.settleFrames(10);
+    await s.camera([s.page.getByText('Migrate to another version').first(), s.page.getByRole('button', { name: 'Preview' }).last()], { zmax: 1.9, dur: 0.8, pad: 60 });
     await typeInto(s, 'Reason', 'Managers want the 4-hour reminder');
-    await s.click(s.page.getByRole('button', { name: 'Preview' }).last(), { dur: 0.6 });
+    const preview = s.page.getByRole('button', { name: 'Preview' }).last();
+    await preview.scrollIntoViewIfNeeded();
+    await s.settleFrames(4);
+    await s.click(preview, { dur: 0.6 });
     await s.settleFrames(20);
+    // the dry run's result renders under the button: bring it into view
+    await preview.evaluate((b) => { let p = b.parentElement; while (p && p.scrollHeight <= p.clientHeight) p = p.parentElement; if (p) p.scrollTop = p.scrollHeight; });
+    await s.settleFrames(10);
     await s.park(0.3);
   });
 }

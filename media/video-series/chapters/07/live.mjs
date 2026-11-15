@@ -25,7 +25,11 @@ const plusButton = (page) => page.evaluate(() => {
   const found = [];
   const walk = (r) => { for (const e of r.querySelectorAll('*')) { if (e.tagName === 'VAADIN-BUTTON' && !(e.textContent || '').trim()) { const b = e.getBoundingClientRect(); if (b.width > 0) found.push({ x: b.x, y: b.y, width: b.width, height: b.height }); } if (e.shadowRoot) walk(e.shadowRoot); } };
   walk(document);
-  return found.sort((a, b) => a.y - b.y || a.x - b.x)[0];
+  // below the "Output variables" label (the dialog's close × is an empty button too, above it)
+  let labelY = 0;
+  const find = (r) => { for (const e of r.querySelectorAll('*')) { if (!labelY && e.childElementCount === 0 && (e.textContent || '').trim() === 'Output variables') { const b = e.getBoundingClientRect(); if (b.height) labelY = b.y; } if (e.shadowRoot) find(e.shadowRoot); } };
+  find(document);
+  return found.filter((b) => b.y > labelY).sort((a, b) => a.y - b.y || a.x - b.x)[0];
 });
 
 export async function run(c) {
@@ -64,7 +68,11 @@ export async function run(c) {
     await s.camera(await s.rowBox(s.page.getByText('BOOKING-7', { exact: true }).first(), { before: 260, span: 1500 }), { zmax: 1.5, dur: 0.9, pad: 40 });
     await s.untilCue(1, -0.4);
     await s.camera('full', { dur: 0.5 });
-    await s.click(s.page.getByText('Run', { exact: true }).last(), { dur: 0.6 });
+    // The Run action is the grid's last column, past the right edge at 1920 px: scroll it in, as a user would.
+    const run = s.page.getByText('Run', { exact: true }).last();
+    await run.scrollIntoViewIfNeeded();
+    await s.settleFrames(6);
+    await s.click(run, { dur: 0.6 });
     await s.settleFrames(16);
     await s.click(s.page.getByText('Claim', { exact: true }).first(), { dur: 0.6 });
     await s.settleFrames(10);
@@ -101,13 +109,15 @@ export async function run(c) {
     await s.untilCue(1, -0.3);
     await s.click(await plusButton(s.page), { dur: 0.5 });
     await s.settleFrames(6);
-    await s.click(s.page.locator('vaadin-text-field#name input').last(), { dur: 0.4 });
+    // the "New variable" panel opens inside the dialog, partly below the fold: scroll each field in first
+    const inView = async (loc) => { await loc.scrollIntoViewIfNeeded(); await s.settleFrames(3); return loc; };
+    await s.click(await inView(s.page.locator('vaadin-text-field#name input').last()), { dur: 0.4 });
     await s.type('approved');
-    await s.click(s.page.locator('vaadin-text-field#value input').last(), { dur: 0.4 });
+    await s.click(await inView(s.page.locator('vaadin-text-field#value input').last()), { dur: 0.4 });
     await s.type('true');
-    await s.click(s.page.locator('#variables_create').last(), { dur: 0.4 });
+    await s.click(await inView(s.page.locator('#variables_create').last()), { dur: 0.4 });
     await s.settleFrames(6);
-    await s.click(s.page.locator('vaadin-text-area#reason textarea').last(), { dur: 0.5 });
+    await s.click(await inView(s.page.locator('vaadin-text-area#reason textarea').last()), { dur: 0.5 });
     await s.type('Manager away: approved by phone');
     await s.page.locator('vaadin-button#apply').last().scrollIntoViewIfNeeded();
     await s.settleFrames(2);
@@ -115,6 +125,9 @@ export async function run(c) {
     await s.click(s.page.locator('vaadin-button#apply').last(), { dur: 0.5 });
     await s.settleFrames(16);
     await s.camera('full', { dur: 0.5 });
+    // fallback only: before the console fix, the tab list was not refreshed when the first operation was recorded
+    await s.settleFrames(8);
+    if (!(await tab(s, 'Operations').isVisible().catch(() => false))) { await s.page.reload(); await s.settleFrames(16); }
     await s.click(tab(s, 'Operations'), { dur: 0.6 });
     await s.settleFrames(8);
     await s.park(0.4);

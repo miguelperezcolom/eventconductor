@@ -34,7 +34,7 @@ for f in ['config.json', 'kokoro-v1_0.pth', 'voices/af_heart.pt', 'voices/ef_dor
 "
 # Chapter 3 films the graph editor in real VS Code (scripts/record-live.mjs → vscodeShot).
 if [ -n "${VSCODE:-}" ]; then
-  VSCODE_VERSION="${VSCODE_VERSION:-1.145.3}"; EC_EXT="${EC_EXT:-miguelperezcolom.eventconductor-vscode@0.2.4}"
+  VSCODE_VERSION="${VSCODE_VERSION:-1.145.3}"; EC_EXT="${EC_EXT:-miguelperezcolom.eventconductor-vscode@0.2.5}"
   app="$TOOLS/vscode-$VSCODE_VERSION/Visual Studio Code.app"
   if [ ! -d "$app" ]; then
     meta=$(curl -s "https://update.code.visualstudio.com/api/versions/$VSCODE_VERSION/darwin-arm64/stable")

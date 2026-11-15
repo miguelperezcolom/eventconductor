@@ -34,14 +34,16 @@ export async function run(c) {
   });
 
   // edit: a USER_TASK from the palette, named; a Shift+drag link; the forEach failure policy; the file beside.
-  await c.vscodeShot('edit', WORKSPACE, async (vs) => { await vs.quickOpen('group-arrival.ec.yaml'); await hideSidebar(vs); }, async (s, vs) => {
+  await c.vscodeShot('edit', WORKSPACE, async (vs) => { await hideSidebar(vs); await vs.quickOpen('group-arrival.ec.yaml'); await sleep(2500); }, async (s, vs) => {
     await s.cameraNow('full');
     const canvas = await s.box(ed(vs));
     await s.moveTo(ed(vs).locator('.palette-item').filter({ hasText: 'USER_TASK' }).first(), 0.8);
-    await s.drag({ x: canvas.x + canvas.width * 0.62, y: canvas.y + canvas.height * 0.82 }, { dur: 1.1 });
+    await s.drag({ x: canvas.x + canvas.width * 0.48, y: canvas.y + canvas.height * 0.80 }, { dur: 1.1 });
     const name = ed(vs).locator('input').nth(2);
     await s.click(name, { dur: 0.5 });
     await vs.page.keyboard.press('Meta+A');
+    await vs.page.keyboard.press('Backspace');
+    await s.settleFrames(4);                  // let the field settle, or the first letter is lost
     await s.type('Leader confirms the rooming list');
     await s.settleFrames(4);
     const close = ed(vs).locator('button.close-btn:visible').first();
@@ -81,7 +83,7 @@ export async function run(c) {
   });
 
   // inline: the workshop's inline PROCESS body, edited in place; Esc back.
-  await c.vscodeShot('inline', WORKSPACE, async (vs) => { await vs.quickOpen('03-rooms-booking-safe.ec.yaml'); await hideSidebar(vs); }, async (s, vs) => {
+  await c.vscodeShot('inline', WORKSPACE, async (vs) => { await hideSidebar(vs); await vs.quickOpen('03-rooms-booking-safe.ec.yaml'); await sleep(2500); }, async (s, vs) => {
     await s.cameraNow('full');
     await s.hold(0.4);
     await s.dblclick(vnode(vs, 'Book every room'), { dur: 0.9 });

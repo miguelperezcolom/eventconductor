@@ -202,19 +202,29 @@
     {
       "id": "byhand",
       "view": "live",
-      "spec": {},
+      "spec": {
+        "pills": [
+          {
+            "key": "audit.anon",
+            "from": "c2+1.5",
+            "right": 130,
+            "y": 1000,
+            "cls": "amber"
+          }
+        ]
+      },
       "extra": 0.6,
       "narration": {
         "en": [
           "Some runs need a person.",
           "This check-in waits for a room that housekeeping already handed over by phone.",
-          "Complete the step by hand: every operation asks for a reason, recorded with who did it.",
+          "Complete the step by hand: every operation asks for a reason, and the audit trail records it with who did it.",
           "Pause, set variables, retry from a step, cancel: same rule, same audit trail."
         ],
         "es": [
           "Algunas ejecuciones necesitan a una persona.",
           "Este check-in espera una habitación que limpieza ya entregó por teléfono.",
-          "Completa el paso a mano: cada operación pide un motivo, que queda registrado junto con quién lo hizo.",
+          "Completa el paso a mano: cada operación pide un motivo, y la auditoría lo guarda junto a quién lo hizo.",
           "Pausar, cambiar variables, reintentar desde un paso, cancelar: la misma regla, la misma auditoría."
         ]
       }
