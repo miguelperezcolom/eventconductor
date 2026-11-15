@@ -15,7 +15,7 @@ window.VIEWS = Object.assign(window.VIEWS || {}, {
     return (t) => {
       const t1 = at(sc, 'c1'), t2 = at(sc, 'c2'), t3 = at(sc, 'c3');
       const down = eio(seg(t, t3 - 0.2, t3 + 0.8));
-      row.style.transform = `translateY(${lerp(-160, 190, down)}px) scale(${lerp(1.15, 0.8, down)})`;
+      row.style.transform = `translateY(${lerp(60, 190, down)}px) scale(${lerp(1.15, 0.8, down)})`;
       for (const k of cards) {
         const v = vis(t, 0.15 + k.i * 0.25, 1e9, 0.5); k.c.style.opacity = v; k.c.style.transform = `translateY(${(1 - eout(v)) * 30}px)`;
         const decided = t >= t1 + 0.35 + k.i * 0.6;
