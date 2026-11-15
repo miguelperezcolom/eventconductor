@@ -125,9 +125,9 @@ export async function run(c) {
     await s.click(s.page.locator('vaadin-button#apply').last(), { dur: 0.5 });
     await s.settleFrames(16);
     await s.camera('full', { dur: 0.5 });
-    // the page's tab list is not refreshed when the first operation is recorded: reload, as a user would
-    await s.page.reload();
-    await s.settleFrames(16);
+    // fallback only: before the console fix, the tab list was not refreshed when the first operation was recorded
+    await s.settleFrames(8);
+    if (!(await tab(s, 'Operations').isVisible().catch(() => false))) { await s.page.reload(); await s.settleFrames(16); }
     await s.click(tab(s, 'Operations'), { dur: 0.6 });
     await s.settleFrames(8);
     await s.park(0.4);
