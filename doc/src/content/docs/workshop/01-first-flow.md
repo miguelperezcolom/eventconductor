@@ -5,6 +5,11 @@ description: Write a workflow definition, serve its step with a worker, start a 
 
 The smallest useful process: a booking arrives, the hotel registers it, done.
 
+<div style="max-width: 860px; margin: 1.5rem 0;">
+  <iframe src="https://www.youtube-nocookie.com/embed/PAe6vXnfRnw" title="EventConductor · 2. Your first process" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; border-radius: 12px;"></iframe>
+  <p style="font-size: 0.9em; margin-top: 0.5rem;">Chapter 2 of <em>EventConductor in N minutes</em> (2:53) · English, with English and Spanish subtitles</p>
+</div>
+
 ## The definition
 
 `src/main/resources/workflows/01-first-booking.ec.yaml` — every file under `workflows/` on the classpath is loaded at startup:

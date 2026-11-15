@@ -8,6 +8,11 @@ definition as an **interactive graph** or as plain **YAML/JSON** — both views 
 file. The graph is the exact same component the app renders, so authoring looks the same
 everywhere.
 
+<div style="max-width: 860px; margin: 1.5rem 0;">
+  <iframe src="https://www.youtube-nocookie.com/embed/aJS5JdUEj54" title="EventConductor · 3. Definitions: YAML, graph and IDE" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; border-radius: 12px;"></iframe>
+  <p style="font-size: 0.9em; margin-top: 0.5rem;">Chapter 3 of <em>EventConductor in N minutes</em> (2:15) · English, with English and Spanish subtitles</p>
+</div>
+
 ## File names: `*.ec.yaml` (recommended)
 
 **Name definitions `*.ec.yaml`** — `hotel-booking.ec.yaml`, `order.ec.yaml` (`.ec.yml` works too).

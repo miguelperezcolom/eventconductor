@@ -5,6 +5,11 @@ description: Three deployment modes — from unit tests to multi-pod Kubernetes 
 
 EventConductor supports three deployment modes controlled by two independent properties. No code changes are required to switch between them.
 
+<div style="max-width: 860px; margin: 1.5rem 0;">
+  <iframe src="https://www.youtube-nocookie.com/embed/Ov_YnsRGO4c" title="EventConductor · 13. From laptop to cluster" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; border-radius: 12px;"></iframe>
+  <p style="font-size: 0.9em; margin-top: 0.5rem;">Chapter 13 of <em>EventConductor in N minutes</em> (2:38) · English, with English and Spanish subtitles</p>
+</div>
+
 | Property | Values | Default |
 |---|---|---|
 | `workflow.mode` | `kafka` \| `embedded` | `embedded` |

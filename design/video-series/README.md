@@ -283,3 +283,24 @@ Defaults agreed with the owner; the owner can override any of them.
   — laptop-only, and stated as such in the docs and on screen.
 - **Uploads:** unlisted until the docs link is live, then public — and each one only after the owner's
   OK on the MP4s and texts.
+
+## Published (English, 2026-11-15)
+
+| # | Video |
+|---|---|
+| 1 | https://youtu.be/4gyfGdC5dJ8 |
+| 2 | https://youtu.be/PAe6vXnfRnw |
+| 3 | https://youtu.be/aJS5JdUEj54 |
+| 4 | https://youtu.be/hp2AEy1vulI |
+| 5 | https://youtu.be/n3cMXX2Sn2s |
+| 6 | https://youtu.be/MdymKIE3ymk |
+| 7 | (pending) |
+| 8 | https://youtu.be/8LuZNoXceBk |
+| 9 | https://youtu.be/SHAphxkMJCU |
+| 10 | https://youtu.be/kqU0-Vw06jo |
+| 11 | https://youtu.be/wU97PnUQ204 |
+| 12 | https://youtu.be/TfpHiK6Q1_0 |
+| 13 | https://youtu.be/Ov_YnsRGO4c |
+| 14 | https://youtu.be/JJJTiJYDISY |
+
+Spanish masters and further languages: after the Mateu video work (owner decision). Order then: pt-BR, zh (only with a Bilibili owner), fr + it, ru (only on demand).

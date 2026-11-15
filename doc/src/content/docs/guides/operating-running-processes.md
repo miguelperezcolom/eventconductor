@@ -5,6 +5,11 @@ description: Change a live process by hand — set its variables, complete a ste
 
 Retry, restart, pause, resume and cancel act on a process as a whole. Sometimes an operator needs to reach inside one: a worker wrote a wrong value, a payment was taken by phone so the step that charges the card must not run, a downstream system was fixed and the run should resume a few steps back. EventConductor has three **manual operations** for that — the instance modification of Camunda Operate, the reset of Temporal — and an **Incidents** view that groups the failures waiting for someone.
 
+<div style="max-width: 860px; margin: 1.5rem 0;">
+  <iframe src="https://www.youtube-nocookie.com/embed/wU97PnUQ204" title="EventConductor · 11. Operating running processes" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; border-radius: 12px;"></iframe>
+  <p style="font-size: 0.9em; margin-top: 0.5rem;">Chapter 11 of <em>EventConductor in N minutes</em> (2:26) · English, with English and Spanish subtitles</p>
+</div>
+
 | Operation | What it does | Allowed on |
 |---|---|---|
 | **Set variables** | Writes `set`, deletes `remove` | a `RUNNING`, `PAUSED` or `ERROR` process |

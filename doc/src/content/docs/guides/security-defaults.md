@@ -8,6 +8,11 @@ cannot reach a secret, a credential or a host the operator did not hand it. This
 it refuses, and the switch that changes it. The switches that open things are for a laptop or an isolated
 network; each says so.
 
+<div style="max-width: 860px; margin: 1.5rem 0;">
+  <iframe src="https://www.youtube-nocookie.com/embed/JJJTiJYDISY" title="EventConductor · 14. Secure and observable by default" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; border-radius: 12px;"></iframe>
+  <p style="font-size: 0.9em; margin-top: 0.5rem;">Chapter 14 of <em>EventConductor in N minutes</em> (2:39) · English, with English and Spanish subtitles</p>
+</div>
+
 ## Nobody anonymous: the engine's REST API
 
 `/workflow/api/**` — processes, messages, events, triggers, schedules, sync invocations, updates, operations,
