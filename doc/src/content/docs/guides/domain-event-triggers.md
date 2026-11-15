@@ -5,6 +5,11 @@ description: Event triggers start a workflow when a domain event arrives — dec
 
 [`PUBLISH_EVENT`](/guides/publishing-events/) lets a process speak to other systems. This is the other direction: a definition can **listen** to the domain events of other systems — or of its own.
 
+<div style="max-width: 860px; margin: 1.5rem 0;">
+  <iframe src="https://www.youtube-nocookie.com/embed/SHAphxkMJCU" title="EventConductor · 9. Events in, events out" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; border-radius: 12px;"></iframe>
+  <p style="font-size: 0.9em; margin-top: 0.5rem;">Chapter 9 of <em>EventConductor in N minutes</em> (2:52) · English, with English and Spanish subtitles</p>
+</div>
+
 - An **event trigger** starts a process when an event arrives — like a [schedule](/guides/starting-a-process/#schedules-with-parameters), but on an event instead of a clock. It is declared in the definition, or in an [`events.yaml`](#eventsyaml-triggers-outside-the-definition) next to the definitions, as a schedule can live in `cron.yaml`.
 - A **`WAIT_FOR_MESSAGE` with `onEvent`** waits until an event for *this* process arrives.
 

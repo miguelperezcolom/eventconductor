@@ -5,6 +5,11 @@ description: The LLM_CALL step — ask a language model (Claude, or any OpenAI-c
 
 `LLM_CALL` asks a language model a question built from the process's data and puts the answer into process variables — classification, extraction, summarization, drafting — the step you would otherwise write a worker for.
 
+<div style="max-width: 860px; margin: 1.5rem 0;">
+  <iframe src="https://www.youtube-nocookie.com/embed/kqU0-Vw06jo" title="EventConductor · 10. AI in the process" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; border-radius: 12px;"></iframe>
+  <p style="font-size: 0.9em; margin-top: 0.5rem;">Chapter 10 of <em>EventConductor in N minutes</em> (2:50) · English, with English and Spanish subtitles</p>
+</div>
+
 ```yaml
 - id: triage
   type: LLM_CALL

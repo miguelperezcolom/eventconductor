@@ -5,6 +5,11 @@ description: The HTTP_CALL step — call a REST endpoint and map its response in
 
 `HTTP_CALL` calls an HTTP endpoint and maps the response into process variables — the step you would otherwise write a worker for.
 
+<div style="max-width: 860px; margin: 1.5rem 0;">
+  <iframe src="https://www.youtube-nocookie.com/embed/n3cMXX2Sn2s" title="EventConductor · 5. Calling the outside world" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; border-radius: 12px;"></iframe>
+  <p style="font-size: 0.9em; margin-top: 0.5rem;">Chapter 5 of <em>EventConductor in N minutes</em> (3:01) · English, with English and Spanish subtitles</p>
+</div>
+
 ```yaml
 - id: charge
   type: HTTP_CALL

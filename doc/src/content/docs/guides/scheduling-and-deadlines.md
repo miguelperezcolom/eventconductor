@@ -5,6 +5,11 @@ description: Wait for, or finish by, a moment computed from the process's own da
 
 Business processes are full of dates: *charge the balance **3 days before check-in***, *the payment must arrive **by the day before check-in***, *remind the guest **the evening before***. EventConductor lets a definition say that directly, with a **moment** computed from the process's variables.
 
+<div style="max-width: 860px; margin: 1.5rem 0;">
+  <iframe src="https://www.youtube-nocookie.com/embed/8LuZNoXceBk" title="EventConductor · 8. Time and messages" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; border-radius: 12px;"></iframe>
+  <p style="font-size: 0.9em; margin-top: 0.5rem;">Chapter 8 of <em>EventConductor in N minutes</em> (2:25) · English, with English and Spanish subtitles</p>
+</div>
+
 ## A moment
 
 ```yaml

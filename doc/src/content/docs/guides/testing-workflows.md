@@ -8,6 +8,11 @@ one of them deserves a test. The `workflow-test` module runs **your** definition
 test — the real engine, in memory, with no server, broker or database — and gives the test three
 things a running deployment cannot:
 
+<div style="max-width: 860px; margin: 1.5rem 0;">
+  <iframe src="https://www.youtube-nocookie.com/embed/TfpHiK6Q1_0" title="EventConductor · 12. Testing workflows" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; border-radius: 12px;"></iframe>
+  <p style="font-size: 0.9em; margin-top: 0.5rem;">Chapter 12 of <em>EventConductor in N minutes</em> (2:45) · English, with English and Spanish subtitles</p>
+</div>
+
 - **A clock you move.** `advanceTime(Duration.ofDays(3))` jumps from one due moment to the next —
   every TIMER, step timeout, retry backoff and cron occurrence on the way fires at its own moment —
   and returns in milliseconds. It is the same idea as Temporal's time-skipping test environment.

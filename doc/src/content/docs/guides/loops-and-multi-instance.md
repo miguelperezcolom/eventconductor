@@ -7,6 +7,11 @@ A workflow's precondition graph is acyclic: a step waits for the steps before it
 mean steps waiting for each other forever — the validator still rejects one. Three step blocks say,
 explicitly, that something runs more than once:
 
+<div style="max-width: 860px; margin: 1.5rem 0;">
+  <iframe src="https://www.youtube-nocookie.com/embed/MdymKIE3ymk" title="EventConductor · 6. Branches, loops and sub-processes" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; border-radius: 12px;"></iframe>
+  <p style="font-size: 0.9em; margin-top: 0.5rem;">Chapter 6 of <em>EventConductor in N minutes</em> (2:56) · English, with English and Spanish subtitles</p>
+</div>
+
 | Block | Says | Typical use |
 |---|---|---|
 | [`forEach`](#foreach--once-per-item) | run this step once per item of a list | reserve every room of a booking, call an API per order line, ask each approver |
