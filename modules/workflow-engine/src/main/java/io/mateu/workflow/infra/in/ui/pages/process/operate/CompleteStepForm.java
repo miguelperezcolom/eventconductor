@@ -5,6 +5,7 @@ import io.mateu.uidl.annotations.FormLayout;
 import io.mateu.uidl.annotations.Help;
 import io.mateu.uidl.annotations.Hidden;
 import io.mateu.uidl.annotations.Label;
+import io.mateu.uidl.annotations.Section;
 import io.mateu.uidl.annotations.MasterDetail;
 import io.mateu.uidl.annotations.Stereotype;
 import io.mateu.uidl.data.FieldStereotype;
@@ -38,16 +39,17 @@ public class CompleteStepForm implements OptionsSupplier {
     @Stereotype(FieldStereotype.select)
     String stepExecutionId;
 
-    @Label("Output variables")
-    @Help("Written onto the process, as the step's worker would have")
-    @MasterDetail(minHeightWhenDetailVisible = "12rem;")
-    List<Variable> variables = new ArrayList<>();
-
     @NotEmpty
     @Label("Reason")
     @Help("Mandatory: recorded with your name in the process's audit trail")
     @Stereotype(FieldStereotype.textarea)
     String reason;
+
+    @Section(value = "", frameless = true, style = OperationForms.SCROLLING_SECTION)
+    @Label("Output variables")
+    @Help("Written onto the process, as the step's worker would have")
+    @MasterDetail(minHeightWhenDetailVisible = "12rem;")
+    List<Variable> variables = new ArrayList<>();
 
     public CompleteStepForm forProcess(String processId) {
         this.processId = processId;
@@ -101,6 +103,6 @@ public class CompleteStepForm implements OptionsSupplier {
 
     @Override
     public String toString() {
-        return "Complete step";
+        return "";
     }
 }

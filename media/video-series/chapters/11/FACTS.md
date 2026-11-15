@@ -12,6 +12,6 @@
 | Definitions imported from Git; webhook → new version; no build, no restart | docs/workshop/10-changing-without-redeploying.md; docs/guides/workflow-definitions.md:358-388; recorded (`202`, v2 in Versions) |
 | Identical content from Git does not mint a version (v1 stays v1) | CL 2.41.0 Fixed |
 | Running processes keep their version; Versions tab (JPA) | workflow-definitions.md:265-271; workshop/10 :98 |
-| Migrate…: steps mapped by id, reason mandatory, Preview = dry run; many at once via batch | `MigrateForm.java` (Preview :102, Migrate :115); CL 2.31.0 (:294-298); recorded (`v1 → v2: can be migrated · approve → approve: KEEP_TASK`) |
+| Migrate…: steps mapped by id, reason mandatory, Preview = dry run; many at once via batch | `MigrateForm.java` (Preview :116, Migrate :129); CL 2.31.0 (:294-298); recorded (`v1 → v2: can be migrated · approve → approve: KEEP_TASK`) |
 
 Seed data: SA scripts/seed.sh. The Git repository of definitions is created by `before` in script.json (build/hotel-definitions).

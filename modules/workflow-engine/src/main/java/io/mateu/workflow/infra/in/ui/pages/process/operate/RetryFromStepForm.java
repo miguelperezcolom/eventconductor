@@ -78,6 +78,6 @@ public class RetryFromStepForm implements OptionsSupplier {
 
     @Override
     public String toString() {
-        return "Retry from step";
+        return "";
     }
 }

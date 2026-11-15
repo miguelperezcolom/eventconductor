@@ -21,10 +21,21 @@ public final class OperationForms {
     /** Dispatched (on the document) when a dialog's operation was accepted; the process detail refreshes on it. */
     public static final String OPERATED_EVENT = "ec-process-operated";
 
+    /**
+     * The style of a dialog's section that can grow (a step mapping, a list of rows, a preview): it scrolls inside
+     * a bounded height, so the reason above it and the dialog's buttons below it stay on screen. Mateu's dialog
+     * scrolls as a whole (no fixed header or footer), so the dialogs keep their own content short instead.
+     */
+    public static final String SCROLLING_SECTION = "max-height: 12rem; overflow-y: auto;";
+
     private OperationForms() {
     }
 
-    /** A modal dialog holding {@code form} — a view model of its own, whose buttons call back into it. */
+    /**
+     * A modal dialog holding {@code form} — a view model of its own, whose buttons call back into it. The form's
+     * {@code toString} is empty: the dialog's header already names the operation, and a second title inside would
+     * take the room the reason and the buttons need on a 720-pixel-high screen.
+     */
     public static Dialog dialog(String title, Object form) {
         return Dialog.builder()
                 .headerTitle(title)

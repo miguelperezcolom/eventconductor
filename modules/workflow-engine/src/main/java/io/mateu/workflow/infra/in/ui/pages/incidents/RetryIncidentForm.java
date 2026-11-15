@@ -52,6 +52,6 @@ public class RetryIncidentForm {
 
     @Override
     public String toString() {
-        return "Retry all";
+        return "";
     }
 }
