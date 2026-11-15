@@ -252,7 +252,7 @@ scripts/approve.sh BOOKING-7 true 'Regular guest'
 
 (It finds the booking's open task, claims it and completes it with `{"approved": true, "comment": "Regular guest"}`, sending the same unsigned token as a bearer header.)
 
-An operator can also decide it from the console, without the form: **Complete step**, step `approve`, output variable `approved = true`, and a reason — which goes to the process's audit trail with your name. That is the way out when the manager approved by phone (module 7).
+An operator can also decide it from the console, without the form: **Complete step**, step `approve`, output variable `approved = true`, and a reason — which goes to the process's audit trail together with who did it. That is the way out when the manager approved by phone (module 7).
 
 ![Completing the approval from the console](/workshop/06-approve-from-console.gif)
 

@@ -50,7 +50,7 @@ public class MigrateInstancesForm implements OptionsSupplier {
     @Colspan(2)
     @NotEmpty
     @Label("Reason")
-    @Help("Mandatory: recorded with your name in each process's audit trail")
+    @Help("Mandatory: recorded in each process's audit trail together with who did it")
     @Stereotype(FieldStereotype.textarea)
     String reason;
 

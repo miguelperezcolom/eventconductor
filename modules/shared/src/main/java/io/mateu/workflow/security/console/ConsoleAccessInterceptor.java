@@ -7,7 +7,6 @@ import org.springframework.http.MediaType;
 import org.springframework.util.ClassUtils;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
-import org.springframework.web.util.HtmlUtils;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
@@ -116,10 +115,13 @@ public class ConsoleAccessInterceptor implements HandlerInterceptor {
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         var accept = request.getHeader("Accept");
         if (accept != null && accept.contains(MediaType.TEXT_HTML_VALUE)) {
+            // a browser asking for a page: the console's own refusal page (static, nothing from the request)
             response.setContentType(MediaType.TEXT_HTML_VALUE);
-            response.getWriter().write("<!doctype html><html><head><meta charset=\"utf-8\"><title>Forbidden</title>"
-                    + "</head><body><h1>403 Forbidden</h1><p>" + HtmlUtils.htmlEscape(ConsoleAccess.REFUSED)
-                    + "</p></body></html>");
+            response.setHeader("Cache-Control", "no-store");
+            response.setHeader("X-Content-Type-Options", "nosniff");
+            response.setHeader("Content-Security-Policy",
+                    "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+            response.getWriter().write(ConsoleRefusalPage.HTML);
         } else {
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.getWriter().write("{\"status\":403,\"error\":\"Forbidden\",\"message\":\""

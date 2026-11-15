@@ -1,6 +1,7 @@
 package io.mateu.workflow.security.console;
 
 import io.mateu.mcp.FakeMcpHandler;
+import io.mateu.workflow.infra.in.rest.FakeEngineApiController;
 import io.mateu.workflow.infra.in.rest.RuleReadController;
 import io.mateu.workflow.infra.in.ui.FakeConsoleController;
 import io.mateu.workflow.security.console.app.AppApiController;
@@ -87,15 +88,69 @@ class ConsoleAccessInterceptorTest {
     }
 
     @Test
-    void aBrowserGetsAPageAndAnythingElseJson() throws Exception {
+    void aBrowserGetsAStyledPageAndAnythingElseJson() throws Exception {
         var mvc = mvc(access(false, false));
-        var page = perform(mvc, get("/_workflow").header("Accept", "text/html,application/xhtml+xml"));
-        assertThat(page.getResponse().getContentType()).startsWith("text/html");
-        assertThat(page.getResponse().getContentAsString()).contains("<h1>403 Forbidden</h1>", "Spring Security");
+        var page = perform(mvc, get("/_workflow").header("Accept", "text/html,application/xhtml+xml,*/*;q=0.8"));
+        var response = page.getResponse();
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentType()).startsWith("text/html");
+        assertThat(response.getHeader("Cache-Control")).isEqualTo("no-store");
+        assertThat(response.getHeader("Content-Security-Policy")).startsWith("default-src 'none'");
+        assertThat(response.getContentAsString())
+                .startsWith("<!doctype html>")
+                .contains("403 Forbidden", "You're not allowed to see this console", "refuses anonymous access",
+                        "sign in", "no extra role", "Spring Security", ConsoleAccess.ALLOW_ANONYMOUS + "=true",
+                        ConsoleAccess.UI_ENABLED + "=false", "prefers-color-scheme: dark",
+                        "href=\"" + ConsoleRefusalPage.DOCS_URL + "\"")
+                .doesNotContain("{{", "console-", "<script");
 
-        var api = perform(mvc, get("/rules").header("Accept", "application/json"));
-        assertThat(api.getResponse().getContentType()).startsWith("application/json");
-        assertThat(api.getResponse().getContentAsString()).startsWith("{\"status\":403");
+        for (var accept : new String[] {null, "application/json", "*/*", "text/event-stream"}) {
+            var request = get("/rules");
+            if (accept != null) {
+                request.header("Accept", accept);
+            }
+            var api = perform(mvc, request).getResponse();
+            assertThat(api.getStatus()).as(accept).isEqualTo(403);
+            assertThat(api.getContentType()).as(accept).startsWith("application/json");
+            assertThat(api.getContentAsString()).as(accept).startsWith("{\"status\":403").doesNotContain("<html");
+        }
+    }
+
+    /** The page is static: nothing from the request reaches it. */
+    @Test
+    void theRefusalPageEchoesNothingFromTheRequest() throws Exception {
+        var mvc = mvc(access(false, false));
+        var page = perform(mvc, get("/_workflow").param("q", "<script>alert(1)</script>")
+                .header("Accept", "text/html").header("X-Forwarded-User", "mallory"));
+        assertThat(page.getResponse().getContentAsString())
+                .isEqualTo(ConsoleRefusalPage.HTML)
+                .doesNotContain("alert(1)", "mallory", "_workflow");
+    }
+
+    /** MCP over SSE (/sse) asks for an event stream, not a page: it keeps the plain JSON refusal. */
+    @Test
+    void anMcpClientKeepsThePlainRefusal() throws Exception {
+        var interceptor = new ConsoleAccessInterceptor(access(false, false));
+        var request = new org.springframework.mock.web.MockHttpServletRequest("GET", "/sse");
+        request.addHeader("Accept", "text/event-stream");
+        var response = new org.springframework.mock.web.MockHttpServletResponse();
+        assertThat(interceptor.preHandle(request, response, SDK_MCP_HANDLER)).isFalse();
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentType()).startsWith("application/json");
+        assertThat(response.getContentAsString()).startsWith("{\"status\":403").doesNotContain("<html");
+    }
+
+    /** The engine API (/workflow/api/**) answers its own 401, for a browser too: the console page is not its. */
+    @Test
+    void theEngineApiKeepsItsOwnRefusal() throws Exception {
+        var mvc = MockMvcBuilders.standaloneSetup(new FakeEngineApiController())
+                .addInterceptors(new ConsoleAccessInterceptor(access(false, false)))
+                .build();
+        for (var accept : new String[] {"text/html", "application/json"}) {
+            var response = perform(mvc, get("/workflow/api/processes").header("Accept", accept)).getResponse();
+            assertThat(response.getStatus()).as(accept).isEqualTo(401);
+            assertThat(response.getContentAsString()).as(accept).doesNotContain("not allowed to see this console");
+        }
     }
 
     @Test

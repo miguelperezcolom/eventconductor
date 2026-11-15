@@ -19,7 +19,7 @@ Over the API: `GET /workflow/api/processes?…` (see the [Processes REST API](/r
 
 ## Repair one run
 
-A run's page has the operator's actions, each **audited** with your name and a mandatory reason:
+A run's page has the operator's actions, each **audited** with who did it and a mandatory reason:
 
 | Action | When |
 |---|---|
