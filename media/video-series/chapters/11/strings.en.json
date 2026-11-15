@@ -10,7 +10,7 @@
     ["fix", "", "retry from failure · restart · complete or retry a step · **batch operations**", "c1"],
     ["change", "", "versions side by side (JPA) · **Migrate…** with a dry run", "c2"]
   ],
-  "recap.strip": ["every operation asks for a **reason**, recorded with your name in the process's audit trail"],
+  "recap.strip": ["every operation asks for a **reason**, recorded in the process's audit trail together with who did it"],
   "close.line": "Running processes, **in hand.**",
   "close.next": "Next · Testing workflows",
   "close.docs": "eventconductor.mateu.io · Operating running processes",

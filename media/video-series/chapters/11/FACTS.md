@@ -7,7 +7,7 @@
 | Incidents grouped by workflow, step and cause; one incident, three processes | CL 2.30.0 (:321); `IncidentRow.java`; recorded |
 | "Retry all" with a reason → a RETRY batch over the incident; batch page shows progress | CL 2.30.0 (:316, :323); `IncidentDetailView.java:111`, `RetryIncidentForm`; recorded (`RETRY · Completed · 3/3`) |
 | Retry from failure: succeeded steps are not run again | console `Processes.java:163-164`; docs/guides/operating-running-processes.md |
-| Complete step by hand; reason mandatory, recorded with your name; audit in Operations tab | operating-running-processes.md:11, :16, :125-133; `CompleteStepForm.java:47-48`; recorded (`[complete-step] by anonymous … reason: …` — anonymous because the series app is laptop-only) |
+| Complete step by hand; reason mandatory, recorded with who did it; audit in Operations tab | operating-running-processes.md:11, :16, :125-133; `CompleteStepForm.java:47-48`; recorded (`[complete-step] by anonymous … reason: …` — anonymous because the series app is laptop-only) |
 | Pause, set variables, retry from a step, cancel: same reason/audit rule | CL 2.30.0 (:318-319); console `SimpleProcessViewModel.java:586-717` |
 | Definitions imported from Git; webhook → new version; no build, no restart | docs/workshop/10-changing-without-redeploying.md; docs/guides/workflow-definitions.md:358-388; recorded (`202`, v2 in Versions) |
 | Identical content from Git does not mint a version (v1 stays v1) | CL 2.41.0 Fixed |
