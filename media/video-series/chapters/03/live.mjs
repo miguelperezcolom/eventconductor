@@ -38,7 +38,7 @@ export async function run(c) {
     await s.cameraNow('full');
     const canvas = await s.box(ed(vs));
     await s.moveTo(ed(vs).locator('.palette-item').filter({ hasText: 'USER_TASK' }).first(), 0.8);
-    await s.drag({ x: canvas.x + canvas.width * 0.62, y: canvas.y + canvas.height * 0.82 }, { dur: 1.1 });
+    await s.drag({ x: canvas.x + canvas.width * 0.48, y: canvas.y + canvas.height * 0.80 }, { dur: 1.1 });
     const name = ed(vs).locator('input').nth(2);
     await s.click(name, { dur: 0.5 });
     await vs.page.keyboard.press('Meta+A');
