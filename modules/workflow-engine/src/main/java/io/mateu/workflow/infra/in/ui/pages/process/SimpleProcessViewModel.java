@@ -111,6 +111,15 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @Hidden
     io.mateu.workflow.application.out.ProcessUpdateRepository processUpdateRepository;
 
+    /**
+     * The crud this view is the record page of: a refresh that redraws the page whole asks it for the page
+     * ({@link Processes#viewPage}), so the redraw is the fresh render. A provider, and field-injected: the
+     * crud holds this view's adapter, and whoever builds this by hand need not know.
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @Hidden
+    org.springframework.beans.factory.ObjectProvider<Processes> processesPage;
+
 
     String id;
 
@@ -816,13 +825,22 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
                 return uri;
             }
             if (toolbarChanged(shown, loaded)) {
-                // The view itself, not its state: the toolbar is part of the component, and a State
-                // would leave the buttons of the previous render on screen.
-                return loaded;
+                // The page itself, not its state: the toolbar is part of the component, and a State
+                // would leave the buttons of the previous render on screen. Drawn by the crud, as the
+                // route draws it — the bare view model would replace the page with a form of its own,
+                // no back arrow and its buttons on the other side.
+                var page = redrawnPage(loaded, httpRequest);
+                return page != null ? page : loaded;
             }
             return new State(loaded);
         }
         return new State(this);
+    }
+
+    /** The process page around {@code loaded}, as the crud's view route draws it; null when it cannot be. */
+    Object redrawnPage(Object loaded, HttpRequest httpRequest) {
+        var crud = processesPage == null ? null : processesPage.getIfAvailable();
+        return crud == null ? null : crud.viewPage(loaded, httpRequest);
     }
 
     /** Whether the actions on offer or the tabs shown differ from the page's ({@code shown}, from its state). */

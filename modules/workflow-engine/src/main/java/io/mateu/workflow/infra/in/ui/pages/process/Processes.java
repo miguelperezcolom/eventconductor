@@ -84,6 +84,30 @@ public class Processes extends Crud<Object, Object, CreateProcessForm, ProcessFi
         return processCrudAdapter.getView(id, httpRequest);
     }
 
+    /**
+     * A process's page — this crud's header and toolbar (the back arrow, the process's own buttons in their
+     * place) around {@code view} — drawn by the same code the view route draws it with, under the id and
+     * route the page on screen says it has. For an action of the page that has to redraw it whole
+     * ({@link SimpleProcessViewModel#refresh}): answered with the bare view model instead, the page was
+     * replaced by a reflected form of it, without the back arrow and with its buttons on the wrong side.
+     *
+     * @return the replacement fragment, or null when the request does not say which page sent it
+     */
+    public Object viewPage(Object view, HttpRequest httpRequest) {
+        var pageId = io.mateu.core.infra.declarative.orchestrators.RoutedPage.id(httpRequest);
+        if (pageId == null) {
+            return null;
+        }
+        // What ActionOnViewActionHandler does when a page's button answers its record: the page, redrawn in place.
+        httpRequest.setAttribute("selectedItem", view);
+        var page = wrapView("view", view,
+                io.mateu.core.infra.declarative.orchestrators.crud.routeresolvers.ViewRouteResolver
+                        .createViewComponent(httpRequest, view, this),
+                pageId, io.mateu.core.infra.declarative.orchestrators.RoutedPage.route(httpRequest), httpRequest);
+        return new io.mateu.dtos.UIFragmentDto(pageId, page, page.initialData(), null,
+                io.mateu.dtos.UIFragmentActionDto.Replace, null);
+    }
+
     @Override
     public Object edit(String id, HttpRequest httpRequest) {
         return processCrudAdapter.getView(id, httpRequest);

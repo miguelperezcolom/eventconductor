@@ -4,6 +4,7 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.AriaRole;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.dtos.Variable;
+import io.mateu.workflow.uie2e.pages.ProcessDetailPage;
 import io.mateu.workflow.uie2e.support.AbstractUiE2eTest;
 import org.junit.jupiter.api.Test;
 
@@ -39,6 +40,7 @@ class InstanceOperationsJourneyTest extends AbstractUiE2eTest {
         var detail = ui.goToProcesses().open(id);
         // No operation yet, no Operations tab.
         assertThat(detail.tab("Operations")).hasCount(0);
+        var freshHeader = settledHeader(detail);
         detail.runAction("Set variables");
 
         var dialog = page.getByRole(AriaRole.DIALOG).first();
@@ -52,6 +54,11 @@ class InstanceOperationsJourneyTest extends AbstractUiE2eTest {
         // The tab comes with the first operation, without a reload: the refresh after the dialog used
         // to repaint the values only, and the tab bar kept the tabs of the render before.
         assertThat(detail.tab("Operations")).isVisible();
+        // That repaint redraws the page whole (the set of tabs changed), and it is the page a fresh
+        // load draws: the back arrow by the title, the same buttons in the same places. It once
+        // answered with the bare view model — no back arrow, Cancel process moved to the left.
+        assertThat(detail.backControl()).isVisible();
+        org.assertj.core.api.Assertions.assertThat(settledHeader(detail)).isEqualTo(freshHeader);
         detail.openTab("Operations");
         assertThat(page.getByText(java.util.regex.Pattern.compile("\\[set-variables\\] by .*removed note")).first())
                 .isVisible();
@@ -146,6 +153,22 @@ class InstanceOperationsJourneyTest extends AbstractUiE2eTest {
         } finally {
             definitions.save(original);
         }
+    }
+
+    /**
+     * The header's buttons once the toolbar has laid itself out: the back control and at least one
+     * action, and two reads in a row that agree (the toolbar moves what does not fit behind its "⋯"
+     * after it renders).
+     */
+    private java.util.List<String> settledHeader(ProcessDetailPage detail) {
+        var last = new java.util.concurrent.atomic.AtomicReference<java.util.List<String>>(java.util.List.of());
+        awaitUntil(Duration.ofSeconds(10), () -> {
+            var now = detail.headerButtons();
+            var settled = now.size() > 1 && now.equals(last.get());
+            last.set(now);
+            return settled;
+        });
+        return last.get();
     }
 
     @org.springframework.beans.factory.annotation.Autowired
