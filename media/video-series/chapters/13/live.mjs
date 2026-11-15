@@ -24,6 +24,8 @@ export async function run(c) {
     await c.waitFor(async () => (await dc('/workflow/api/processes'))?.content, 'the orchestrator to answer', 600000);
     // The directory import runs after "Started": wait for its log line before starting a process.
     await c.waitFor(async () => /Imported 1 workflow definition/.test(spawnSync('docker', ['logs', 'orchestrator'], { encoding: 'utf8' }).stdout), 'the definition import', 300000);
+    // Docker's healthcheck can mark a slow first start (schema migrations) unhealthy for a while: wait until it says healthy
+    await c.waitFor(async () => /healthy/.test(spawnSync('docker', ['inspect', '-f', '{{.State.Health.Status}}', 'orchestrator'], { encoding: 'utf8' }).stdout) && !/unhealthy/.test(spawnSync('docker', ['inspect', '-f', '{{.State.Health.Status}}', 'orchestrator'], { encoding: 'utf8' }).stdout), 'the orchestrator to be healthy', 300000);
     c.term('compose-ps', `${COMPOSE} ps --format 'table {{.Name}}\\t{{.Image}}\\t{{.Status}}'`, { cwd: ROOT });
 
     // dc-run: the workshop's rooms-booking-http, unchanged, on the orchestrator → the refused room set aside, the run
