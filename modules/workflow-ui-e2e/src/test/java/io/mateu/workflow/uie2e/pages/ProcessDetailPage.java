@@ -53,8 +53,24 @@ public class ProcessDetailPage {
         assertThat(backControl()).isVisible();
     }
 
+    /**
+     * The buttons of the page's header, left to right, by accessible name or text — the back
+     * control and the toolbar as the operator sees them. Two renders of the same process that
+     * differ here are two different pages: a redraw of the page whole once answered with the bare
+     * view model, which drew no back control and the process's buttons in another order.
+     */
+    @SuppressWarnings("unchecked")
+    public java.util.List<String> headerButtons() {
+        var raw = page.locator("mateu-content-header").first().locator("button, vaadin-button").evaluateAll("""
+                els => els
+                    .filter(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; })
+                    .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left)
+                    .map(el => (el.getAttribute('aria-label') || el.textContent || '').trim())""");
+        return new java.util.ArrayList<>((java.util.List<String>) (java.util.List<?>) raw);
+    }
+
     /** The back affordance, however the renderer chose to draw it. */
-    private com.microsoft.playwright.Locator backControl() {
+    public com.microsoft.playwright.Locator backControl() {
         return page.getByLabel("Back to list").or(page.getByText("Back to list")).first();
     }
 
