@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Mateu 3.0.0 (GA).** The consoles, the standalone orchestrator, the examples, the testbench and the demo services move from Mateu 3.0-beta.67 to the 3.0.0 release. The demo shell stays on 3.0-beta.51 (it still signs in through `@KeycloakSecured`).
+
 ## [2.42.1] - 2026-11-15
 
 ### Changed
