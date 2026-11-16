@@ -63,5 +63,5 @@ workflow.message-api.allow-anonymous=true
 The data lives in memory: **every restart starts clean**. In production, the same engine runs on PostgreSQL, and — when one node is not enough — distributed over Kafka, with the same definitions: see [Deployment Modes](/guides/deployment-modes/).
 
 :::note[A "You don't have permission" toast?]
-Since 2.42 (Mateu 3.0-beta.67) the console keeps its cached screen layouts per application and per build, so another Mateu application that ran on `localhost:8095` before no longer gets in the way. On an older version you may see a red *"You don't have permission for this action"* toast on the pages that application had visited: clear the site data for `localhost:8095` (DevTools → Application → Clear site data) and reload.
+Since 2.42 (Mateu 3.0.0) the console keeps its cached screen layouts per application and per build, so another Mateu application that ran on `localhost:8095` before no longer gets in the way. On an older version you may see a red *"You don't have permission for this action"* toast on the pages that application had visited: clear the site data for `localhost:8095` (DevTools → Application → Clear site data) and reload.
 :::
