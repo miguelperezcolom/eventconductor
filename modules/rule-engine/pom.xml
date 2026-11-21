@@ -192,6 +192,13 @@
                 <version>3.16.0</version>
                 <configuration>
                     <annotationProcessorPaths>
+                        <!-- Lombok runs over this module's code: it must be on the processor path
+                             itself (up to Mateu 3.0.1 it arrived there through Mateu's processor) -->
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
                         <path>
                             <groupId>io.mateu</groupId>
                             <artifactId>mateu-annotation-processor-mvc</artifactId>
